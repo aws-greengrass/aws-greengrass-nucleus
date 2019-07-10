@@ -1,0 +1,110 @@
+---
+  haskell:
+    install:
+      debian: sudo apt-get install haskell-platform
+      fedora: sudo yum install haskell-platform
+      macos: curl -sSL https://get.haskellstack.org/ | sh
+    invoke:
+      all: haskell {args}
+  python3.6:
+    install:
+      debian: sudo apt-get install python3.6
+    invoke:
+      all: python3.6 {args}
+  python2.7:
+    install:
+      debian: sudo apt-get install python2.7
+    invoke:
+      all: python2.7 {args}
+  jdk11:
+    install:
+      debian: sudo apt-get install openjdk11
+      macos:
+        skipif: java --version|egrep -i -q '(jdk|jre) *11\.'
+        script: |-
+            curl https://d3pxv6yz143wms.cloudfront.net/11.0.3.7.1/amazon-corretto-11.0.3.7.1-macosx-x64.pkg>/tmp/c11.pkg
+            open /tmp/c11.pkg
+    invoke:
+      macos: /usr/libexec/java_home -v 11 --request -exec {args}
+      linux: java {args}
+  git:
+      install:
+          debian:
+              skipif: onpath git
+              script: sudo apt-get install git
+          macos:
+              skipif: onpath git
+              script: brew install git
+      requires:
+        macos: homebrew
+  homebrew:
+      install:
+        macos:
+            skipif: onpath brew
+            script: /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
+#launchers:
+  docker:
+    startup:
+      macos: open /Applications/Docker.app
+    install:
+      skipif: onpath docker
+      debian: |-
+        sudo apt-get install docker.io
+        sudo systemctl start docker
+        sudo systemctl enable docker
+      fedora: sudo dnf install docker
+      macos:
+          skipif: exists /Applications/Docker.app
+          script: |-
+            brew cask install docker
+    requires:
+        macos:
+            homebrew
+  plain:
+    startup:
+      all: "{platform.invoke} {args}"
+
+#services:
+  localhttp:
+      class: com.aws.iot.httpservice.SimpleHttpServer
+
+  greenlake:
+    install:
+      debian: |-
+        sudo add-apt-repository https://aws.amazon.com/iot/apt
+        sudo apt-get install greenlake
+    throttleBandwidth: 100 kb/s
+  hello-docker:
+      requires: docker
+      startup: docker run hello-world
+      shutdown: docker stop hello-world
+  monitoring:
+    install:
+      debian: |-
+        sudo add-apt-repository https://aws.amazon.com/iot/apt
+        sudo apt-get install monitoring
+    requires: greenlake
+  mqtt:
+    defaultimpl: tinyembeddedthing;
+    mosquitto:
+        installer: whatever
+    rabbitmq:
+        installer: whatever
+    tinyembeddedthing:
+        installer: whatever
+
+  main:
+      install:
+          skipif: true
+          all: echo All installed
+      requires: jdk11, git, hello-docker, localhttp
+      xyzzy: localhttp
+      startup: |-
+        pwd
+        while true; do
+        date; echo RUNNING; sleep 10
+        done
+      download:
+        hw.jar: http://foo/hw.jar
+      args: -jar {hw.jar}

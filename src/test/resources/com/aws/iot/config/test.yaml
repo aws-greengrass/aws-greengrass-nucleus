@@ -1,0 +1,46 @@
+---
+platforms:
+  haskell:
+    installers:
+      debian: sudo apt-get install haskell-platform
+      fedora: sudo yum install haskell-platform
+      macos: curl -sSL https://get.haskellstack.org/ | sh
+    invokers:
+      all: haskell {name}
+  python3.6:
+    installers:
+      debian: sudo apt-get install python3.6
+    invokers:
+      all: python3.6 {name}
+  python2.7:
+    installers:
+      debian: sudo apt-get install python2.7
+    invokers:
+      all: python2.7 {name}
+launchers:
+  docker:
+    runners:
+      all: docker run {name}
+    installers:
+      debian: |-
+        sudo apt-get install docker
+        sudo systemctl start docker
+        sudo systemctl enable docker
+      fedora: sudo dnf install docker
+  plain:
+    runners:
+      all: "{platform.invoke} {name}"
+services:
+  greenlake:
+    installers:
+      debian: |-
+        sudo add-apt-repository https://aws.amazon.com/iot/apt
+        sudo apt-get install greenlake
+    throttleBandwidth: 100 kb/s
+  monitoring:
+    installers:
+      debian: |-
+        sudo add-apt-repository https://aws.amazon.com/iot/apt
+        sudo apt-get install monitoring
+    requires: greenlake
+    

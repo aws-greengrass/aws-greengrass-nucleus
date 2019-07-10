@@ -1,0 +1,8 @@
+/target/
+.DS_Store
+._*
+*.class
+*.jar
+*~
+*.log
+core
