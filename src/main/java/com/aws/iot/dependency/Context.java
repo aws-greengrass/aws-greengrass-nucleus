@@ -3,7 +3,6 @@
 
 package com.aws.iot.dependency;
 
-import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
 import java.lang.annotation.*;
@@ -32,18 +31,15 @@ public class Context implements Closeable {
     private <T> T get0(Class<T> cl, Object tag) {
         Object v = parts.computeIfAbsent(tag, c -> {
             try {
-                if(cl.isInterface()) {
-                    Class<T> dflt = (Class<T>)cl.getClassLoader().loadClass(cl.getName()+"$Default");
-                    return newInstance(dflt);
-                } else {
-                    Constructor<T> cons = cl.getDeclaredConstructor();
-                    cons.setAccessible(true);
-                    T rv = cons.newInstance();
-                    requestInject(rv);
-                    return rv;
-                }
+                Class<T> ccl = cl.isInterface()
+                        ? (Class<T>)cl.getClassLoader().loadClass(cl.getName()+"$Default")
+                        : cl;
+                Constructor<T> cons = ccl.getDeclaredConstructor();
+                cons.setAccessible(true);
+                T rv = cons.newInstance();
+                requestInject(rv);
+                return rv;
             } catch (Throwable ex) {
-                get(Log.class).error("context.get",cl.getName(),tag,ex);
                 ex.printStackTrace(System.out);
                 return ex;
             }
@@ -51,25 +47,25 @@ public class Context implements Closeable {
         inject();  // Must be outside computeIfAbsent
         if (v != null && cl.isAssignableFrom(v.getClass()))
             return (T) v;
-        if (v instanceof Error)
-            throw (Error) v;
-        if (v == null || v instanceof Throwable)
+        if (v == null || v instanceof Throwable) {
+//            get(Log.class).error("Error creating value",v,cl.getName(),tag);
+            if (v instanceof Error)
+                throw (Error) v;
             throw new IllegalArgumentException("Error creating value " + cl, (Throwable) v);
+        }
         throw new IllegalArgumentException("Mismatched types: " + cl + " " + v.getClass());
     }
     public <T> T newInstance(Class<T> cl) throws Throwable {
+        T v = newInstance0(cl);
+        inject();
+        return v;
+    }
+    private <T> T newInstance0(Class<T> cl) throws Throwable {
         Constructor<T> cons = cl.getDeclaredConstructor();
         cons.setAccessible(true);
         T v = cons.newInstance();
         requestInject(v);
-        inject();  // Must be outside computeIfAbsent
-        if (v != null && cl.isAssignableFrom(v.getClass()))
-            return (T) v;
-        if (v instanceof Error)
-            throw (Error) v;
-        if (v == null || v instanceof Throwable)
-            throw new IllegalArgumentException("Error creating value " + cl, (Throwable) v);
-        throw new IllegalArgumentException("Mismatched types: " + cl + " " + v.getClass());
+        return (T) v;
     }
     public Object getIfExists(Object tag) {
         return parts.get(tag);

@@ -237,7 +237,7 @@ public class GGService extends Lifecycle {
     protected boolean run(String name, boolean required, IntConsumer background) {
         Node n = pickByOS(name);
         if(n==null) {
-            if(required) log.warn("Missing",name,this);
+            if(required) log().warn("Missing",name,this);
             return !required;
         }
         return run(n, background);
@@ -262,7 +262,7 @@ public class GGService extends Lifecycle {
             }
         }
         else {
-            log.note("Skipping", t.getFullName());
+            log().significant("Skipping", t.getFullName());
             return true;
         }
     }

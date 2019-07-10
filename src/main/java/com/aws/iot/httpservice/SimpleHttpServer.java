@@ -31,7 +31,7 @@ public class SimpleHttpServer extends GGService {
 
     @Override
     public void postInject() {
-        log.addWatcher(e -> {
+        log().addWatcher(e -> {
             if (v.size() >= 50)
                 v.removeFirst();
             v.addLast(e);
@@ -40,7 +40,7 @@ public class SimpleHttpServer extends GGService {
 
     @Override
     public void startup() {
-        log.note("Starting httpd");
+        log().significant("Starting httpd");
         try {
             final ServerBootstrap bootstrap = new ServerBootstrap()
                     .group(masterGroup, slaveGroup)
@@ -126,12 +126,12 @@ public class SimpleHttpServer extends GGService {
             //channels.add(bootstrap.bind(8080).sync());
         } catch (final InterruptedException e) {
         }
-        log.note("Finished starting httpd");
+        log().significant("Finished starting httpd");
     }
 
     @Override
     public void shutdown() {
-        log.note("Shutting down httpd");
+        log().significant("Shutting down httpd");
         slaveGroup.shutdownGracefully();
         masterGroup.shutdownGracefully();
 

@@ -3,7 +3,6 @@
 
 package com.aws.iot.dependency;
 
-import com.aws.iot.dependency.Context.Dependency;
 import static com.aws.iot.dependency.Lifecycle.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
@@ -24,13 +23,13 @@ public class Lifecycle implements Closeable {
     protected ConcurrentHashMap<Lifecycle, State> dependencies;
     private Future backingTask;
     protected Context context;
-    @Dependency public Log log;
     public static State getState(Lifecycle o) {
         return o.state;
     }
     public State getState() {
         return state;
     }
+    public Log log() { return context.get(Log.class); }
     /** TODO: Most of the lifecycle FSM is here, and in this iteration it is wildly
      *  inadequate.  Needs much work. */
     private boolean bumpState() {
@@ -119,7 +118,11 @@ public class Lifecycle implements Closeable {
         errored(message, (Object)e);
     }
     public void errored(String message, Object e) {
-        log.error(this,message,e);
+        if(context==null) {
+            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
+            if(e instanceof Throwable) ((Throwable)e).printStackTrace(System.err);
+        }
+        else log().error(this,message,e);
         setState(State.Errored);
     }
     public boolean errored() {

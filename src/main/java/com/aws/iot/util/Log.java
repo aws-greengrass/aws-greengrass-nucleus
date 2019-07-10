@@ -1,9 +1,11 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
-
 package com.aws.iot.util;
 
+import com.aws.iot.config.*;
 import com.aws.iot.dependency.Context.Dependency;
+import com.aws.iot.dependency.Lifecycle;
+import com.aws.iot.gg2k.GG2K;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
 import java.time.*;
@@ -13,7 +15,7 @@ import java.util.function.*;
 
 public interface Log {
     public enum Level {
-        Note, Warn, Error
+        Note, Significant, Warn, Error
     }
     public void log(Entry e);
     public void log(Level l, Object... args);
@@ -21,18 +23,25 @@ public interface Log {
     public default void note(Object... args) {
         log(Level.Note, args);
     }
+    public default void significant(Object... args) {
+        log(Level.Significant, args);
+    }
     public default void warn(Object... args) {
-        log(Level.Note, args);
+        log(Level.Warn, args);
     }
     public default void error(Object... args) {
-        log(Level.Note, args);
+        log(Level.Error, args);
     }
     public void addWatcher(Consumer<Entry> logWatcher);
+
     public static class Entry {
         public Entry(Instant t, Level l, Object... a) {
-            time = t; level = l; args = a==null ? empty : a;
-            for(int i=args.length; --i>=0; )
-                if(args[i] instanceof CharSequence) args[i] = args[i].toString();
+            time = t;
+            level = l;
+            args = a == null ? empty : a;
+            for (int i = args.length; --i >= 0;)
+                if (args[i] instanceof CharSequence)
+                    args[i] = args[i].toString(); // make sure entries are immutable
         }
         private static final Object[] empty = new Object[0];
         public final Instant time;
@@ -40,72 +49,119 @@ public interface Log {
         public final Object[] args;
     }
 
-    public static class Default implements Log {
+    public static class Default extends Lifecycle implements Log {
         // TODO: be less stupid
-        protected Writer out;
+        Writer out;
         boolean doClose = false;
-        { logTo(System.out); }
+        Thread handler;
+        final ArrayBlockingQueue<Entry> queue = new ArrayBlockingQueue<>(100, false);
+        {
+            logTo(System.out);
+        }
         @Dependency Clock clock;
+        private int loglevel;
+        @Override public void postInject() {
+            Configuration conf = context.get(Configuration.class);
+            GG2K gg = context.get(GG2K.class);
+            conf.lookup("system.logfile")
+                    .dflt("~root/gg2.log")
+                    .subscribe((w, nv, ov)
+                            -> logTo(gg.deTilde(Coerce.toString(nv))));
+            conf.lookup("system.loglevel")
+                    .dflt(0)
+                    .validate((nv, ov) -> {
+                        int i = Coerce.toInt(nv);
+                        int limit = Log.Level.values().length;
+                        return i < 0 ? 0 : i >= limit ? limit - 1 : i;
+                    })
+                    .subscribe((w, nv, ov) -> loglevel = Coerce.toInt(nv));
+        }
         @Override
         public synchronized void log(Level l, Object... args) {
             log(new Entry(clock.instant(), l, args));
         }
         @Override
-        public synchronized void log(Entry e) {
-            try {
-                watchers.forEach(w->w.accept(e));
-                out.append(DateTimeFormatter.ISO_INSTANT.format(e.time));
-                switch(e.level) {
-                    case Error: out.append("; ERROR"); break;
-                    case Warn: out.append("; warn"); break;
-                    default: out.append("; ok"); break;
-                }
-                Throwable err = null;
-                if(e.args!=null)
-                    for(Object o:e.args) {
-                        out.append("; ");
-                        if(o instanceof Throwable) {
-                            err = getUltimateCause((Throwable)o);
-                            o = getUltimateMessage(err);
-                        }
-                        deepToString(o,out,80);
+        public synchronized void log(Entry en) {
+            while (!queue.offer(en))
+                queue.poll(); // If the queue would overflow, shed the oldest entries
+            if (handler == null || !handler.isAlive()) {
+                // The logger's real work is done in a background thread
+                handler = new Thread() {
+                    {
+                        setName("Log Handler");
+                        setPriority(MIN_PRIORITY);
+                        setDaemon(true);
                     }
-                out.append('\n');
-                if(err!=null) {
-                    PrintWriter pw = new PrintWriter(out);
-                    err.printStackTrace(pw);
-                    pw.flush();
-                }
-                else out.flush();
-            } catch (Throwable t) {
-                t.printStackTrace(System.err);
+                    @Override
+                    public void run() {
+                        while (true)
+                            try {
+                                Entry e = queue.take();
+                                watchers.forEach(w -> w.accept(e));
+                                out.append(DateTimeFormatter.ISO_INSTANT.format(e.time));
+                                switch (e.level) {
+                                    case Error:
+                                        out.append("; ERROR");
+                                        break;
+                                    case Warn:
+                                        out.append("; warn");
+                                        break;
+                                    default:
+                                        out.append("; ok");
+                                        break;
+                                }
+                                Throwable err = null;
+                                if (e.args != null)
+                                    for (Object o : e.args) {
+                                        out.append("; ");
+                                        if (o instanceof Throwable) {
+                                            err = getUltimateCause((Throwable) o);
+                                            o = getUltimateMessage(err);
+                                        }
+                                        deepToString(o, out, 80);
+                                    }
+                                out.append('\n');
+                                if (err != null) {
+                                    PrintWriter pw = new PrintWriter(out);
+                                    err.printStackTrace(pw);
+                                    pw.flush();
+                                } else
+                                    out.flush();
+                            } catch (InterruptedException ioe) {
+                            } catch (Throwable t) {
+                                t.printStackTrace(System.err);
+                            }
+                    }
+                };
+                handler.start();
             }
         }
         public void logTo(OutputStream dest) {
-            doClose = dest!=System.out;
-            out = new BufferedWriter(new OutputStreamWriter(dest),200);
+            doClose = dest != System.out;
+            out = new BufferedWriter(new OutputStreamWriter(dest), 200);
         }
         private final CopyOnWriteArraySet<Consumer<Entry>> watchers = new CopyOnWriteArraySet<>();
         @Override
         public void addWatcher(Consumer<Entry> lw) {
-            if(lw!=null) watchers.add(lw);
+            if (lw != null)
+                watchers.add(lw);
         }
         @Override
         public void logTo(String dest) {
-            System.out.println("Sending log to "+dest);
-            if(doClose) close(out);
-            if(isEmpty(dest) || "stdout".equals(dest) || "stdio".equals(dest))
+            System.out.println("Sending log to " + dest);
+            if (doClose)
+                Utils.close(out);
+            if (isEmpty(dest) || "stdout".equals(dest) || "stdio".equals(dest))
                 logTo(System.out);
-            else if("stderr".equals(dest))
+            else if ("stderr".equals(dest))
                 logTo(System.err);
-            else {
+            else
                 try {
-                    logTo(new FileOutputStream(dest,true));
+                    logTo(new FileOutputStream(dest, true));
                 } catch (FileNotFoundException ex) {
                     logTo(System.out);
                     error("Couldn't write to log file", ex);
                 }
-            }
         }
     }
 }

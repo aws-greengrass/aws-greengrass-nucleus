@@ -8,30 +8,30 @@ public class GenericExternalService extends GGService {
     }
     @Override
     public void install() {
-        log.note("install", this);
+        log().significant("install", this);
         run("install", false, null);
     }
     @Override
     public void awaitingStartup() {
-        log.note("awaitingStartup", this);
+        log().significant("awaitingStartup", this);
         run("awaitingStartup", false, null);
     }
     @Override
     public void startup() {
-        log.note("startup", this);
+        log().significant("startup", this);
         run("startup", false, exit -> {
             if (exit == 0) {
                 setState(State.Shutdown);
-                log.note("Finished", GenericExternalService.this);
+                log().significant("Finished", GenericExternalService.this);
             } else {
                 setState(State.Shutdown);
-                log.error("Failed", exit, this);
+                log().error("Failed", exit, this);
             }
         });
     }
     @Override
     public void shutdown() {
-        log.note("shutdown", this);
+        log().significant("shutdown", this);
         run("shutdown", false, null);
     }
 

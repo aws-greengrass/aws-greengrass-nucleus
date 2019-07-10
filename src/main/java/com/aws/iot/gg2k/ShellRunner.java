@@ -18,9 +18,9 @@ public interface ShellRunner {
         public synchronized Exec run(String note, String command, IntConsumer background) {
             if(!isEmpty(command)) {
                 if(!isEmpty(note))
-                    log.note("run",note);
+                    log.significant("run",note);
                 Exec ret = new Exec().withShell(command)
-                        .withOut(s->log.note("stdout",s))
+                        .withOut(s->log.significant("stdout",s))
                         .withErr(s->log.warn("stderr",s))
                         .cd(config.workPath.toFile());
                 if(background!=null) {

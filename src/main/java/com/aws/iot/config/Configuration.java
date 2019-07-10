@@ -9,7 +9,7 @@ import java.util.function.*;
 public class Configuration {
     private final Topics root = new Topics(null, null);
 
-    protected enum WhatHappened {
+    public enum WhatHappened {
         changed, initialized, childChanged, removed, childRemoved
     };
     /**

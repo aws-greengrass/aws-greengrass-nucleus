@@ -93,6 +93,9 @@
         installer: whatever
     tinyembeddedthing:
         installer: whatever
+        
+  fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
+    startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
 
   main:
       install:

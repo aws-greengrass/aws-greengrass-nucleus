@@ -23,23 +23,23 @@ public class Topic extends Node {
      *
      * @param s
      */
-    public Subscriber subscribe(Subscriber s) {
+    public Topic subscribe(Subscriber s) {
         listen(s);
         try {
             s.published(Configuration.WhatHappened.initialized, value, value);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
-        return s;
+        return this;
     }
-    public Validator validate(Validator s) {
+    public Topic validate(Validator s) {
         listen(s);
         try {
             Object nv = s.validate(value, value);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
-        return s;
+        return this;
     }
     public long getModtime() {
         return modtime;
@@ -59,10 +59,10 @@ public class Topic extends Node {
         a.append(':');
         appendValueTo(a);
     }
-    public void setValue(Object nv) {
-        setValue(System.currentTimeMillis(), nv);
+    public Topic setValue(Object nv) {
+        return setValue(System.currentTimeMillis(), nv);
     }
-    public synchronized void setValue(long mt, Object nv) {
+    public synchronized Topic setValue(long mt, Object nv) {
         final Object ov = value;
         final long omt = modtime;
         if (!Objects.equals(nv, ov) && mt >= omt) {
@@ -74,6 +74,11 @@ public class Topic extends Node {
                 parent.publish(this);
             }
         }
+        return this;
+    }
+    public synchronized Topic dflt(Object v) {
+        if(value==null) setValue(1, v); // defaults come from the dawn of time
+        return this;
     }
     @Override
     public boolean equals(Object o) {

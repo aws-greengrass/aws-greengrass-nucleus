@@ -52,7 +52,6 @@ public class GG2K extends Configuration implements Runnable {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
         boolean forReal = true;
-        String logfile = null;
         Topic root = lookup("system.rootpath");
         root.subscribe((w, n, o) -> {
             rootPath = Path.of(n.toString());
@@ -90,7 +89,7 @@ public class GG2K extends Configuration implements Runnable {
                     break;
                 case "-log":
                 case "-l":
-                    logfile = getArg();
+                    lookup("system.logfile").setValue(getArg());
                     break;
                 case "-root":
                 case "-r": {
@@ -144,24 +143,21 @@ public class GG2K extends Configuration implements Runnable {
             }
 //        if (broken)
 //            System.exit(126);
-        Topic logt = lookup("system.logfile");
-        if (logfile == null) {
-            logfile = Coerce.toString(logt.getOnce());
-            if (isEmpty(logfile))
-                logt.setValue("~root/gg2.log");
-        } else
-            logt.setValue(logfile);
-        logt.subscribe((w, nv, ov) -> context.get(Log.class).logTo(deTilde(Coerce.toString(nv))));
-        context.get(Log.class).addWatcher(logWatcher);
+        final Log log = context.get(Log.class);
+        log.addWatcher(logWatcher);
         if (!forReal)
             context.put(ShellRunner.class,
                     context.get(ShellRunner.Dryrun.class));
         try {
             getMain(); // Trigger boot  (!?!?)
         } catch (Throwable ex) {
-            ex = getUltimateCause(ex);
-            System.err.println("***BOOT FAILED*** "+ex);
-            ex.printStackTrace();
+            log.error("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ",ex);
+            mainServiceName = "fallbackMain";
+            try {
+                getMain(); // trigger fallback boot
+            } catch(Throwable t) {
+                log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ",t);
+            }
         }
         if (installOnly)
             try {
@@ -242,9 +238,9 @@ public class GG2K extends Configuration implements Runnable {
         if (broken)
             return;
         Log log = context.get(Log.class);
-        log.note("Installing software", getMain());
+        log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
-            log.note("Starting to install", l);
+            log.significant("Starting to install", l);
             l.setState(State.Installed);
         });
     }
@@ -253,7 +249,7 @@ public class GG2K extends Configuration implements Runnable {
             return;
         Log log = context.get(Log.class);
         try {
-            log.note("Installing software", getMain());
+            log.significant("Installing software", getMain());
             Lifecycle[] d = orderedDependencies().toArray(n -> new Lifecycle[n]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].getState() == Running)
