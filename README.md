@@ -29,3 +29,25 @@ Error handling is woefully inadequate, *for now*.
 4. **util** A grab-bag of useful utilities.
 
 You'll probably find the coding style to be a trifle odd.  It is very paranoid about failures and tries to catch, cope with, and (maybe) repair failures locally.  Mike Duigou did a nice talk on this topic: [Always Be Running: long running and fault tolerant java services](https://youtu.be/agXce0lSo60).
+
+
+This project has continous integration implemented using AWS CodeBuild. The library is built and deployed to a private maven repository.
+You can set this up in your project as follows 
+
+```xml
+ 	<repositories>
+        	<repository>
+            	<id>stargate-dev-snapshot</id>
+            	<name>Kernel Snapshot</name>
+            	<url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
+        	</repository>
+    	</repositories>
+```
+
+```xml
+	<dependency>
+            <groupId>com.aws.jag</groupId>
+            <artifactId>gg2-kernel</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+```
