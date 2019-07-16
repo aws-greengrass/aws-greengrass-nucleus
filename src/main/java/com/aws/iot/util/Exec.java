@@ -31,7 +31,7 @@ public class Exec {
     private String[] cmds;
     private File dir = userdir;
     private Process process;
-    private long timeout = 30;
+    private long timeout = 120;
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private IntConsumer whenDone;
     private static final Consumer<CharSequence> NOP = s->{};
