@@ -58,7 +58,7 @@ public class ConfigurationTest {
         config.lookup("x", "b").setValue(20, true);
         config.lookup("x", "c").setValue(20, Math.PI);
         config.lookup("x", "d").setValue(20, System.currentTimeMillis());
-        Path p = Path.of("/tmp/c.log");
+        Path p = Paths.get("/tmp/c.log");
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         try {

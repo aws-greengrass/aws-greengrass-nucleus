@@ -39,7 +39,8 @@ public class GGService extends Lifecycle {
         if (d instanceof Topic) {
             String ds = ((Topic) d).getOnce().toString();
             Matcher m = depParse.matcher(ds);
-            m.results().forEach((mr) -> addDependency(mr.group(1), mr.group(3)));
+            while(m.find())
+                addDependency(m.group(1), m.group(3));
             if (!m.hitEnd())
                 System.out.println(config.getFullName() + " bad dependency syntax: " + ds);
         }
@@ -161,7 +162,7 @@ public class GGService extends Lifecycle {
                     case "onpath":
                         return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
                     case "exists":
-                        return Files.exists(Path.of(context.get(GG2K.class).deTilde(m.group(2)))) ^ neg;
+                        return Files.exists(Paths.get(context.get(GG2K.class).deTilde(m.group(2)))) ^ neg;
                     case "true": return !neg;
                     default:
                         errored("Unknown operator", m.group(1));
@@ -190,17 +191,17 @@ public class GGService extends Lifecycle {
         // TODO: a loopy set of hacks
         ranks.put("all", 0);
         ranks.put("any", 0);
-        if (Files.exists(Path.of("/bin/bash")))
+        if (Files.exists(Paths.get("/bin/bash")))
             ranks.put("posix", 3);
-        if (Files.exists(Path.of("/usr/bin/bash")))
+        if (Files.exists(Paths.get("/usr/bin/bash")))
             ranks.put("posix", 3);
-        if (Files.exists(Path.of("/proc")))
+        if (Files.exists(Paths.get("/proc")))
             ranks.put("linux", 10);
-        if (Files.exists(Path.of("/usr/bin/apt-get")))
+        if (Files.exists(Paths.get("/usr/bin/apt-get")))
             ranks.put("debian", 11);
         if (Exec.isWindows)
             ranks.put("windows", 5);
-        if (Files.exists(Path.of("/usr/bin/yum")))
+        if (Files.exists(Paths.get("/usr/bin/yum")))
             ranks.put("fedora", 11);
         String sysver = Exec.sh("uname -a").toLowerCase();
         if (sysver.contains("ubuntu"))
