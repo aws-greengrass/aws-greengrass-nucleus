@@ -44,10 +44,25 @@
             <version>4.1.37.Final</version>
         </dependency>
     </dependencies>
+    <build>
+        <extensions>
+            <extension>
+                <groupId>org.springframework.build</groupId>
+                <artifactId>aws-maven</artifactId>
+            </extension>
+        </extensions>
+    </build>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>stargate-dev-snapshot</id>
+            <name>Stargate Dev Snapshot</name>
+            <url>${stargate-snapshot-repository-url}</url>
+        </snapshotRepository>
+    </distributionManagement>
     <name>gg2-kernel</name>
 </project>
