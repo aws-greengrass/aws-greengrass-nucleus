@@ -57,7 +57,7 @@ public class Utils {
     }
     private Utils() {
     }
-    public static final Path homePath = Path.of(System.getProperty("user.home"));
+    public static final Path homePath = Paths.get(System.getProperty("user.home"));
     public static Path homePath(String s) {
         return homePath.resolve(s);
     }
@@ -119,7 +119,7 @@ public class Utils {
                                 sb.append('\t');
                                 break;
                             case 'u': {
-                                sb.append((char) Integer.parseInt(cs, i+1, i+5, 16));
+                                sb.append((char) Utils.parseLongChecked(cs, i+1, i+5, 16));
                                 i+=4;
                             }
                         }
@@ -259,6 +259,16 @@ public class Utils {
     public static long parseLong(CharSequence str, int pos, int limit) {
         return parseLong(CharBuffer.wrap(str, pos, limit));
     }
+    public static long parseLong(CharSequence str, int pos, int limit, int radix) {
+        return parseLong(CharBuffer.wrap(str, pos, limit), radix);
+    }
+    public static long parseLongChecked(CharSequence str, int pos, int limit, int radix) {
+        CharBuffer buf = CharBuffer.wrap(str, pos, limit);
+        long res = parseLong(buf, radix);
+        if (buf.remaining() > 0)
+            throw new NumberFormatException("For input string \"" + str + "\"");
+        return res;
+    }
     public static long parseLong(CharBuffer str) {
         long ret = 0;
         boolean neg = false;
@@ -285,37 +295,54 @@ public class Utils {
                             case 'x':
                             case 'X':
                                 radix = 16;
-                                c = '0';
                                 break;
                             case 'b':
                             case 'B':
                                 radix = 2;
-                                c = '0';
                                 break;
+                            default:
+                                str.position(str.position() - 1);
                         }
+                    else
+                        str.position(str.position() - 1);
                     break scanPrefix;
             }
         }
-        if (str.remaining() >= 0)
-            while (true) {
-                int digit;
-                if ('0' <= c && c <= '9')
-                    digit = c - '0';
-                else if ('a' <= c && c <= 'f')
-                    digit = c - 'a' + 10;
-                else if ('A' <= c && c <= 'F')
-                    digit = c - 'A' + 10;
-                else
-                    digit = 99;
-                if (digit >= radix) {
-                    str.position(str.position() - 1);
-                    break;
-                }
-                ret = ret * radix + digit;
-                if (str.remaining() == 0)
-                    break;
-                c = str.get();
-            }
+        ret = parseLong(str, radix);
         return neg ? -ret : ret;
     }
+    public static long parseLong(CharBuffer str, int radix) {
+        long ret = 0;
+        while(str.remaining() > 0) {
+            int digit;
+            int c = str.get();
+            if ('0' <= c && c <= '9')
+                digit = c - '0';
+            else if ('a' <= c && c <= 'f')
+                digit = c - 'a' + 10;
+            else if ('A' <= c && c <= 'F')
+                digit = c - 'A' + 10;
+            else
+                digit = 99;
+            if (digit >= radix) {
+                str.position(str.position() - 1);
+                break;
+            }
+            ret = ret * radix + digit;
+        }
+        return ret;
+    }
+
+    public static <K,V> Map<K,V> immutableMap(K k1, V v1, Object ... keyValuePairs) {
+        if (keyValuePairs.length % 2 != 0) {
+            throw new IllegalArgumentException("Expected even number of arguments");
+        }
+        HashMap<K,V> map = new HashMap<>();
+        map.put(k1, v1);
+        for(int i = 0; i < keyValuePairs.length; i+=2) {
+            map.put((K)keyValuePairs[i], (V)keyValuePairs[i+1]);
+        }
+        return Collections.unmodifiableMap(map);
+    }
+
 }

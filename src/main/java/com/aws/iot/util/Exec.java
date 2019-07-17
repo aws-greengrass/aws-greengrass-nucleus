@@ -198,7 +198,7 @@ public class Exec {
         fn = deTilde(fn);
         if(fn.startsWith("/")) {
             // TODO sorts out windows filename issues, if we ever care
-            Path f = Path.of(fn);
+            Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
         for(Path d:execPathArr) {
@@ -243,13 +243,13 @@ public class Exec {
             ex.printStackTrace(System.out);
         }
 //        System.out.println("Search path: "+deepToString(p));
-        return p.toArray(n->new Path[n]);
+        return p.toArray(new Path[0]);
     }
     private static void addPathEntries(Set<Path> s, String path) {
 //        System.out.println("Adding to PATH: "+path);
         if(path!=null && path.length()>0)
         for(String f:path.split("[ :,] *"))
-            s.add(Path.of(deTilde(f)));
+            s.add(Paths.get(deTilde(f)));
     }
     private static String computePathString(Path[] execPathArr) {
         StringBuilder sb = new StringBuilder();

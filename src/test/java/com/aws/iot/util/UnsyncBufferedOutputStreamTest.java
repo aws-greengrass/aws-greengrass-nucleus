@@ -11,7 +11,7 @@ import static org.junit.Assert.*;
 public class UnsyncBufferedOutputStreamTest {
     OutputStream out;
     CommitableFile cf;
-    Path t = Path.of("/tmp/UBOS.tmp");
+    Path t = Paths.get("/tmp/UBOS.tmp");
     @Test
     public void T1() {
 //        Tb(1<<13);
