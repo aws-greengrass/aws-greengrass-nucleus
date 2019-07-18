@@ -101,7 +101,7 @@
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker, localhttp
+      requires: jdk11, git, hello-docker   #, localhttp
       xyzzy: localhttp
       startup: |-
         pwd
