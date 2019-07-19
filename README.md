@@ -33,22 +33,22 @@ You'll probably find the coding style to be a trifle odd.  It is very paranoid a
 
 
 This project has continous integration implemented using AWS CodeBuild. The library is built and deployed to a private maven repository.
-You can set this up in your project as follows 
+You can set this up in your project as follows: 
 
 ```xml
 <repositories>
-        <repository>
-                <id>stargate-dev-snapshot</id>
-                <name>Kernel Snapshot</name>
-                <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
-        </repository>
+    <repository>
+        <id>stargate-dev-snapshot</id>
+        <name>Kernel Snapshot</name>
+        <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
+    </repository>
 </repositories>
 ```
 
 ```xml
 <dependency>
-        <groupId>com.aws.jag</groupId>
-        <artifactId>gg2-kernel</artifactId>
-        <version>1.0-SNAPSHOT</version>
+    <groupId>com.aws.jag</groupId>
+    <artifactId>gg2-kernel</artifactId>
+    <version>1.0-SNAPSHOT</version>
 </dependency>
 ```
