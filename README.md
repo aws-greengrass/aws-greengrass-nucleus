@@ -36,19 +36,19 @@ This project has continous integration implemented using AWS CodeBuild. The libr
 You can set this up in your project as follows 
 
 ```xml
-        <repositories>
-                <repository>
-                        <id>stargate-dev-snapshot</id>
-                        <name>Kernel Snapshot</name>
-                        <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
-                </repository>
-        </repositories>
+<repositories>
+        <repository>
+                <id>stargate-dev-snapshot</id>
+                <name>Kernel Snapshot</name>
+                <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
+        </repository>
+</repositories>
 ```
 
 ```xml
-        <dependency>
-                <groupId>com.aws.jag</groupId>
-                <artifactId>gg2-kernel</artifactId>
-                <version>1.0-SNAPSHOT</version>
-        </dependency>
+<dependency>
+        <groupId>com.aws.jag</groupId>
+        <artifactId>gg2-kernel</artifactId>
+        <version>1.0-SNAPSHOT</version>
+</dependency>
 ```
