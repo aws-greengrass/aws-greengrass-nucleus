@@ -3,7 +3,6 @@
 package com.aws.iot.util;
 
 import com.aws.iot.config.*;
-import com.aws.iot.dependency.Context.Dependency;
 import com.aws.iot.dependency.Lifecycle;
 import com.aws.iot.gg2k.GG2K;
 import static com.aws.iot.util.Utils.*;
@@ -12,6 +11,7 @@ import java.time.*;
 import java.time.format.*;
 import java.util.concurrent.*;
 import java.util.function.*;
+import javax.inject.*;
 
 public interface Log {
     public enum Level {
@@ -58,7 +58,7 @@ public interface Log {
         {
             logTo(System.out);
         }
-        @Dependency Clock clock;
+        @Inject Clock clock;
         private int loglevel;
         @Override public void postInject() {
             Configuration conf = context.get(Configuration.class);

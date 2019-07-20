@@ -22,13 +22,22 @@ public class Utils {
         else return null;
     }
     public static boolean isEmpty(String s) {
-        return s == null || s.isEmpty();
+        return s == null || s.isBlank();
+    }
+    public static String nullEmpty(String s) {
+        return s == null || s.isBlank() ? null : s;
     }
     public static boolean isEmpty(CharSequence s) {
         return s == null || s.length() == 0;
     }
+    public static CharSequence nullEmpty(CharSequence s) {
+        return s == null || s.length() == 0  ? null : s;
+    }
     public static boolean isEmpty(Collection s) {
         return s == null || s.isEmpty();
+    }
+    public static <T extends Collection> T nullEmpty(T s) {
+        return s == null || s.isEmpty() ? null : s;
     }
     public static Throwable getUltimateCause(Throwable t) {
         while (t.getCause() != null)

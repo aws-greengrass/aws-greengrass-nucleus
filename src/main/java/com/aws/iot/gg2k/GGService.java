@@ -9,7 +9,6 @@ import com.aws.iot.config.Node;
 import com.aws.iot.config.Topic;
 import com.aws.iot.config.Topics;
 import com.aws.iot.dependency.*;
-import com.aws.iot.dependency.Context.Dependency;
 import com.aws.iot.util.*;
 import java.io.*;
 import java.lang.reflect.*;
@@ -19,6 +18,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.regex.*;
+import javax.inject.*;
 
 
 public class GGService extends Lifecycle {
@@ -246,7 +246,7 @@ public class GGService extends Lifecycle {
         return n instanceof Topic ? run((Topic) n, background)
              : n instanceof Topics && run((Topics) n, background);
     }
-    @Dependency ShellRunner shellRunner;
+    @Inject ShellRunner shellRunner;
     protected boolean run(Topic t, IntConsumer background) {
         String cmd = Coerce.toString(t.getOnce());
         return shellRunner.run(t.getFullName(), cmd, background) != ShellRunner.Failed;
@@ -266,7 +266,7 @@ public class GGService extends Lifecycle {
             return true;
         }
     }
-    protected void addDependencies(HashSet<GGService> deps) {
+    protected void addDependencies(HashSet<Lifecycle> deps) {
         deps.add(this);
         if (dependencies != null)
             dependencies.keySet().forEach(d -> {
@@ -274,7 +274,7 @@ public class GGService extends Lifecycle {
                     ((GGService)d).addDependencies(deps);
             });
     }
-    protected boolean satisfiedBy(HashSet<GGService> ready) {
+    @Override public boolean satisfiedBy(HashSet<Lifecycle> ready) {
         return dependencies == null
                 || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
     }

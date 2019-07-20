@@ -210,11 +210,11 @@ public class GG2K extends Configuration implements Runnable {
 //            return Collections.EMPTY_LIST;
 //        }
 //    }
-    public Collection<GGService> orderedDependencies() {
+    public Collection<Lifecycle> orderedDependencies() {
         try {
-            final HashSet<GGService> pending = new LinkedHashSet<>();
+            final HashSet<Lifecycle> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
-            final HashSet<GGService> ready = new LinkedHashSet<>();
+            final HashSet<Lifecycle> ready = new LinkedHashSet<>();
             while (!pending.isEmpty()) {
                 int sz = pending.size();
                 pending.removeIf(l -> {

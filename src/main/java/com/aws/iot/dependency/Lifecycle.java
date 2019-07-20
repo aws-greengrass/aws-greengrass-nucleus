@@ -7,6 +7,7 @@ import static com.aws.iot.dependency.Lifecycle.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
+import java.util.HashSet;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
@@ -185,6 +186,7 @@ public class Lifecycle implements Closeable {
         return dependencies != null
                 && (dependencies.entrySet().stream().anyMatch((ls) -> (ls.getKey().getState().ordinal() < ls.getValue().ordinal())));
     }
+    public boolean satisfiedBy(HashSet<Lifecycle> ready) { return true; }
     private void recheckOthersDependencies() {
         if (context != null) {
             final AtomicBoolean changed = new AtomicBoolean(true);

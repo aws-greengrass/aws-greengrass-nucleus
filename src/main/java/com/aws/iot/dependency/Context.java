@@ -11,6 +11,7 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
+import javax.inject.*;
 
 /**
  * A collection of Objects that work together
@@ -130,10 +131,20 @@ public class Context implements Closeable {
                 }
             while (cl != null && cl != Object.class) {
                 for (Field f : cl.getDeclaredFields()) {
-                    Dependency a = f.getAnnotation(Dependency.class);
+                    Inject a = f.getAnnotation(Inject.class);
                     if (a != null)
                         try {
-                            Object v = get(f.getType(), a.value());
+                            final Named named = f.getAnnotation(Named.class);
+                            final String name = nullEmpty(named==null ? null : named.value());
+                            Class t = f.getType();
+                            Object v;
+                            if(t==Provider.class) {
+                                System.out.println("PROVIDER "+t+" "+f+"\n  -> "+f.toGenericString());
+                                Class scl = (Class)((ParameterizedType)f.getGenericType()).getActualTypeArguments()[0];
+                                System.out.println("\tprovides "+scl);
+                                v = (Provider) () -> get(scl, name); // TODO: cache, cache, cache
+                            }
+                            else v = get(t, name);
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);
                             f.set(o, v);
@@ -144,6 +155,7 @@ public class Context implements Closeable {
                         } catch (Throwable ex) {
                             if (lo != null)
                                 lo.errored("Injecting", ex);
+                            else System.err.println("Error injecting into "+f+"\n\t"+ex);
                         }
                 }
                 cl = cl.getSuperclass();
@@ -162,11 +174,11 @@ public class Context implements Closeable {
         shutdown();
     }
 
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.FIELD})
-    public @interface Dependency {
-        String value() default "";
-    }
+//    @Retention(RetentionPolicy.RUNTIME)
+//    @Target({ElementType.FIELD})
+//    public @interface Inject {
+//        String value() default "";
+//    }
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
     public @interface StartWhen {
