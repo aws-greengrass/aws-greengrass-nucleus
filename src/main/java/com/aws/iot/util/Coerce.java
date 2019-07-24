@@ -142,7 +142,7 @@ public class Coerce {
             return "removed";
         }
     };
-    private static final Map specials = Map.of(
+    private static final Map<String,Object> specials = Utils.immutableMap(
             "true", true,
             "false", false,
             "removed", removed,

@@ -57,6 +57,7 @@
       macos:
           skipif: exists /Applications/Docker.app
           script: |-
+            find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
             brew cask install docker
     requires:
         macos:
@@ -78,7 +79,12 @@
   hello-docker:
       requires: docker
       startup: docker run hello-world
-      shutdown: docker stop hello-world
+
+  hello-docker-nginx:
+      requires: docker
+      startup:  docker run --cidfile=cid nginx
+      shutdown: cat cid | xargs docker stop
+
   monitoring:
     install:
       debian: |-
@@ -101,7 +107,7 @@
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker   #, localhttp
+      requires: jdk11, git, hello-docker, hello-docker-nginx  #, localhttp
       xyzzy: localhttp
       startup: |-
         pwd

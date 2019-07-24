@@ -55,9 +55,9 @@ public class GG2K extends Configuration implements Runnable {
         this.args = args;
         Topic root = lookup("system.rootpath");
         root.subscribe((w, n, o) -> {
-            rootPath = Path.of(n.toString());
-            configPath = Path.of(deTilde(configPathName));
-            workPath = Path.of(deTilde(workPathName));
+            rootPath = Paths.get(n.toString());
+            configPath = Paths.get(deTilde(configPathName));
+            workPath = Paths.get(deTilde(workPathName));
             if (w != WhatHappened.initialized) {
                 ensureCreated(configPath);
                 ensureCreated(rootPath);
@@ -94,7 +94,7 @@ public class GG2K extends Configuration implements Runnable {
                 case "-root":
                 case "-r": {
                     String r = deTilde(getArg());
-                    if (isEmpty(r) || !ensureCreated(Path.of(r))) {
+                    if (isEmpty(r) || !ensureCreated(Paths.get(r))) {
                         System.err.println(r + ": not a valid root directory");
                         broken = true;
                         break;
@@ -120,8 +120,8 @@ public class GG2K extends Configuration implements Runnable {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
         if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath))
             broken = true;
-        Path transactionLogPath = Path.of(deTilde("~root/config/config.tlog"));
-        Path configurationFile = Path.of(deTilde("~root/config/config.yaml"));
+        Path transactionLogPath = Paths.get(deTilde("~root/config/config.tlog"));
+        Path configurationFile = Paths.get(deTilde("~root/config/config.yaml"));
         if (!broken)
             try {
                 if (haveRead) {
@@ -252,7 +252,7 @@ public class GG2K extends Configuration implements Runnable {
         Log log = context.get(Log.class);
         try {
             log.significant("Installing software", getMain());
-            Lifecycle[] d = orderedDependencies().toArray(n -> new Lifecycle[n]);
+            Lifecycle[] d = orderedDependencies().toArray(new Lifecycle[0]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].getState() == Running)
                     try {

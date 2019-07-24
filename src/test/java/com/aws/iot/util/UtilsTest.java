@@ -7,9 +7,16 @@ import static com.aws.iot.util.Utils.*;
 import java.nio.*;
 import java.util.*;
 import org.junit.*;
+import org.junit.rules.*;
+
+import static org.hamcrest.CoreMatchers.*;
+
 import static org.junit.Assert.*;
 
 public class UtilsTest {
+
+    @Rule
+    public ExpectedException exception = ExpectedException.none();
     
     @Test
     public void testLparse() {
@@ -32,6 +39,36 @@ public class UtilsTest {
         assertEquals(s, expecting, v);
         assertEquals(s, remaining, cb.toString());
     }
+
+    @Test
+    public void testLparseRadix() {
+        testLparseRadix1("123", 0, 3, 16, 0x123);
+        testLparseRadix1("123", 0, 2, 16, 0x12);
+        testLparseRadix1("123", 1, 3, 16, 0x23);
+        testLparseRadix1("12AX", 0, 3, 16, 0x12A);
+        testLparseRadix1("012", 0, 2, 8, 01);
+        testLparseRadix1("012", 0, 3, 8, 012);
+    }
+    @Test
+    public void testLparseBadSize() {
+        exception.expect(IndexOutOfBoundsException.class);
+        testLparseRadix1("12", 0, 3, 16, -1);
+    }
+    @Test
+    public void testLparseBadLead() {
+        exception.expect(NumberFormatException.class);
+        testLparseRadix1("X12", 0, 3, 16, -1);
+    }
+    @Test
+    public void testLparseBadTail() {
+        exception.expect(NumberFormatException.class);
+        testLparseRadix1("12X", 0, 3, 16, -1);
+    }
+    private static void testLparseRadix1(String s, int start, int stop, int radix, long expecting) {
+        long v = Utils.parseLongChecked(s, start, stop, radix);
+        assertEquals(s, expecting, v);
+    }
+
     @Test
     public void T2() {
         Map m = new LinkedHashMap();
@@ -48,5 +85,27 @@ public class UtilsTest {
         assertEquals("foo\nbar",dequote("\"foo\\nbar\""));
         assertEquals("foo\nbar",dequote("\"foo\\u000Abar\""));
     }
-    
+
+    @Test
+    public void immutableMapRead() {
+        Map<String, Integer> map = Utils.immutableMap("a", 1, "b", 2, "c", 3);
+        assertThat(map.get("a"), is(equalTo(1)));
+        assertThat(map.get("b"), is(equalTo(2)));
+        assertThat(map.get("c"), is(equalTo(3)));
+    }
+
+    @Test
+    public void immutableMapOddParams() {
+        exception.expect(IllegalArgumentException.class);
+        Utils.immutableMap("a", 1, "b", 2, "c");
+    }
+
+    @Test
+    public void immutableMapWrite() {
+        Map<String, Integer> map = Utils.immutableMap("a", 1);
+        assertThat(map.get("a"), is(equalTo(1)));
+        exception.expect(UnsupportedOperationException.class);
+        map.put("b", 4);
+    }
+
 }

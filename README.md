@@ -1,4 +1,5 @@
 # GG2 Kernel
+[![Build Status](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQmkyeEZPT3VpbGFjUDdNUC9Hc2hqZ0NYdEtCdUMxcFVXRUpOWVFTcmhicmZ0N05MVmlqb3Vwa0JFT2JhK2FUdjBaODdHUFJXVU5rMVM0RDhoRmlMY2ZFPSIsIml2UGFyYW1ldGVyU3BlYyI6IktQVGdUaU5Pc2M3V0tYU2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)](https://us-west-2.console.aws.amazon.com/codesuite/codebuild/projects/Stargate-Dev-Build)
 
 *Copyright &copy; 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #####*SPDX-License-Identifier: Apache-2.0*
@@ -29,3 +30,26 @@ Error handling is woefully inadequate, *for now*.
 4. **util** A grab-bag of useful utilities.
 
 You'll probably find the coding style to be a trifle odd.  It is very paranoid about failures and tries to catch, cope with, and (maybe) repair failures locally.  Mike Duigou did a nice talk on this topic: [Always Be Running: long running and fault tolerant java services](https://youtu.be/agXce0lSo60).
+
+
+This project has continous integration implemented using AWS CodeBuild. For each push to the master branch, the library is built and deployed to a private maven repository.
+
+You can set this up in your project as follows: 
+
+```xml
+<repositories>
+    <repository>
+        <id>stargate-dev-snapshot</id>
+        <name>Kernel Snapshot</name>
+        <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
+    </repository>
+</repositories>
+```
+
+```xml
+<dependency>
+    <groupId>com.aws.jag</groupId>
+    <artifactId>gg2-kernel</artifactId>
+    <version>1.0-SNAPSHOT</version>
+</dependency>
+```

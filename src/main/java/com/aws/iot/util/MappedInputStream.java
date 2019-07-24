@@ -24,7 +24,7 @@ public class MappedInputStream extends InputStream {
         this(p.toPath());
     }
     public MappedInputStream(String p) throws IOException {
-        this(Path.of(p));
+        this(Paths.get(p));
     }
     @Override
     public int read() {
