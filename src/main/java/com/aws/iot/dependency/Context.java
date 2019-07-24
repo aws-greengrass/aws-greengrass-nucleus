@@ -126,7 +126,7 @@ public class Context implements Closeable {
         }
         private void doInjection() {
             Object lvalue = value;
-            System.out.println("requestInject " + lvalue);
+//            System.out.println("requestInject " + lvalue);
             if (lvalue == null) return;
             Class cl = lvalue.getClass();
             Lifecycle lo = lvalue instanceof Lifecycle ? (Lifecycle) lvalue : null;
@@ -142,24 +142,24 @@ public class Context implements Closeable {
             while (cl != null && cl != Object.class) {
                 for (Field f : cl.getDeclaredFields()) {
                     Inject a = f.getAnnotation(Inject.class);
-                    System.out.println(f.getName() + " " + (a != null));
+//                    System.out.println(f.getName() + " " + (a != null));
                     if (a != null)
                         try {
                             final Named named = f.getAnnotation(Named.class);
                             final String name = nullEmpty(named == null ? null : named.value());
                             Class t = f.getType();
                             Object v;
-                            System.out.println("\tSET");
+//                            System.out.println("\tSET");
                             if (t == Provider.class) {
-                                System.out.println("PROVIDER " + t + " " + f + "\n  -> " + f.toGenericString());
-                                Class scl = (Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-                                System.out.println("\tprovides " + scl);
-                                v = getv(scl, name);
+//                                System.out.println("PROVIDER " + t + " " + f + "\n  -> " + f.toGenericString());
+//                                Class scl = (Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
+//                                System.out.println("\tprovides " + scl);
+                                v = getv((Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0], name);
                             } else v = Context.this.get(t, name);
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);
                             f.set(lvalue, v);
-                            System.out.println(cl.getSimpleName() + "." + f.getName() + " = " + v);
+//                            System.out.println(cl.getSimpleName() + "." + f.getName() + " = " + v);
                             if (lo != null && v instanceof Lifecycle)
                                 lo.addDependency((Lifecycle) v,
                                         startWhen == null ? Lifecycle.State.Running
@@ -171,7 +171,7 @@ public class Context implements Closeable {
                             else
                                 System.err.println("Error injecting into " + f + "\n\t" + ex);
                         }
-                    else System.out.println("\tSKIP");
+//                    else System.out.println("\tSKIP");
                 }
                 cl = cl.getSuperclass();
             }
@@ -186,11 +186,6 @@ public class Context implements Closeable {
 
     }
 
-//    @Retention(RetentionPolicy.RUNTIME)
-//    @Target({ElementType.FIELD})
-//    public @interface Inject {
-//        String value() default "";
-//    }
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
     public @interface StartWhen {

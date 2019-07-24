@@ -34,7 +34,6 @@ public class GGService extends Lifecycle {
             d = config.getChild("dependency");
         if (d == null)
             d = config.getChild("requires");
-        //            System.out.println("requires: " + d);
         if (d instanceof Topics)
             d = pickByOS((Topics) d);
         if (d instanceof Topic) {
@@ -42,7 +41,7 @@ public class GGService extends Lifecycle {
             Matcher m = depParse.matcher(ds);
             m.results().forEach((mr) -> addDependency(mr.group(1), mr.group(3)));
             if (!m.hitEnd())
-                System.out.println(config.getFullName() + " bad dependency syntax: " + ds);
+                errored("bad dependency syntax", ds);
         }
     }
     public void addDependency(String name, String startWhen) {
@@ -55,12 +54,11 @@ public class GGService extends Lifecycle {
                 // do "friendly" match
                 for (Lifecycle.State s : Lifecycle.State.values())
                     if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
-                        //                            System.out.println(startWhen + " translates to " + s);
                         x = s;
                         break;
                     }
                 if (x == null)
-                    System.err.println(startWhen + " does not match any lifecycle state");
+                    errored("does not match any lifecycle state", startWhen);
             }
         }
         if (x == null)
@@ -75,9 +73,9 @@ public class GGService extends Lifecycle {
                 addDependency(d, startWhen);
             }
             else
-                System.out.println("Couldn't locate " + name);
+                errored("Couldn't locate", name);
         } catch (Throwable ex) {
-            System.err.println("Failure adding dependency: " + name);
+            errored("Failure adding dependency", ex);
             ex.printStackTrace(System.out);
         }
     }
