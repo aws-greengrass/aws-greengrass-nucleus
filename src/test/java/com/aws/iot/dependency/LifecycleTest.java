@@ -21,6 +21,7 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
 //        System.out.println(v);
+        Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
         Assert.assertSame(v.C2, v.C2.C3.prov.get());
         Assert.assertEquals(Lifecycle.State.Running,v.getState());

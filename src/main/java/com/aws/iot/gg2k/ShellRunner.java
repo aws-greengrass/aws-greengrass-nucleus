@@ -30,7 +30,7 @@ public interface ShellRunner {
                 if(!ret.successful()) {
                     log.error("failed",command);
                     return Failed;
-                } return OK;
+                }
             }
             return OK;
         }

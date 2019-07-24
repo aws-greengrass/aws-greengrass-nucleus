@@ -28,6 +28,7 @@ public class GGService extends Lifecycle {
         config = c;
     }
     @Override public void postInject() {
+        super.postInject();
         Node d = config.getChild("dependencies");
         if (d == null)
             d = config.getChild("dependency");
@@ -100,7 +101,7 @@ public class GGService extends Lifecycle {
         return locate(context, name);
     }
     public static Lifecycle locate(Context context, String name) throws Throwable {
-        Lifecycle o = context.computeIfAbsent(name, (key) -> {
+        return context.getv(Lifecycle.class, name).computeIfEmpty(()->{
             Configuration c = context.get(Configuration.class);
             Topics t = c.findTopics(Configuration.splitPath(name));
             Lifecycle ret;
@@ -112,7 +113,6 @@ public class GGService extends Lifecycle {
                         Class clazz = Class.forName(cn);
                         Constructor ctor = clazz.getConstructor(Topics.class);
                         ret = (GGService) ctor.newInstance(t);
-                        context.requestInject(ret);
                     } catch (Throwable ex) {
                         ex.printStackTrace(System.out);
                         ret = errNode(context, name, "creating code-backed service from " + cn, ex);
@@ -121,7 +121,6 @@ public class GGService extends Lifecycle {
                 else
                     try {
                         ret = new GenericExternalService(t);
-                        context.requestInject(ret);
                     } catch (Throwable ex) {
                         ret = errNode(context, name, "Creating generic service", ex);
                     }
@@ -130,8 +129,6 @@ public class GGService extends Lifecycle {
             }
             return errNode(context, name, "No matching definition in system model", null);
         });
-        context.inject(); // drain the injection queue, in case we did a manual injection request
-        return o;
     }
     public static GGService errNode(Context context, String name, String message, Throwable ex) {
         try {
@@ -139,7 +136,6 @@ public class GGService extends Lifecycle {
             GGService ggs = new GenericExternalService(Topics.errorNode(name,
                     "Error locating service " + name + ": " + message
                             + (ex == null ? "" : "\n\t" + ex)));
-            context.requestInject(ggs);
             return ggs;
         } catch (Throwable ex1) {
             context.get(Log.class).error(name,message,ex);

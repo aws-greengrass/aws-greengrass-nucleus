@@ -27,6 +27,8 @@ public class GG2K extends Configuration implements Runnable {
     private String mainServiceName = "main";
     private boolean installOnly = false;
     private boolean broken = false;
+    boolean forReal = true;
+    boolean haveRead = false;
     public static void main(String[] args) {
         GG2K ggc = new GG2K().parseArgs(args);
     }
@@ -51,7 +53,6 @@ public class GG2K extends Configuration implements Runnable {
     public GG2K parseArgs(String... args) {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
-        boolean forReal = true;
         Topic root = lookup("system.rootpath");
         root.subscribe((w, n, o) -> {
             rootPath = Path.of(n.toString());
@@ -64,7 +65,6 @@ public class GG2K extends Configuration implements Runnable {
             }
         });
         root.setValue(0, deTilde(prefs.get("rootpath", "~/gg2root")));
-        boolean haveRead = false;
         while (getArg() != (Object) done)
             switch (arg) {
                 case "-install":
@@ -114,6 +114,9 @@ public class GG2K extends Configuration implements Runnable {
                     broken = true;
                     break;
             }
+        return this;
+    }
+    public GG2K launch() {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
         if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath))
             broken = true;
@@ -159,12 +162,11 @@ public class GG2K extends Configuration implements Runnable {
                 log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ",t);
             }
         }
-        if (installOnly)
-            try {
-                justInstall();
-            } catch (Throwable ex) {
-                context.get(Log.class).error("install", ex);
-            }
+        try {
+            installEverything();
+        } catch (Throwable ex) {
+            context.get(Log.class).error("install", ex);
+        }
         return this;
     }
     public void setWatcher(Consumer<Log.Entry> lw) {
@@ -234,7 +236,7 @@ public class GG2K extends Configuration implements Runnable {
             return Collections.EMPTY_LIST;
         }
     }
-    public void justInstall() throws Throwable {
+    public void installEverything() throws Throwable {
         if (broken)
             return;
         Log log = context.get(Log.class);

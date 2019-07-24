@@ -61,6 +61,7 @@ public interface Log {
         @Inject Clock clock;
         private int loglevel;
         @Override public void postInject() {
+            super.postInject();
             Configuration conf = context.get(Configuration.class);
             GG2K gg = context.get(GG2K.class);
             conf.lookup("system.logfile")

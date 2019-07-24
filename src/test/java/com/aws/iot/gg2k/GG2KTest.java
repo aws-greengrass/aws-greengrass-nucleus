@@ -31,6 +31,7 @@ public class GG2KTest {
                     "-log", "stdout",
                     "-i", GG2K.class.getResource("config.yaml").toString()
             );
+            gg.launch();
             System.out.println("Done");
             if(OK.await(50, TimeUnit.SECONDS))
                 System.out.println("Running correctly");
