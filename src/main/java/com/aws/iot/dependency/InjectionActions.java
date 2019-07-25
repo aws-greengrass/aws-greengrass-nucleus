@@ -6,12 +6,15 @@ package com.aws.iot.dependency;
 
 public interface InjectionActions {
     /**
-     * Called after the constructor, but before dependency injection
+     * Called after the constructor, but before dependency injection.
+     * It is critical that you remember to call super.preInject() when you override this
+     * method.
      */
     default void preInject() {}
     /**
      * Called after dependency injection, but before dependencies are all
-     * Running
+     * Running.  It is critical that you remember to call super.postInject() when you
+     * override this method.
      */
     default void postInject() {}
 }
