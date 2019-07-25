@@ -10,7 +10,7 @@ public interface InjectionActions {
      * It is critical that you remember to call super.preInject() when you override this
      * method.
      */
-    default void preInject() {}
+    default void preInject() {} Bogus!
     /**
      * Called after dependency injection, but before dependencies are all
      * Running.  It is critical that you remember to call super.postInject() when you
