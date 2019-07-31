@@ -10,6 +10,7 @@ import java.io.*;
 import java.util.HashSet;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
+import java.util.function.Consumer;
 
 /**
  * Implements an object that goes through lifecycle phases.
@@ -86,13 +87,14 @@ public class Lifecycle implements Closeable, InjectionActions {
         if (s == state)
             return;
         if (s.ordinal() > State.Running.ordinal()) {
-            if (state == State.Running)
+            State prevState = state;
+            state = s;
+            if (prevState == State.Running)
                 try {
                     shutdown();
                 } catch (Throwable t) {
                     errored("Shutdown handler failed", t);
                 }
-            state = s;
             if (s == State.Errored)
                 try {
                     if(!errorHandlerErrored) handleError();
@@ -166,6 +168,7 @@ public class Lifecycle implements Closeable, InjectionActions {
     public void close() {
         setState(State.Shutdown);
     }
+    public String getName() { return getClass().getSimpleName(); }
     protected void addDependency(Lifecycle v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
@@ -174,6 +177,9 @@ public class Lifecycle implements Closeable, InjectionActions {
     private boolean hasDependencies() {
         return dependencies != null
                 && (dependencies.entrySet().stream().anyMatch((ls) -> (ls.getKey().getState().ordinal() < ls.getValue().ordinal())));
+    }
+    public void forAllDependencies(Consumer<? super Lifecycle> f) {
+        if(dependencies!=null) dependencies.keySet().forEach(f);
     }
     public boolean satisfiedBy(HashSet<Lifecycle> ready) { return true; }
     private void recheckOthersDependencies() {

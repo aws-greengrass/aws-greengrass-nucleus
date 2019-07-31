@@ -27,6 +27,9 @@ public class GGService extends Lifecycle {
     public GGService(Topics c) {
         config = c;
     }
+    @Override public String getName() {
+        return config.getFullName();
+    }
     @Override public void postInject() {
         super.postInject();
         Node d = config.getChild("dependencies");
@@ -100,7 +103,7 @@ public class GGService extends Lifecycle {
         return locate(context, name);
     }
     public static Lifecycle locate(Context context, String name) throws Throwable {
-        return context.getv(Lifecycle.class, name).computeIfEmpty(()->{
+        return context.getv(Lifecycle.class, name).computeIfEmpty(v->{
             Configuration c = context.get(Configuration.class);
             Topics t = c.findTopics(Configuration.splitPath(name));
             Lifecycle ret;
@@ -112,6 +115,9 @@ public class GGService extends Lifecycle {
                         Class clazz = Class.forName(cn);
                         Constructor ctor = clazz.getConstructor(Topics.class);
                         ret = (GGService) ctor.newInstance(t);
+                        if(clazz.getAnnotation(Singleton.class) !=null) {
+                            context.put(ret.getClass(), v);
+                        }
                     } catch (Throwable ex) {
                         ex.printStackTrace(System.out);
                         ret = errNode(context, name, "creating code-backed service from " + cn, ex);

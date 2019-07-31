@@ -12,7 +12,7 @@ public class GG2KTest {
     @Test
     public void testSomeMethod() {
         try {
-            CountDownLatch OK = new CountDownLatch(2);
+            CountDownLatch OK = new CountDownLatch(1);
             String tdir = System.getProperty("user.home")+"/gg2ktest";
             System.out.println("tdir = "+tdir);
             GG2K gg = new GG2K();

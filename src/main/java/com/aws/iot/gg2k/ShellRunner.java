@@ -41,7 +41,7 @@ public interface ShellRunner {
         @Inject Log log;
         @Override
         public synchronized Exec run(String note, String command, IntConsumer background) {
-            System.out.println((background==null ? "# " : "# BG ")+note+"\n"+command);
+            log.significant((background==null ? "# " : "# BG ")+note+"\n"+command);
             return OK;
         }
     }

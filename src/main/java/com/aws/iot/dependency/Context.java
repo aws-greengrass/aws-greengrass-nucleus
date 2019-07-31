@@ -16,7 +16,6 @@ import javax.inject.*;
  */
 public class Context implements Closeable {
     private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
-    private final ConcurrentLinkedQueue<Value> injectQueue = new ConcurrentLinkedQueue<>();
     {
         parts.put(Context.class, new Value(Context.class, this));
         parts.put(Clock.class, new Value(Clock.class, Clock.systemUTC()));  // can be overwritten
@@ -34,6 +33,10 @@ public class Context implements Closeable {
         return getv0(cl, isEmpty(tag) ? cl : tag);
     }
     private <T> Value<T> getv0(Class<T> cl, Object tag) {
+//        if(cl!=tag && cl.getAnnotation(Singleton.class)!=null) {
+//            Value<T> v = getv0(cl,cl);
+//            return parts.computeIfAbsent(tag, c->v);
+//        }
         return parts.computeIfAbsent(tag, c -> new Value(cl, null));
     }
     public <T> T newInstance(Class<T> cl) throws Throwable {
@@ -46,6 +49,14 @@ public class Context implements Closeable {
         parts.compute(cl, (k, ov) -> {
             if (ov == null) ov = new Value(cl, v);
             else ov.put(v);
+            return ov;
+        });
+        return this;
+    }
+    public <T> Context put(Class<T> cl, Value<T> v) {
+        parts.compute(cl, (k, ov) -> {
+            if (ov == null) ov = v;
+            else ov.put(v.get());
             return ov;
         });
         return this;
@@ -100,8 +111,13 @@ public class Context implements Closeable {
                 Class<T> ccl = targetClass.isInterface()
                         ? (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default")
                         : targetClass;
+                System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
                 Constructor<T> cons = ccl.getDeclaredConstructor();
                 cons.setAccessible(true);
+//                if(cons.getAnnotation(Singleton.class)!=null) {
+//                    System.out.println("Stuffing singleton "+ccl.getSimpleName());
+//                    parts.put(ccl, this); // if it's a named singleton, make sure it shows up both ways.
+//                }
                 return put(cons.newInstance());
             } catch (Throwable ex) {
                 ex.printStackTrace(System.out);
@@ -117,9 +133,9 @@ public class Context implements Closeable {
             } else
                 throw new IllegalArgumentException(v + " is not assignable to " + targetClass.getSimpleName());
         }
-        public synchronized final T computeIfEmpty(Supplier<T> s) {
+        public synchronized final T computeIfEmpty(Function<Value,T> s) {
             T v = value;
-            return v == null ? put(s.get()) : v;
+            return v == null ? put(s.apply(this)) : v;
         }
         public boolean isEmpty() {
             return value == null;
