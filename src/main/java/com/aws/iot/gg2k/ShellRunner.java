@@ -4,16 +4,16 @@
 
 package com.aws.iot.gg2k;
 
-import com.aws.iot.dependency.Context.Dependency;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
 import java.util.function.*;
+import javax.inject.*;
 
 public interface ShellRunner {
     public abstract Exec run(String note, String command, IntConsumer background);
     public static class Default implements ShellRunner {
-        @Dependency Log log;
-        @Dependency GG2K config;
+        @Inject Log log;
+        @Inject GG2K config;
         @Override
         public synchronized Exec run(String note, String command, IntConsumer background) {
             if(!isEmpty(command)) {
@@ -30,7 +30,7 @@ public interface ShellRunner {
                 if(!ret.successful()) {
                     log.error("failed",command);
                     return Failed;
-                } return OK;
+                }
             }
             return OK;
         }
@@ -38,10 +38,10 @@ public interface ShellRunner {
     public static final Exec OK = new Exec();
     public static final Exec Failed = new Exec();
     public static class Dryrun implements ShellRunner {
-        @Dependency Log log;
+        @Inject Log log;
         @Override
         public synchronized Exec run(String note, String command, IntConsumer background) {
-            System.out.println((background==null ? "# " : "# BG ")+note+"\n"+command);
+            log.significant((background==null ? "# " : "# BG ")+note+"\n"+command);
             return OK;
         }
     }

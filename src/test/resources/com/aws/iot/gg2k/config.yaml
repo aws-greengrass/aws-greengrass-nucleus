@@ -20,7 +20,7 @@
     install:
       debian: sudo apt-get install openjdk11
       macos:
-        skipif: java --version|egrep -i -q '(java|jdk|jre) *11\.'
+        skipif: java -version 2>&1|egrep -i '(java|jdk|jre) *(version)?[ "]*(1.8|8|9|1[0-9])\.'
         script: |-
             curl https://d3pxv6yz143wms.cloudfront.net/11.0.3.7.1/amazon-corretto-11.0.3.7.1-macosx-x64.pkg>/tmp/c11.pkg
             open /tmp/c11.pkg
@@ -129,7 +129,7 @@
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker, hello-docker-nginx, localhttp, mqtt
+      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt
       xyzzy: localhttp
       startup: |-
         pwd

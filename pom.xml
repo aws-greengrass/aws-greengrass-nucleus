@@ -39,16 +39,25 @@
             <version>2.9.9</version>
         </dependency>
         <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-codec-http</artifactId>
-            <version>4.1.37.Final</version>
+            <groupId>javax.inject</groupId>
+            <artifactId>javax.inject</artifactId>
+            <version>1</version>
         </dependency>
     </dependencies>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>yle-public</id>
+            <name>Yle public repository</name>
+            <url>https://maven.yle.fi/release</url>
+            <layout>default</layout>
+        </pluginRepository>
+    </pluginRepositories>
     <build>
         <extensions>
             <extension>
-                <groupId>org.springframework.build</groupId>
+                <groupId>fi.yle.tools</groupId>
                 <artifactId>aws-maven</artifactId>
+                <version>1.4.2</version>
             </extension>
         </extensions>
     </build>
