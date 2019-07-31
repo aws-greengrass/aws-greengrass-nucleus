@@ -7,13 +7,15 @@ import static com.aws.iot.dependency.Lifecycle.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
+import java.util.HashSet;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
+import java.util.function.Consumer;
 
 /**
  * Implements an object that goes through lifecycle phases.
  */
-public class Lifecycle implements Closeable {
+public class Lifecycle implements Closeable, InjectionActions {
     public enum State {
         // TODO The weird error states are not well handled (yet)
         Stateless, New, Installed, AwaitingStartup, Running, Unstable, Errored, Recovering, Shutdown
@@ -46,11 +48,11 @@ public class Lifecycle implements Closeable {
                 break;
             case AwaitingStartup:
                 backingTask = context.get(ExecutorService.class).submit(() -> {
-                try {
-                    startup();
-                } catch (Throwable t) {
-                    errored("Failed starting up", t);
-                }
+                    try {
+                        startup();
+                    } catch (Throwable t) {
+                        errored("Failed starting up", t);
+                    }
                 });
                 break;
             case Running:
@@ -85,13 +87,14 @@ public class Lifecycle implements Closeable {
         if (s == state)
             return;
         if (s.ordinal() > State.Running.ordinal()) {
-            if (state == State.Running)
+            State prevState = state;
+            state = s;
+            if (prevState == State.Running)
                 try {
                     shutdown();
                 } catch (Throwable t) {
                     errored("Shutdown handler failed", t);
                 }
-            state = s;
             if (s == State.Errored)
                 try {
                     if(!errorHandlerErrored) handleError();
@@ -104,9 +107,6 @@ public class Lifecycle implements Closeable {
             }
         if (state == State.AwaitingStartup && !hasDependencies())
             setState(State.Running);
-    }
-    public static State getState(Object o) {
-        return o instanceof Lifecycle ? ((Lifecycle) o).state : State.Stateless;
     }
     static final void setState(Object o, State st) {
         if (o instanceof Lifecycle)
@@ -128,16 +128,8 @@ public class Lifecycle implements Closeable {
     public boolean errored() {
         return state == State.Errored || error != null;
     }
-    /**
-     * Called after the constructor, but before dependency injection
-     */
-    protected void preInject() {
-    }
-    /**
-     * Called after dependency injection, but before dependencies are all
-     * Running
-     */
-    protected void postInject() {
+    @Override public void postInject() {
+        setState(Running);
     }
     /**
      * Called when this service is known to be needed to make sure that required
@@ -176,6 +168,7 @@ public class Lifecycle implements Closeable {
     public void close() {
         setState(State.Shutdown);
     }
+    public String getName() { return getClass().getSimpleName(); }
     protected void addDependency(Lifecycle v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
@@ -185,29 +178,28 @@ public class Lifecycle implements Closeable {
         return dependencies != null
                 && (dependencies.entrySet().stream().anyMatch((ls) -> (ls.getKey().getState().ordinal() < ls.getValue().ordinal())));
     }
+    public void forAllDependencies(Consumer<? super Lifecycle> f) {
+        if(dependencies!=null) dependencies.keySet().forEach(f);
+    }
+    public boolean satisfiedBy(HashSet<Lifecycle> ready) { return true; }
     private void recheckOthersDependencies() {
         if (context != null) {
             final AtomicBoolean changed = new AtomicBoolean(true);
             while (changed.get()) {
                 changed.set(false);
                 context.forEach(v -> {
-                    if (getState(v) == State.AwaitingStartup) {
-                        Lifecycle l = (Lifecycle) v;
-                        if (!l.hasDependencies()) {
-                            l.setState(State.Running);
-                            changed.set(true);
+                    Object vv= v.value;
+                    if(vv instanceof Lifecycle) {
+                        Lifecycle l = (Lifecycle) vv;
+                        if (l.state == State.AwaitingStartup) {
+                            if (!l.hasDependencies()) {
+                                l.setState(State.Running);
+                                changed.set(true);
+                            }
                         }
                     }
                 });
             }
         }
-//        System.out.print("Pending: ");
-//        context.forEach(v -> {
-//            if (getState(v) == State.AwaitingStartup) {
-//                Lifecycle l = (Lifecycle) v;
-//                System.out.print(l.lid);
-//            }
-//        });
-//        System.out.println();
     }
 }

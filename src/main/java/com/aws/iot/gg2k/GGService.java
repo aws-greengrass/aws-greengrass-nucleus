@@ -9,7 +9,6 @@ import com.aws.iot.config.Node;
 import com.aws.iot.config.Topic;
 import com.aws.iot.config.Topics;
 import com.aws.iot.dependency.*;
-import com.aws.iot.dependency.Context.Dependency;
 import com.aws.iot.util.*;
 import java.io.*;
 import java.lang.reflect.*;
@@ -19,6 +18,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.regex.*;
+import javax.inject.*;
 
 
 public class GGService extends Lifecycle {
@@ -27,13 +27,16 @@ public class GGService extends Lifecycle {
     public GGService(Topics c) {
         config = c;
     }
+    @Override public String getName() {
+        return config.getFullName();
+    }
     @Override public void postInject() {
+        super.postInject();
         Node d = config.getChild("dependencies");
         if (d == null)
             d = config.getChild("dependency");
         if (d == null)
             d = config.getChild("requires");
-        //            System.out.println("requires: " + d);
         if (d instanceof Topics)
             d = pickByOS((Topics) d);
         if (d instanceof Topic) {
@@ -42,7 +45,7 @@ public class GGService extends Lifecycle {
             while(m.find())
                 addDependency(m.group(1), m.group(3));
             if (!m.hitEnd())
-                System.out.println(config.getFullName() + " bad dependency syntax: " + ds);
+                errored("bad dependency syntax", ds);
         }
     }
     public void addDependency(String name, String startWhen) {
@@ -55,12 +58,11 @@ public class GGService extends Lifecycle {
                 // do "friendly" match
                 for (Lifecycle.State s : Lifecycle.State.values())
                     if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
-                        //                            System.out.println(startWhen + " translates to " + s);
                         x = s;
                         break;
                     }
                 if (x == null)
-                    System.err.println(startWhen + " does not match any lifecycle state");
+                    errored("does not match any lifecycle state", startWhen);
             }
         }
         if (x == null)
@@ -75,9 +77,9 @@ public class GGService extends Lifecycle {
                 addDependency(d, startWhen);
             }
             else
-                System.out.println("Couldn't locate " + name);
+                errored("Couldn't locate", name);
         } catch (Throwable ex) {
-            System.err.println("Failure adding dependency: " + name);
+            errored("Failure adding dependency", ex);
             ex.printStackTrace(System.out);
         }
     }
@@ -101,7 +103,7 @@ public class GGService extends Lifecycle {
         return locate(context, name);
     }
     public static Lifecycle locate(Context context, String name) throws Throwable {
-        Lifecycle o = context.computeIfAbsent(name, (key) -> {
+        return context.getv(Lifecycle.class, name).computeIfEmpty(v->{
             Configuration c = context.get(Configuration.class);
             Topics t = c.findTopics(Configuration.splitPath(name));
             Lifecycle ret;
@@ -113,7 +115,9 @@ public class GGService extends Lifecycle {
                         Class clazz = Class.forName(cn);
                         Constructor ctor = clazz.getConstructor(Topics.class);
                         ret = (GGService) ctor.newInstance(t);
-                        context.requestInject(ret);
+                        if(clazz.getAnnotation(Singleton.class) !=null) {
+                            context.put(ret.getClass(), v);
+                        }
                     } catch (Throwable ex) {
                         ex.printStackTrace(System.out);
                         ret = errNode(context, name, "creating code-backed service from " + cn, ex);
@@ -122,7 +126,6 @@ public class GGService extends Lifecycle {
                 else
                     try {
                         ret = new GenericExternalService(t);
-                        context.requestInject(ret);
                     } catch (Throwable ex) {
                         ret = errNode(context, name, "Creating generic service", ex);
                     }
@@ -131,8 +134,6 @@ public class GGService extends Lifecycle {
             }
             return errNode(context, name, "No matching definition in system model", null);
         });
-        context.inject(); // drain the injection queue, in case we did a manual injection request
-        return o;
     }
     public static GGService errNode(Context context, String name, String message, Throwable ex) {
         try {
@@ -140,7 +141,6 @@ public class GGService extends Lifecycle {
             GGService ggs = new GenericExternalService(Topics.errorNode(name,
                     "Error locating service " + name + ": " + message
                             + (ex == null ? "" : "\n\t" + ex)));
-            context.requestInject(ggs);
             return ggs;
         } catch (Throwable ex1) {
             context.get(Log.class).error(name,message,ex);
@@ -247,7 +247,7 @@ public class GGService extends Lifecycle {
         return n instanceof Topic ? run((Topic) n, background)
              : n instanceof Topics && run((Topics) n, background);
     }
-    @Dependency ShellRunner shellRunner;
+    @Inject ShellRunner shellRunner;
     protected boolean run(Topic t, IntConsumer background) {
         String cmd = Coerce.toString(t.getOnce());
         return shellRunner.run(t.getFullName(), cmd, background) != ShellRunner.Failed;
@@ -267,7 +267,7 @@ public class GGService extends Lifecycle {
             return true;
         }
     }
-    protected void addDependencies(HashSet<GGService> deps) {
+    protected void addDependencies(HashSet<Lifecycle> deps) {
         deps.add(this);
         if (dependencies != null)
             dependencies.keySet().forEach(d -> {
@@ -275,7 +275,7 @@ public class GGService extends Lifecycle {
                     ((GGService)d).addDependencies(deps);
             });
     }
-    protected boolean satisfiedBy(HashSet<GGService> ready) {
+    @Override public boolean satisfiedBy(HashSet<Lifecycle> ready) {
         return dependencies == null
                 || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
     }

@@ -24,7 +24,7 @@ public class GenericExternalService extends GGService {
                 setState(State.Shutdown);
                 log().significant("Finished", GenericExternalService.this);
             } else {
-                setState(State.Shutdown);
+                setState(State.Errored);
                 log().error("Failed", exit, this);
             }
         });

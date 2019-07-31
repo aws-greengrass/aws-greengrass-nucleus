@@ -12,7 +12,7 @@ public class GG2KTest {
     @Test
     public void testSomeMethod() {
         try {
-            CountDownLatch OK = new CountDownLatch(5);
+            CountDownLatch OK = new CountDownLatch(1);
             String tdir = System.getProperty("user.home")+"/gg2ktest";
             System.out.println("tdir = "+tdir);
             GG2K gg = new GG2K();
@@ -31,6 +31,7 @@ public class GG2KTest {
                     "-log", "stdout",
                     "-i", GG2K.class.getResource("config.yaml").toString()
             );
+            gg.launch();
             System.out.println("Done");
             if(OK.await(50, TimeUnit.SECONDS))
                 System.out.println("Running correctly");

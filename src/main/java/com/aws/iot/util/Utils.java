@@ -22,13 +22,27 @@ public class Utils {
         else return null;
     }
     public static boolean isEmpty(String s) {
-        return s == null || s.isEmpty();
+        if(s==null) return true;
+        int len = s.length();
+        for(int i = 0; i<len; i++)
+            if(!Character.isSpaceChar(s.charAt(i)))
+                return false;
+        return true;
+    }
+    public static String nullEmpty(String s) {
+        return isEmpty(s) ? null : s;
     }
     public static boolean isEmpty(CharSequence s) {
         return s == null || s.length() == 0;
     }
+    public static CharSequence nullEmpty(CharSequence s) {
+        return s == null || s.length() == 0  ? null : s;
+    }
     public static boolean isEmpty(Collection s) {
         return s == null || s.isEmpty();
+    }
+    public static <T extends Collection> T nullEmpty(T s) {
+        return s == null || s.isEmpty() ? null : s;
     }
     public static Throwable getUltimateCause(Throwable t) {
         while (t.getCause() != null)

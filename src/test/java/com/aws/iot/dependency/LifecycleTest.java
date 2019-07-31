@@ -3,10 +3,10 @@
 
 package com.aws.iot.dependency;
 
-import com.aws.iot.dependency.Context.Dependency;
 import com.aws.iot.dependency.Context.StartWhen;
 import static com.aws.iot.dependency.Lifecycle.State.*;
 import org.junit.*;
+import javax.inject.*;
 
 public class LifecycleTest {
     static int seq;
@@ -21,7 +21,9 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
 //        System.out.println(v);
+        Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
+        Assert.assertSame(v.C2, v.C2.C3.prov.get());
         Assert.assertEquals(Lifecycle.State.Running,v.getState());
         Assert.assertTrue(v.toString(),v.installCalled);
         Assert.assertTrue(v.toString(),v.startupCalled);
@@ -32,12 +34,12 @@ public class LifecycleTest {
         Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
         Assert.assertEquals(Lifecycle.State.Shutdown,v.getState());
         Assert.assertNotNull("non-lifecycle", v.C2.C3);
-        Assert.assertEquals("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
-        Assert.assertEquals("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
+        Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
+        Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
         Assert.assertEquals(42,c.get(Foo.class).what());
     }
     public static class c1 extends Lifecycle {
-        @Dependency public c2 C2;
+        @Inject public c2 C2;
         public boolean shutdownCalled, startupCalled, installCalled;
         @Override public void install() {
             installCalled = true;
@@ -58,8 +60,8 @@ public class LifecycleTest {
         { System.out.println("Creating  "+this); }
     }
     public static class c2 extends Lifecycle {
-        @Dependency c3 C3;
-        @Dependency @StartWhen(New) c1 parent;
+        @Inject c3 C3;
+        @Inject @StartWhen(New) c1 parent;
         public boolean shutdownCalled, startupCalled;
         final String id = "c2/"+ ++seq;
         @Override public String toString() { return id; }
@@ -76,8 +78,9 @@ public class LifecycleTest {
         }
     }
     public static class c3 {
-        @Dependency c3 self;
-        @Dependency c2 parent;
+        @Inject c3 self;
+        @Inject c2 parent;
+        @Inject Provider<c2> prov;
         @Override public String toString() { return super.toString()+"::"+parent; }
         { System.out.println("Hello from c3: "+this); }
     }
