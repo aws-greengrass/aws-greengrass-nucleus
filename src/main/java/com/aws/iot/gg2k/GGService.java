@@ -37,6 +37,11 @@ public class GGService extends Lifecycle {
             d = config.getChild("dependency");
         if (d == null)
             d = config.getChild("requires");
+        //            System.out.println("requires: " + d);
+        if(d == null){
+            //TODO: handle defaultimpl without creating GGService for parent
+            d =  config.getChild("defaultimpl");
+        }
         if (d instanceof Topics)
             d = pickByOS((Topics) d);
         if (d instanceof Topic) {
