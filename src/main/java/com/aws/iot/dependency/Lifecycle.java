@@ -3,7 +3,7 @@
 
 package com.aws.iot.dependency;
 
-import static com.aws.iot.dependency.Lifecycle.State.*;
+import static com.aws.iot.dependency.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
@@ -16,10 +16,6 @@ import java.util.function.Consumer;
  * Implements an object that goes through lifecycle phases.
  */
 public class Lifecycle implements Closeable, InjectionActions {
-    public enum State {
-        // TODO The weird error states are not well handled (yet)
-        Stateless, New, Installed, AwaitingStartup, Running, Unstable, Errored, Recovering, Shutdown
-    };
     private State state = State.New;
     private Throwable error;
     protected ConcurrentHashMap<Lifecycle, State> dependencies;
@@ -32,21 +28,37 @@ public class Lifecycle implements Closeable, InjectionActions {
         return state;
     }
     public Log log() { return context.get(Log.class); }
-    /** TODO: Most of the lifecycle FSM is here, and in this iteration it is wildly
-     *  inadequate.  Needs much work. */
-    private boolean bumpState() {
-        switch (state) { // this is the state we're *leaving*
-            case New:
+    public boolean isRunning() {
+        Future b = backingTask;
+        return b!=null && !b.isDone();
+    }
+    private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
+    public void setState(State s) {
+        final State prev = state;
+        if (s == prev)
+            return;
+        state = s;
+        if(prev==Running) {
+            try {
+                shutdown();
+                Future b = backingTask;
+                if(b!=null) {
+                    backingTask = null;
+                    b.cancel(true);
+                }
+            } catch (Throwable t) {
+                errored("Failed shutting down", t);
+            }
+        }
+        try {
+        switch(s) {
+            case Installing:
                 install();
                 break;
-            case Installed:
-                try {
-                    awaitingStartup();
-                } catch (Throwable t) {
-                    errored("Failed awaiting startup", t);
-                }
-                break;
             case AwaitingStartup:
+                awaitingStartup();
+                break;
+            case Running:
                 backingTask = context.get(ExecutorService.class).submit(() -> {
                     try {
                         startup();
@@ -54,59 +66,18 @@ public class Lifecycle implements Closeable, InjectionActions {
                         errored("Failed starting up", t);
                     }
                 });
-                break;
-            case Running:
-                try {
-                    shutdown();
-                    Future b = backingTask;
-                    if(b!=null) {
-                        backingTask = null;
-                        b.cancel(true);
-                    }
-                } catch (Throwable t) {
-                    errored("Failed shutting down", t);
-                }
-                break;
-            default:
-                return false;
-        }
-        State ds = State.values()[state.ordinal() + 1];
-        if (ds == State.Running)
-            if (hasDependencies())
-                return false;  // can't mark something running if it's got dependencies
-            else {
-                state = State.Running;
-                recheckOthersDependencies();
-            }
-        else
-            state = ds;
-        return true;
-    }
-    private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
-    public void setState(State s) {
-        if (s == state)
-            return;
-        if (s.ordinal() > State.Running.ordinal()) {
-            State prevState = state;
-            state = s;
-            if (prevState == State.Running)
-                try {
-                    shutdown();
-                } catch (Throwable t) {
-                    errored("Shutdown handler failed", t);
-                }
-            if (s == State.Errored)
+            case Errored:
                 try {
                     if(!errorHandlerErrored) handleError();
                 } catch (Throwable t) {
                     errorHandlerErrored = true;
                     errored("Error handler failed", t);
                 }
-        } else if (s.ordinal() <= State.Running.ordinal())
-            while (s.ordinal() > state.ordinal() && bumpState()) {
-            }
-        if (state == State.AwaitingStartup && !hasDependencies())
-            setState(State.Running);
+                break;
+        }
+        } catch(Throwable t) {
+            errored("Transitioning from "+prev+" to "+s, t);
+        }
     }
     static final void setState(Object o, State st) {
         if (o instanceof Lifecycle)
@@ -129,13 +100,14 @@ public class Lifecycle implements Closeable, InjectionActions {
         return state == State.Errored || error != null;
     }
     @Override public void postInject() {
-        setState(Running);
+        if(state.ordinal()<State.Running.ordinal()) setState(Installing);
     }
     /**
      * Called when this service is known to be needed to make sure that required
      * additional software is installed.
      */
     protected void install() {
+        setState(AwaitingStartup);
     }
     /**
      * Called when this service is known to be needed, and is AwaitingStartup.
@@ -144,12 +116,14 @@ public class Lifecycle implements Closeable, InjectionActions {
      * certain amount of setup to be done, but we're not actually going to start the app.
      */
     protected void awaitingStartup() {
+        if(!hasDependencies()) setState(Running);
     }
     /**
      * Called when all dependencies are Running. If there are no dependencies,
      * it is called right after postInject.
      */
     protected void startup() {
+        setState(State.Finished);
     }
     /**
      * Called when a running service encounters an error.
@@ -157,7 +131,8 @@ public class Lifecycle implements Closeable, InjectionActions {
     protected void handleError() {
     }
     /**
-     * Called when the object's state leaves Running
+     * Called when the object's state leaves Running.
+     * To shutdown a service, use <tt>setState(Shutdown)</dd>
      */
     protected void shutdown() {
     }
@@ -181,6 +156,22 @@ public class Lifecycle implements Closeable, InjectionActions {
     public void forAllDependencies(Consumer<? super Lifecycle> f) {
         if(dependencies!=null) dependencies.keySet().forEach(f);
     }
+    private CopyOnWriteArrayList<stateChangeListener> listeners;
+    public synchronized void addStateListener(stateChangeListener l) {
+        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
+        listeners.add(l);
+    }
+    public synchronized void removeStateListener(stateChangeListener l) {
+        if(listeners!=null) {
+            listeners.remove(l);
+            if(listeners.isEmpty()) listeners = null;
+        }
+    }
+    private void notify(Lifecycle l, State was) {
+        if(listeners!=null)
+            listeners.forEach(s->s.stateChanged(l,was));
+        context.notify(l,was);
+    }
     public boolean satisfiedBy(HashSet<Lifecycle> ready) { return true; }
     private void recheckOthersDependencies() {
         if (context != null) {
@@ -201,5 +192,11 @@ public class Lifecycle implements Closeable, InjectionActions {
                 });
             }
         }
+    }
+    private String status;
+    public String getStatus() { return status; }
+    public void setStatus(String s) { status = s; }
+    public interface stateChangeListener {
+        void stateChanged(Lifecycle l, State was);
     }
 }

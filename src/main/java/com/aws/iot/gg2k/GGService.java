@@ -55,13 +55,13 @@ public class GGService extends Lifecycle {
     }
     public void addDependency(String name, String startWhen) {
         if (startWhen == null)
-            startWhen = Lifecycle.State.Running.toString();
-        Lifecycle.State x = null;
+            startWhen = State.Running.toString();
+        State x = null;
         if (startWhen != null) {
             int len = startWhen.length();
             if (len > 0) {
                 // do "friendly" match
-                for (Lifecycle.State s : Lifecycle.State.values())
+                for (State s : State.values())
                     if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
                         x = s;
                         break;
@@ -71,10 +71,10 @@ public class GGService extends Lifecycle {
             }
         }
         if (x == null)
-            x = Lifecycle.State.Running;
+            x = State.Running;
         addDependency(name, x);
     }
-    public void addDependency(String name, Lifecycle.State startWhen) {
+    public void addDependency(String name, State startWhen) {
         try {
             Lifecycle d = locate(name);
             if (d != null) {
@@ -244,7 +244,7 @@ public class GGService extends Lifecycle {
         Node n = pickByOS(name);
         if(n==null) {
             if(required) log().warn("Missing",name,this);
-            return !required;
+            return required;
         }
         return run(n, background);
     }
@@ -255,7 +255,15 @@ public class GGService extends Lifecycle {
     @Inject ShellRunner shellRunner;
     protected boolean run(Topic t, IntConsumer background) {
         String cmd = Coerce.toString(t.getOnce());
-        return shellRunner.run(t.getFullName(), cmd, background) != ShellRunner.Failed;
+        setStatus(cmd);
+        IntConsumer nb = background!=null
+                ? n->{
+                    setStatus(null);
+                    background.accept(n);
+                } : null;
+        boolean OK = shellRunner.run(t.getFullName(), cmd, nb) != ShellRunner.Failed;
+        if(background==null) setStatus(null);
+        return OK;
     }
     protected boolean run(Topics t, IntConsumer background) {
         if (!shouldSkip(t)) {

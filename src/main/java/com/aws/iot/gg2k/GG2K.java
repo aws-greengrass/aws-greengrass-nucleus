@@ -4,8 +4,7 @@ package com.aws.iot.gg2k;
 
 import com.aws.iot.config.*;
 import com.aws.iot.dependency.*;
-import com.aws.iot.dependency.Lifecycle.State;
-import static com.aws.iot.dependency.Lifecycle.State.*;
+import static com.aws.iot.dependency.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
 import com.fasterxml.jackson.jr.ob.*;
@@ -162,11 +161,11 @@ public class GG2K extends Configuration implements Runnable {
                 log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ",t);
             }
         }
-        try {
-            installEverything();
-        } catch (Throwable ex) {
-            context.get(Log.class).error("install", ex);
-        }
+//        try {
+//            installEverything();
+//        } catch (Throwable ex) {
+//            context.get(Log.class).error("install", ex);
+//        }
         return this;
     }
     public void setWatcher(Consumer<Log.Entry> lw) {
@@ -243,7 +242,7 @@ public class GG2K extends Configuration implements Runnable {
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
-            l.setState(State.Installed);
+            l.setState(State.Installing);
         });
     }
     public void shutdown() {
@@ -256,7 +255,7 @@ public class GG2K extends Configuration implements Runnable {
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].getState() == Running)
                     try {
-                        d[i].setState(Shutdown);
+                        d[i].close();
                     } catch (Throwable t) {
                         log.error(d[i], "Failed to shutdown", t);
                     }

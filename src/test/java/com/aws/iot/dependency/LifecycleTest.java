@@ -4,7 +4,7 @@
 package com.aws.iot.dependency;
 
 import com.aws.iot.dependency.Context.StartWhen;
-import static com.aws.iot.dependency.Lifecycle.State.*;
+import static com.aws.iot.dependency.State.*;
 import org.junit.*;
 import javax.inject.*;
 
@@ -20,19 +20,21 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ExecutorService.class, ses);
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
+        try { Thread.sleep(50); } catch (InterruptedException ex) { }
 //        System.out.println(v);
         Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
         Assert.assertSame(v.C2, v.C2.C3.prov.get());
-        Assert.assertEquals(Lifecycle.State.Running,v.getState());
+        Assert.assertEquals(State.Finished,v.getState());
         Assert.assertTrue(v.toString(),v.installCalled);
         Assert.assertTrue(v.toString(),v.startupCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.startupCalled);
-        Assert.assertEquals(Lifecycle.State.Running,v.getState());
+        Assert.assertEquals(State.Finished,v.getState());
         c.shutdown();
+        try { Thread.sleep(50); } catch (InterruptedException ex) { }
         Assert.assertTrue(v.toString(),v.shutdownCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
-        Assert.assertEquals(Lifecycle.State.Shutdown,v.getState());
+        Assert.assertEquals(State.Shutdown,v.getState());
         Assert.assertNotNull("non-lifecycle", v.C2.C3);
         Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
         Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
@@ -44,16 +46,19 @@ public class LifecycleTest {
         @Override public void install() {
             installCalled = true;
             System.out.println("Startup "+this);
+            super.install();
         }
         @Override public void startup() {
             startupCalled = true;
             // Depen dependencies must be started first
             Assert.assertEquals(State.Running,C2.getState());
             System.out.println("Install "+this);
+            super.startup();
         }
         @Override public void shutdown() { 
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
+            super.shutdown();
         }
         final String id = "c1/"+ ++seq;
         @Override public String toString() { return id; }

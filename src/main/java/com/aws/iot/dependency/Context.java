@@ -90,6 +90,22 @@ public class Context implements Closeable {
     public void close() throws IOException {
         shutdown();
     }
+    // global state change notification
+    private CopyOnWriteArrayList<Lifecycle.stateChangeListener> listeners;
+    public synchronized void addStateListener(Lifecycle.stateChangeListener l) {
+        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
+        listeners.add(l);
+    }
+    public synchronized void removeStateListener(Lifecycle.stateChangeListener l) {
+        if(listeners!=null) {
+            listeners.remove(l);
+            if(listeners.isEmpty()) listeners = null;
+        }
+    }
+    void notify(Lifecycle l, State was) {
+        if(listeners!=null)
+            listeners.forEach(s->s.stateChanged(l,was));
+    }
 
     public class Value<T> implements Provider<T> {
         volatile T value;
@@ -178,7 +194,7 @@ public class Context implements Closeable {
 //                            System.out.println(cl.getSimpleName() + "." + f.getName() + " = " + v);
                             if (lo != null && v instanceof Lifecycle)
                                 lo.addDependency((Lifecycle) v,
-                                        startWhen == null ? Lifecycle.State.Running
+                                        startWhen == null ? State.Running
                                                 : startWhen.value());
                         } catch (Throwable ex) {
                             ex.printStackTrace(System.err);
@@ -205,6 +221,6 @@ public class Context implements Closeable {
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
     public @interface StartWhen {
-        Lifecycle.State value();
+        State value();
     }
 }

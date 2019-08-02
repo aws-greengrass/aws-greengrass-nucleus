@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.gg2k;
 
+import static com.aws.iot.dependency.State.*;
+
 public class GenericExternalService extends GGService {
     public GenericExternalService(com.aws.iot.config.Topics c) {
         super(c);
@@ -10,24 +12,27 @@ public class GenericExternalService extends GGService {
     public void install() {
         log().significant("install", this);
         run("install", false, null);
+        super.install();
     }
     @Override
     public void awaitingStartup() {
         log().significant("awaitingStartup", this);
         run("awaitingStartup", false, null);
+        super.awaitingStartup();
     }
     @Override
     public void startup() {
         log().significant("startup", this);
-        run("startup", false, exit -> {
+        if (!run("startup", false, exit -> {
             if (exit == 0) {
-                setState(State.Shutdown);
+                setState(Finished);
                 log().significant("Finished", GenericExternalService.this);
             } else {
-                setState(State.Errored);
+                setState(Errored);
                 log().error("Failed", exit, this);
             }
-        });
+        }))
+            setState(Finished);
     }
     @Override
     public void shutdown() {
