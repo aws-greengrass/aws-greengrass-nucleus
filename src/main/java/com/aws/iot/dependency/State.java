@@ -2,20 +2,76 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.dependency;
 
-
+/** The states in the lifecycle of a service */
 public enum State {
-    // TODO The weird error states are not well handled (yet)
-    Stateless,      /* Object does not have a state (not a Lifecycle) */
-    New,            /* Freshly created, probably being injected */
-    Installing,      /* Associated artifacts being installed */
-    AwaitingStartup,/* Waiting for some dependency to start Running */
-    Running,        /* Up and running, operating normally */
-    Unstable,       /* Running, but experiencing problems that the service is
-                     * attempting to repair itself */
-    Errored,        /* Not running.  It may be possible for the enclosing framework
-                     * to restart it. */
-    Recovering,     /* In the process of being restarted */
-    Shutdown,       /* Shut down, cannot be restarted */
-    Finished        /* The service has done it's job and has no more to do.  May
-                     * be restarted (for example, by a timer) */
+    // TODO Not sure I trust this list yet
+    
+    /**
+     * Object does not have a state (not a Lifecycle)
+     */
+    Stateless(true, false),
+    /**
+     * Freshly created, probably being injected
+     */
+    New(true, false),
+    /**
+     * Associated artifacts are being installed. TODO: This should probably be
+     * preceded by a new state: PreparingToInstall which can run while the
+     * service is running, and should do downloads in preparation to
+     * installation.
+     */
+    Installing(true, false),
+    /**
+     * Waiting for some dependency to start Running
+     */
+    AwaitingStartup(true, false),
+    /**
+     * Executed when all dependencies are satisfied. When this step is completed
+     * the service will be Running.
+     */
+    Starting(true, false),
+    /**
+     * Up and running, operating normally. This is the only state that should
+     * ever take a significant amount of time to run.
+     */
+    Running(true, true),
+    /**
+     * Running, but experiencing problems that the service is attempting to
+     * repair itself
+     */
+    Unstable(false, true),
+    /**
+     * Not running. It may be possible for the enclosing framework to restart
+     * it.
+     */
+    Errored(false, false),
+    /**
+     * In the process of being restarted
+     */
+    Recovering(false, false),
+    /**
+     * Shut down, cannot be restarted
+     */
+    Shutdown(false, false),
+    /**
+     * The service has done it's job and has no more to do. May be restarted
+     * (for example, by a timer)
+     */
+    Finished(true, false);
+    
+    private final boolean happy;
+    private final boolean running;
+    private State(boolean h, boolean r) {
+        happy = h;
+        running = r;
+    }
+    public boolean isHappy() {
+        return happy;
+    }
+    public boolean isRunning() {
+        return running;
+    }
+    public boolean preceeds(State other) {
+        return ordinal()<other.ordinal();
+    }
 }

@@ -52,7 +52,7 @@ public class GG2K extends Configuration implements Runnable {
     public GG2K parseArgs(String... args) {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
-        Topic root = lookup("system.rootpath");
+        Topic root = lookup("system","rootpath");
         root.subscribe((w, n, o) -> {
             rootPath = Paths.get(n.toString());
             configPath = Paths.get(deTilde(configPathName));
@@ -88,7 +88,7 @@ public class GG2K extends Configuration implements Runnable {
                     break;
                 case "-log":
                 case "-l":
-                    lookup("system.logfile").setValue(getArg());
+                    lookup("system","logfile").setValue(getArg());
                     break;
                 case "-root":
                 case "-r": {
@@ -161,14 +161,16 @@ public class GG2K extends Configuration implements Runnable {
                 log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ",t);
             }
         }
-//        try {
-//            installEverything();
-//        } catch (Throwable ex) {
-//            context.get(Log.class).error("install", ex);
-//        }
+        try {
+            installEverything();
+            if(!installOnly)
+                startEverything();
+        } catch (Throwable ex) {
+            context.get(Log.class).error("install", ex);
+        }
         return this;
     }
-    public void setWatcher(Consumer<Log.Entry> lw) {
+    public void setLogWatcher(Consumer<Log.Entry> lw) {
         logWatcher = lw;
     }
     private Consumer<Log.Entry> logWatcher = null;
@@ -243,6 +245,24 @@ public class GG2K extends Configuration implements Runnable {
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
             l.setState(State.Installing);
+        });
+    }
+    public void startEverything() throws Throwable {
+        if (broken)
+            return;
+        Log log = context.get(Log.class);
+        log.significant("Installing software", getMain());
+        orderedDependencies().forEach(l -> {
+            log.significant("Starting to install", l);
+            l.setState(State.AwaitingStartup);
+        });
+    }
+    public void dump() {
+        orderedDependencies().forEach(l -> {
+            System.out.println(l.getName()+": "+l.getState());
+            if(l.getState().preceeds(Running)) {
+                l.forAllDependencies(d->System.out.println("    "+d.getName()+": "+d.getState()));
+            }
         });
     }
     public void shutdown() {

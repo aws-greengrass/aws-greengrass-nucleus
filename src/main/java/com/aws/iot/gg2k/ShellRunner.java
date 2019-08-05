@@ -4,24 +4,36 @@
 
 package com.aws.iot.gg2k;
 
+import com.aws.iot.config.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.*;
 import javax.inject.*;
 
 public interface ShellRunner {
-    public abstract Exec run(String note, String command, IntConsumer background);
+    public abstract Exec run(String note, String command, IntConsumer background, GGService onBehalfOf);
     public static class Default implements ShellRunner {
         @Inject Log log;
         @Inject GG2K config;
         @Override
-        public synchronized Exec run(String note, String command, IntConsumer background) {
+        public synchronized Exec run(String note, String command, IntConsumer background, GGService onBehalfOf) {
             if(!isEmpty(command)) {
                 if(!isEmpty(note))
                     log.significant("run",note);
+                int timeout = -1;
+                if(onBehalfOf!=null) {
+                    Node n = onBehalfOf.config.getChild("bashtimeout");
+                    if(n instanceof Topic)
+                        timeout = Coerce.toInt(((Topic)n).getOnce());
+                }
+                if(timeout<=0)
+                    timeout = Coerce.toInt(config.lookup("system","bashtimeout").dflt(120).getOnce());
+                if(timeout<=0) timeout = 120;
                 Exec ret = new Exec().withShell(command)
-                        .withOut(s->log.significant("stdout",s))
-                        .withErr(s->log.warn("stderr",s))
+                        .withOut(s->log.significant("stdout",note,s))
+                        .withErr(s->log.warn("stderr",note,s))
+                        .withTimeout(timeout, TimeUnit.SECONDS)
                         .cd(config.workPath.toFile());
                 if(background!=null) {
                     ret.background(background);
@@ -40,7 +52,7 @@ public interface ShellRunner {
     public static class Dryrun implements ShellRunner {
         @Inject Log log;
         @Override
-        public synchronized Exec run(String note, String command, IntConsumer background) {
+        public synchronized Exec run(String note, String command, IntConsumer background, GGService onBehalfOf) {
             log.significant((background==null ? "# " : "# BG ")+note+"\n"+command);
             return OK;
         }

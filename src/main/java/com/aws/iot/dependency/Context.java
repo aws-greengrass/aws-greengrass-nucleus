@@ -106,6 +106,15 @@ public class Context implements Closeable {
         if(listeners!=null)
             listeners.forEach(s->s.stateChanged(l,was));
     }
+    
+    public void setAllStates(State ms) {
+        forEach(f->{
+            Object v = f.get();
+            if(v instanceof Lifecycle) {
+                ((Lifecycle)v).setState(ms);
+            }
+        });
+    }
 
     public class Value<T> implements Provider<T> {
         volatile T value;

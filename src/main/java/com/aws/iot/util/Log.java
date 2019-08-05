@@ -64,11 +64,11 @@ public interface Log {
             super.postInject();
             Configuration conf = context.get(Configuration.class);
             GG2K gg = context.get(GG2K.class);
-            conf.lookup("system.logfile")
+            conf.lookup("system","logfile")
                     .dflt("~root/gg2.log")
                     .subscribe((w, nv, ov)
                             -> logTo(gg.deTilde(Coerce.toString(nv))));
-            conf.lookup("system.loglevel")
+            conf.lookup("system","loglevel")
                     .dflt(0)
                     .validate((nv, ov) -> {
                         int i = Coerce.toInt(nv);

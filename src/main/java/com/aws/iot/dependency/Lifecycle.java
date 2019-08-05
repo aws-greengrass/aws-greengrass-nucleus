@@ -37,8 +37,9 @@ public class Lifecycle implements Closeable, InjectionActions {
         final State prev = state;
         if (s == prev)
             return;
+        System.out.println(getName()+" "+prev+"->"+s);
         state = s;
-        if(prev==Running) {
+        if(prev.isRunning() && !s.isRunning()) { // transition from running to not running
             try {
                 shutdown();
                 Future b = backingTask;
@@ -51,30 +52,42 @@ public class Lifecycle implements Closeable, InjectionActions {
             }
         }
         try {
-        switch(s) {
-            case Installing:
-                install();
-                break;
-            case AwaitingStartup:
-                awaitingStartup();
-                break;
-            case Running:
-                backingTask = context.get(ExecutorService.class).submit(() -> {
+            switch(s) {
+                case Installing:
+                    install();
+                    break;
+                case AwaitingStartup:
+                    awaitingStartup();
+                    break;
+                case Starting:
+                    backingTask = context.get(ExecutorService.class).submit(() -> {
+                        try {
+                            startup();
+                        } catch (Throwable t) {
+                            errored("Failed starting up", t);
+                        }
+                    });
+                    break;
+                case Running:
+                    recheckOthersDependencies();
+                    if(prev != Unstable)
+                        backingTask = context.get(ExecutorService.class).submit(() -> {
+                            try {
+                                run();
+                            } catch (Throwable t) {
+                                errored("Failed starting up", t);
+                            }
+                        });
+                    break;
+                case Errored:
                     try {
-                        startup();
+                        if(!errorHandlerErrored) handleError();
                     } catch (Throwable t) {
-                        errored("Failed starting up", t);
+                        errorHandlerErrored = true;
+                        errored("Error handler failed", t);
                     }
-                });
-            case Errored:
-                try {
-                    if(!errorHandlerErrored) handleError();
-                } catch (Throwable t) {
-                    errorHandlerErrored = true;
-                    errored("Error handler failed", t);
-                }
-                break;
-        }
+                    break;
+            }
         } catch(Throwable t) {
             errored("Transitioning from "+prev+" to "+s, t);
         }
@@ -97,17 +110,15 @@ public class Lifecycle implements Closeable, InjectionActions {
         setState(State.Errored);
     }
     public boolean errored() {
-        return state == State.Errored || error != null;
+        return !state.isHappy() || error != null;
     }
     @Override public void postInject() {
-        if(state.ordinal()<State.Running.ordinal()) setState(Installing);
     }
     /**
      * Called when this service is known to be needed to make sure that required
      * additional software is installed.
      */
     protected void install() {
-        setState(AwaitingStartup);
     }
     /**
      * Called when this service is known to be needed, and is AwaitingStartup.
@@ -116,14 +127,22 @@ public class Lifecycle implements Closeable, InjectionActions {
      * certain amount of setup to be done, but we're not actually going to start the app.
      */
     protected void awaitingStartup() {
-        if(!hasDependencies()) setState(Running);
+        if(!hasDependencies() && !errored()) setState(Starting);
+    }
+    /**
+     * Called when all dependencies are Running. If there are no dependencies,
+     * it is called right after postInject.  The service doesn't transition to Running
+     * until *after* this state is complete.
+     */
+    protected void startup() {
+        if(!errored()) setState(State.Running);
     }
     /**
      * Called when all dependencies are Running. If there are no dependencies,
      * it is called right after postInject.
      */
-    protected void startup() {
-        setState(State.Finished);
+    protected void run() {
+        if(!errored()) setState(State.Finished);
     }
     /**
      * Called when a running service encounters an error.
@@ -147,11 +166,20 @@ public class Lifecycle implements Closeable, InjectionActions {
     protected void addDependency(Lifecycle v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
+        System.out.println(getName()+" depends on "+v.getName());
         dependencies.put(v, when);
     }
     private boolean hasDependencies() {
+        if(dependencies==null) {
+            System.out.println(getName()+": no dependencies");
+            return false;
+        } else {
+            dependencies.entrySet().stream().forEach(ls -> {
+                System.out.println(getName() +"/"+ getState()+" :: "+ls.getKey().getName()+"/"+ls.getKey().getState());
+            });
+        }
         return dependencies != null
-                && (dependencies.entrySet().stream().anyMatch((ls) -> (ls.getKey().getState().ordinal() < ls.getValue().ordinal())));
+                && (dependencies.entrySet().stream().anyMatch(ls -> ls.getKey().getState().preceeds(ls.getValue())));
     }
     public void forAllDependencies(Consumer<? super Lifecycle> f) {
         if(dependencies!=null) dependencies.keySet().forEach(f);
@@ -184,7 +212,7 @@ public class Lifecycle implements Closeable, InjectionActions {
                         Lifecycle l = (Lifecycle) vv;
                         if (l.state == State.AwaitingStartup) {
                             if (!l.hasDependencies()) {
-                                l.setState(State.Running);
+                                l.setState(State.Starting);
                                 changed.set(true);
                             }
                         }

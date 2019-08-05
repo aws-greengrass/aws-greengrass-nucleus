@@ -70,9 +70,7 @@ public class GGService extends Lifecycle {
                     errored("does not match any lifecycle state", startWhen);
             }
         }
-        if (x == null)
-            x = State.Running;
-        addDependency(name, x);
+        addDependency(name, x == null ? State.Running : x);
     }
     public void addDependency(String name, State startWhen) {
         try {
@@ -240,20 +238,22 @@ public class GGService extends Lifecycle {
         }
         return bestn;
     }
-    protected boolean run(String name, boolean required, IntConsumer background) {
+    public enum RunStatus { OK, NothingDone, Errored }
+    protected RunStatus run(String name, boolean required, IntConsumer background) {
         Node n = pickByOS(name);
         if(n==null) {
             if(required) log().warn("Missing",name,this);
-            return required;
+            return RunStatus.NothingDone;
         }
         return run(n, background);
     }
-    protected boolean run(Node n, IntConsumer background) {
+    protected RunStatus run(Node n, IntConsumer background) {
         return n instanceof Topic ? run((Topic) n, background)
-             : n instanceof Topics && run((Topics) n, background);
+             : n instanceof Topics ? run((Topics) n, background)
+                : RunStatus.Errored;
     }
     @Inject ShellRunner shellRunner;
-    protected boolean run(Topic t, IntConsumer background) {
+    protected RunStatus run(Topic t, IntConsumer background) {
         String cmd = Coerce.toString(t.getOnce());
         setStatus(cmd);
         IntConsumer nb = background!=null
@@ -261,23 +261,24 @@ public class GGService extends Lifecycle {
                     setStatus(null);
                     background.accept(n);
                 } : null;
-        boolean OK = shellRunner.run(t.getFullName(), cmd, nb) != ShellRunner.Failed;
+        RunStatus OK = shellRunner.run(t.getFullName(), cmd, nb, this) != ShellRunner.Failed
+                ? RunStatus.OK : RunStatus.Errored;
         if(background==null) setStatus(null);
         return OK;
     }
-    protected boolean run(Topics t, IntConsumer background) {
+    protected RunStatus run(Topics t, IntConsumer background) {
         if (!shouldSkip(t)) {
             Node script = t.getChild("script");
             if (script instanceof Topic)
                 return run((Topic) script, background);
             else {
                 errored("Missing script: for ", t.getFullName());
-                return false;
+                return RunStatus.Errored;
             }
         }
         else {
             log().significant("Skipping", t.getFullName());
-            return true;
+            return RunStatus.OK;
         }
     }
     protected void addDependencies(HashSet<Lifecycle> deps) {

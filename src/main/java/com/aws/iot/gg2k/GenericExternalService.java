@@ -23,15 +23,22 @@ public class GenericExternalService extends GGService {
     @Override
     public void startup() {
         log().significant("startup", this);
-        if (!run("startup", false, exit -> {
+        if(run("startup", false, null)==RunStatus.Errored)
+            setState(Errored);
+        super.startup();
+    }
+    @Override
+    public void run() {
+        log().significant("running", this);
+        if (run("run", false, exit -> {
             if (exit == 0) {
                 setState(Finished);
-                log().significant("Finished", GenericExternalService.this);
+                log().significant("Finished", getName());
             } else {
                 setState(Errored);
-                log().error("Failed", exit, this);
+                log().error("Failed", getName(), exit);
             }
-        }))
+        })==RunStatus.NothingDone)
             setState(Finished);
     }
     @Override

@@ -3,7 +3,6 @@
 
 package com.aws.iot.dependency;
 
-import com.aws.iot.dependency.Context.StartWhen;
 import static com.aws.iot.dependency.State.*;
 import org.junit.*;
 import javax.inject.*;
@@ -20,8 +19,9 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ExecutorService.class, ses);
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
+        c.setAllStates(Installing);
+        c.setAllStates(AwaitingStartup);
         try { Thread.sleep(50); } catch (InterruptedException ex) { }
-//        System.out.println(v);
         Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
         Assert.assertSame(v.C2, v.C2.C3.prov.get());
@@ -52,7 +52,7 @@ public class LifecycleTest {
             startupCalled = true;
             // Depen dependencies must be started first
             Assert.assertEquals(State.Running,C2.getState());
-            System.out.println("Install "+this);
+            System.out.println("Startup "+this);
             super.startup();
         }
         @Override public void shutdown() { 
@@ -66,7 +66,7 @@ public class LifecycleTest {
     }
     public static class c2 extends Lifecycle {
         @Inject c3 C3;
-        @Inject @StartWhen(New) c1 parent;
+//        @Inject @StartWhen(New) c1 parent;
         public boolean shutdownCalled, startupCalled;
         final String id = "c2/"+ ++seq;
         @Override public String toString() { return id; }
@@ -76,10 +76,12 @@ public class LifecycleTest {
             startupCalled = true;
             System.out.println("Startup "+this);
             System.out.println("  C3="+C3);
+            super.startup();
         }
         @Override public void shutdown() { 
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
+            super.startup();
         }
     }
     public static class c3 {
