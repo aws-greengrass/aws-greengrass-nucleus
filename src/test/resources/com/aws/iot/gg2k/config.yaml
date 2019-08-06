@@ -83,7 +83,9 @@
 
   hello-docker-nginx:
       requires: docker
-      startup:  docker run --cidfile=cid nginx
+      startup:  |-
+        echo 0 > cid
+        docker run --cidfile=cid nginx
       shutdown: cat cid | xargs docker stop
 
   monitoring:
