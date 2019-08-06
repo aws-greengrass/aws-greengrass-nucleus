@@ -20,7 +20,6 @@
     install:
       debian:
         script: |-
-          sudo apt-get update && sudo apt-get install java-common
           sudo curl https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb
           sudo dpkg --install /tmp/corettojdk11.deb
 
