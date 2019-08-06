@@ -48,7 +48,7 @@
         <pluginRepository>
             <id>yle-public</id>
             <name>Yle public repository</name>
-            <url>https://maven.yle.fi/release</url>
+            <url>d2x444wtt5plvm.cloudfront.net</url>
             <layout>default</layout>
         </pluginRepository>
     </pluginRepositories>
