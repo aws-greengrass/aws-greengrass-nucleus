@@ -48,7 +48,7 @@
         <pluginRepository>
             <id>yle-public</id>
             <name>Yle public repository</name>
-            <url>d2x444wtt5plvm.cloudfront.net</url>
+            <url>https://d2x444wtt5plvm.cloudfront.net/release</url>
             <layout>default</layout>
         </pluginRepository>
     </pluginRepositories>
