@@ -28,12 +28,12 @@ public class Lifecycle implements Closeable, InjectionActions {
         return state;
     }
     public Log log() { return context.get(Log.class); }
-    public boolean isRunning() {
+    public boolean isRunningInternally() {
         Future b = backingTask;
         return b!=null && !b.isDone();
     }
     private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
-    public void setState(State s) {
+    public synchronized void setState(State s) {
         final State prev = state;
         if (s == prev)
             return;
@@ -69,8 +69,8 @@ public class Lifecycle implements Closeable, InjectionActions {
                     });
                     break;
                 case Running:
-                    recheckOthersDependencies();
-                    if(prev != Unstable)
+                    if(prev != Unstable) {
+                        recheckOthersDependencies();
                         backingTask = context.get(ExecutorService.class).submit(() -> {
                             try {
                                 run();
@@ -78,6 +78,7 @@ public class Lifecycle implements Closeable, InjectionActions {
                                 errored("Failed starting up", t);
                             }
                         });
+                    }
                     break;
                 case Errored:
                     try {

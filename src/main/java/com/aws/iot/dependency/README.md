@@ -54,3 +54,7 @@ can be in any of the following states:
 |    Recovering | In the process of being restarted
 |    Shutdown | Shut down, cannot be restarted
 |    Finished | The service has done it's job and has no more to do.  May be restarted (for example, by a timer)
+
+![lifecycle](lifecycle.svg)
+            
+

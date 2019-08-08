@@ -50,12 +50,12 @@ public enum State {
      */
     Recovering(false, false),
     /**
-     * Shut down, cannot be restarted
+     * Shut down, cannot be restarted.  Generally the result of an unresolvable error.
      */
     Shutdown(false, false),
     /**
      * The service has done it's job and has no more to do. May be restarted
-     * (for example, by a timer)
+     * (for example, a monitoring task that will be restarted by a timer)
      */
     Finished(true, false);
     

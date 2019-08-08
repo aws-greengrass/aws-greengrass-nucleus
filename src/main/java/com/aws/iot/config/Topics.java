@@ -48,6 +48,17 @@ public class Topics extends Node implements Iterable<Node> {
         Node n = getChild(name);
         return n instanceof Topic ? (Topic) n : null;
     }
+    /**
+     * Find, and create if missing, a topic (a name/value pair) in the config
+     * file. Never returns null.
+     */
+    public Topic lookup(String... path) {
+        int limit = path.length - 1;
+        Topics n = this;
+        for (int i = 0; i < limit; i++)
+            n = n.createInteriorChild(path[i]);
+        return n.createLeafChild(path[limit]);
+    }
     void publish(Topic t) {
         fire(Configuration.WhatHappened.childChanged, t, null);
     }
@@ -111,6 +122,9 @@ public class Topics extends Node implements Iterable<Node> {
         Topics t = new Topics(name, null);
         t.createLeafChild("error").setValue(0, message);
         return t;
+    }
+    public boolean isEmpty() {
+        return children.isEmpty();
     }
 
 }

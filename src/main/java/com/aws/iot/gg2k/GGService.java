@@ -74,7 +74,7 @@ public class GGService extends Lifecycle {
     }
     public void addDependency(String name, State startWhen) {
         try {
-            Lifecycle d = locate(name);
+            Lifecycle d = locate(context, name);
             if (d != null) {
                 explicitDependencies.add(d);
                 addDependency(d, startWhen);
@@ -102,40 +102,48 @@ public class GGService extends Lifecycle {
         }
         return sb.toString();
     }
-    public Lifecycle locate(String name) throws Throwable {
-        return locate(context, name);
-    }
     public static Lifecycle locate(Context context, String name) throws Throwable {
         return context.getv(Lifecycle.class, name).computeIfEmpty(v->{
             Configuration c = context.get(Configuration.class);
-            Topics t = c.findTopics(Configuration.splitPath(name));
+            Topics t = c.lookupTopics(Configuration.splitPath(name));
+            assert(t!=null);
             Lifecycle ret;
-            if (t != null) {
-                Node n = t.getChild("class");
-                if (n != null) {
-                    String cn = Coerce.toString(n);
-                    try {
-                        Class clazz = Class.forName(cn);
-                        Constructor ctor = clazz.getConstructor(Topics.class);
-                        ret = (GGService) ctor.newInstance(t);
-                        if(clazz.getAnnotation(Singleton.class) !=null) {
-                            context.put(ret.getClass(), v);
-                        }
-                    } catch (Throwable ex) {
-                        ex.printStackTrace(System.out);
-                        ret = errNode(context, name, "creating code-backed service from " + cn, ex);
-                    }
+            Class clazz = null;
+            Node n = t.getChild("class");
+            if (n != null) {
+                String cn = Coerce.toString(n);
+                try {
+                    clazz = Class.forName(cn);
+                } catch (Throwable ex) {
+                    ex.printStackTrace(System.out);
+                    return errNode(context, name, "creating code-backed service from " + cn, ex);
                 }
-                else
-                    try {
-                        ret = new GenericExternalService(t);
-                    } catch (Throwable ex) {
-                        ret = errNode(context, name, "Creating generic service", ex);
-                    }
-                if (ret != null)
-                    return ret;
             }
-            return errNode(context, name, "No matching definition in system model", null);
+            if(clazz==null) {
+                Map<String,Class> si = context.get(Map.class, "service-implementors");
+                if(si!=null) clazz = si.get(name);
+            }
+            if(clazz!=null) {
+                try {
+                    Constructor ctor = clazz.getConstructor(Topics.class);
+                    ret = (GGService) ctor.newInstance(t);
+                    if(clazz.getAnnotation(Singleton.class) !=null) {
+                        context.put(ret.getClass(), v);
+                    }
+                } catch (Throwable ex) {
+                    ex.printStackTrace(System.out);
+                    ret = errNode(context, name, "creating code-backed service from " + clazz.getSimpleName(), ex);
+                }
+            }
+            else if(t.isEmpty())
+                ret = errNode(context, name, "No matching definition in system model", null);
+            else
+                try {
+                    ret = new GenericExternalService(t);
+                } catch (Throwable ex) {
+                    ret = errNode(context, name, "Creating generic service", ex);
+                }
+            return ret;
         });
     }
     public static GGService errNode(Context context, String name, String message, Throwable ex) {
@@ -239,10 +247,10 @@ public class GGService extends Lifecycle {
         return bestn;
     }
     public enum RunStatus { OK, NothingDone, Errored }
-    protected RunStatus run(String name, boolean required, IntConsumer background) {
+    protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);
         if(n==null) {
-            if(required) log().warn("Missing",name,this);
+//            if(required) log().warn("Missing",name,this);
             return RunStatus.NothingDone;
         }
         return run(n, background);

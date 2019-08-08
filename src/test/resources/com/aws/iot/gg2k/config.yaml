@@ -78,13 +78,13 @@
     throttleBandwidth: 100 kb/s
   hello-docker:
       requires: docker
-      run: docker run hello-world
-      shutdown: docker stop hello-world; docker rm hello-world
+      run: sleep 30;docker run hello-world
+      shutdown: docker stop hello-world; docker rm hello-world; exit 0
 
   hello-docker-nginx:
       requires: docker
-      startup:  docker run nginx
-      shutdown: docker stop nginx; docker rm nginx
+      run:  docker run nginx
+      shutdown: docker stop nginx; docker rm nginx; exit 0
 
   monitoring:
     install:
@@ -130,12 +130,12 @@
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker, mqtt
-      xyzzy: localhttp, hello-docker-nginx, broken
+      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt
+      xyzzy: localhttp, broken
       run: |-
         pwd
         while true; do
-        date; echo RUNNING; sleep 10
+        date; sleep 30; echo RUNNING
         done
       download:
         hw.jar: http://foo/hw.jar

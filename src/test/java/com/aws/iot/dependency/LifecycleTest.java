@@ -4,13 +4,16 @@
 package com.aws.iot.dependency;
 
 import static com.aws.iot.dependency.State.*;
+import java.util.concurrent.*;
 import org.junit.*;
 import javax.inject.*;
 
 public class LifecycleTest {
     static int seq;
+    static CountDownLatch cd;
     @Test
     public void T1() {
+        cd = new CountDownLatch(1);
         Context c = new Context();
         java.util.concurrent.ScheduledThreadPoolExecutor ses = new java.util.concurrent.ScheduledThreadPoolExecutor(2);
         c.put(java.util.concurrent.ScheduledThreadPoolExecutor.class, ses);
@@ -21,7 +24,13 @@ public class LifecycleTest {
         c1 v = c.get(c1.class);
         c.setAllStates(Installing);
         c.setAllStates(AwaitingStartup);
-        try { Thread.sleep(50); } catch (InterruptedException ex) { }
+        try {
+            if(!cd.await(1, TimeUnit.SECONDS))
+                Assert.fail("Startup timed out");
+        } catch (InterruptedException ex) {
+            ex.printStackTrace(System.out);
+            Assert.fail("Startup interrupted out");
+        }
         Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
         Assert.assertSame(v.C2, v.C2.C3.prov.get());
@@ -81,7 +90,7 @@ public class LifecycleTest {
         @Override public void shutdown() { 
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
-            super.startup();
+            cd.countDown();
         }
     }
     public static class c3 {

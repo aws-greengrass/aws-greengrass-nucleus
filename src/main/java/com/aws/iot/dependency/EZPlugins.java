@@ -24,8 +24,8 @@ public class EZPlugins {
     public EZPlugins(Path d) { setCacheDirectory(d); }
     public EZPlugins setCacheDirectory(Path d) {
         cacheDirectory = d;
-        trustedCacheDirectory = cacheDirectory.resolve("Trusted");
-        untrustedCacheDirectory = cacheDirectory.resolve("Untrusted");
+        trustedCacheDirectory = cacheDirectory.resolve("trusted");
+        untrustedCacheDirectory = cacheDirectory.resolve("untrusted");
         try {
             Files.createDirectories(trustedCacheDirectory);
             Files.createDirectories(untrustedCacheDirectory);

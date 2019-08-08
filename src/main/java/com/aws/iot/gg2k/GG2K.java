@@ -28,6 +28,7 @@ public class GG2K extends Configuration implements Runnable {
     private boolean broken = false;
     boolean forReal = true;
     boolean haveRead = false;
+    private final Map<String,Class> serviceImplementors = new HashMap<>();
     public static void main(String[] args) {
         GG2K ggc = new GG2K().parseArgs(args);
     }
@@ -117,8 +118,29 @@ public class GG2K extends Configuration implements Runnable {
     }
     public GG2K launch() {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
+        Queue<String> autostart = new LinkedList<>();
         if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath))
             broken = true;
+        try {
+            EZPlugins pim = context.get(EZPlugins.class);
+            pim.setCacheDirectory(rootPath.resolve("plugins"));
+            pim.annotated(ImplementsService.class, cl->{
+                if(!Lifecycle.class.isAssignableFrom(cl)) {
+                    System.err.println(cl+" needs to be a subclass of Lifecycle in order to use ImplementsService");
+                    return;
+                }
+                ImplementsService is = cl.getAnnotation(ImplementsService.class);
+                if(is.autostart()) autostart.add(is.name());
+                serviceImplementors.put(is.name(),cl);
+                System.out.println("Found Plugin: "+cl.getSimpleName());
+            });
+            pim.loadCache();
+            if(!serviceImplementors.isEmpty())
+                context.put("service-implementors", serviceImplementors);
+            System.out.println("serviceImplementors: "+deepToString(serviceImplementors));
+        } catch(Throwable t) {
+            System.err.println("Error launching plugins: "+t);
+        }
         Path transactionLogPath = Paths.get(deTilde("~root/config/config.tlog"));
         Path configurationFile = Paths.get(deTilde("~root/config/config.yaml"));
         if (!broken)
@@ -151,7 +173,8 @@ public class GG2K extends Configuration implements Runnable {
             context.put(ShellRunner.class,
                     context.get(ShellRunner.Dryrun.class));
         try {
-            getMain(); // Trigger boot  (!?!?)
+            GGService main = getMain(); // Trigger boot  (!?!?)
+            autostart.forEach(s->main.addDependency(s, AwaitingStartup));
         } catch (Throwable ex) {
             log.error("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ",ex);
             mainServiceName = "fallbackMain";
