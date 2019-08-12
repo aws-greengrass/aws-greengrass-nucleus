@@ -55,13 +55,13 @@ public class GGService extends Lifecycle {
     }
     public void addDependency(String name, String startWhen) {
         if (startWhen == null)
-            startWhen = Lifecycle.State.Running.toString();
-        Lifecycle.State x = null;
+            startWhen = State.Running.toString();
+        State x = null;
         if (startWhen != null) {
             int len = startWhen.length();
             if (len > 0) {
                 // do "friendly" match
-                for (Lifecycle.State s : Lifecycle.State.values())
+                for (State s : State.values())
                     if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
                         x = s;
                         break;
@@ -70,13 +70,11 @@ public class GGService extends Lifecycle {
                     errored("does not match any lifecycle state", startWhen);
             }
         }
-        if (x == null)
-            x = Lifecycle.State.Running;
-        addDependency(name, x);
+        addDependency(name, x == null ? State.Running : x);
     }
-    public void addDependency(String name, Lifecycle.State startWhen) {
+    public void addDependency(String name, State startWhen) {
         try {
-            Lifecycle d = locate(name);
+            Lifecycle d = locate(context, name);
             if (d != null) {
                 explicitDependencies.add(d);
                 addDependency(d, startWhen);
@@ -104,40 +102,48 @@ public class GGService extends Lifecycle {
         }
         return sb.toString();
     }
-    public Lifecycle locate(String name) throws Throwable {
-        return locate(context, name);
-    }
     public static Lifecycle locate(Context context, String name) throws Throwable {
         return context.getv(Lifecycle.class, name).computeIfEmpty(v->{
             Configuration c = context.get(Configuration.class);
-            Topics t = c.findTopics(Configuration.splitPath(name));
+            Topics t = c.lookupTopics(Configuration.splitPath(name));
+            assert(t!=null);
             Lifecycle ret;
-            if (t != null) {
-                Node n = t.getChild("class");
-                if (n != null) {
-                    String cn = Coerce.toString(n);
-                    try {
-                        Class clazz = Class.forName(cn);
-                        Constructor ctor = clazz.getConstructor(Topics.class);
-                        ret = (GGService) ctor.newInstance(t);
-                        if(clazz.getAnnotation(Singleton.class) !=null) {
-                            context.put(ret.getClass(), v);
-                        }
-                    } catch (Throwable ex) {
-                        ex.printStackTrace(System.out);
-                        ret = errNode(context, name, "creating code-backed service from " + cn, ex);
-                    }
+            Class clazz = null;
+            Node n = t.getChild("class");
+            if (n != null) {
+                String cn = Coerce.toString(n);
+                try {
+                    clazz = Class.forName(cn);
+                } catch (Throwable ex) {
+                    ex.printStackTrace(System.out);
+                    return errNode(context, name, "creating code-backed service from " + cn, ex);
                 }
-                else
-                    try {
-                        ret = new GenericExternalService(t);
-                    } catch (Throwable ex) {
-                        ret = errNode(context, name, "Creating generic service", ex);
-                    }
-                if (ret != null)
-                    return ret;
             }
-            return errNode(context, name, "No matching definition in system model", null);
+            if(clazz==null) {
+                Map<String,Class> si = context.get(Map.class, "service-implementors");
+                if(si!=null) clazz = si.get(name);
+            }
+            if(clazz!=null) {
+                try {
+                    Constructor ctor = clazz.getConstructor(Topics.class);
+                    ret = (GGService) ctor.newInstance(t);
+                    if(clazz.getAnnotation(Singleton.class) !=null) {
+                        context.put(ret.getClass(), v);
+                    }
+                } catch (Throwable ex) {
+                    ex.printStackTrace(System.out);
+                    ret = errNode(context, name, "creating code-backed service from " + clazz.getSimpleName(), ex);
+                }
+            }
+            else if(t.isEmpty())
+                ret = errNode(context, name, "No matching definition in system model", null);
+            else
+                try {
+                    ret = new GenericExternalService(t);
+                } catch (Throwable ex) {
+                    ret = errNode(context, name, "Creating generic service", ex);
+                }
+            return ret;
         });
     }
     public static GGService errNode(Context context, String name, String message, Throwable ex) {
@@ -240,36 +246,47 @@ public class GGService extends Lifecycle {
         }
         return bestn;
     }
-    protected boolean run(String name, boolean required, IntConsumer background) {
+    public enum RunStatus { OK, NothingDone, Errored }
+    protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);
         if(n==null) {
-            if(required) log().warn("Missing",name,this);
-            return !required;
+//            if(required) log().warn("Missing",name,this);
+            return RunStatus.NothingDone;
         }
         return run(n, background);
     }
-    protected boolean run(Node n, IntConsumer background) {
+    protected RunStatus run(Node n, IntConsumer background) {
         return n instanceof Topic ? run((Topic) n, background)
-             : n instanceof Topics && run((Topics) n, background);
+             : n instanceof Topics ? run((Topics) n, background)
+                : RunStatus.Errored;
     }
     @Inject ShellRunner shellRunner;
-    protected boolean run(Topic t, IntConsumer background) {
+    protected RunStatus run(Topic t, IntConsumer background) {
         String cmd = Coerce.toString(t.getOnce());
-        return shellRunner.run(t.getFullName(), cmd, background) != ShellRunner.Failed;
+        setStatus(cmd);
+        IntConsumer nb = background!=null
+                ? n->{
+                    setStatus(null);
+                    background.accept(n);
+                } : null;
+        RunStatus OK = shellRunner.run(t.getFullName(), cmd, nb, this) != ShellRunner.Failed
+                ? RunStatus.OK : RunStatus.Errored;
+        if(background==null) setStatus(null);
+        return OK;
     }
-    protected boolean run(Topics t, IntConsumer background) {
+    protected RunStatus run(Topics t, IntConsumer background) {
         if (!shouldSkip(t)) {
             Node script = t.getChild("script");
             if (script instanceof Topic)
                 return run((Topic) script, background);
             else {
                 errored("Missing script: for ", t.getFullName());
-                return false;
+                return RunStatus.Errored;
             }
         }
         else {
             log().significant("Skipping", t.getFullName());
-            return true;
+            return RunStatus.OK;
         }
     }
     protected void addDependencies(HashSet<Lifecycle> deps) {

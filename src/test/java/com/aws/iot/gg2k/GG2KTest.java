@@ -9,21 +9,28 @@ import static org.junit.Assert.*;
 
 
 public class GG2KTest {
+    boolean seenDocker, seenShell;
     @Test
     public void testSomeMethod() {
         try {
-            CountDownLatch OK = new CountDownLatch(1);
+            CountDownLatch OK = new CountDownLatch(2);
             String tdir = System.getProperty("user.home")+"/gg2ktest";
             System.out.println("tdir = "+tdir);
             GG2K gg = new GG2K();
-            gg.setWatcher(e->{
-                if(e.args.length>=2) {
+            gg.setLogWatcher(e->{
+                if(e.args.length>=3) {
                     String a0 = String.valueOf(e.args[0]);
-                    String a1 = String.valueOf(e.args[1]);
+                    String a1 = String.valueOf(e.args[2]);
                     if("stdout".equals(a0))
-                        if(a1.contains("RUNNING")) {
+                        if(a1.contains("RUNNING") && !seenShell) {
                             OK.countDown();
                             System.out.println("Victory!");
+                            seenShell = true;
+                        }
+                        else if(a1.contains("docs.docker.com/") && !seenDocker) {
+                            OK.countDown();
+                            System.out.println("seenDocker!");
+                            seenDocker = true;
                         }
                 }
             });
@@ -33,9 +40,20 @@ public class GG2KTest {
             );
             gg.launch();
             System.out.println("Done");
-            if(OK.await(50, TimeUnit.SECONDS))
+            if(OK.await(100, TimeUnit.SECONDS)) {
+                gg.dump();
+                gg.shutdown();
+                assertTrue("docker hello world", seenDocker);
+                assertTrue("bash hello world", seenShell);
                 System.out.println("Running correctly");
-            else fail("Test config didn't boot");
+            }
+            else {
+                gg.dump();
+                gg.shutdown();
+                assertTrue("docker hello world", seenDocker);
+                assertTrue("bash hello world", seenShell);
+                fail("Test config didn't boot");
+            }
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
             fail();
