@@ -31,7 +31,7 @@ Error handling is woefully inadequate, *for now*.
 
 You'll probably find the coding style to be a trifle odd.  It is very paranoid about failures and tries to catch, cope with, and (maybe) repair failures locally.  Mike Duigou did a nice talk on this topic: [Always Be Running: long running and fault tolerant java services](https://youtu.be/agXce0lSo60).
 
-
+### Building
 This project has continous integration implemented using AWS CodeBuild. For each push to the master branch, the library is built and deployed to a private maven repository.
 
 You can set this up in your project as follows: 

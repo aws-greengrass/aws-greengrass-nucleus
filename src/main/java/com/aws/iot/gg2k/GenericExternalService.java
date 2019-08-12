@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.gg2k;
 
+import static com.aws.iot.dependency.State.*;
+
 public class GenericExternalService extends GGService {
     public GenericExternalService(com.aws.iot.config.Topics c) {
         super(c);
@@ -9,30 +11,40 @@ public class GenericExternalService extends GGService {
     @Override
     public void install() {
         log().significant("install", this);
-        run("install", false, null);
+        run("install", null);
+        super.install();
     }
     @Override
     public void awaitingStartup() {
         log().significant("awaitingStartup", this);
-        run("awaitingStartup", false, null);
+        run("awaitingStartup", null);
+        super.awaitingStartup();
     }
     @Override
     public void startup() {
         log().significant("startup", this);
-        run("startup", false, exit -> {
+        if(run("startup", null)==RunStatus.Errored)
+            setState(Errored);
+        super.startup();
+    }
+    @Override
+    public void run() {
+        log().significant("running", this);
+        if (run("run", exit -> {
             if (exit == 0) {
-                setState(State.Shutdown);
-                log().significant("Finished", GenericExternalService.this);
+                setState(Finished);
+                log().significant("Finished", getName());
             } else {
-                setState(State.Errored);
-                log().error("Failed", exit, this);
+                setState(Errored);
+                log().error("Failed", getName(), exit);
             }
-        });
+        })==RunStatus.NothingDone)
+            setState(Finished);
     }
     @Override
     public void shutdown() {
         log().significant("shutdown", this);
-        run("shutdown", false, null);
+        run("shutdown", null);
     }
 
 }

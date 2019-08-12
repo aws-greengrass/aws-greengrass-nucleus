@@ -3,15 +3,17 @@
 
 package com.aws.iot.dependency;
 
-import com.aws.iot.dependency.Context.StartWhen;
-import static com.aws.iot.dependency.Lifecycle.State.*;
+import static com.aws.iot.dependency.State.*;
+import java.util.concurrent.*;
 import org.junit.*;
 import javax.inject.*;
 
 public class LifecycleTest {
     static int seq;
+    static CountDownLatch cd;
     @Test
     public void T1() {
+        cd = new CountDownLatch(1);
         Context c = new Context();
         java.util.concurrent.ScheduledThreadPoolExecutor ses = new java.util.concurrent.ScheduledThreadPoolExecutor(2);
         c.put(java.util.concurrent.ScheduledThreadPoolExecutor.class, ses);
@@ -20,19 +22,28 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ExecutorService.class, ses);
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
-//        System.out.println(v);
+        c.setAllStates(Installing);
+        c.setAllStates(AwaitingStartup);
+        try {
+            if(!cd.await(1, TimeUnit.SECONDS))
+                Assert.fail("Startup timed out");
+        } catch (InterruptedException ex) {
+            ex.printStackTrace(System.out);
+            Assert.fail("Startup interrupted out");
+        }
         Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
         Assert.assertSame(v.C2, v.C2.C3.prov.get());
-        Assert.assertEquals(Lifecycle.State.Running,v.getState());
+        Assert.assertEquals(State.Finished,v.getState());
         Assert.assertTrue(v.toString(),v.installCalled);
         Assert.assertTrue(v.toString(),v.startupCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.startupCalled);
-        Assert.assertEquals(Lifecycle.State.Running,v.getState());
+        Assert.assertEquals(State.Finished,v.getState());
         c.shutdown();
+        try { Thread.sleep(50); } catch (InterruptedException ex) { }
         Assert.assertTrue(v.toString(),v.shutdownCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
-        Assert.assertEquals(Lifecycle.State.Shutdown,v.getState());
+        Assert.assertEquals(State.Shutdown,v.getState());
         Assert.assertNotNull("non-lifecycle", v.C2.C3);
         Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
         Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
@@ -44,16 +55,19 @@ public class LifecycleTest {
         @Override public void install() {
             installCalled = true;
             System.out.println("Startup "+this);
+            super.install();
         }
         @Override public void startup() {
             startupCalled = true;
             // Depen dependencies must be started first
             Assert.assertEquals(State.Running,C2.getState());
-            System.out.println("Install "+this);
+            System.out.println("Startup "+this);
+            super.startup();
         }
         @Override public void shutdown() { 
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
+            super.shutdown();
         }
         final String id = "c1/"+ ++seq;
         @Override public String toString() { return id; }
@@ -61,7 +75,7 @@ public class LifecycleTest {
     }
     public static class c2 extends Lifecycle {
         @Inject c3 C3;
-        @Inject @StartWhen(New) c1 parent;
+//        @Inject @StartWhen(New) c1 parent;
         public boolean shutdownCalled, startupCalled;
         final String id = "c2/"+ ++seq;
         @Override public String toString() { return id; }
@@ -71,10 +85,12 @@ public class LifecycleTest {
             startupCalled = true;
             System.out.println("Startup "+this);
             System.out.println("  C3="+C3);
+            super.startup();
         }
         @Override public void shutdown() { 
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
+            cd.countDown();
         }
     }
     public static class c3 {

@@ -63,7 +63,7 @@
         macos:
             homebrew
   plain:
-    startup:
+    run:
       all: "{platform.invoke} {args}"
 
 #services:
@@ -78,12 +78,13 @@
     throttleBandwidth: 100 kb/s
   hello-docker:
       requires: docker
-      startup: docker run hello-world
+      run: sleep 30;docker run hello-world
+      shutdown: docker stop hello-world; docker rm hello-world; exit 0
 
   hello-docker-nginx:
       requires: docker
-      startup:  docker run --cidfile=cid nginx
-      shutdown: cat cid | xargs docker stop
+      run:  docker run nginx
+      shutdown: docker stop nginx; docker rm nginx; exit 0
 
   monitoring:
     install:
@@ -94,8 +95,8 @@
   mqtt:
     defaultimpl: mqtt.moquette
     moquette:
-      startup:
-        macos: nohup $HOME/moquette/bin/moquette.sh >> $HOME/moquette/broker.log &
+      run:
+        macos: pkill -9  -f moquette; $HOME/moquette/bin/moquette.sh
       install:
         macos:
           skipif: ls $HOME/moquette/bin | egrep -i -q moquette.sh
@@ -104,8 +105,7 @@
             mkdir $HOME/moquette
             tar -zxf $HOME/moquette-0.12.1.tar.gz -C $HOME/moquette
       shutdown:
-        macos:
-          script: kill $(pgrep -f io.moquette.broker.Server)
+        macos: pkill -9  -f moquette
     mosquitto:
       startup:
         macos: brew services restart mosquitto
@@ -124,17 +124,18 @@
         
   fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
     startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
-
+  broken:
+    startup: exit -1
   main:
       install:
           skipif: true
           all: echo All installed
       requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt
-      xyzzy: localhttp
-      startup: |-
+      xyzzy: localhttp, broken
+      run: |-
         pwd
         while true; do
-        date; echo RUNNING; sleep 10
+        date; sleep 30; echo RUNNING
         done
       download:
         hw.jar: http://foo/hw.jar
