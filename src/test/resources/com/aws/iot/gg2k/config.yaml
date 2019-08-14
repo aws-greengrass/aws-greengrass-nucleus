@@ -18,7 +18,10 @@
       all: python2.7 {args}
   jdk11:
     install:
-      debian: sudo apt-get install openjdk11
+      debian:
+        script: |-
+          sudo curl https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
+          sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
       macos:
         skipif: java -version 2>&1|egrep -i '(java|jdk|jre) *(version)?[ "]*(1.8|8|9|1[0-9])\.'
         script: |-
@@ -50,9 +53,7 @@
     install:
       skipif: onpath docker
       debian: |-
-        sudo apt-get install docker.io
-        sudo systemctl start docker
-        sudo systemctl enable docker
+        curl -sSL https://get.docker.com/ | sh 2>/dev/null
       fedora: sudo dnf install docker
       macos:
           skipif: exists /Applications/Docker.app
@@ -80,12 +81,11 @@
       requires: docker
       run: sleep 30;docker run hello-world
       shutdown: docker stop hello-world; docker rm hello-world; exit 0
-
   hello-docker-nginx:
       requires: docker
-      run:  docker run nginx
-      shutdown: docker stop nginx; docker rm nginx; exit 0
-
+      run:  |-
+        docker run --cidfile=cid nginx
+      shutdown: cat cid | xargs docker stop
   monitoring:
     install:
       debian: |-
