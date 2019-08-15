@@ -84,8 +84,8 @@
   hello-docker-nginx:
       requires: docker
       run:  |-
-        docker run --cidfile=cid nginx
-      shutdown: cat cid | xargs docker stop
+        docker run nginx
+      shutdown: docker stop nginx; docker rm hello-world; exit 0
   monitoring:
     install:
       debian: |-
