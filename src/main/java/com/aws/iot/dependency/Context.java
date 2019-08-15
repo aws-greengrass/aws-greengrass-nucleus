@@ -42,7 +42,15 @@ public class Context implements Closeable {
     public <T> T newInstance(Class<T> cl) throws Throwable {
         return new Value<>(cl, null).get();
     }
-    public Value getIfExists(Object tag) {
+    public <T> T getIfExists(Class<T> cl, String tag) {
+        Value v = getvIfExists(tag==null ? cl : tag);
+        if(v==null) return null;
+        Object o = v.value;
+        return o==null || !cl.isAssignableFrom(o.getClass())
+            ? null
+            : (T) o;
+    }
+    public Value getvIfExists(Object tag) {
         return parts.get(tag);
     }
     public <T> Context put(Class<T> cl, T v) {

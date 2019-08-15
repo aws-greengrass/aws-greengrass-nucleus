@@ -120,7 +120,7 @@ public class GGService extends Lifecycle {
                 }
             }
             if(clazz==null) {
-                Map<String,Class> si = context.get(Map.class, "service-implementors");
+                Map<String,Class> si = context.getIfExists(Map.class, "service-implementors");
                 if(si!=null) clazz = si.get(name);
             }
             if(clazz!=null) {
