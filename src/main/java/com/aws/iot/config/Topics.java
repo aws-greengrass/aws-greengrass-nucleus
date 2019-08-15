@@ -40,11 +40,11 @@ public class Topics extends Node implements Iterable<Node> {
         else
             throw new IllegalArgumentException(name + " in " + this + " is already a leaf, cannot become a container");
     }
-    Topics findInteriorChild(String name) {
+    public Topics findInteriorChild(String name) {
         Node n = getChild(name);
         return n instanceof Topics ? (Topics) n : null;
     }
-    Topic findLeafChild(String name) {
+    public Topic findLeafChild(String name) {
         Node n = getChild(name);
         return n instanceof Topic ? (Topic) n : null;
     }
@@ -111,6 +111,16 @@ public class Topics extends Node implements Iterable<Node> {
             System.err.println("remove: Missing node " + n.name + " from " + toString());
         n.fire(Configuration.WhatHappened.removed, null, null);
         fire(Configuration.WhatHappened.childRemoved, n, null);
+    }
+    public Topics subscribe(ChildChanged cc) {
+        listen(cc);
+        try {
+            cc.childChanged(null);
+        } catch (Throwable ex) {
+            //TODO: do something less stupid
+        }
+        return this;
+        
     }
     @Override
     public Map<String, Object> toPOJO() {

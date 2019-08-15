@@ -91,6 +91,21 @@ public abstract class Node {
                     errorFree = false;
                     Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
                 }
+        if(parent!=null) errorFree &= parent.childChanged(this);
+        return errorFree;
+    }
+    protected boolean childChanged(Node child) {
+        boolean errorFree = true;
+        if (watchers != null)
+            for (Watcher s : watchers)
+                try {
+                    if (s instanceof ChildChanged)
+                        ((ChildChanged) s).childChanged(child);
+                } catch (Throwable ex) {
+                    errorFree = false;
+                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
+                }
+        if(parent!=null) errorFree &= parent.childChanged(this);
         return errorFree;
     }
     public abstract void deepForEachTopic(Consumer<Topic> f);

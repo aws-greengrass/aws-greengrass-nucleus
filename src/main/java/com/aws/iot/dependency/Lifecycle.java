@@ -164,6 +164,7 @@ public class Lifecycle implements Closeable, InjectionActions {
         setState(State.Shutdown);
     }
     public String getName() { return getClass().getSimpleName(); }
+    public Context getContext() { return context; }
     protected void addDependency(Lifecycle v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
