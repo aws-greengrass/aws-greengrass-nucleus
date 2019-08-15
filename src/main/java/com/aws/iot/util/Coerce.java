@@ -69,6 +69,7 @@ public class Coerce {
         return sb.toString();
     }
     public static void toQuotedString(Object o, Appendable out) throws IOException {
+        if(o instanceof Topic) o = ((Topic)o).getOnce();
         out.append('"');
         if (o != null) {
             String s = o.toString();
@@ -97,6 +98,7 @@ public class Coerce {
         out.append('"');
     }
     public static void toParseableString(Object o, Appendable out) throws IOException {
+        if(o instanceof Topic) o = ((Topic)o).getOnce();
         if (o == null)
             out.append("null");
         else if (o instanceof Boolean || o instanceof Number)
@@ -149,7 +151,12 @@ public class Coerce {
             "Inf", Double.POSITIVE_INFINITY,
             "+Inf", Double.POSITIVE_INFINITY,
             "-Inf", Double.NEGATIVE_INFINITY,
-            "Nan", Double.NaN
+            "Nan", Double.NaN,
+            "NaN", Double.NaN,
+            "inf", Double.POSITIVE_INFINITY,
+            "+inf", Double.POSITIVE_INFINITY,
+            "-inf", Double.NEGATIVE_INFINITY,
+            "nan", Double.NaN
     );
     private static void appendHexString(long n, Appendable out, int ndig) throws IOException {
         if (ndig > 1)

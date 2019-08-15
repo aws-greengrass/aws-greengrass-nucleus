@@ -126,11 +126,14 @@
     startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
   broken:
     startup: exit -1
+  ticktock:
+      run: echo tick-tock
+      periodic: 2 seconds
   main:
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt
+      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock
       xyzzy: localhttp, broken
       run: |-
         pwd

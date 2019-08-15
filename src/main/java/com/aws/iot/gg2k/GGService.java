@@ -246,6 +246,18 @@ public class GGService extends Lifecycle {
         }
         return bestn;
     }
+    Periodicity timer;
+    @Override
+    public void startup() {
+        timer = Periodicity.of(this);
+        if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
+                ? State.Running
+                : State.Finished);
+    }
+    @Override public void shutdown() {
+        Periodicity t = timer;
+        if(t!=null) t.shutdown();
+    }
     public enum RunStatus { OK, NothingDone, Errored }
     protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);

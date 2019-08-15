@@ -12,6 +12,9 @@ public class Topic extends Node {
     Topic(String n, Topics p) {
         super(n, p);
     }
+    public static Topic of(String n, Object v) {
+        return new Topic(n,null).dflt(v);
+    } 
     private long modtime;
     Object value;
     /**
@@ -71,7 +74,7 @@ public class Topic extends Node {
                 value = nv;
                 modtime = mt;
                 fire(Configuration.WhatHappened.changed, nv, ov);
-                parent.publish(this);
+                if(parent!=null) parent.publish(this);
             }
         }
         return this;
