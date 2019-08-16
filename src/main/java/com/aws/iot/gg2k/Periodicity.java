@@ -65,7 +65,7 @@ public class Periodicity {
     public synchronized void start(ScheduledExecutorService ses, Runnable r) {
         Future f = future;
         if (f != null)
-            f.cancel(true);
+            f.cancel(false);
         long now = System.currentTimeMillis();
         long ΔT = parseInterval(Coerce.toString(interval)),
                 ϕ = parseInterval(Coerce.toString(phase));

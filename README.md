@@ -48,7 +48,7 @@ You can set this up in your project as follows:
 
 ```xml
 <dependency>
-    <groupId>com.aws.jag</groupId>
+    <groupId>com.aws.iot</groupId>
     <artifactId>gg2-kernel</artifactId>
     <version>1.0-SNAPSHOT</version>
 </dependency>
