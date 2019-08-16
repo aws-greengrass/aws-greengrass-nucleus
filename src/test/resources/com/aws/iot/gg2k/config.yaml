@@ -85,7 +85,7 @@
       requires: docker
       run:  |-
         docker run nginx
-      shutdown: docker stop nginx; docker rm hello-world; exit 0
+      shutdown: docker stop nginx; docker rm nginx; exit 0
   monitoring:
     install:
       debian: |-
