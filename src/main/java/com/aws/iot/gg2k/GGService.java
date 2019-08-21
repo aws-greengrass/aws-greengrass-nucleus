@@ -278,12 +278,12 @@ public class GGService extends Lifecycle {
         setStatus(cmd);
         IntConsumer nb = background!=null
                 ? n->{
-                    setStatus(null);
+//                    setStatus(null);
                     background.accept(n);
                 } : null;
+        if(background==null) setStatus(null);
         RunStatus OK = shellRunner.run(t.getFullName(), cmd, nb, this) != ShellRunner.Failed
                 ? RunStatus.OK : RunStatus.Errored;
-        if(background==null) setStatus(null);
         return OK;
     }
     protected RunStatus run(Topics t, IntConsumer background) {
