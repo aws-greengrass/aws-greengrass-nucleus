@@ -37,7 +37,7 @@ public class Lifecycle implements Closeable, InjectionActions {
         final State prev = state;
         if (s == prev)
             return;
-        System.out.println(getName()+" "+prev+"->"+s);
+//        System.out.println(getName()+" "+prev+"->"+s);
         state = s;
         if(prev.isRunning() && !s.isRunning()) { // transition from running to not running
             try {
@@ -168,18 +168,18 @@ public class Lifecycle implements Closeable, InjectionActions {
     protected void addDependency(Lifecycle v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
-        System.out.println(getName()+" depends on "+v.getName());
+//        System.out.println(getName()+" depends on "+v.getName());
         dependencies.put(v, when);
     }
     private boolean hasDependencies() {
-        if(dependencies==null) {
-            System.out.println(getName()+": no dependencies");
-            return false;
-        } else {
-            dependencies.entrySet().stream().forEach(ls -> {
-                System.out.println(getName() +"/"+ getState()+" :: "+ls.getKey().getName()+"/"+ls.getKey().getState());
-            });
-        }
+//        if(dependencies==null) {
+//            System.out.println(getName()+": no dependencies");
+//            return false;
+//        } else {
+//            dependencies.entrySet().stream().forEach(ls -> {
+//                System.out.println(getName() +"/"+ getState()+" :: "+ls.getKey().getName()+"/"+ls.getKey().getState());
+//            });
+//        }
         return dependencies != null
                 && (dependencies.entrySet().stream().anyMatch(ls -> ls.getKey().getState().preceeds(ls.getValue())));
     }
