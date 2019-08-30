@@ -23,7 +23,7 @@ public class AppendableWriter extends Writer {
     }
     @Override
     public void write(String str, int offset, int len) throws IOException {
-        a.append(str, offset, len);
+        a.append(str, offset, offset+len);
     }
     @Override
     public Writer append(char i) throws IOException {
