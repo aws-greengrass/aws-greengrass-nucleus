@@ -48,6 +48,7 @@
 
 #launchers:
   docker:
+    bashtimeout: 300
     startup:
       macos: open /Applications/Docker.app
     install:
@@ -136,7 +137,9 @@
       requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock
       xyzzy: localhttp, broken
       run: |-
+        echo $PATH
         pwd
+        printenv
         while true; do
         date; sleep 30; echo RUNNING
         done

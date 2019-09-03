@@ -42,14 +42,14 @@ public class Exec {
             .toLowerCase().contains("wind");
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
-    private static final Path[] execPathArr = computePathArr();
-    private static final String execPath = computePathString(execPathArr);
-    private static final String[] defaultEnvironment = {
-        "PATH=" + execPath,
+    public static final String GG2token = Utils.generateRandomString(16);
+    private static String[] defaultEnvironment = {
+        "", // PATH filled in later
         "SHELL=" + System.getenv("SHELL"),
         "JAVA_HOME=" + System.getenv("JAVA_HOME"),
         "USER=" + System.getProperty("user.name"),
         "HOME=" + homedir,
+        "GG2TOKEN="+GG2token,
         "PWD=" + userdir,};
     public Exec cd(File f) {
         if (f != null)
@@ -67,6 +67,11 @@ public class Exec {
         ne[ne.length - 1] = key + '=' + value;
         environment = ne;
         return this;
+    }
+    public static void setDefaultEnv(String key, String value) {
+        String[] ne = Arrays.copyOf(defaultEnvironment, defaultEnvironment.length + 1, String[].class);
+        ne[ne.length - 1] = key + '=' + value;
+        defaultEnvironment = ne;
     }
     public Exec withExec(String... c) {
         cmds = c;
@@ -201,7 +206,7 @@ public class Exec {
             Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
-        for(Path d:execPathArr) {
+        for(Path d:paths) {
             Path f = d.resolve(fn);
             if(Files.isExecutable(f))
                 return f;
@@ -213,10 +218,9 @@ public class Exec {
             s = homePath.resolve(s.substring(2)).toString();
         return s;
     }
-    private static Path[] computePathArr() {
-        LinkedHashSet<Path> p = new LinkedHashSet<>();
-        addPathEntries(p, System.getenv("PATH"));
-        
+    private static final LinkedList<Path> paths = new LinkedList<>();
+    static {
+        addPathEntries(System.getenv("PATH"));
         try {
             // This bit is gross: under some circumstances (like IDEs launched from the
             // macos Dock) the PATH environment variable doesn't match the path one expects
@@ -237,26 +241,45 @@ public class Exec {
             };
             bg.start();
             bg.join(500);
-//            hack.waitFor();
-            addPathEntries(p,path.toString().trim());
+            addPathEntries(path.toString().trim());
+            // Ensure some level of sanity
+            ensurePresent("/usr/local/bin","/bin","/usr/bin", "/sbin", "/usr/sbin");
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
         }
-//        System.out.println("Search path: "+deepToString(p));
-        return p.toArray(new Path[0]);
+        computePathString();
     }
-    private static void addPathEntries(Set<Path> s, String path) {
+    private static void ensurePresent(String... fns) {
+        for(String fn:fns) {
+            Path ulb = Paths.get(fn);
+            if(Files.isDirectory(ulb) && !paths.contains(ulb))
+                paths.add(ulb);
+        }
+    }
+    private static void addPathEntries(String path) {
 //        System.out.println("Adding to PATH: "+path);
         if(path!=null && path.length()>0)
-        for(String f:path.split("[ :,] *"))
-            s.add(Paths.get(deTilde(f)));
-    }
-    private static String computePathString(Path[] execPathArr) {
-        StringBuilder sb = new StringBuilder();
-        for(Path p:execPathArr) if(p!=null) {
-            if(sb.length()>0) sb.append(':');
-            sb.append(p.toString());
+        for(String f:path.split("[ :,] *")) {
+            Path p =Paths.get(deTilde(f));
+            if(!paths.contains(p)) paths.add(p);
         }
-        return sb.toString();
+    }
+    private static void computePathString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("PATH=");
+        paths.forEach(p -> {
+            if(sb.length()>5) sb.append(':');
+            sb.append(p.toString());
+        });
+        defaultEnvironment[0] = sb.toString();
+    }
+    public static void removePath(Path p) {
+        if(p!=null && paths.remove(p))
+            computePathString();
+    }
+    public static void addFirstPath(Path p) {
+        if(p==null || paths.contains(p)) return;
+        paths.addFirst(p);
+        computePathString();
     }
 }

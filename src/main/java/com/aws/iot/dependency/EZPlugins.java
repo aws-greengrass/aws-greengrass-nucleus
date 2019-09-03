@@ -22,7 +22,7 @@ public class EZPlugins {
     private boolean doneFirstLoad;
     public EZPlugins(){}
     public EZPlugins(Path d) { setCacheDirectory(d); }
-    public EZPlugins setCacheDirectory(Path d) {
+    public final EZPlugins setCacheDirectory(Path d) {
         cacheDirectory = d;
         trustedCacheDirectory = cacheDirectory.resolve("trusted");
         untrustedCacheDirectory = cacheDirectory.resolve("untrusted");

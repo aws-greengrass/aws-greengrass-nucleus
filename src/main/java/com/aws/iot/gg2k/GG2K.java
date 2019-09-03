@@ -30,7 +30,7 @@ public class GG2K extends Configuration implements Runnable {
     boolean haveRead = false;
     private final Map<String,Class> serviceImplementors = new HashMap<>();
     public static void main(String[] args) {
-        GG2K ggc = new GG2K().parseArgs(args);
+        GG2K ggc = new GG2K().parseArgs(args).launch();
     }
     @SuppressWarnings("LeakingThisInConstructor")
     public GG2K() {
@@ -57,9 +57,13 @@ public class GG2K extends Configuration implements Runnable {
         root.subscribe((w, n, o) -> {
             rootPath = Paths.get(n.toString());
             configPath = Paths.get(deTilde(configPathName));
+            Exec.removePath(clitoolPath);
+            clitoolPath = Paths.get(deTilde(clitoolPathName));
+            Exec.addFirstPath(clitoolPath);
             workPath = Paths.get(deTilde(workPathName));
             if (w != WhatHappened.initialized) {
                 ensureCreated(configPath);
+                ensureCreated(clitoolPath);
                 ensureCreated(rootPath);
                 ensureCreated(workPath);
             }
@@ -118,8 +122,10 @@ public class GG2K extends Configuration implements Runnable {
     }
     public GG2K launch() {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
+        installCliTool(this.getClass().getClassLoader().getResource("gg2launch"));
         Queue<String> autostart = new LinkedList<>();
-        if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath))
+        if (!ensureCreated(configPath) || !ensureCreated(rootPath)
+                || !ensureCreated(workPath) || !ensureCreated(clitoolPath))
             broken = true;
         try {
             EZPlugins pim = context.get(EZPlugins.class);
@@ -227,6 +233,42 @@ public class GG2K extends Configuration implements Runnable {
         GGService m = mainService;
         if(m == null) m = mainService = (GGService)GGService.locate(context, mainServiceName);
         return m;
+    }
+    private static final Pattern scriptVar = Pattern.compile("\\$\\[([^\\[\\]\\n]+)\\]");
+    public void installCliTool(URL resource) {
+        try {
+            String dp = resource.getPath();
+            int sl = dp.lastIndexOf('/');
+            if(sl>=0) dp = dp.substring(sl+1);
+            Path dest = clitoolPath.resolve(dp);
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(resource.openStream()));
+                    CommitableWriter out = CommitableWriter.of(dest)) {
+                String s;
+                StringBuffer sb = new StringBuffer();
+                while((s = in.readLine())!=null) {
+                    Matcher m = scriptVar.matcher(s);
+                    sb.setLength(0);
+                    while (m.find()) {
+                        String rep;
+                        switch(m.group(1)) {
+                            case "root": rep = rootPath.toString(); break;
+                            case "work": rep = workPath.toString(); break;
+                            case "bin": rep = clitoolPath.toString(); break;
+                            case "config": rep = configPath.toString(); break;
+                            default: rep = m.group(0); break;
+                        }
+                        m.appendReplacement(sb, rep);
+                    }
+                    m.appendTail(sb);
+                    out.write(sb.toString());
+                    out.write('\n');
+                }
+                out.commit();
+            }
+            Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
+        } catch(Throwable t) {
+            context.get(Log.class).error("installCliTool",t);
+        }
     }
 //    public Collection<GGService> orderedDependencies() {
 //        try {
@@ -367,6 +409,8 @@ public class GG2K extends Configuration implements Runnable {
             s = rootPath.resolve(s.substring(6)).toString();
         if (configPath != null && s.startsWith("~config/"))
             s = configPath.resolve(s.substring(8)).toString();
+        if (clitoolPath != null && s.startsWith("~bin/"))
+            s = clitoolPath.resolve(s.substring(5)).toString();
         return s;
     }
     public static Writer uncloseable(Writer w) {
@@ -378,8 +422,10 @@ public class GG2K extends Configuration implements Runnable {
     }
     public Path rootPath;
     public Path configPath;
+    public Path clitoolPath;
     public Path workPath;
     public String configPathName = "~root/config";
+    public String clitoolPathName = "~root/bin";
     public String workPathName = "~root/work";
     private String[] args;
     private String arg;
