@@ -1,3 +1,8 @@
-#! /bin/bash
+#! /bin/bash -x
+# Write a launch script someday.  For now, this is just a test
 cd $[root]
-echo Write a launch script someday
+echo $[main.requires]
+#while true; do
+    java -jar lib/gg2.jar -root $[root]
+#    sleep 10
+#done

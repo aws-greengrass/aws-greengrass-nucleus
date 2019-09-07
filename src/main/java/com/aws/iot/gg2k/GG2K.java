@@ -118,6 +118,15 @@ public class GG2K extends Configuration implements Runnable {
                     broken = true;
                     break;
             }
+        context.get(EZTemplates.class).addEvaluator(expr->{
+            switch(expr) {
+                case "root":   return rootPath;
+                case "work":   return workPath;
+                case "bin":    return clitoolPath;
+                case "config": return configPath;
+                default:       return find(splitPath(expr));
+            }
+        });
         return this;
     }
     public GG2K launch() {
@@ -234,50 +243,18 @@ public class GG2K extends Configuration implements Runnable {
         if(m == null) m = mainService = (GGService)GGService.locate(context, mainServiceName);
         return m;
     }
-    private static final Pattern scriptVar = Pattern.compile("\\$\\[([^\\[\\]\\n]+)\\]");
     public void installCliTool(URL resource) {
         try {
             String dp = resource.getPath();
             int sl = dp.lastIndexOf('/');
             if(sl>=0) dp = dp.substring(sl+1);
             Path dest = clitoolPath.resolve(dp);
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(resource.openStream()));
-                    CommitableWriter out = CommitableWriter.of(dest)) {
-                String s;
-                StringBuffer sb = new StringBuffer();
-                while((s = in.readLine())!=null) {
-                    Matcher m = scriptVar.matcher(s);
-                    sb.setLength(0);
-                    while (m.find()) {
-                        String rep;
-                        switch(m.group(1)) {
-                            case "root": rep = rootPath.toString(); break;
-                            case "work": rep = workPath.toString(); break;
-                            case "bin": rep = clitoolPath.toString(); break;
-                            case "config": rep = configPath.toString(); break;
-                            default: rep = m.group(0); break;
-                        }
-                        m.appendReplacement(sb, rep);
-                    }
-                    m.appendTail(sb);
-                    out.write(sb.toString());
-                    out.write('\n');
-                }
-                out.commit();
-            }
+            context.get(EZTemplates.class).rewrite(resource, dest);
             Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
         } catch(Throwable t) {
             context.get(Log.class).error("installCliTool",t);
         }
     }
-//    public Collection<GGService> orderedDependencies() {
-//        try {
-//            return getMain().orderedDependencies();
-//        } catch (Throwable ex) {
-//            context.get(Log.class).error(ex);
-//            return Collections.EMPTY_LIST;
-//        }
-//    }
     public Collection<Lifecycle> orderedDependencies() {
         try {
             final HashSet<Lifecycle> pending = new LinkedHashSet<>();
