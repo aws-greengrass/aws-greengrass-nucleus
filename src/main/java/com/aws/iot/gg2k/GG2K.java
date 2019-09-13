@@ -7,18 +7,15 @@ import com.aws.iot.dependency.*;
 import static com.aws.iot.dependency.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
-import com.fasterxml.jackson.jr.ob.*;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
 import java.io.*;
 import java.net.*;
-import java.nio.charset.*;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.prefs.*;
-import java.util.regex.*;
 
 /** GreenGrass-v2-kernel */
 public class GG2K extends Configuration implements Runnable {
@@ -327,43 +324,7 @@ public class GG2K extends Configuration implements Runnable {
 
     }
 
-    public GG2K read(String s) throws IOException {
-        System.out.println("Reading " + s);
-        return read(isURL.matcher(s).lookingAt()
-                ? new URL(s).openStream()
-                : new FileInputStream(s),
-                extension(s));
-    }
-    public GG2K read(Path s) throws IOException {
-        System.out.println("Reading " + s);
-        return read(Files.newBufferedReader(s), extension(s.toString()));
-    }
-    public GG2K read(InputStream in, String extension) throws IOException {
-        return read(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))),
-                extension);
-    }
-    public GG2K read(Reader in, String extension) throws IOException {
-        if (broken)
-            return this;
-        try {
-            switch (extension) {
-                case "json":
-                    mergeMap(0, (java.util.Map) JSON.std.anyFrom(in));
-                    break;
-                case "yaml":
-                    mergeMap(0, (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
-                    break;
-                case "tlog":
-                    ConfigurationReader.read(this, in);
-                    break;
-                default:
-                    throw new IllegalArgumentException("File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
-            }
-        } finally {
-            close(in);
-        }
-        return this;
-    }
+    
     public GG2K print(OutputStream out) {
         return print(new BufferedWriter(new OutputStreamWriter(out)));
     }
@@ -411,6 +372,4 @@ public class GG2K extends Configuration implements Runnable {
     private String getArg() {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
     }
-    private static final Pattern isURL = Pattern.compile("[a-z]*:/");
-
 }
