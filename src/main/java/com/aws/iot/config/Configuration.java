@@ -137,8 +137,6 @@ public class Configuration {
     
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
 
-
-
     public static final Object removed = new Object() {
         @Override
         public String toString() {

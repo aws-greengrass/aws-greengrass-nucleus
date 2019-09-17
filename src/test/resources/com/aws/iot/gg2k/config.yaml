@@ -80,13 +80,12 @@
     throttleBandwidth: 100 kb/s
   hello-docker:
       requires: docker
-      run: sleep 30;docker run hello-world
-      shutdown: docker stop hello-world; docker rm hello-world; exit 0
+      run: docker run hello-world
+      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>>1
   hello-docker-nginx:
       requires: docker
-      run:  |-
-        docker run nginx
-      shutdown: docker stop nginx; docker rm nginx; exit 0
+      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>1
+      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>>1
   monitoring:
     install:
       debian: |-
@@ -94,10 +93,10 @@
         sudo apt-get install monitoring
     requires: greenlake
   mqtt:
-    defaultimpl: mqtt.moquette
+    requires: mqtt.moquette
     moquette:
       run:
-        macos: pkill -9  -f moquette; $HOME/moquette/bin/moquette.sh
+        macos: printenv; pkill -9  -f moquette; $HOME/moquette/bin/moquette.sh
       install:
         macos:
           skipif: ls $HOME/moquette/bin | egrep -i -q moquette.sh
@@ -130,18 +129,22 @@
   ticktock:
       run: echo tick-tock
       periodic: 2 seconds
+  setenv:
+      ANSWER: 42
   main:
       install:
           skipif: true
           all: echo All installed
       requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock
       xyzzy: localhttp, broken
+      setenv:
+          JUSTME: fancy a spot of tea?
       run: |-
         echo $PATH
         pwd
         printenv
         while true; do
-        date; sleep 30; echo RUNNING
+        date; sleep 5; echo RUNNING
         done
       download:
         hw.jar: http://foo/hw.jar

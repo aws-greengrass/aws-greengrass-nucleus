@@ -18,7 +18,7 @@ import java.util.function.*;
 import java.util.prefs.*;
 
 /** GreenGrass-v2-kernel */
-public class GG2K extends Configuration implements Runnable {
+public class GG2K extends Configuration /*implements Runnable*/ {
     public final Context context = new Context();
     private String mainServiceName = "main";
     private boolean installOnly = false;
@@ -58,6 +58,7 @@ public class GG2K extends Configuration implements Runnable {
             clitoolPath = Paths.get(deTilde(clitoolPathName));
             Exec.addFirstPath(clitoolPath);
             workPath = Paths.get(deTilde(workPathName));
+            Exec.setDefaultEnv("HOME", workPath.toString());
             if (w != WhatHappened.initialized) {
                 ensureCreated(configPath);
                 ensureCreated(clitoolPath);
@@ -133,12 +134,13 @@ public class GG2K extends Configuration implements Runnable {
         if (!ensureCreated(configPath) || !ensureCreated(rootPath)
                 || !ensureCreated(workPath) || !ensureCreated(clitoolPath))
             broken = true;
+        Exec.setDefaultEnv("GGHOME", rootPath.toString());
         try {
             EZPlugins pim = context.get(EZPlugins.class);
             pim.setCacheDirectory(rootPath.resolve("plugins"));
             pim.annotated(ImplementsService.class, cl->{
-                if(!Lifecycle.class.isAssignableFrom(cl)) {
-                    System.err.println(cl+" needs to be a subclass of Lifecycle in order to use ImplementsService");
+                if(!GGService.class.isAssignableFrom(cl)) {
+                    System.err.println(cl+" needs to be a subclass of GGService in order to use ImplementsService");
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
@@ -228,12 +230,12 @@ public class GG2K extends Configuration implements Runnable {
             return 0;
         }
     }
-    @Override
-    public void run() {
-        if (broken)
-            return;
-        System.out.println("Running...");
-    }
+//    @Override
+//    public void run() {
+//        if (broken)
+//            return;
+//        System.out.println("Running...");
+//    }
     private GGService mainService;
     public GGService getMain() throws Throwable {
         GGService m = mainService;
@@ -252,11 +254,11 @@ public class GG2K extends Configuration implements Runnable {
             context.get(Log.class).error("installCliTool",t);
         }
     }
-    public Collection<Lifecycle> orderedDependencies() {
+    public Collection<GGService> orderedDependencies() {
         try {
-            final HashSet<Lifecycle> pending = new LinkedHashSet<>();
+            final HashSet<GGService> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
-            final HashSet<Lifecycle> ready = new LinkedHashSet<>();
+            final HashSet<GGService> ready = new LinkedHashSet<>();
             while (!pending.isEmpty()) {
                 int sz = pending.size();
                 pending.removeIf(l -> {
@@ -310,7 +312,7 @@ public class GG2K extends Configuration implements Runnable {
         Log log = context.get(Log.class);
         try {
             log.significant("Installing software", getMain());
-            Lifecycle[] d = orderedDependencies().toArray(new Lifecycle[0]);
+            GGService[] d = orderedDependencies().toArray(new GGService[0]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].getState() == Running)
                     try {

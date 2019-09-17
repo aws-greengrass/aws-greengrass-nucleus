@@ -3,7 +3,9 @@
 
 package com.aws.iot.dependency;
 
+import com.aws.iot.config.Topics;
 import static com.aws.iot.dependency.State.*;
+import com.aws.iot.gg2k.GGService;
 import java.util.concurrent.*;
 import org.junit.*;
 import javax.inject.*;
@@ -13,7 +15,7 @@ public class LifecycleTest {
     static CountDownLatch cd;
     @Test
     public void T1() {
-        cd = new CountDownLatch(1);
+        cd = new CountDownLatch(2);
         Context c = new Context();
         java.util.concurrent.ScheduledThreadPoolExecutor ses = new java.util.concurrent.ScheduledThreadPoolExecutor(2);
         c.put(java.util.concurrent.ScheduledThreadPoolExecutor.class, ses);
@@ -43,13 +45,16 @@ public class LifecycleTest {
         try { Thread.sleep(50); } catch (InterruptedException ex) { }
         Assert.assertTrue(v.toString(),v.shutdownCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
-        Assert.assertEquals(State.Shutdown,v.getState());
+        Assert.assertEquals(State.Finished,v.getState());
         Assert.assertNotNull("non-lifecycle", v.C2.C3);
         Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
         Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
         Assert.assertEquals(42,c.get(Foo.class).what());
     }
-    public static class c1 extends Lifecycle {
+    public static class c1 extends GGService {
+        public c1() {
+            super(Topics.errorNode("c1","testing"));
+        }
         @Inject public c2 C2;
         public boolean shutdownCalled, startupCalled, installCalled;
         @Override public void install() {
@@ -68,12 +73,16 @@ public class LifecycleTest {
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
             super.shutdown();
+            cd.countDown();
         }
         final String id = "c1/"+ ++seq;
         @Override public String toString() { return id; }
         { System.out.println("Creating  "+this); }
     }
-    public static class c2 extends Lifecycle {
+    public static class c2 extends GGService {
+        public c2() {
+            super(Topics.errorNode("c2","testing"));
+        }
         @Inject c3 C3;
 //        @Inject @StartWhen(New) c1 parent;
         public boolean shutdownCalled, startupCalled;
@@ -90,6 +99,7 @@ public class LifecycleTest {
         @Override public void shutdown() { 
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
+            super.shutdown();
             cd.countDown();
         }
     }

@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.dependency;
 
+import com.aws.iot.config.*;
+import com.aws.iot.gg2k.GGService;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
 import java.lang.annotation.*;
@@ -99,18 +101,18 @@ public class Context implements Closeable {
         shutdown();
     }
     // global state change notification
-    private CopyOnWriteArrayList<Lifecycle.stateChangeListener> listeners;
-    public synchronized void addStateListener(Lifecycle.stateChangeListener l) {
+    private CopyOnWriteArrayList<GGService.stateChangeListener> listeners;
+    public synchronized void addStateListener(GGService.stateChangeListener l) {
         if(listeners==null) listeners = new CopyOnWriteArrayList<>();
         listeners.add(l);
     }
-    public synchronized void removeStateListener(Lifecycle.stateChangeListener l) {
+    public synchronized void removeStateListener(GGService.stateChangeListener l) {
         if(listeners!=null) {
             listeners.remove(l);
             if(listeners.isEmpty()) listeners = null;
         }
     }
-    void notify(Lifecycle l, State was) {
+    public void notify(GGService l, State was) {
         if(listeners!=null)
             listeners.forEach(s->s.stateChanged(l,was));
     }
@@ -118,14 +120,14 @@ public class Context implements Closeable {
     public void setAllStates(State ms) {
         forEach(f->{
             Object v = f.get();
-            if(v instanceof Lifecycle) {
-                ((Lifecycle)v).setState(ms);
+            if(v instanceof GGService) {
+                ((GGService)v).setState(ms);
             }
         });
     }
 
     public class Value<T> implements Provider<T> {
-        volatile T value;
+        public volatile T value;
         final Class<T> targetClass;
         Value(Class<T> c, T v) {
             targetClass = c;
@@ -145,17 +147,44 @@ public class Context implements Closeable {
                         ? (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default")
                         : targetClass;
                 System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
-                Constructor<T> cons = ccl.getDeclaredConstructor();
+                Constructor<T> cons = null;
+                for(Constructor<T> c:(Constructor<T>[])ccl.getConstructors()) {
+                    System.out.println("Examine "+c.getParameterCount()+" "+c.toGenericString());
+                    if(c.getParameterCount()==0) cons = c;
+                    else if(c.isAnnotationPresent(Inject.class)) {
+                        cons = c;
+                        break;
+                    }
+                }
+                if(cons==null)
+                    throw new NoSuchMethodException("No usable injection constructor for "+ccl);
                 cons.setAccessible(true);
-//                if(cons.getAnnotation(Singleton.class)!=null) {
-//                    System.out.println("Stuffing singleton "+ccl.getSimpleName());
-//                    parts.put(ccl, this); // if it's a named singleton, make sure it shows up both ways.
-//                }
-                return put(cons.newInstance());
+                int np = cons.getParameterCount();
+                if(np==0)
+                    return put(cons.newInstance());
+                System.out.println("Injecting args into "+cons.toGenericString());
+                Object[] args = new Object[np];
+                Class[] types = cons.getParameterTypes();
+                for(int i = 0; i<np; i++) {
+                    Class T = types[i];
+                    if(T==Topics.class) {
+                        ImplementsService svc = ccl.getAnnotation(ImplementsService.class);
+                        if(svc!=null) {
+                            String nm = svc.name();
+                            if(nm!=null) {
+                                args[i] = Context.this.get(Configuration.class).lookupTopics(nm);
+                                continue;
+                            }
+                        }
+                        args[i] = Topics.errorNode("message", "Synthetic args");
+                    }
+                    args[i] = Context.this.get(T);
+                }
+                return put(cons.newInstance(args));
             } catch (Throwable ex) {
                 ex.printStackTrace(System.out);
-                return null;  // TODO noooooo
             }
+            return null;  // TODO noooooo
         }
         public synchronized final T put(T v) {
             if (v == value) return v;
@@ -178,14 +207,14 @@ public class Context implements Closeable {
 //            System.out.println("requestInject " + lvalue);
             if (lvalue == null) return;
             Class cl = lvalue.getClass();
-            Lifecycle lo = lvalue instanceof Lifecycle ? (Lifecycle) lvalue : null;
-            InjectionActions io = lvalue instanceof InjectionActions ? (InjectionActions) lvalue : null;
-            if (lo != null) lo.context = Context.this; // inject context early
-            if (io != null)
+            GGService asService = lvalue instanceof GGService ? (GGService) lvalue : null;
+            InjectionActions injectionActions = lvalue instanceof InjectionActions ? (InjectionActions) lvalue : null;
+            if (asService != null) asService.context = Context.this; // inject context early
+            if (injectionActions != null)
                 try {
-                    io.preInject();
+                    injectionActions.preInject();
                 } catch (Throwable e) {
-                    if (lo != null) lo.errored("preInject", e);
+                    if (asService != null) asService.errored("preInject", e);
                     else e.printStackTrace(System.err);  //TODO: be less stupid
                 }
             while (cl != null && cl != Object.class) {
@@ -209,14 +238,14 @@ public class Context implements Closeable {
                             f.setAccessible(true);
                             f.set(lvalue, v);
 //                            System.out.println(cl.getSimpleName() + "." + f.getName() + " = " + v);
-                            if (lo != null && v instanceof Lifecycle)
-                                lo.addDependency((Lifecycle) v,
+                            if (asService != null && v instanceof GGService)
+                                asService.addDependency((GGService) v,
                                         startWhen == null ? State.Running
                                                 : startWhen.value());
                         } catch (Throwable ex) {
                             ex.printStackTrace(System.err);
-                            if (lo != null)
-                                lo.errored("Injecting", ex);
+                            if (asService != null)
+                                asService.errored("Injecting", ex);
                             else
                                 System.err.println("Error injecting into " + f + "\n\t" + ex);
                         }
@@ -224,11 +253,11 @@ public class Context implements Closeable {
                 }
                 cl = cl.getSuperclass();
             }
-            if (io != null && (lo == null || !lo.errored()))
+            if (injectionActions != null && (asService == null || !asService.errored()))
                 try {
-                    io.postInject();
+                    injectionActions.postInject();
                 } catch (Throwable e) {
-                    if (lo != null) lo.errored("postInject", e);
+                    if (asService != null) asService.errored("postInject", e);
                     else e.printStackTrace(System.err);  //TODO: be less stupid
                 }
         }

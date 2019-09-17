@@ -7,7 +7,7 @@ import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.close;
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.concurrent.*;
 import java.util.regex.*;
 
@@ -56,6 +56,7 @@ public class EZTemplates {
         return sb;
     }
     public static void writeTo(CharSequence cs, Path dest) throws IOException {
+        Files.deleteIfExists(dest);
         CommitableWriter cw = CommitableWriter.of(dest);
         cw.append(cs);
         cw.commit();
@@ -87,29 +88,4 @@ public class EZTemplates {
         return null;
 
     }
-
-//            Path dest = nukk;
-//            try (BufferedReader in = new BufferedReader(new InputStreamReader(resource.openStream()));
-//                    CommitableWriter out = CommitableWriter.of(dest)) {
-//                String s;
-//                StringBuffer sb = new StringBuffer();
-//                while((s = in.readLine())!=null) {
-//                    Matcher m = scriptVar.matcher(s);
-//                    sb.setLength(0);
-//                    while (m.find()) {
-//                        String rep;
-//                        switch(m.group(1)) {
-//                            case "root": rep = rootPath.toString(); break;
-//                            case "work": rep = workPath.toString(); break;
-//                            case "bin": rep = clitoolPath.toString(); break;
-//                            case "config": rep = configPath.toString(); break;
-//                            default: rep = m.group(0); break;
-//                        }
-//                        m.appendReplacement(sb, rep);
-//                    }
-//                    m.appendTail(sb);
-//                    out.write(sb.toString());
-//                    out.write('\n');
-//                }
-//                out.commit();
 }
