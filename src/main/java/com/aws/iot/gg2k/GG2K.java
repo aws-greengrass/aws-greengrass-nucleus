@@ -7,21 +7,18 @@ import com.aws.iot.dependency.*;
 import static com.aws.iot.dependency.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.*;
-import com.fasterxml.jackson.jr.ob.*;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
 import java.io.*;
 import java.net.*;
-import java.nio.charset.*;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.prefs.*;
-import java.util.regex.*;
 
 /** GreenGrass-v2-kernel */
-public class GG2K extends Configuration implements Runnable {
+public class GG2K extends Configuration /*implements Runnable*/ {
     public final Context context = new Context();
     private String mainServiceName = "main";
     private boolean installOnly = false;
@@ -61,6 +58,7 @@ public class GG2K extends Configuration implements Runnable {
             clitoolPath = Paths.get(deTilde(clitoolPathName));
             Exec.addFirstPath(clitoolPath);
             workPath = Paths.get(deTilde(workPathName));
+            Exec.setDefaultEnv("HOME", workPath.toString());
             if (w != WhatHappened.initialized) {
                 ensureCreated(configPath);
                 ensureCreated(clitoolPath);
@@ -136,12 +134,13 @@ public class GG2K extends Configuration implements Runnable {
         if (!ensureCreated(configPath) || !ensureCreated(rootPath)
                 || !ensureCreated(workPath) || !ensureCreated(clitoolPath))
             broken = true;
+        Exec.setDefaultEnv("GGHOME", rootPath.toString());
         try {
             EZPlugins pim = context.get(EZPlugins.class);
             pim.setCacheDirectory(rootPath.resolve("plugins"));
             pim.annotated(ImplementsService.class, cl->{
-                if(!Lifecycle.class.isAssignableFrom(cl)) {
-                    System.err.println(cl+" needs to be a subclass of Lifecycle in order to use ImplementsService");
+                if(!GGService.class.isAssignableFrom(cl)) {
+                    System.err.println(cl+" needs to be a subclass of GGService in order to use ImplementsService");
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
@@ -231,12 +230,12 @@ public class GG2K extends Configuration implements Runnable {
             return 0;
         }
     }
-    @Override
-    public void run() {
-        if (broken)
-            return;
-        System.out.println("Running...");
-    }
+//    @Override
+//    public void run() {
+//        if (broken)
+//            return;
+//        System.out.println("Running...");
+//    }
     private GGService mainService;
     public GGService getMain() throws Throwable {
         GGService m = mainService;
@@ -255,11 +254,11 @@ public class GG2K extends Configuration implements Runnable {
             context.get(Log.class).error("installCliTool",t);
         }
     }
-    public Collection<Lifecycle> orderedDependencies() {
+    public Collection<GGService> orderedDependencies() {
         try {
-            final HashSet<Lifecycle> pending = new LinkedHashSet<>();
+            final HashSet<GGService> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
-            final HashSet<Lifecycle> ready = new LinkedHashSet<>();
+            final HashSet<GGService> ready = new LinkedHashSet<>();
             while (!pending.isEmpty()) {
                 int sz = pending.size();
                 pending.removeIf(l -> {
@@ -313,7 +312,7 @@ public class GG2K extends Configuration implements Runnable {
         Log log = context.get(Log.class);
         try {
             log.significant("Installing software", getMain());
-            Lifecycle[] d = orderedDependencies().toArray(new Lifecycle[0]);
+            GGService[] d = orderedDependencies().toArray(new GGService[0]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].getState() == Running)
                     try {
@@ -327,43 +326,7 @@ public class GG2K extends Configuration implements Runnable {
 
     }
 
-    public GG2K read(String s) throws IOException {
-        System.out.println("Reading " + s);
-        return read(isURL.matcher(s).lookingAt()
-                ? new URL(s).openStream()
-                : new FileInputStream(s),
-                extension(s));
-    }
-    public GG2K read(Path s) throws IOException {
-        System.out.println("Reading " + s);
-        return read(Files.newBufferedReader(s), extension(s.toString()));
-    }
-    public GG2K read(InputStream in, String extension) throws IOException {
-        return read(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))),
-                extension);
-    }
-    public GG2K read(Reader in, String extension) throws IOException {
-        if (broken)
-            return this;
-        try {
-            switch (extension) {
-                case "json":
-                    mergeMap(0, (java.util.Map) JSON.std.anyFrom(in));
-                    break;
-                case "yaml":
-                    mergeMap(0, (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
-                    break;
-                case "tlog":
-                    ConfigurationReader.read(this, in);
-                    break;
-                default:
-                    throw new IllegalArgumentException("File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
-            }
-        } finally {
-            close(in);
-        }
-        return this;
-    }
+    
     public GG2K print(OutputStream out) {
         return print(new BufferedWriter(new OutputStreamWriter(out)));
     }
@@ -411,6 +374,4 @@ public class GG2K extends Configuration implements Runnable {
     private String getArg() {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
     }
-    private static final Pattern isURL = Pattern.compile("[a-z]*:/");
-
 }

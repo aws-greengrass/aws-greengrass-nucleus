@@ -9,7 +9,7 @@ import java.io.*;
 import java.nio.file.*;
 
 public class ConfigurationReader {
-    public static void read(Configuration c, Reader r0) throws IOException {
+    public static void mergeTLogInto(Configuration c, Reader r0) throws IOException {
         try (BufferedReader in = r0 instanceof BufferedReader ? (BufferedReader) r0 : new BufferedReader(r0)) {
             String l;
             while ((l = in.readLine()) != null) {
@@ -20,23 +20,14 @@ public class ConfigurationReader {
             }
         }
     }
-    public static void read(Configuration c, Path p) throws IOException {
-        read(c, Files.newBufferedReader(p));
+    public static void mergeTLogInto(Configuration c, Path p) throws IOException {
+        ConfigurationReader.mergeTLogInto(c, Files.newBufferedReader(p));
     }
-    public static Configuration read(Path p) throws IOException {
+    public static Configuration createFromTLog(Path p) throws IOException {
         Configuration c = new Configuration();
-        read(c, p);
+        ConfigurationReader.mergeTLogInto(c, p);
         return c;
     }
-    /** exactly like read, except that if the file doesn't exist, it returns an empty Config */
-    public static Configuration createFrom(Path p) {
-        Configuration c = new Configuration();
-        try {
-            read(c, p);
-        } catch (IOException ex) {}
-        return c;
-    }
-
     private static final java.util.regex.Pattern logLine = java.util.regex.Pattern.compile("([0-9]+),([^,]*),([^\n]*)\n*");
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
 }

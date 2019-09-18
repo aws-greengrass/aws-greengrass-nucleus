@@ -62,7 +62,7 @@ public class ConfigurationTest {
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         try {
-            Configuration c2 = ConfigurationReader.read(p);
+            Configuration c2 = ConfigurationReader.createFromTLog(p);
 //            System.out.println(c2.hashCode() + " " + config.hashCode());
 //            System.out.println("Read: " + deepToString(c2.getRoot(), 99));
             assertEquals(44, c2.lookup("x", "z").getOnce());

@@ -9,49 +9,266 @@ import com.aws.iot.config.Node;
 import com.aws.iot.config.Topic;
 import com.aws.iot.config.Topics;
 import com.aws.iot.dependency.*;
+import static com.aws.iot.dependency.State.*;
 import com.aws.iot.util.*;
+import static com.aws.iot.util.Utils.getUltimateCause;
 import java.io.*;
 import java.lang.reflect.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
 import java.util.regex.*;
 import javax.inject.*;
 
 
-public class GGService extends Lifecycle {
+public class GGService implements InjectionActions {
+    private State state = State.New;
+    private Throwable error;
+    protected ConcurrentHashMap<GGService, State> dependencies;
+    private Future backingTask;
+    public Context context;
+    public static State getState(GGService o) {
+        return o.state;
+    }
+    public State getState() {
+        return state;
+    }
+    public Log log() { return context.get(Log.class); }
+    public boolean isRunningInternally() {
+        Future b = backingTask;
+        return b!=null && !b.isDone();
+    }
+    private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
+    public synchronized void setState(State s) {
+        final State prev = state;
+        if (s == prev)
+            return;
+//        System.out.println(getName()+" "+prev+"->"+s);
+        state = s;
+        if(prev.isRunning() && !s.isRunning()) { // transition from running to not running
+            try {
+                shutdown();
+                Future b = backingTask;
+                if(b!=null) {
+                    backingTask = null;
+                    b.cancel(true);
+                }
+            } catch (Throwable t) {
+                errored("Failed shutting down", t);
+            }
+        }
+        try {
+            switch(s) {
+                case Installing:
+                    install();
+                    break;
+                case AwaitingStartup:
+                    awaitingStartup();
+                    break;
+                case Starting:
+                    backingTask = context.get(ExecutorService.class).submit(() -> {
+                        try {
+                            startup();
+                        } catch (Throwable t) {
+                            errored("Failed starting up", t);
+                        }
+                    });
+                    break;
+                case Running:
+                    if(prev != Unstable) {
+                        recheckOthersDependencies();
+                        backingTask = context.get(ExecutorService.class).submit(() -> {
+                            try {
+                                run();
+                            } catch (Throwable t) {
+                                errored("Failed starting up", t);
+                            }
+                        });
+                    }
+                    break;
+                case Errored:
+                    try {
+                        if(!errorHandlerErrored) handleError();
+                    } catch (Throwable t) {
+                        errorHandlerErrored = true;
+                        errored("Error handler failed", t);
+                    }
+                    break;
+            }
+        } catch(Throwable t) {
+            errored("Transitioning from "+prev+" to "+s, t);
+        }
+    }
+    static final void setState(Object o, State st) {
+        if (o instanceof GGService)
+            ((GGService) o).setState(st);
+    }
+    public void errored(String message, Throwable e) {
+        e = getUltimateCause(e);
+        error = e;
+        errored(message, (Object)e);
+    }
+    public void errored(String message, Object e) {
+        if(context==null) {
+            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
+            if(e instanceof Throwable) ((Throwable)e).printStackTrace(System.err);
+        }
+        else log().error(this,message,e);
+        setState(State.Errored);
+    }
+    public boolean errored() {
+        return !state.isHappy() || error != null;
+    }
+    /**
+     * Called when this service is known to be needed to make sure that required
+     * additional software is installed.
+     */
+    protected void install() {
+    }
+    /**
+     * Called when this service is known to be needed, and is AwaitingStartup.
+     * This is a good place to do any preconfiguration.  It is seperate from "install"
+     * because there are situations (like factory preflight setup) where there's a
+     * certain amount of setup to be done, but we're not actually going to start the app.
+     */
+    protected void awaitingStartup() {
+        if(!hasDependencies() && !errored()) setState(Starting);
+    }
+    /**
+     * Called when all dependencies are Running. If there are no dependencies,
+     * it is called right after postInject.  The service doesn't transition to Running
+     * until *after* this state is complete.
+     */
+    Periodicity timer;
+    public void startup() {
+        timer = Periodicity.of(this);
+        if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
+                ? State.Running
+                : State.Finished);
+    }
+    /**
+     * Called when all dependencies are Running. If there are no dependencies,
+     * it is called right after postInject.
+     */
+    protected void run() {
+        if(!errored()) setState(State.Finished);
+    }
+    /**
+     * Called when a running service encounters an error.
+     */
+    protected void handleError() {
+    }
+    /**
+     * Called when the object's state leaves Running.
+     * To shutdown a service, use <tt>setState(Shutdown)</dd>
+     */
+    public void shutdown() {
+        Periodicity t = timer;
+        if(t!=null) t.shutdown();
+    }
+    /**
+     * Sets the state to Shutdown
+     */
+    public void close() {
+        setState(State.Shutdown);
+    }
+    public Context getContext() { return context; }
+    public void addDependency(GGService v, State when) {
+        if (dependencies == null)
+            dependencies = new ConcurrentHashMap<>();
+//        System.out.println(getName()+" depends on "+v.getName());
+        dependencies.put(v, when);
+    }
+    private boolean hasDependencies() {
+//        if(dependencies==null) {
+//            System.out.println(getName()+": no dependencies");
+//            return false;
+//        } else {
+//            dependencies.entrySet().stream().forEach(ls -> {
+//                System.out.println(getName() +"/"+ getState()+" :: "+ls.getKey().getName()+"/"+ls.getKey().getState());
+//            });
+//        }
+        return dependencies != null
+                && (dependencies.entrySet().stream().anyMatch(ls -> ls.getKey().getState().preceeds(ls.getValue())));
+    }
+    public void forAllDependencies(Consumer<? super GGService> f) {
+        if(dependencies!=null) dependencies.keySet().forEach(f);
+    }
+    private CopyOnWriteArrayList<stateChangeListener> listeners;
+    public synchronized void addStateListener(stateChangeListener l) {
+        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
+        listeners.add(l);
+    }
+    public synchronized void removeStateListener(stateChangeListener l) {
+        if(listeners!=null) {
+            listeners.remove(l);
+            if(listeners.isEmpty()) listeners = null;
+        }
+    }
+    private void notify(GGService l, State was) {
+        if(listeners!=null)
+            listeners.forEach(s->s.stateChanged(l,was));
+        context.notify(l, was);
+    }
+    private void recheckOthersDependencies() {
+        if (context != null) {
+            final AtomicBoolean changed = new AtomicBoolean(true);
+            while (changed.get()) {
+                changed.set(false);
+                context.forEach(v -> {
+                    Object vv= v.value;
+                    if(vv instanceof GGService) {
+                        GGService l = (GGService) vv;
+                        if (l.state == State.AwaitingStartup) {
+                            if (!l.hasDependencies()) {
+                                l.setState(State.Starting);
+                                changed.set(true);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
+    private String status;
+    public String getStatus() { return status; }
+    public void setStatus(String s) { status = s; }
+    public interface stateChangeListener {
+        void stateChanged(GGService l, State was);
+    }
     public final Topics config;
-    protected final CopyOnWriteArrayList<Lifecycle> explicitDependencies = new CopyOnWriteArrayList<>();
+    protected final CopyOnWriteArrayList<GGService> explicitDependencies = new CopyOnWriteArrayList<>();
     public GGService(Topics c) {
         config = c;
     }
-    @Override public String getName() {
-        return config.getFullName();
+    public String getName() {
+        return config==null ? getClass().getSimpleName() : config.getFullName();
     }
-    @Override public void postInject() {
-        super.postInject();
-        Node d = config.getChild("dependencies");
-        if (d == null)
-            d = config.getChild("dependency");
-        if (d == null)
-            d = config.getChild("requires");
-        //            System.out.println("requires: " + d);
-        if(d == null){
-            //TODO: handle defaultimpl without creating GGService for parent
-            d =  config.getChild("defaultimpl");
-        }
+    @Override
+    public void postInject() {
+//        addDependency(config.getChild("dependencies"));   // possible synonyms
+//        addDependency(config.getChild("dependency"));
+//        addDependency(config.getChild("defautimpl"));
+        addDependency(config.getChild("requires"));
+    }
+    public boolean addDependency(Node d) {
+        boolean ret = false;
         if (d instanceof Topics)
             d = pickByOS((Topics) d);
         if (d instanceof Topic) {
             String ds = ((Topic) d).getOnce().toString();
             Matcher m = depParse.matcher(ds);
-            while(m.find())
+            while(m.find()) {
                 addDependency(m.group(1), m.group(3));
+                ret = true;
+            }
             if (!m.hitEnd())
                 errored("bad dependency syntax", ds);
         }
+        return ret;
     }
     public void addDependency(String name, String startWhen) {
         if (startWhen == null)
@@ -67,14 +284,14 @@ public class GGService extends Lifecycle {
                         break;
                     }
                 if (x == null)
-                    errored("does not match any lifecycle state", startWhen);
+                    errored("does not match any GGService state", startWhen);
             }
         }
         addDependency(name, x == null ? State.Running : x);
     }
     public void addDependency(String name, State startWhen) {
         try {
-            Lifecycle d = locate(context, name);
+            GGService d = locate(context, name);
             if (d != null) {
                 explicitDependencies.add(d);
                 addDependency(d, startWhen);
@@ -86,7 +303,7 @@ public class GGService extends Lifecycle {
             ex.printStackTrace(System.out);
         }
     }
-    private static final Pattern depParse = Pattern.compile(" *([^,:; ]+)(:([^,; ]+))?[,; ]*");
+    private static final Pattern depParse = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -102,12 +319,12 @@ public class GGService extends Lifecycle {
         }
         return sb.toString();
     }
-    public static Lifecycle locate(Context context, String name) throws Throwable {
-        return context.getv(Lifecycle.class, name).computeIfEmpty(v->{
+    public static GGService locate(Context context, String name) throws Throwable {
+        return context.getv(GGService.class, name).computeIfEmpty(v->{
             Configuration c = context.get(Configuration.class);
             Topics t = c.lookupTopics(Configuration.splitPath(name));
             assert(t!=null);
-            Lifecycle ret;
+            GGService ret;
             Class clazz = null;
             Node n = t.getChild("class");
             if (n != null) {
@@ -167,6 +384,7 @@ public class GGService extends Lifecycle {
                 expr = expr.substring(1).trim();
                 neg = !neg;
             }
+            expr = templateEngine.rewrite(expr).toString();
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -202,8 +420,10 @@ public class GGService extends Lifecycle {
         // TODO: a loopy set of hacks
         ranks.put("all", 0);
         ranks.put("any", 0);
-        if (Files.exists(Paths.get("/bin/bash")))
+        if (Files.exists(Paths.get("/bin/bash"))) {
+            ranks.put("unix", 3);
             ranks.put("posix", 3);
+        }
         if (Files.exists(Paths.get("/usr/bin/bash")))
             ranks.put("posix", 3);
         if (Files.exists(Paths.get("/proc")))
@@ -234,7 +454,7 @@ public class GGService extends Lifecycle {
         } catch (UnknownHostException ex) {
         }
     }
-    Node pickByOS(Topics n) {
+    static Node pickByOS(Topics n) {
         Node bestn = null;
         int bestrank = -1;
         for (Map.Entry<String, Node> me : ((Topics) n).children.entrySet()) {
@@ -246,18 +466,6 @@ public class GGService extends Lifecycle {
         }
         return bestn;
     }
-    Periodicity timer;
-    @Override
-    public void startup() {
-        timer = Periodicity.of(this);
-        if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
-                ? State.Running
-                : State.Finished);
-    }
-    @Override public void shutdown() {
-        Periodicity t = timer;
-        if(t!=null) t.shutdown();
-    }
     public enum RunStatus { OK, NothingDone, Errored }
     protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);
@@ -268,29 +476,44 @@ public class GGService extends Lifecycle {
         return run(n, background);
     }
     protected RunStatus run(Node n, IntConsumer background) {
-        return n instanceof Topic ? run((Topic) n, background)
+        return n instanceof Topic ? run((Topic) n, background, null)
              : n instanceof Topics ? run((Topics) n, background)
                 : RunStatus.Errored;
     }
     @Inject ShellRunner shellRunner;
-    protected RunStatus run(Topic t, IntConsumer background) {
-        String cmd = Coerce.toString(t.getOnce());
+    @Inject EZTemplates templateEngine;
+    protected RunStatus run(Topic t, IntConsumer background, Topics config) {
+        String cmd = templateEngine.rewrite(Coerce.toString(t.getOnce())).toString();
         setStatus(cmd);
-        IntConsumer nb = background!=null
-                ? n->{
-//                    setStatus(null);
-                    background.accept(n);
-                } : null;
         if(background==null) setStatus(null);
-        RunStatus OK = shellRunner.run(t.getFullName(), cmd, nb, this) != ShellRunner.Failed
-                ? RunStatus.OK : RunStatus.Errored;
-        return OK;
+//        RunStatus OK = shellRunner.setup(t.getFullName(), cmd, background, this, null) != ShellRunner.Failed
+//                ? RunStatus.OK : RunStatus.Errored;
+        Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
+        if(exec!=null) { // there's something to run
+            addEnv(exec, t.parent);
+            log().significant(this,"exec",cmd);
+            return shellRunner.run(exec, cmd, background)
+                    ? RunStatus.OK : RunStatus.Errored;
+        }
+        else return RunStatus.NothingDone;
+    }
+    private void addEnv(Exec exec, Topics src) {
+        if(src!=null) {
+            addEnv(exec, src.parent); // add parents contributions first
+            Node env = src.getChild("setenv");
+            if(env instanceof Topics) {
+                ((Topics)env).forEach(n->{
+                    if(n instanceof Topic)
+                        exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic)n).getOnce())));
+                });
+            }
+        }
     }
     protected RunStatus run(Topics t, IntConsumer background) {
         if (!shouldSkip(t)) {
             Node script = t.getChild("script");
             if (script instanceof Topic)
-                return run((Topic) script, background);
+                return run((Topic) script, background, t);
             else {
                 errored("Missing script: for ", t.getFullName());
                 return RunStatus.Errored;
@@ -301,15 +524,15 @@ public class GGService extends Lifecycle {
             return RunStatus.OK;
         }
     }
-    protected void addDependencies(HashSet<Lifecycle> deps) {
+    protected void addDependencies(HashSet<GGService> deps) {
         deps.add(this);
         if (dependencies != null)
             dependencies.keySet().forEach(d -> {
-                if (!deps.contains(d) && d instanceof GGService)
-                    ((GGService)d).addDependencies(deps);
+                if (!deps.contains(d))
+                    d.addDependencies(deps);
             });
     }
-    @Override public boolean satisfiedBy(HashSet<Lifecycle> ready) {
+    public boolean satisfiedBy(HashSet<GGService> ready) {
         return dependencies == null
                 || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
     }

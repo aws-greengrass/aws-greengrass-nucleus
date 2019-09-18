@@ -44,11 +44,12 @@ public class Exec {
     private static final File homedir = new File(System.getProperty("user.home"));
     public static final String GG2token = Utils.generateRandomString(16);
     private static String[] defaultEnvironment = {
-        "", // PATH filled in later
+        "PATH=" + System.getenv("PATH"),
         "SHELL=" + System.getenv("SHELL"),
         "JAVA_HOME=" + System.getenv("JAVA_HOME"),
         "USER=" + System.getProperty("user.name"),
         "HOME=" + homedir,
+        "USERHOME=" + homedir,
         "GG2TOKEN="+GG2token,
         "PWD=" + userdir,};
     public Exec cd(File f) {
@@ -62,16 +63,27 @@ public class Exec {
     public Exec cd() {
         return cd(homedir);
     }
-    public Exec setenv(String key, String value) {
-        String[] ne = Arrays.copyOf(environment, environment.length + 1, String[].class);
-        ne[ne.length - 1] = key + '=' + value;
-        environment = ne;
+    public Exec setenv(String key, CharSequence value) {
+        environment = setenv(environment, key, value, environment==defaultEnvironment);
         return this;
     }
-    public static void setDefaultEnv(String key, String value) {
-        String[] ne = Arrays.copyOf(defaultEnvironment, defaultEnvironment.length + 1, String[].class);
-        ne[ne.length - 1] = key + '=' + value;
-        defaultEnvironment = ne;
+    public static void setDefaultEnv(String key, CharSequence value) {
+        defaultEnvironment = setenv(defaultEnvironment, key, value, false);
+    }
+    private static String[] setenv(String[] env, String key, CharSequence value, boolean forceCopy) {
+        int elen = env.length;
+        int klen = key.length();
+        for(int i = 0; i<elen; i++) {
+            String s = env[i];
+            if(s.length()>klen && s.charAt(klen)=='=' && s.startsWith(key)) {
+                if(forceCopy) env = Arrays.copyOf(env, env.length);
+                env[i] = key+'='+value;
+                return env;
+            }
+        }
+        String[] ne = Arrays.copyOf(env, elen + 1, String[].class);
+        ne[elen] = key + '=' + value;
+        return ne;
     }
     public Exec withExec(String... c) {
         cmds = c;
@@ -266,12 +278,11 @@ public class Exec {
     }
     private static void computePathString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("PATH=");
         paths.forEach(p -> {
             if(sb.length()>5) sb.append(':');
             sb.append(p.toString());
         });
-        defaultEnvironment[0] = sb.toString();
+        setDefaultEnv("PATH", sb.toString());
     }
     public static void removePath(Path p) {
         if(p!=null && paths.remove(p))

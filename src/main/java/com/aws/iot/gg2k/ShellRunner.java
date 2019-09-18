@@ -10,12 +10,14 @@ import java.util.function.*;
 import javax.inject.*;
 
 public interface ShellRunner {
-    public abstract Exec run(String note, String command, IntConsumer background, GGService onBehalfOf);
+    public abstract Exec setup(String note, String command, GGService onBehalfOf);
+    public abstract boolean run(Exec e, String command, IntConsumer background);
+
     public static class Default implements ShellRunner {
         @Inject Log log;
         @Inject GG2K config;
         @Override
-        public synchronized Exec run(String note, String command, IntConsumer background, GGService onBehalfOf) {
+        public synchronized Exec setup(String note, String command, GGService onBehalfOf) {
             if (!isEmpty(command) && onBehalfOf != null) {
                 if (!isEmpty(note))
                     log.significant("run", note);
@@ -26,27 +28,31 @@ public interface ShellRunner {
                 if (timeout <= 0)
                     timeout = Coerce.toInt(config.lookup("system", "bashtimeout").dflt(120).getOnce());
                 if (timeout <= 0) timeout = 120;
-                Exec ret = new Exec().withShell(command)
+                return new Exec().withShell(command)
                         .withOut(s -> {
-                            log.note(note, s);
-                            onBehalfOf.setStatus(s.toString());
+                            String ss = s.toString().trim();
+                            log.note(note, ss);
+                            onBehalfOf.setStatus(ss);
                         })
                         .withErr(s -> {
-                            log.warn(note, s);
-                            onBehalfOf.setStatus(s.toString());
+                            String ss = s.toString().trim();
+                            log.warn(note, ss);
+                            onBehalfOf.setStatus(ss);
                         })
                         .withTimeout(timeout, TimeUnit.SECONDS)
                         .cd(config.workPath.toFile());
-                if (background != null) {
-                    ret.background(background);
-                    return ret;
-                }
-                if (!ret.successful()) {
-                    log.error("failed", command);
-                    return Failed;
-                }
             }
-            return OK;
+            return null;
+        }
+        @Override
+        public boolean run(Exec e, String command, IntConsumer background) {
+            if (background != null)
+                e.background(background);
+            else if (!e.successful()) {
+                log.error("failed", command);
+                return false;
+            }
+            return true;
         }
     }
     public static final Exec OK = new Exec();
@@ -55,9 +61,13 @@ public interface ShellRunner {
     public static class Dryrun implements ShellRunner {
         @Inject Log log;
         @Override
-        public synchronized Exec run(String note, String command, IntConsumer background, GGService onBehalfOf) {
-            log.significant((background == null ? "# " : "# BG ") + note + "\n" + command);
+        public synchronized Exec setup(String note, String command, GGService onBehalfOf) {
+            log.significant("# " + note + "\n" + command);
             return OK;
+        }
+        @Override
+        public boolean run(Exec e, String command, IntConsumer background) {
+            return true;
         }
     }
 }

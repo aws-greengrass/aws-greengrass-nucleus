@@ -3,6 +3,12 @@
 
 package com.aws.iot.config;
 
+import static com.aws.iot.util.Utils.*;
+import com.fasterxml.jackson.jr.ob.JSON;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.Charset;
+import java.nio.file.*;
 import java.util.*;
 import java.util.function.*;
 
@@ -81,6 +87,42 @@ public class Configuration {
     public void deepForEachTopic(Consumer<Topic> f) {
         root.deepForEachTopic(f);
     }
+    public Configuration read(String s) throws IOException {
+        System.out.println("Reading " + s);
+        if(s.contains(":/")) {
+            URLConnection u = new URL(s).openConnection();
+            return read(u.getInputStream(), extension(s), u.getLastModified());
+        } else return read(Paths.get(s));
+    }
+    public Configuration read(Path s) throws IOException {
+        System.out.println("Reading " + s);
+        return read(Files.newBufferedReader(s), extension(s.toString()),
+                Files.getLastModifiedTime(s).toMillis());
+    }
+    public Configuration read(InputStream in, String extension, long timestamp) throws IOException {
+        return read(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))),
+                extension, timestamp);
+    }
+    public Configuration read(Reader in, String extension, long timestamp) throws IOException {
+        try {
+            switch (extension) {
+                case "json":
+                    mergeMap(timestamp, (java.util.Map) JSON.std.anyFrom(in));
+                    break;
+                case "yaml":
+                    mergeMap(timestamp, (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
+                    break;
+                case "tlog":
+                    ConfigurationReader.mergeTLogInto(this, in);
+                    break;
+                default:
+                    throw new IllegalArgumentException("File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
+            }
+        } finally {
+            close(in);
+        }
+        return this;
+    }
     @Override
     public int hashCode() {
         return Objects.hashCode(root);
@@ -94,8 +136,6 @@ public class Configuration {
     }
     
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
-
-
 
     public static final Object removed = new Object() {
         @Override

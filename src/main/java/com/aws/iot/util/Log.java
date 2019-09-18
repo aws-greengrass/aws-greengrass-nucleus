@@ -3,8 +3,8 @@
 package com.aws.iot.util;
 
 import com.aws.iot.config.*;
-import com.aws.iot.dependency.Lifecycle;
-import com.aws.iot.gg2k.GG2K;
+import com.aws.iot.dependency.ImplementsService;
+import com.aws.iot.gg2k.*;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
 import java.time.*;
@@ -48,9 +48,13 @@ public interface Log {
         public final Level level;
         public final Object[] args;
     }
-
-    public static class Default extends Lifecycle implements Log {
+    @ImplementsService(name = "log")
+    public static class Default extends GGService implements Log {
         // TODO: be less stupid
+        @Inject
+        public Default(Topics conf) {
+            super(conf);
+        }
         Writer out;
         boolean doClose = false;
         Thread handler;
@@ -60,29 +64,31 @@ public interface Log {
         }
         @Inject Clock clock;
         private int loglevel;
-        @Override public void postInject() {
-            super.postInject();
-            Configuration conf = context.get(Configuration.class);
-            GG2K gg = context.get(GG2K.class);
-            conf.lookup("system","logfile")
-                    .dflt("~root/gg2.log")
-                    .subscribe((w, nv, ov)
-                            -> logTo(gg.deTilde(Coerce.toString(nv))));
-            conf.lookup("system","loglevel")
-                    .dflt(0)
-                    .validate((nv, ov) -> {
-                        int i = Coerce.toInt(nv);
-                        int limit = Log.Level.values().length;
-                        return i < 0 ? 0 : i >= limit ? limit - 1 : i;
-                    })
-                    .subscribe((w, nv, ov) -> loglevel = Coerce.toInt(nv));
-        }
         @Override
         public synchronized void log(Level l, Object... args) {
             log(new Entry(clock.instant(), l, args));
         }
         @Override
         public synchronized void log(Entry en) {
+            if(out==null) {
+                /* Time to initialize.  This would normally happen earlier, like in
+                 * postInject, but the log gets created a little early for that. */
+                GG2K gg = context.get(GG2K.class);
+                config.lookup("file")
+                        .dflt("~root/gg2.log")
+                        .subscribe((w, nv, ov)
+                                -> logTo(gg.deTilde(Coerce.toString(nv))));
+                config.lookup("level")
+                        .dflt(0)
+                        .validate((nv, ov) -> {
+                            int i = Coerce.toInt(nv);
+                            int limit = Log.Level.values().length;
+                            return i < 0 ? 0 : i >= limit ? limit - 1 : i;
+                        })
+                        .subscribe((w, nv, ov) -> loglevel = Coerce.toInt(nv));
+                if(out==null)
+                    logTo(System.out); // backstop
+            }
             while (!queue.offer(en))
                 queue.poll(); // If the queue would overflow, shed the oldest entries
             if (handler == null || !handler.isAlive()) {
@@ -99,7 +105,7 @@ public interface Log {
                             try {
                                 Entry e = queue.take();
                                 watchers.forEach(w -> w.accept(e));
-                                out.append(DateTimeFormatter.ISO_INSTANT.format(e.time));
+                                DateTimeFormatter.ISO_INSTANT.formatTo(e.time, out);
                                 switch (e.level) {
                                     case Error:
                                         out.append("; ERROR");

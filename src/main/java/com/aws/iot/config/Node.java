@@ -16,8 +16,8 @@ public abstract class Node {
         parent = p;
         fnc = calcFnc();
     }
-    protected final String name;
-    protected final Topics parent;
+    public final String name;
+    public final Topics parent;
     private final String fnc;
     public boolean appendNameTo(Appendable a) throws IOException {
         if (name == null)
