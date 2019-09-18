@@ -107,10 +107,10 @@ public class Configuration {
         try {
             switch (extension) {
                 case "json":
-                    mergeMap(0, (java.util.Map) JSON.std.anyFrom(in));
+                    mergeMap(timestamp, (java.util.Map) JSON.std.anyFrom(in));
                     break;
                 case "yaml":
-                    mergeMap(0, (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
+                    mergeMap(timestamp, (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
                     break;
                 case "tlog":
                     ConfigurationReader.mergeTLogInto(this, in);

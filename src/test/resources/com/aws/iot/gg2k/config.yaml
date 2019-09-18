@@ -3,7 +3,7 @@
     install:
       debian: sudo apt-get install haskell-platform
       fedora: sudo yum install haskell-platform
-      macos: curl -sSL https://get.haskellstack.org/ | sh
+      macos: curl --silent -sSL https://get.haskellstack.org/ | sh
     invoke:
       all: haskell {args}
   python3.6:
@@ -20,12 +20,12 @@
     install:
       debian:
         script: |-
-          sudo curl https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
+          sudo curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
           sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
       macos:
         skipif: java -version 2>&1|egrep -i '(java|jdk|jre) *(version)?[ "]*(1.8|8|9|1[0-9])\.'
         script: |-
-            curl https://d3pxv6yz143wms.cloudfront.net/11.0.3.7.1/amazon-corretto-11.0.3.7.1-macosx-x64.pkg>/tmp/c11.pkg
+            curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.3.7.1/amazon-corretto-11.0.3.7.1-macosx-x64.pkg>/tmp/c11.pkg
             open /tmp/c11.pkg
     invoke:
       macos: /usr/libexec/java_home -v 11 --request -exec {args}
@@ -44,7 +44,7 @@
       install:
         macos:
             skipif: onpath brew
-            script: /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+            script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
 #launchers:
   docker:
@@ -54,7 +54,7 @@
     install:
       skipif: onpath docker
       debian: |-
-        curl -sSL https://get.docker.com/ | sh 2>/dev/null
+        curl --silent -sSL https://get.docker.com/ | sh 2>/dev/null
       fedora: sudo dnf install docker
       macos:
           skipif: exists /Applications/Docker.app
@@ -104,7 +104,7 @@
           skipif: exists $[work]/moquette/bin/moquette.sh
           script: |-
             mkdir -p $W 2>&1
-            curl -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W
+            curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W
       shutdown:
         macos: pkill -9  -f moquette; exit 0
     mosquitto:

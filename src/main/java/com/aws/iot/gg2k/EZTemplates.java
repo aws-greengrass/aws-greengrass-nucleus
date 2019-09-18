@@ -56,7 +56,6 @@ public class EZTemplates {
         return sb;
     }
     public static void writeTo(CharSequence cs, Path dest) throws IOException {
-        Files.deleteIfExists(dest);
         CommitableWriter cw = CommitableWriter.of(dest);
         cw.append(cs);
         cw.commit();
