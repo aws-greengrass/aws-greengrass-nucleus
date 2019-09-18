@@ -81,11 +81,11 @@
   hello-docker:
       requires: docker
       run: docker run hello-world
-      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>>1
+      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
   hello-docker-nginx:
       requires: docker
-      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>1
-      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>>1
+      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
+      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
     install:
       debian: |-
@@ -103,7 +103,7 @@
         unix:
           skipif: exists $[work]/moquette/bin/moquette.sh
           script: |-
-            mkdir -p $W
+            mkdir -p $W 2>&1
             curl -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W
       shutdown:
         macos: pkill -9  -f moquette; exit 0
