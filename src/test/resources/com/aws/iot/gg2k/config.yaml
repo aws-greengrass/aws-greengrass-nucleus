@@ -95,17 +95,18 @@
   mqtt:
     requires: mqtt.moquette
     moquette:
+      setenv:
+        W: $[work]/moquette
       run:
-        macos: printenv; pkill -9  -f moquette; $HOME/moquette/bin/moquette.sh
+        unix: printenv; pkill -9  -f moquette; $W/bin/moquette.sh
       install:
-        macos:
-          skipif: ls $HOME/moquette/bin | egrep -i -q moquette.sh
+        unix:
+          skipif: exists $[work]/moquette/bin/moquette.sh
           script: |-
-            curl -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz > $HOME/moquette-0.12.1.tar.gz
-            mkdir $HOME/moquette
-            tar -zxf $HOME/moquette-0.12.1.tar.gz -C $HOME/moquette
+            mkdir -p $W
+            curl -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W
       shutdown:
-        macos: pkill -9  -f moquette
+        macos: pkill -9  -f moquette; exit 0
     mosquitto:
       startup:
         macos: brew services restart mosquitto

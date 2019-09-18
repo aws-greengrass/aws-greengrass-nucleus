@@ -384,6 +384,7 @@ public class GGService implements InjectionActions {
                 expr = expr.substring(1).trim();
                 neg = !neg;
             }
+            expr = templateEngine.rewrite(expr).toString();
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -419,8 +420,10 @@ public class GGService implements InjectionActions {
         // TODO: a loopy set of hacks
         ranks.put("all", 0);
         ranks.put("any", 0);
-        if (Files.exists(Paths.get("/bin/bash")))
+        if (Files.exists(Paths.get("/bin/bash"))) {
+            ranks.put("unix", 3);
             ranks.put("posix", 3);
+        }
         if (Files.exists(Paths.get("/usr/bin/bash")))
             ranks.put("posix", 3);
         if (Files.exists(Paths.get("/proc")))
@@ -488,6 +491,7 @@ public class GGService implements InjectionActions {
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
         if(exec!=null) { // there's something to run
             addEnv(exec, t.parent);
+            log().significant(this,"exec",cmd);
             return shellRunner.run(exec, cmd, background)
                     ? RunStatus.OK : RunStatus.Errored;
         }
