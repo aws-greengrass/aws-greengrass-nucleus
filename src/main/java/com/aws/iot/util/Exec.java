@@ -90,7 +90,7 @@ public class Exec {
         return this;
     }
     public Exec withShell(String s) {
-        return withExec("sh", "-c", s);
+        return withExec("sh", "-cx", s);
     }
     public Exec withTimeout(long t, TimeUnit u) {
         timeout = t;

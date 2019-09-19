@@ -80,7 +80,7 @@
     throttleBandwidth: 100 kb/s
   hello-docker:
       requires: docker
-      run: docker run hello-world
+      run: docker run --rm hello-world
       shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
   hello-docker-nginx:
       requires: docker
@@ -98,13 +98,14 @@
       setenv:
         W: $[work]/moquette
       run:
-        unix: printenv; pkill -9  -f moquette; $W/bin/moquette.sh
+        unix: printenv; ls -l  $W/bin; pkill -9  -f moquette; sh -x $W/bin/moquette.sh
       install:
         unix:
           skipif: exists $[work]/moquette/bin/moquette.sh
           script: |-
-            mkdir -p $W 2>&1
-            curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W
+            mkdir -p $W 2>&1;
+            curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
+            echo moquette installed
       shutdown:
         macos: pkill -9  -f moquette; exit 0
     mosquitto:
