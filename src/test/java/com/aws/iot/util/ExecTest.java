@@ -31,9 +31,9 @@ public class ExecTest {
 //        System.out.println(Exec.sh("printenv;java --version"));
 //        assertFalse(Exec.successful("java --version|egrep -i -q '(jdk|jre) *17\\.'"));
 //        assertTrue(Exec.successful("java --version|egrep -i -q '(jdk|jre) *11\\.'"));
-        assertFalse(Exec.successful("echo openjdk 11.0|egrep -i -q '(jdk|jre) *18\\.'"));
+        assertFalse(Exec.successful(false, "echo openjdk 11.0|egrep -i -q '(jdk|jre) *18\\.'"));
         assertTrue(new Exec().withShell("echo openjdk 11.0|egrep -i -q '(jdk|jre) *11\\.'")
-                .withDumpOut().successful());
+                .withDumpOut().successful(false));
     }
     
     @Test

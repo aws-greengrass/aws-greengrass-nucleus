@@ -398,7 +398,7 @@ public class GGService implements InjectionActions {
                         return false;
                 }
             // Assume it's a shell script: test for 0 return code and nothing on stderr
-            return neg ^ Exec.successful(expr);
+            return neg ^ Exec.successful(true, expr);
         }
         return false;
     }

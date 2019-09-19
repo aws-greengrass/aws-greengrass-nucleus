@@ -48,7 +48,7 @@ public interface ShellRunner {
         public boolean run(Exec e, String command, IntConsumer background) {
             if (background != null)
                 e.background(background);
-            else if (!e.successful()) {
+            else if (!e.successful(true)) {
                 log.error("failed", command);
                 return false;
             }

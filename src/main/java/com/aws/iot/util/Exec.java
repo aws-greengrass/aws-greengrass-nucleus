@@ -90,7 +90,7 @@ public class Exec {
         return this;
     }
     public Exec withShell(String s) {
-        return withExec("sh", "-cx", s);
+        return withExec("sh", "-c", s);
     }
     public Exec withTimeout(long t, TimeUnit u) {
         timeout = t;
@@ -132,9 +132,9 @@ public class Exec {
             sb.setLength(l - 1); // trim guaranteed trailing newline
         return sb.toString();
     }
-    public boolean successful() {
+    public boolean successful(boolean ignoreStderr) {
         exec();
-        return stderrc.nlines==0 && process.exitValue() == 0;
+        return (ignoreStderr || stderrc.nlines==0) && process.exitValue() == 0;
     }
     public void background(IntConsumer cb) {
         whenDone = cb;
@@ -159,8 +159,8 @@ public class Exec {
     public static String sh(Path dir, String command) {
         return sh(dir.toFile(), command);
     }
-    public static boolean successful(String command) {
-        return new Exec().withShell(command).successful();
+    public static boolean successful(boolean ignoreStderr, String command) {
+        return new Exec().withShell(command).successful(ignoreStderr);
     }
     private AtomicInteger numberOfCopiers;
 
