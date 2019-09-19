@@ -102,7 +102,8 @@
             set -x
             printenv
             ls -l  $W/bin
-            # pkill -9  -f moquette.jar || true
+            which pkill
+            (pkill -9  -f moquette.jar)2>&1 & sleep 2
             echo CHECKPOINT
             sh -x $W/bin/moquette.sh
       install:
