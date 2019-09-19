@@ -98,11 +98,18 @@
       setenv:
         W: $[work]/moquette
       run:
-        unix: printenv; ls -l  $W/bin; pkill -9  -f moquette.jar; echo CHECKPOINT; sh -x $W/bin/moquette.sh
+        unix: |-
+            set -x
+            printenv
+            ls -l  $W/bin
+            pkill -9  -f moquette.jar
+            echo CHECKPOINT
+            sh -x $W/bin/moquette.sh
       install:
         unix:
           skipif: exists $[work]/moquette/bin/moquette.sh
           script: |-
+            set -x
             mkdir -p $W 2>&1;
             curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
             echo moquette installed
