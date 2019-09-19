@@ -98,7 +98,7 @@
       setenv:
         W: $[work]/moquette
       run:
-        unix: printenv; ls -l  $W/bin; pkill -9  -f moquette; sh -x $W/bin/moquette.sh
+        unix: printenv; ls -l  $W/bin; pkill -9  -f moquette.jar; echo CHECKPOINT; sh -x $W/bin/moquette.sh
       install:
         unix:
           skipif: exists $[work]/moquette/bin/moquette.sh

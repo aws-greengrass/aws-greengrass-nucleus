@@ -46,7 +46,7 @@ public class Exec {
     private static String[] defaultEnvironment = {
         "PATH=" + System.getenv("PATH"),
         "SHELL=" + System.getenv("SHELL"),
-        "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+        "JAVA_HOME=" + System.getProperty("java.home"),
         "USER=" + System.getProperty("user.name"),
         "HOME=" + homedir,
         "USERHOME=" + homedir,
@@ -255,7 +255,8 @@ public class Exec {
             bg.join(500);
             addPathEntries(path.toString().trim());
             // Ensure some level of sanity
-            ensurePresent("/usr/local/bin","/bin","/usr/bin", "/sbin", "/usr/sbin");
+            ensurePresent("/usr/local/bin","/bin","/usr/bin", "/sbin", "/usr/sbin",
+                    System.getProperty("java.home"));
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
         }
