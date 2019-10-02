@@ -55,12 +55,21 @@ config.findTopics("platforms").forEachTopicSet(n -> System.out.println(n.name));
 
 For code samples, look at ConfigurationTest.java
 
+## subscribe() vs getOnce()
+While you can think of this mechanism as a conventional config file, it's better to think of it as a lightweight publish/subscribe mechanism and use that viewpoint to make it possible for code to be reactive to on-the-fly configuration changes, rather than depending on rebooting the system to pick up configuration changes.
 
-### To Do:
-- [x] Readers for json/yaml/... ?
-- [x] Writers for "
-- [ ] More iterators
-- [x] Partial path lookup
-- [ ] Race audit
-- [ ] Finish node removal support
-- [ ] More tests!
+For example, it is common for services to have a viable to control the level of detail in diagnostic traces.  It's useful, in a system under test, to be able to change this in order to help in diagnosing problems.  In a conventional system, it's common to write something like this:
+```java
+	setTraceLevel(config.get("tracelevel", defaultValue));
+```
+This works, but it requires a reboot to change the trace level.  If there's a notification mechanism, this can look like:
+```java
+	setTraceLevel(config.get("tracelevel", defaultValue));
+	config.subscribe("tracelevel",v->setTraceLevel(v));
+```
+This removes the must-reboot requirement, but the fact that there are two similar calls to setTraceLevel is kinda boilerplate-ish.  There's duplication and the possibility of differences causing bugs.  The right pattern in GG2 looks like this:
+```java
+config.lookup("tracelevel").dflt(defaultValue)
+      .subscribe((why, newValue, newValue) -> setTraceLevel(newValue));
+```
+The important weirdness here is that the `subscribe()` method invokes the listener *right away*, so that the only `setTraceLevel()` is the one in the handler.  There is no possibility of inconsistent code, and the `set` code is always executed, therefore always tested.

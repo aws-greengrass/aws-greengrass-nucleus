@@ -56,6 +56,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
         if (what == childChanged)
             try {
                 Topic n = (Topic) newValue;
+                if(n.name.startsWith("_")) return;  // Don't log entries whose name starts in '_'
                 appendLong(n.getModtime(), out);
                 out.append(',');
                 n.appendNameTo(out);

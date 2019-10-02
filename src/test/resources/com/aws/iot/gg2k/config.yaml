@@ -100,7 +100,7 @@
       run:
         unix: |-
             pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
-            sh -x $W/bin/moquette.sh
+            sh $W/bin/moquette.sh
       install:
         unix:
           skipif: exists $[work]/moquette/bin/moquette.sh
@@ -108,7 +108,7 @@
             mkdir -p $W || true
             curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
       shutdown:
-        macos: pkill -9  -f moquette; exit 0
+        unix: pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
     mosquitto:
       startup:
         macos: brew services restart mosquitto

@@ -20,14 +20,19 @@ public class EZTemplates {
     public CharSequence rewrite(CharSequence in) {
         Matcher m = scriptVar.matcher(in);
         StringBuffer sb = null;
+        int prev = 0;
         while (m.find()) {
             Object result = eval(m.group(1));
-            if(result==null) result = m.group(0);
+            if(result==null) continue;
             if (sb == null) sb = new StringBuffer();
-            m.appendReplacement(sb, Coerce.toString(result));
+//            m.appendReplacement(sb, Coerce.toString(result));  GAK  appendReplacement mucks with $ in replacement string redo by hand
+            int start = m.start();
+            sb.append(in,prev,m.start()); // text before the match
+            sb.append(result);
+            prev = m.end();
         }
         if (sb == null) return in;
-        m.appendTail(sb);
+        sb.append(in,prev,in.length());
         return sb;
     }
     private static final Pattern scriptVar = Pattern.compile("\\$\\[([^\\[\\]\\n]+)\\]");

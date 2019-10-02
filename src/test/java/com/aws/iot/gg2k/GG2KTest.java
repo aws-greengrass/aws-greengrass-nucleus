@@ -69,8 +69,8 @@ public class GG2KTest {
         new Expected("docs.docker.com/", "docker hello world"),
         new Expected("tick-tock", "periodic", 3),
         new Expected("ANSWER=42", "global setenv"),
-        new Expected("GG2TOKEN=", "generated unique token"),
-        new Expected("Starting Moquette", "moquette mqtt server"),
+        new Expected("GG2UID=", "generated unique token"),
+        new Expected("mqtt.moquette.run", "moquette mqtt server"),
         new Expected("JUSTME=fancy a spot of tea?", "local setenv in main service"),};
 
 }

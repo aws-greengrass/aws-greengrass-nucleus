@@ -89,10 +89,12 @@ public class Configuration {
     }
     public Configuration read(String s) throws IOException {
         System.out.println("Reading " + s);
-        if(s.contains(":/")) {
-            URLConnection u = new URL(s).openConnection();
-            return read(u.getInputStream(), extension(s), u.getLastModified());
-        } else return read(Paths.get(s));
+        return s.contains(":/") ? read(new URL(s)) : read(Paths.get(s));
+    }
+    public Configuration read(URL url) throws IOException {
+        System.out.println("Reading " + url);
+        URLConnection u = url.openConnection();
+        return read(u.getInputStream(), extension(url.getPath()), u.getLastModified());
     }
     public Configuration read(Path s) throws IOException {
         System.out.println("Reading " + s);
@@ -102,6 +104,10 @@ public class Configuration {
     public Configuration read(InputStream in, String extension, long timestamp) throws IOException {
         return read(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))),
                 extension, timestamp);
+    }
+    public Configuration copyFrom(Configuration other) {
+        getRoot().copyFrom(other.getRoot());
+        return this;
     }
     public Configuration read(Reader in, String extension, long timestamp) throws IOException {
         try {

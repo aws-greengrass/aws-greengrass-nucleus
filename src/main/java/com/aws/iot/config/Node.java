@@ -41,6 +41,7 @@ public abstract class Node {
     }
     public abstract void appendTo(Appendable a) throws IOException;
     public abstract Object toPOJO();
+    public abstract void copyFrom(Node n);
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

@@ -38,5 +38,15 @@ public class CoerceTest {
         assertEquals("\"x\\nx\"",toQuotedString("x\nx"));
         assertEquals("\"x\\nx\\u0022\"",toQuotedString("x\nx\""));
     }
-    
+    enum en { Red,Green,Blue,Gross }
+    @Test
+    public void T4() {
+        assertEquals(en.Green, Coerce.toEnum(en.class, en.Green));
+        assertEquals(en.Green, Coerce.toEnum(en.class, 1));
+        assertEquals(en.Green, Coerce.toEnum(en.class, "Green"));
+        assertEquals(en.Green, Coerce.toEnum(en.class, "g"));
+        assertEquals(en.Green, Coerce.toEnum(en.class, "greE"));
+        assertEquals(en.Gross, Coerce.toEnum(en.class, "gro"));
+        assertEquals(null, Coerce.toEnum(en.class, "grok"));
+    }
 }

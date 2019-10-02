@@ -1,11 +1,10 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
-
-
 package com.aws.iot.config;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.*;
 
 public class Topic extends Node {
@@ -13,13 +12,13 @@ public class Topic extends Node {
         super(n, p);
     }
     public static Topic of(String n, Object v) {
-        return new Topic(n,null).dflt(v);
-    } 
+        return new Topic(n, null).dflt(v);
+    }
     private long modtime;
-    Object value;
+    private Object value;
     /**
-     * This is the preferred way to get a value from a configuration.
-     * Instead of {@code setValue(configValue.getOnce()) }
+     * This is the preferred way to get a value from a configuration. Instead of {@code setValue(configValue.getOnce())
+     * }
      * use {@code configValue.get((nv,ov)->setValue(nv)) }
      * This way, every change to the config file will get forwarded to the
      * object.
@@ -50,6 +49,7 @@ public class Topic extends Node {
     /**
      * This should rarely be used. Instead, use subscribe(Subscriber)
      */
+    // @Deprecated
     public Object getOnce() {
         return value;
     }
@@ -65,22 +65,54 @@ public class Topic extends Node {
     public Topic setValue(Object nv) {
         return setValue(System.currentTimeMillis(), nv);
     }
-    public synchronized Topic setValue(long mt, Object nv) {
-        final Object ov = value;
-        final long omt = modtime;
-        if (!Objects.equals(nv, ov) && mt >= omt) {
-            nv = validate(Configuration.WhatHappened.changed, nv, ov);
-            if (!Objects.equals(nv, ov)) {
-                value = nv;
-                modtime = mt;
-                fire(Configuration.WhatHappened.changed, nv, ov);
-                if(parent!=null) parent.publish(this);
-            }
-        }
+    public synchronized Topic setValue(long proposedModtime, final Object proposed) {
+//        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
+//        if(proposed==Errored)
+//            new Exception("setValue to Errored").printStackTrace();
+        final Object currentValue = value;
+        final long currentModtime = modtime;
+        if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime)
+            return this;
+        final Object validated = validate(Configuration.WhatHappened.changed, proposed, currentValue);
+        if (Objects.equals(validated, currentValue)) return this;
+        value = validated;
+        modtime = proposedModtime;
+        serialized.add(() -> {
+            fire(Configuration.WhatHappened.changed, validated, currentValue);
+            if (parent != null) parent.publish(this);
+        });
         return this;
     }
+    private static BlockingDeque<Runnable> serialized
+            = new LinkedBlockingDeque<>();
+    static {
+        new Thread() {
+            {
+                setName("Serialized listener processor");
+                setPriority(Thread.MAX_PRIORITY - 1);
+                setDaemon(true);
+            }
+            @Override
+            public void run() {
+                while (true)
+                    try {
+                        serialized.takeFirst().run();
+                    } catch (Throwable t) {
+                        t.printStackTrace(System.out);
+                    }
+            }
+        }.start();
+    }
+    @Override public void copyFrom(Node n) {
+        if (n instanceof Topic)
+            setValue(((Topic) n).modtime, ((Topic) n).value);
+        else
+            throw new IllegalArgumentException("copyFrom: " + 
+                    (n==null ? "NULL" : n.getFullName())
+                    + " is already a container, not a leaf");
+    }
     public synchronized Topic dflt(Object v) {
-        if(value==null) setValue(1, v); // defaults come from the dawn of time
+        if (value == null) setValue(1, v); // defaults come from the dawn of time
         return this;
     }
     @Override

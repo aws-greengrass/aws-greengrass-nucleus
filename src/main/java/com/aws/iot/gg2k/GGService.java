@@ -5,6 +5,7 @@
 package com.aws.iot.gg2k;
 
 import com.aws.iot.config.*;
+import com.aws.iot.config.Configuration.WhatHappened;
 import com.aws.iot.config.Node;
 import com.aws.iot.config.Topic;
 import com.aws.iot.config.Topics;
@@ -24,16 +25,19 @@ import java.util.regex.*;
 import javax.inject.*;
 
 
-public class GGService implements InjectionActions {
-    private State state = State.New;
+public class GGService implements InjectionActions, Subscriber, Closeable {
+    private final Topic state;
     private Throwable error;
     protected ConcurrentHashMap<GGService, State> dependencies;
     private Future backingTask;
     public Context context;
     public static State getState(GGService o) {
-        return o.state;
+        return o.getState();
     }
     public State getState() {
+        return (State)state.getOnce();
+    }
+    public Topic getStateTopic() {
         return state;
     }
     public Log log() { return context.get(Log.class); }
@@ -42,13 +46,16 @@ public class GGService implements InjectionActions {
         return b!=null && !b.isDone();
     }
     private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
-    public synchronized void setState(State s) {
-        final State prev = state;
-        if (s == prev)
-            return;
-//        System.out.println(getName()+" "+prev+"->"+s);
-        state = s;
-        if(prev.isRunning() && !s.isRunning()) { // transition from running to not running
+    public void setState(State s) {
+//        if(s==Errored)
+//            new Exception("Set to Errored").printStackTrace();
+        state.setValue(Long.MAX_VALUE, s);
+    }
+    @Override // for listening to state changes
+    public void published(final WhatHappened what, final Object newValue, final Object oldValue) {
+        final State newState = (State) newValue;
+        final State prevState = (State) oldValue;
+        if(prevState!=null && prevState.isRunning() && !newState.isRunning()) { // transition from running to not running
             try {
                 shutdown();
                 Future b = backingTask;
@@ -61,9 +68,16 @@ public class GGService implements InjectionActions {
             }
         }
         try {
-            switch(s) {
+            switch(newState) {
                 case Installing:
-                    install();
+                    backingTask = context.get(ExecutorService.class).submit(() -> {
+                        try {
+                            install();
+                            setState(AwaitingStartup);
+                        } catch (Throwable t) {
+                            errored("Failed installing up", t);
+                        }
+                    });
                     break;
                 case AwaitingStartup:
                     awaitingStartup();
@@ -71,18 +85,23 @@ public class GGService implements InjectionActions {
                 case Starting:
                     backingTask = context.get(ExecutorService.class).submit(() -> {
                         try {
+                            timer = Periodicity.of(this);
                             startup();
+                            if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
+                                    ? State.Running
+                                    : State.Finished);
                         } catch (Throwable t) {
                             errored("Failed starting up", t);
                         }
                     });
                     break;
                 case Running:
-                    if(prev != Unstable) {
+                    if(prevState != Unstable) {
                         recheckOthersDependencies();
                         backingTask = context.get(ExecutorService.class).submit(() -> {
                             try {
                                 run();
+                                if(!errored()) setState(State.Finished);
                             } catch (Throwable t) {
                                 errored("Failed starting up", t);
                             }
@@ -99,7 +118,7 @@ public class GGService implements InjectionActions {
                     break;
             }
         } catch(Throwable t) {
-            errored("Transitioning from "+prev+" to "+s, t);
+            errored("Transitioning from "+prevState+" to "+newState, t);
         }
     }
     static final void setState(Object o, State st) {
@@ -107,6 +126,7 @@ public class GGService implements InjectionActions {
             ((GGService) o).setState(st);
     }
     public void errored(String message, Throwable e) {
+//        e.printStackTrace();
         e = getUltimateCause(e);
         error = e;
         errored(message, (Object)e);
@@ -120,7 +140,7 @@ public class GGService implements InjectionActions {
         setState(State.Errored);
     }
     public boolean errored() {
-        return !state.isHappy() || error != null;
+        return !getState().isHappy() || error != null;
     }
     /**
      * Called when this service is known to be needed to make sure that required
@@ -144,17 +164,12 @@ public class GGService implements InjectionActions {
      */
     Periodicity timer;
     public void startup() {
-        timer = Periodicity.of(this);
-        if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
-                ? State.Running
-                : State.Finished);
     }
     /**
      * Called when all dependencies are Running. If there are no dependencies,
      * it is called right after postInject.
      */
     protected void run() {
-        if(!errored()) setState(State.Finished);
     }
     /**
      * Called when a running service encounters an error.
@@ -163,7 +178,7 @@ public class GGService implements InjectionActions {
     }
     /**
      * Called when the object's state leaves Running.
-     * To shutdown a service, use <tt>setState(Shutdown)</dd>
+     * To shutdown a service, use <tt>setState(Finished)</dd>
      */
     public void shutdown() {
         Periodicity t = timer;
@@ -172,6 +187,7 @@ public class GGService implements InjectionActions {
     /**
      * Sets the state to Shutdown
      */
+    @Override
     public void close() {
         setState(State.Shutdown);
     }
@@ -197,22 +213,22 @@ public class GGService implements InjectionActions {
     public void forAllDependencies(Consumer<? super GGService> f) {
         if(dependencies!=null) dependencies.keySet().forEach(f);
     }
-    private CopyOnWriteArrayList<stateChangeListener> listeners;
-    public synchronized void addStateListener(stateChangeListener l) {
-        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
-        listeners.add(l);
-    }
-    public synchronized void removeStateListener(stateChangeListener l) {
-        if(listeners!=null) {
-            listeners.remove(l);
-            if(listeners.isEmpty()) listeners = null;
-        }
-    }
-    private void notify(GGService l, State was) {
-        if(listeners!=null)
-            listeners.forEach(s->s.stateChanged(l,was));
-        context.notify(l, was);
-    }
+//    private CopyOnWriteArrayList<stateChangeListener> listeners;
+//    public synchronized void addStateListener(stateChangeListener l) {
+//        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
+//        listeners.add(l);
+//    }
+//    public synchronized void removeStateListener(stateChangeListener l) {
+//        if(listeners!=null) {
+//            listeners.remove(l);
+//            if(listeners.isEmpty()) listeners = null;
+//        }
+//    }
+//    private void notify(GGService l, State was) {
+//        if(listeners!=null)
+//            listeners.forEach(s->s.stateChanged(l,was));
+//        context.notify(l, was);
+//    }
     private void recheckOthersDependencies() {
         if (context != null) {
             final AtomicBoolean changed = new AtomicBoolean(true);
@@ -222,7 +238,7 @@ public class GGService implements InjectionActions {
                     Object vv= v.value;
                     if(vv instanceof GGService) {
                         GGService l = (GGService) vv;
-                        if (l.state == State.AwaitingStartup) {
+                        if (l.getState() == State.AwaitingStartup) {
                             if (!l.hasDependencies()) {
                                 l.setState(State.Starting);
                                 changed.set(true);
@@ -241,8 +257,15 @@ public class GGService implements InjectionActions {
     }
     public final Topics config;
     protected final CopyOnWriteArrayList<GGService> explicitDependencies = new CopyOnWriteArrayList<>();
+    @SuppressWarnings("LeakingThisInConstructor")
     public GGService(Topics c) {
         config = c;
+        state = c.createLeafChild("_State");
+        state.setValue(Long.MAX_VALUE, State.New);
+        state.validate((newValue,oldValue)->{
+            State s = Coerce.toEnum(State.class, newValue);
+            return s==null ? oldValue : newValue;});
+        state.subscribe(this);
     }
     public String getName() {
         return config==null ? getClass().getSimpleName() : config.getFullName();

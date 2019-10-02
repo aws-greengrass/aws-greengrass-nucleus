@@ -59,6 +59,20 @@ public class Coerce {
         if(o instanceof Topic) o = ((Topic)o).getOnce();
         return o == null ? null : o.toString();
     }
+    public static <T extends Enum> T toEnum(Class<T> cl, Object o) {
+        if(cl.isAssignableFrom(o.getClass())) return (T)o;
+        T[] values = cl.getEnumConstants();
+        if(o instanceof Number)
+            return values[Math.max(0, Math.min(values.length-1,((Number)o).intValue()))];
+        String s = Coerce.toString(o);
+        int l = s.length();
+        for(T v:values) {
+            String vs = v.toString();
+            if(vs.length()<l) continue;
+            if(vs.regionMatches(true, 0, s, 0, l)) return v;
+        }
+        return null;
+    }
     public static String toQuotedString(Object o) {
         if(o instanceof Topic) o = ((Topic)o).getOnce();
         StringBuilder sb = new StringBuilder();

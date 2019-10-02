@@ -146,10 +146,10 @@ public class Context implements Closeable {
                 Class<T> ccl = targetClass.isInterface()
                         ? (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default")
                         : targetClass;
-                System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
+//                System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
                 Constructor<T> cons = null;
                 for(Constructor<T> c:(Constructor<T>[])ccl.getConstructors()) {
-                    System.out.println("Examine "+c.getParameterCount()+" "+c.toGenericString());
+//                    System.out.println("Examine "+c.getParameterCount()+" "+c.toGenericString());
                     if(c.getParameterCount()==0) cons = c;
                     else if(c.isAnnotationPresent(Inject.class)) {
                         cons = c;
@@ -162,7 +162,7 @@ public class Context implements Closeable {
                 int np = cons.getParameterCount();
                 if(np==0)
                     return put(cons.newInstance());
-                System.out.println("Injecting args into "+cons.toGenericString());
+//                System.out.println("Injecting args into "+cons.toGenericString());
                 Object[] args = new Object[np];
                 Class[] types = cons.getParameterTypes();
                 for(int i = 0; i<np; i++) {

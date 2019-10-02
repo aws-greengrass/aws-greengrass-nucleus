@@ -36,16 +36,17 @@ public class LifecycleTest {
         Assert.assertNotNull(v);
         Assert.assertNotNull(v.C2);
         Assert.assertSame(v.C2, v.C2.C3.prov.get());
-        Assert.assertEquals(State.Finished,v.getState());
+            Assert.assertTrue(v.getState().isFunctioningProperly());
         Assert.assertTrue(v.toString(),v.installCalled);
         Assert.assertTrue(v.toString(),v.startupCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.startupCalled);
-        Assert.assertEquals(State.Finished,v.getState());
+            Assert.assertTrue(v.getState().isFunctioningProperly());
         c.shutdown();
         try { Thread.sleep(50); } catch (InterruptedException ex) { }
         Assert.assertTrue(v.toString(),v.shutdownCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
-        Assert.assertEquals(State.Finished,v.getState());
+        System.out.println("XYXXY: "+v.getState());
+            Assert.assertEquals(Shutdown, v.getState());
         Assert.assertNotNull("non-lifecycle", v.C2.C3);
         Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
         Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
@@ -65,7 +66,7 @@ public class LifecycleTest {
         @Override public void startup() {
             startupCalled = true;
             // Depen dependencies must be started first
-            Assert.assertEquals(State.Running,C2.getState());
+            Assert.assertTrue(C2.getState().isFunctioningProperly());
             System.out.println("Startup "+this);
             super.startup();
         }
