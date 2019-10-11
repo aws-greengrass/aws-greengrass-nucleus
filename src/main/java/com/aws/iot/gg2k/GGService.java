@@ -37,6 +37,9 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     public State getState() {
         return (State)state.getOnce();
     }
+    public boolean inState(State s) {
+        return s==state.getOnce();
+    }
     public Topic getStateTopic() {
         return state;
     }
@@ -70,20 +73,21 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         try {
             switch(newState) {
                 case Installing:
-                    backingTask = context.get(ExecutorService.class).submit(() -> {
+                    setBackingTask(() -> {
                         try {
                             install();
                             setState(AwaitingStartup);
                         } catch (Throwable t) {
                             errored("Failed installing up", t);
                         }
-                    });
+                        backingTask = null;
+                    }, getName()+":"+oldValue+"=>"+newValue);
                     break;
                 case AwaitingStartup:
                     awaitingStartup();
                     break;
                 case Starting:
-                    backingTask = context.get(ExecutorService.class).submit(() -> {
+                    setBackingTask(() -> {
                         try {
                             timer = Periodicity.of(this);
                             startup();
@@ -93,19 +97,21 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                         } catch (Throwable t) {
                             errored("Failed starting up", t);
                         }
-                    });
+                        backingTask = null;
+                    }, getName()+":"+oldValue+"=>"+newValue);
                     break;
                 case Running:
                     if(prevState != Unstable) {
                         recheckOthersDependencies();
-                        backingTask = context.get(ExecutorService.class).submit(() -> {
+                        setBackingTask(() -> {
                             try {
                                 run();
                                 if(!errored()) setState(State.Finished);
                             } catch (Throwable t) {
                                 errored("Failed starting up", t);
                             }
-                        });
+                            backingTask = null;
+                        }, getName()+":"+oldValue+"=>"+newValue);
                     }
                     break;
                 case Errored:
@@ -120,6 +126,18 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         } catch(Throwable t) {
             errored("Transitioning from "+prevState+" to "+newState, t);
         }
+    }
+    private synchronized void setBackingTask(Runnable r, String db) {
+        Future bt = backingTask;
+        if(bt!=null) {
+            backingTask = null;
+            if(!bt.isDone()) {
+                System.out.println("Cancelling "+db);
+                bt.cancel(true);
+            }
+        }
+        if(r!=null)
+            backingTask = context.get(ExecutorService.class).submit(r);
     }
     static final void setState(Object o, State st) {
         if (o instanceof GGService)
@@ -238,7 +256,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                     Object vv= v.value;
                     if(vv instanceof GGService) {
                         GGService l = (GGService) vv;
-                        if (l.getState() == State.AwaitingStartup) {
+                        if (l.inState(AwaitingStartup)) {
                             if (!l.hasDependencies()) {
                                 l.setState(State.Starting);
                                 changed.set(true);
@@ -335,7 +353,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                 sb.append("[nameless]");
             else
                 config.appendNameTo(sb);
-            if (getState() != State.Running)
+            if (!inState(Running))
                 sb.append(':').append(getState().toString());
         } catch (IOException ex) {
             sb.append(ex.toString());
@@ -402,7 +420,8 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         Node skipif = n.getChild("skipif");
         boolean neg = skipif == null && (skipif = n.getChild("doif")) != null;
         if (skipif instanceof Topic) {
-            String expr = String.valueOf(((Topic) skipif).getOnce()).trim();
+            Topic tp = (Topic) skipif;
+            String expr = String.valueOf(tp.getOnce()).trim();
             if (expr.startsWith("!")) {
                 expr = expr.substring(1).trim();
                 neg = !neg;
@@ -421,7 +440,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                         return false;
                 }
             // Assume it's a shell script: test for 0 return code and nothing on stderr
-            return neg ^ Exec.successful(true, expr);
+            return neg ^ (run(tp, expr, null, n)!=RunStatus.Errored);
         }
         return false;
     }
@@ -506,7 +525,10 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     @Inject ShellRunner shellRunner;
     @Inject EZTemplates templateEngine;
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
-        String cmd = templateEngine.rewrite(Coerce.toString(t.getOnce())).toString();
+        return run(t, Coerce.toString(t.getOnce()), background, config);
+    }
+    protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
+        cmd = templateEngine.rewrite(cmd).toString();
         setStatus(cmd);
         if(background==null) setStatus(null);
 //        RunStatus OK = shellRunner.setup(t.getFullName(), cmd, background, this, null) != ShellRunner.Failed
@@ -515,7 +537,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         if(exec!=null) { // there's something to run
             addEnv(exec, t.parent);
             log().significant(this,"exec",cmd);
-            return shellRunner.run(exec, cmd, background)
+            return shellRunner.successful(exec, cmd, background)
                     ? RunStatus.OK : RunStatus.Errored;
         }
         else return RunStatus.NothingDone;

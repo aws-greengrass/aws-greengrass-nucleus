@@ -50,23 +50,23 @@ public class GG2K extends Configuration /*implements Runnable*/ {
     public GG2K parseArgs(String... args) {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
-        Topic root = lookup("system","rootpath");
-        root.subscribe((w, n, o) -> {
-            rootPath = Paths.get(n.toString());
-            configPath = Paths.get(deTilde(configPathName));
-            Exec.removePath(clitoolPath);
-            clitoolPath = Paths.get(deTilde(clitoolPathName));
-            Exec.addFirstPath(clitoolPath);
-            workPath = Paths.get(deTilde(workPathName));
-            Exec.setDefaultEnv("HOME", workPath.toString());
-            if (w != WhatHappened.initialized) {
-                ensureCreated(configPath);
-                ensureCreated(clitoolPath);
-                ensureCreated(rootPath);
-                ensureCreated(workPath);
-            }
-        });
-        root.setValue(0, deTilde(prefs.get("rootpath", "~/gg2root")));
+        Topic root = lookup("system","rootpath")
+            .dflt(deTilde(prefs.get("rootpath", "~/gg2root")))
+            .subscribe((w, n, o) -> {
+                rootPath = Paths.get(n.toString());
+                configPath = Paths.get(deTilde(configPathName));
+                Exec.removePath(clitoolPath);
+                clitoolPath = Paths.get(deTilde(clitoolPathName));
+                Exec.addFirstPath(clitoolPath);
+                workPath = Paths.get(deTilde(workPathName));
+                Exec.setDefaultEnv("HOME", workPath.toString());
+                if (w != WhatHappened.initialized) {
+                    ensureCreated(configPath);
+                    ensureCreated(clitoolPath);
+                    ensureCreated(rootPath);
+                    ensureCreated(workPath);
+                }
+            });
         while (getArg() != (Object) done)
             switch (arg) {
                 case "-install":
@@ -314,7 +314,7 @@ public class GG2K extends Configuration /*implements Runnable*/ {
             log.significant("Installing software", getMain());
             GGService[] d = orderedDependencies().toArray(new GGService[0]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
-                if (d[i].getState() == Running)
+                if (d[i].inState(Running))
                     try {
                         d[i].close();
                     } catch (Throwable t) {

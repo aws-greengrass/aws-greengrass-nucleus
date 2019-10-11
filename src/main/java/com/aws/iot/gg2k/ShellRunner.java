@@ -11,7 +11,7 @@ import javax.inject.*;
 
 public interface ShellRunner {
     public abstract Exec setup(String note, String command, GGService onBehalfOf);
-    public abstract boolean run(Exec e, String command, IntConsumer background);
+    public abstract boolean successful(Exec e, String command, IntConsumer background);
 
     public static class Default implements ShellRunner {
         @Inject Log log;
@@ -48,7 +48,7 @@ public interface ShellRunner {
             return null;
         }
         @Override
-        public boolean run(Exec e, String command, IntConsumer background) {
+        public boolean successful(Exec e, String command, IntConsumer background) {
             if (background != null)
                 e.background(background);
             else if (!e.successful(true)) {
@@ -69,7 +69,7 @@ public interface ShellRunner {
             return OK;
         }
         @Override
-        public boolean run(Exec e, String command, IntConsumer background) {
+        public boolean successful(Exec e, String command, IntConsumer background) {
             return true;
         }
     }

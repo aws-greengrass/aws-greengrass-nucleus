@@ -3,7 +3,7 @@
 package com.aws.iot.gg2k;
 
 import com.aws.iot.config.*;
-import com.aws.iot.dependency.State;
+import static com.aws.iot.dependency.State.*;
 import com.aws.iot.util.*;
 import static com.aws.iot.util.Utils.parseLong;
 import java.nio.CharBuffer;
@@ -29,8 +29,8 @@ public class Periodicity {
             Periodicity ret;
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);
             Runnable action = ()->{
-                if (s.getState() == State.Finished)
-                    s.setState(State.Running);
+                if (s.inState(Finished))
+                    s.setState(Running);
             };
             if (n instanceof Topic) {
                 Topic t = (Topic) n;

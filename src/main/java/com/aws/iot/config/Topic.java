@@ -37,7 +37,7 @@ public class Topic extends Node {
     public Topic validate(Validator s) {
         listen(s);
         try {
-            Object nv = s.validate(value, value);
+            value = s.validate(value, value);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
