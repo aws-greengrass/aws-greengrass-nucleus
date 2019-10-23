@@ -7,6 +7,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
+import java.util.logging.*;
 
 public class Topics extends Node implements Iterable<Node> {
     Topics(String n, Topics p) {
@@ -76,7 +77,7 @@ public class Topics extends Node implements Iterable<Node> {
         return n.createLeafChild(path[limit]);
     }
     void publish(Topic t) {
-        fire(Configuration.WhatHappened.childChanged, t, null);
+        childChanged(WhatHappened.childChanged, t);
     }
     public void mergeMap(long t, Map<Object, Object> map) {
         map.forEach((okey, value) -> {
@@ -125,8 +126,40 @@ public class Topics extends Node implements Iterable<Node> {
     public void remove(Node n) {
         if (!children.remove(n.name, n))
             System.err.println("remove: Missing node " + n.name + " from " + toString());
-        n.fire(Configuration.WhatHappened.removed, null, null);
-        fire(Configuration.WhatHappened.childRemoved, n, null);
+        n.fire(WhatHappened.removed);
+        childChanged(WhatHappened.childRemoved, n);
+    }
+    protected boolean childChanged(WhatHappened what, Node child) {
+        boolean errorFree = true;
+        if (watchers != null && child instanceof Topic)
+            for (Watcher s : watchers)
+                try {
+                    if(s instanceof Subscriber)
+                    ((Subscriber)s).published(what, (Topic)child);
+                } catch (Throwable ex) {
+                    errorFree = false;
+                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
+                }
+        if(parent!=null) errorFree &= parent.childChanged(WhatHappened.childChanged, this);
+        return errorFree;
+    }
+    @Override
+    protected boolean fire(WhatHappened what) {
+        return childChanged(what,null);
+    }
+    protected boolean childChanged(Node child) {
+        boolean errorFree = true;
+        if (watchers != null)
+            for (Watcher s : watchers)
+                try {
+                    if (s instanceof ChildChanged)
+                        ((ChildChanged) s).childChanged(child);
+                } catch (Throwable ex) {
+                    errorFree = false;
+                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
+                }
+        if(parent!=null) errorFree &= parent.childChanged(this);
+        return errorFree;
     }
     public Topics subscribe(ChildChanged cc) {
         listen(cc);

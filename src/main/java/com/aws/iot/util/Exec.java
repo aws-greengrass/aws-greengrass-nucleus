@@ -11,7 +11,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
-/** Vaguely like ProcessBuilder, but more flexible:
+/** Vaguely like ProcessBuilder, but more flexible and lambda-friendly:
     <pre>
     // set wd to current working directory
     String wd = Exec.sh("pwd");
@@ -23,7 +23,7 @@ import java.util.function.*;
                 if(str.toString().contains("wifi"))
                     System.out.println("Yahoo!");
             })
-            .background(exc -> {});
+            .background(exc -> System.out.println("exit "+exc));
     </pre>
  */
 public class Exec {
@@ -111,9 +111,18 @@ public class Exec {
             stderrc.start();
             stdoutc.start();
             if (whenDone == null) {
-                if (!process.waitFor(timeout, timeunit)) {
-                    (stderr != null ? stderr : stdout).accept("\n[TIMEOUT]\n");
-                    process.destroyForcibly();
+                try {
+                    if (!process.waitFor(timeout, timeunit)) {
+                        (stderr != null ? stderr : stdout).accept("\n[TIMEOUT]\n");
+                        process.destroyForcibly();
+                    }
+                } catch(InterruptedException ie) {
+                    // We just got interrupted by something like the cancel(true) in setBackingTask
+                    // Give the process a touch more time to exit cleanly
+                    if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                        (stderr != null ? stderr : stdout).accept("\n[TIMEOUT after InterruptedException]\n");
+                        process.destroyForcibly();
+                    }
                 }
                 stderrc.join(5000);
                 stdoutc.join(5000);

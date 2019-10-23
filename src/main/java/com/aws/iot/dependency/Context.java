@@ -183,8 +183,8 @@ public class Context implements Closeable {
                 return put(cons.newInstance(args));
             } catch (Throwable ex) {
                 ex.printStackTrace(System.out);
+                throw new IllegalArgumentException("Can't create instance of "+targetClass.getName(), ex);
             }
-            return null;  // TODO noooooo
         }
         public synchronized final T put(T v) {
             if (v == value) return v;

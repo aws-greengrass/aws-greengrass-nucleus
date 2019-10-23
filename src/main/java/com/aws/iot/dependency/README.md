@@ -38,7 +38,7 @@ Done this way, every object is a singleton.  But if you need to have multiple si
 ```
 
 ### Lifecycles
-Objects that subclass Lifecycle also participate in life cycle management.  Such objects
+Objects that subclass GGService also participate in life cycle management.  Such objects
 can be in any of the following states:
 
 | State | Meaning
@@ -51,10 +51,13 @@ can be in any of the following states:
 |    Running | Up and running, operating normally.  This is the only state that should ever take a significant amount of time to run.
 |    Unstable | Running, but experiencing problems that the service is attempting to repair itself
 |    Errored | Not running.  It may be possible for the enclosing framework to restart it.
-|    Recovering | In the process of being restarted
-|    Shutdown | Shut down, cannot be restarted
+|    Recovering | In the process of being restarted.
+|    Shutdown | Shut down, cannot be restarted.
 |    Finished | The service has done it's job and has no more to do.  May be restarted (for example, by a timer)
 
 ![lifecycle](lifecycle.svg)
+
+![Dependency-State-Time](DependencyStateTime.png)
+
             
 

@@ -24,8 +24,9 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ExecutorService.class, ses);
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
+        c.addStateListener((w,s)->System.out.println(w+" => "+s));
         c.setAllStates(Installing);
-        c.setAllStates(AwaitingStartup);
+//        c.setAllStates(AwaitingStartup);
         try {
             if(!cd.await(1, TimeUnit.SECONDS))
                 Assert.fail("Startup timed out");
@@ -60,7 +61,7 @@ public class LifecycleTest {
         public boolean shutdownCalled, startupCalled, installCalled;
         @Override public void install() {
             installCalled = true;
-            System.out.println("Startup "+this);
+            System.out.println("Invoked install "+this);
             super.install();
         }
         @Override public void startup() {

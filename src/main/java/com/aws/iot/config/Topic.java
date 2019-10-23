@@ -6,6 +6,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
+import java.util.logging.*;
 
 public class Topic extends Node {
     Topic(String n, Topics p) {
@@ -28,7 +29,7 @@ public class Topic extends Node {
     public Topic subscribe(Subscriber s) {
         listen(s);
         try {
-            s.published(Configuration.WhatHappened.initialized, value, value);
+            s.published(WhatHappened.initialized, this);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
@@ -37,7 +38,7 @@ public class Topic extends Node {
     public Topic validate(Validator s) {
         listen(s);
         try {
-            value = s.validate(value, value);
+            if(value!=null) value = s.validate(value, null);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
@@ -73,15 +74,30 @@ public class Topic extends Node {
         final long currentModtime = modtime;
         if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime)
             return this;
-        final Object validated = validate(Configuration.WhatHappened.changed, proposed, currentValue);
+        final Object validated = validate(proposed, currentValue);
         if (Objects.equals(validated, currentValue)) return this;
         value = validated;
         modtime = proposedModtime;
         serialized.add(() -> {
-            fire(Configuration.WhatHappened.changed, validated, currentValue);
+            fire(WhatHappened.changed);
             if (parent != null) parent.publish(this);
         });
         return this;
+    }
+    @Override
+    protected boolean fire(WhatHappened what) {
+        boolean errorFree = true;
+        if (watchers != null)
+            for (Watcher s : watchers)
+                try {
+                    if (s instanceof Subscriber)
+                        ((Subscriber) s).published(what, this);
+                } catch (Throwable ex) {
+                    errorFree = false;
+                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
+                }
+        if(parent!=null) errorFree &= parent.childChanged(this);
+        return errorFree;
     }
     private static BlockingDeque<Runnable> serialized
             = new LinkedBlockingDeque<>();
@@ -123,10 +139,10 @@ public class Topic extends Node {
         }
         return false;
     }
-    @Override
-    public int hashCode() {
-        return 43 * Objects.hashCode(name) + Objects.hashCode(this.value);
-    }
+//    @Override
+//    public int hashCode() {
+//        return 43 * Objects.hashCode(name) + Objects.hashCode(this.value);
+//    }
     @Override
     public void deepForEachTopic(Consumer<Topic> f) {
         f.accept(this);

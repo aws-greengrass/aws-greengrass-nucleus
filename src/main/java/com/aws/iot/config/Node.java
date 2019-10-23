@@ -8,7 +8,6 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
-import java.util.logging.*;
 
 public abstract class Node {
     protected Node(String n, Topics p) {
@@ -51,7 +50,8 @@ public abstract class Node {
         }
         return sb.toString();
     }
-    private CopyOnWriteArraySet<Watcher> watchers;
+    protected CopyOnWriteArraySet<Watcher> watchers;
+    protected abstract boolean fire(WhatHappened what);
     protected void listen(Watcher s) {
         if (s != null) {
             if (watchers == null)
@@ -59,11 +59,11 @@ public abstract class Node {
             watchers.add(s);
         }
     }
-    public void remove(Watcher s) {
+    public void remove(Subscriber s) {
         if (watchers != null)
             watchers.remove(s);
     }
-    protected Object validate(Configuration.WhatHappened what, Object newValue, Object oldValue) {
+    protected Object validate(Object newValue, Object oldValue) {
         if (watchers != null) {
             boolean rewrite = true;
             // Try to make all the validators happy, but not infinitely
@@ -80,34 +80,6 @@ public abstract class Node {
             }
         }
         return newValue;
-    }
-    protected boolean fire(Configuration.WhatHappened what, Object newValue, Object oldValue) {
-        boolean errorFree = true;
-        if (watchers != null)
-            for (Watcher s : watchers)
-                try {
-                    if (s instanceof Subscriber)
-                        ((Subscriber) s).published(what, newValue, oldValue);
-                } catch (Throwable ex) {
-                    errorFree = false;
-                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
-                }
-        if(parent!=null) errorFree &= parent.childChanged(this);
-        return errorFree;
-    }
-    protected boolean childChanged(Node child) {
-        boolean errorFree = true;
-        if (watchers != null)
-            for (Watcher s : watchers)
-                try {
-                    if (s instanceof ChildChanged)
-                        ((ChildChanged) s).childChanged(child);
-                } catch (Throwable ex) {
-                    errorFree = false;
-                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
-                }
-        if(parent!=null) errorFree &= parent.childChanged(this);
-        return errorFree;
     }
     public abstract void deepForEachTopic(Consumer<Topic> f);
     public void remove() {

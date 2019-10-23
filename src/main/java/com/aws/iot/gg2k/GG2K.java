@@ -52,8 +52,8 @@ public class GG2K extends Configuration /*implements Runnable*/ {
         this.args = args;
         Topic root = lookup("system","rootpath")
             .dflt(deTilde(prefs.get("rootpath", "~/gg2root")))
-            .subscribe((w, n, o) -> {
-                rootPath = Paths.get(n.toString());
+            .subscribe((w, n) -> {
+                rootPath = Paths.get(Coerce.toString(n));
                 configPath = Paths.get(deTilde(configPathName));
                 Exec.removePath(clitoolPath);
                 clitoolPath = Paths.get(deTilde(clitoolPathName));

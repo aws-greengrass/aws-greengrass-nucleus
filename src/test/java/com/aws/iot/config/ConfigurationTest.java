@@ -5,7 +5,6 @@ package com.aws.iot.config;
 
 import com.aws.iot.util.Coerce;
 import static com.aws.iot.util.Coerce.*;
-import static com.aws.iot.config.Configuration.WhatHappened.*;
 import com.fasterxml.jackson.dataformat.yaml.*;
 import com.fasterxml.jackson.jr.ob.*;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
@@ -18,10 +17,15 @@ import static org.junit.Assert.*;
 
 public class ConfigurationTest {
     Configuration config = new Configuration();
+    int prev = 0;
 
 //    @Test
     public void T1() {
-        config.lookup("v").subscribe((w, nv, ov) -> assertTrue(w != changed || ov == null || toInt(nv) == 1 + toInt(ov)));
+        config.lookup("v").validate((n, o) -> {
+            if(o!=null)
+                assertEquals(toInt(n), toInt(o)+1);
+            return n;
+        });
         config.lookup("v").setValue(0, 42);
         config.lookup("v").setValue(10, 43);
         config.lookup("v").setValue(3, -1);
@@ -31,22 +35,30 @@ public class ConfigurationTest {
     }
 //    @Test
     public void T2() {
-        config.lookup("x", "y").subscribe((w, nv, ov) -> assertTrue(w != changed || ov == null || (int) nv == 1 + (int) ov));
+        config.lookup("x","y").validate((n, o) -> {
+            if(o!=null)
+                assertEquals(toInt(n), toInt(o)+1);
+            return n;
+        });
         config.lookup("x", "y").setValue(0, 42);
         config.lookup("x", "y").setValue(10, 43);
         config.lookup("x", "y").setValue(3, -1);
         config.lookup("x", "y").setValue(20, 44);
-        assertEquals(44, config.lookup("x", "y").getOnce());
+        assertEquals(44, toInt(config.lookup("x", "y")));
         assertEquals("x.y:44", config.lookup("x", "y").toString());
     }
 //    @Test
     public void T3() {
-        config.lookup("x", "z").subscribe((w, nv, ov) -> assertTrue(w != changed || ov == null || (int) nv == 1 + (int) ov));
+        config.lookup("x", "z").validate((n, o) -> {
+            if(o!=null)
+                assertEquals(toInt(n), toInt(o)+1);
+            return n;
+        });
         config.lookup("x", "z").setValue(0, 42);
         config.lookup("x", "z").setValue(10, 43);
         config.lookup("x", "z").setValue(3, -1);
         config.lookup("x", "z").setValue(20, 44);
-        assertEquals(44, config.lookup("x", "z").getOnce());
+        assertEquals(44, toInt(config.lookup("x", "z")));
         assertEquals("x.z:44", config.lookup("x", "z").toString());
     }
     @Test
@@ -86,7 +98,7 @@ public class ConfigurationTest {
 //            platforms.forEachTopicSet(n -> System.out.println(n.name));
             
             Topic testValue = testConfig.lookup("number");
-            testValue.validate((nv,ov)->{
+            testValue.validate((nv, ov)->{
                 int v = Coerce.toInt(nv);
                 if(v<0) v = 0;
                 if(v>100) v = 100;
@@ -109,5 +121,4 @@ public class ConfigurationTest {
         System.out.println("______________\n" + title);
         c.deepForEachTopic(t -> System.out.println(t));
     }
-
 }

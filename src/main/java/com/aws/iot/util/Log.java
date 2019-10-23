@@ -76,8 +76,8 @@ public interface Log {
                 GG2K gg = context.get(GG2K.class);
                 config.lookup("file")
                         .dflt("~root/gg2.log")
-                        .subscribe((w, nv, ov)
-                                -> logTo(gg.deTilde(Coerce.toString(nv))));
+                        .subscribe((w, nv)
+                                -> logTo(gg.deTilde(Coerce.toString(nv.getOnce()))));
                 config.lookup("level")
                         .dflt(0)
                         .validate((nv, ov) -> {
@@ -85,7 +85,7 @@ public interface Log {
                             int limit = Log.Level.values().length;
                             return i < 0 ? 0 : i >= limit ? limit - 1 : i;
                         })
-                        .subscribe((w, nv, ov) -> loglevel = Coerce.toInt(nv));
+                        .subscribe((w, nv) -> loglevel = Coerce.toInt(nv));
                 if(out==null)
                     logTo(System.out); // backstop
             }

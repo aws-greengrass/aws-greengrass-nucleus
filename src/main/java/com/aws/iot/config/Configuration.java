@@ -15,9 +15,6 @@ import java.util.function.*;
 public class Configuration {
     private final Topics root = new Topics(null, null);
 
-    public enum WhatHappened {
-        changed, initialized, childChanged, removed, childRemoved
-    };
     /**
      * Find, and create if missing, a topic (a name/value pair) in the config
      * file. Never returns null.

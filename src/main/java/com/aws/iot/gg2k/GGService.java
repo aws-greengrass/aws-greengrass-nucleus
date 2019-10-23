@@ -5,7 +5,7 @@
 package com.aws.iot.gg2k;
 
 import com.aws.iot.config.*;
-import com.aws.iot.config.Configuration.WhatHappened;
+import com.aws.iot.config.WhatHappened;
 import com.aws.iot.config.Node;
 import com.aws.iot.config.Topic;
 import com.aws.iot.config.Topics;
@@ -53,12 +53,13 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
 //        if(s==Errored)
 //            new Exception("Set to Errored").printStackTrace();
         state.setValue(Long.MAX_VALUE, s);
+        context.notify(this,s);
     }
+    private State activeState = State.New;
     @Override // for listening to state changes
-    public void published(final WhatHappened what, final Object newValue, final Object oldValue) {
-        final State newState = (State) newValue;
-        final State prevState = (State) oldValue;
-        if(prevState!=null && prevState.isRunning() && !newState.isRunning()) { // transition from running to not running
+    public void published(final WhatHappened what, final Topic topic) {
+        final State newState = (State) topic.getOnce();
+        if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             try {
                 shutdown();
                 Future b = backingTask;
@@ -81,7 +82,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                             errored("Failed installing up", t);
                         }
                         backingTask = null;
-                    }, getName()+":"+oldValue+"=>"+newValue);
+                    }, getName()+" => "+newState);
                     break;
                 case AwaitingStartup:
                     awaitingStartup();
@@ -98,10 +99,10 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                             errored("Failed starting up", t);
                         }
                         backingTask = null;
-                    }, getName()+":"+oldValue+"=>"+newValue);
+                    }, getName()+" => "+newState);
                     break;
                 case Running:
-                    if(prevState != Unstable) {
+                    if(activeState != Unstable) {
                         recheckOthersDependencies();
                         setBackingTask(() -> {
                             try {
@@ -111,7 +112,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                                 errored("Failed starting up", t);
                             }
                             backingTask = null;
-                        }, getName()+":"+oldValue+"=>"+newValue);
+                        }, getName()+" => "+newState);
                     }
                     break;
                 case Errored:
@@ -124,8 +125,9 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                     break;
             }
         } catch(Throwable t) {
-            errored("Transitioning from "+prevState+" to "+newState, t);
+            errored("Transitioning from "+getName()+" => "+newState, t);
         }
+        activeState = newState;
     }
     private synchronized void setBackingTask(Runnable r, String db) {
         Future bt = backingTask;
@@ -280,9 +282,9 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         config = c;
         state = c.createLeafChild("_State");
         state.setValue(Long.MAX_VALUE, State.New);
-        state.validate((newValue,oldValue)->{
-            State s = Coerce.toEnum(State.class, newValue);
-            return s==null ? oldValue : newValue;});
+        state.validate((n,o)->{
+            State s = Coerce.toEnum(State.class, n);
+            return s==null ? o : n;});
         state.subscribe(this);
     }
     public String getName() {

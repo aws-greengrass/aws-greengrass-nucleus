@@ -35,14 +35,14 @@ public class Periodicity {
             if (n instanceof Topic) {
                 Topic t = (Topic) n;
                 ret = new Periodicity(t, null, null, s);
-                t.subscribe((a,b,c)->ret.start(ses, action));
+                t.subscribe((a,b)->ret.start(ses, action));
             } else if (n instanceof Topics) {
                 Topics params = (Topics) n;
                 ret = new Periodicity(params.findLeafChild("interval"),
                         params.findLeafChild("fuzz"),
                         params.findLeafChild("phase"),
                         s);
-                params.subscribe((child)->ret.start(ses, action));
+                params.subscribe(child->ret.start(ses, action));
             } else return null;
             return ret;
         } catch (Throwable t) {
