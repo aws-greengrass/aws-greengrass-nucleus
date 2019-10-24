@@ -101,20 +101,20 @@ public class Context implements Closeable {
         shutdown();
     }
     // global state change notification
-    private CopyOnWriteArrayList<GGService.stateChangeListener> listeners;
-    public synchronized void addStateListener(GGService.stateChangeListener l) {
+    private CopyOnWriteArrayList<GGService.GlobalStateChangeListener> listeners;
+    public synchronized void addGlobalStateChangeListener(GGService.GlobalStateChangeListener l) {
         if(listeners==null) listeners = new CopyOnWriteArrayList<>();
         listeners.add(l);
     }
-    public synchronized void removeStateListener(GGService.stateChangeListener l) {
+    public synchronized void removeGlobalStateChangeListener(GGService.GlobalStateChangeListener l) {
         if(listeners!=null) {
             listeners.remove(l);
             if(listeners.isEmpty()) listeners = null;
         }
     }
-    public void notify(GGService l, State was) {
+    public void globalNotifyStateChanged(GGService l, State was) {
         if(listeners!=null)
-            listeners.forEach(s->s.stateChanged(l,was));
+            listeners.forEach(s->s.globalServiceStateChanged(l, was));
     }
     
     public void setAllStates(State ms) {

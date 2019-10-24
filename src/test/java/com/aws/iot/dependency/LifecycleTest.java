@@ -24,7 +24,8 @@ public class LifecycleTest {
         c.put(java.util.concurrent.ExecutorService.class, ses);
         c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = c.get(c1.class);
-        c.addStateListener((w,s)->System.out.println(w+" => "+s));
+        c.addGlobalStateChangeListener((service, was)->
+                System.out.println(service.getName()+": "+was+" => "+service.getState()));
         c.setAllStates(Installing);
 //        c.setAllStates(AwaitingStartup);
         try {

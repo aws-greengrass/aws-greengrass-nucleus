@@ -50,10 +50,11 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     }
     private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
     public void setState(State s) {
-//        if(s==Errored)
-//            new Exception("Set to Errored").printStackTrace();
-        state.setValue(Long.MAX_VALUE, s);
-        context.notify(this,s);
+        State was = (State) state.getOnce();
+        if(s!=was) {
+            state.setValue(Long.MAX_VALUE, s);
+            context.globalNotifyStateChanged(this, was);
+        }
     }
     private State activeState = State.New;
     @Override // for listening to state changes
@@ -233,22 +234,6 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     public void forAllDependencies(Consumer<? super GGService> f) {
         if(dependencies!=null) dependencies.keySet().forEach(f);
     }
-//    private CopyOnWriteArrayList<stateChangeListener> listeners;
-//    public synchronized void addStateListener(stateChangeListener l) {
-//        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
-//        listeners.add(l);
-//    }
-//    public synchronized void removeStateListener(stateChangeListener l) {
-//        if(listeners!=null) {
-//            listeners.remove(l);
-//            if(listeners.isEmpty()) listeners = null;
-//        }
-//    }
-//    private void notify(GGService l, State was) {
-//        if(listeners!=null)
-//            listeners.forEach(s->s.stateChanged(l,was));
-//        context.notify(l, was);
-//    }
     private void recheckOthersDependencies() {
         if (context != null) {
             final AtomicBoolean changed = new AtomicBoolean(true);
@@ -272,8 +257,8 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     private String status;
     public String getStatus() { return status; }
     public void setStatus(String s) { status = s; }
-    public interface stateChangeListener {
-        void stateChanged(GGService l, State was);
+    public interface GlobalStateChangeListener {
+        void globalServiceStateChanged(GGService l, State was);
     }
     public final Topics config;
     protected final CopyOnWriteArrayList<GGService> explicitDependencies = new CopyOnWriteArrayList<>();
