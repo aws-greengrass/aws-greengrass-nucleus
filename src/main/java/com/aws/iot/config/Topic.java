@@ -2,17 +2,19 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
+import com.aws.iot.util.Log;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 
 public class Topic extends Node {
-    Topic(String n, Topics p) {
-        super(n, p);
+    Topic(Context c, String n, Topics p) {
+        super(c, n, p);
     }
-    public static Topic of(String n, Object v) {
-        return new Topic(n, null).dflt(v);
+    public static Topic of(Context c, String n, Object v) {
+        return new Topic(c, n, null).dflt(v);
     }
     private long modtime;
     private Object value;
@@ -28,7 +30,7 @@ public class Topic extends Node {
     public Topic subscribe(Subscriber s) {
         listen(s);
         try {
-            s.published(Configuration.WhatHappened.initialized, value, value);
+            s.published(WhatHappened.initialized, this);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
@@ -37,7 +39,7 @@ public class Topic extends Node {
     public Topic validate(Validator s) {
         listen(s);
         try {
-            value = s.validate(value, value);
+            if(value!=null) value = s.validate(value, null);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
@@ -73,15 +75,29 @@ public class Topic extends Node {
         final long currentModtime = modtime;
         if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime)
             return this;
-        final Object validated = validate(Configuration.WhatHappened.changed, proposed, currentValue);
+        final Object validated = validate(proposed, currentValue);
         if (Objects.equals(validated, currentValue)) return this;
         value = validated;
         modtime = proposedModtime;
         serialized.add(() -> {
-            fire(Configuration.WhatHappened.changed, validated, currentValue);
+            fire(WhatHappened.changed);
             if (parent != null) parent.publish(this);
         });
         return this;
+    }
+    @Override
+    protected void fire(WhatHappened what) {
+        if (watchers != null)
+            for (Watcher s : watchers)
+                try {
+                    if (s instanceof Subscriber)
+                        ((Subscriber) s).published(what, this);
+                } catch (Throwable ex) {
+                    /* TODO if a subscriber fails, we should do more than just log a
+                       message.  Possibly unsubscribe it if the fault is persistent */
+                    context.get(Log.class).error(getFullName(),ex);
+                }
+        if(parent!=null) parent.childChanged(this);
     }
     private static BlockingDeque<Runnable> serialized
             = new LinkedBlockingDeque<>();
@@ -119,13 +135,13 @@ public class Topic extends Node {
     public boolean equals(Object o) {
         if (o instanceof Topic) {
             Topic t = (Topic) o;
-            return name.equals(t.name) && Objects.equals(value, t.value);
+            return name.equals(t.name);
         }
         return false;
     }
     @Override
     public int hashCode() {
-        return 43 * Objects.hashCode(name) + Objects.hashCode(this.value);
+        return Objects.hashCode(name);
     }
     @Override
     public void deepForEachTopic(Consumer<Topic> f) {

@@ -4,7 +4,6 @@
 package com.aws.iot.util;
 
 import java.io.*;
-import java.util.logging.*;
 import org.junit.*;
 import static org.junit.Assert.*;
 
@@ -30,7 +29,8 @@ public class UnsyncBufferedInputStreamTest {
                 assertEquals(pos++ & 0xFF, in.read());
             assertEquals(-1, in.read());
         } catch (IOException ex) {
-            Logger.getLogger(UnsyncBufferedInputStreamTest.class.getName()).log(Level.SEVERE, null, ex);
+            ex.printStackTrace(System.out);
+            fail();
         }
     }
     private void Tf2(int len, int bl) {
@@ -48,7 +48,8 @@ public class UnsyncBufferedInputStreamTest {
             }
             assertEquals(-1, in.read());
         } catch (IOException ex) {
-            Logger.getLogger(UnsyncBufferedInputStreamTest.class.getName()).log(Level.SEVERE, null, ex);
+            ex.printStackTrace(System.out);
+            fail();
         }
     }
 

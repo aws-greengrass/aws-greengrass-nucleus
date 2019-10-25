@@ -5,7 +5,7 @@
 package com.aws.iot.gg2k;
 
 import com.aws.iot.config.*;
-import com.aws.iot.config.Configuration.WhatHappened;
+import com.aws.iot.config.WhatHappened;
 import com.aws.iot.config.Node;
 import com.aws.iot.config.Topic;
 import com.aws.iot.config.Topics;
@@ -50,15 +50,17 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     }
     private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
     public void setState(State s) {
-//        if(s==Errored)
-//            new Exception("Set to Errored").printStackTrace();
-        state.setValue(Long.MAX_VALUE, s);
+        State was = (State) state.getOnce();
+        if(s!=was) {
+            state.setValue(Long.MAX_VALUE, s);
+            context.globalNotifyStateChanged(this, was);
+        }
     }
+    private State activeState = State.New;
     @Override // for listening to state changes
-    public void published(final WhatHappened what, final Object newValue, final Object oldValue) {
-        final State newState = (State) newValue;
-        final State prevState = (State) oldValue;
-        if(prevState!=null && prevState.isRunning() && !newState.isRunning()) { // transition from running to not running
+    public void published(final WhatHappened what, final Topic topic) {
+        final State newState = (State) topic.getOnce();
+        if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             try {
                 shutdown();
                 Future b = backingTask;
@@ -81,7 +83,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                             errored("Failed installing up", t);
                         }
                         backingTask = null;
-                    }, getName()+":"+oldValue+"=>"+newValue);
+                    }, getName()+" => "+newState);
                     break;
                 case AwaitingStartup:
                     awaitingStartup();
@@ -98,10 +100,10 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                             errored("Failed starting up", t);
                         }
                         backingTask = null;
-                    }, getName()+":"+oldValue+"=>"+newValue);
+                    }, getName()+" => "+newState);
                     break;
                 case Running:
-                    if(prevState != Unstable) {
+                    if(activeState != Unstable) {
                         recheckOthersDependencies();
                         setBackingTask(() -> {
                             try {
@@ -111,7 +113,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                                 errored("Failed starting up", t);
                             }
                             backingTask = null;
-                        }, getName()+":"+oldValue+"=>"+newValue);
+                        }, getName()+" => "+newState);
                     }
                     break;
                 case Errored:
@@ -124,8 +126,9 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                     break;
             }
         } catch(Throwable t) {
-            errored("Transitioning from "+prevState+" to "+newState, t);
+            errored("Transitioning from "+getName()+" => "+newState, t);
         }
+        activeState = newState;
     }
     private synchronized void setBackingTask(Runnable r, String db) {
         Future bt = backingTask;
@@ -231,22 +234,6 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     public void forAllDependencies(Consumer<? super GGService> f) {
         if(dependencies!=null) dependencies.keySet().forEach(f);
     }
-//    private CopyOnWriteArrayList<stateChangeListener> listeners;
-//    public synchronized void addStateListener(stateChangeListener l) {
-//        if(listeners==null) listeners = new CopyOnWriteArrayList<>();
-//        listeners.add(l);
-//    }
-//    public synchronized void removeStateListener(stateChangeListener l) {
-//        if(listeners!=null) {
-//            listeners.remove(l);
-//            if(listeners.isEmpty()) listeners = null;
-//        }
-//    }
-//    private void notify(GGService l, State was) {
-//        if(listeners!=null)
-//            listeners.forEach(s->s.stateChanged(l,was));
-//        context.notify(l, was);
-//    }
     private void recheckOthersDependencies() {
         if (context != null) {
             final AtomicBoolean changed = new AtomicBoolean(true);
@@ -270,8 +257,8 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     private String status;
     public String getStatus() { return status; }
     public void setStatus(String s) { status = s; }
-    public interface stateChangeListener {
-        void stateChanged(GGService l, State was);
+    public interface GlobalStateChangeListener {
+        void globalServiceStateChanged(GGService l, State was);
     }
     public final Topics config;
     protected final CopyOnWriteArrayList<GGService> explicitDependencies = new CopyOnWriteArrayList<>();
@@ -280,9 +267,9 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         config = c;
         state = c.createLeafChild("_State");
         state.setValue(Long.MAX_VALUE, State.New);
-        state.validate((newValue,oldValue)->{
-            State s = Coerce.toEnum(State.class, newValue);
-            return s==null ? oldValue : newValue;});
+        state.validate((n,o)->{
+            State s = Coerce.toEnum(State.class, n);
+            return s==null ? o : n;});
         state.subscribe(this);
     }
     public String getName() {
@@ -407,7 +394,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     public static GGService errNode(Context context, String name, String message, Throwable ex) {
         try {
             context.get(Log.class).error("Error locating service",name,message,ex);
-            GGService ggs = new GenericExternalService(Topics.errorNode(name,
+            GGService ggs = new GenericExternalService(Topics.errorNode(context, name,
                     "Error locating service " + name + ": " + message
                             + (ex == null ? "" : "\n\t" + ex)));
             return ggs;
@@ -426,7 +413,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                 expr = expr.substring(1).trim();
                 neg = !neg;
             }
-            expr = templateEngine.rewrite(expr).toString();
+            expr = context.get(EZTemplates.class).rewrite(expr).toString();
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -522,12 +509,12 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
              : n instanceof Topics ? run((Topics) n, background)
                 : RunStatus.Errored;
     }
-    @Inject ShellRunner shellRunner;
-    @Inject EZTemplates templateEngine;
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
+        ShellRunner shellRunner = context.get(ShellRunner.class);
+        EZTemplates templateEngine = context.get(EZTemplates.class);
         cmd = templateEngine.rewrite(cmd).toString();
         setStatus(cmd);
         if(background==null) setStatus(null);
@@ -547,6 +534,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
             addEnv(exec, src.parent); // add parents contributions first
             Node env = src.getChild("setenv");
             if(env instanceof Topics) {
+                EZTemplates templateEngine = context.get(EZTemplates.class);
                 ((Topics)env).forEach(n->{
                     if(n instanceof Topic)
                         exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic)n).getOnce())));

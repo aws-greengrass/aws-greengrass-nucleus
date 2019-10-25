@@ -35,14 +35,14 @@ public class Periodicity {
             if (n instanceof Topic) {
                 Topic t = (Topic) n;
                 ret = new Periodicity(t, null, null, s);
-                t.subscribe((a,b,c)->ret.start(ses, action));
+                t.subscribe((a,b)->ret.start(ses, action));
             } else if (n instanceof Topics) {
                 Topics params = (Topics) n;
                 ret = new Periodicity(params.findLeafChild("interval"),
                         params.findLeafChild("fuzz"),
                         params.findLeafChild("phase"),
                         s);
-                params.subscribe((child)->ret.start(ses, action));
+                params.subscribe(child->ret.start(ses, action));
             } else return null;
             return ret;
         } catch (Throwable t) {
@@ -57,9 +57,9 @@ public class Periodicity {
         // f is a random "fuzz factor" to add some noise to the phase offset so that
         // if (for example) there are many devices doing periodic reports,they don't all
         // do it at the same time
-        interval = i != null ? i : Topic.of("interval", TimeUnit.MINUTES.toMillis(5));
-        fuzz = f != null ? f : Topic.of("fuzz", 0.5);
-        phase = p != null ? p : Topic.of("phase", 0);
+        interval = i != null ? i : Topic.of(s.context,"interval", TimeUnit.MINUTES.toMillis(5));
+        fuzz = f != null ? f : Topic.of(s.context,"fuzz", 0.5);
+        phase = p != null ? p : Topic.of(s.context,"phase", 0);
         service = s;
     }
     public synchronized void start(ScheduledExecutorService ses, Runnable r) {

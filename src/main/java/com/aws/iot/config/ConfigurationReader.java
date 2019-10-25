@@ -3,6 +3,7 @@
 
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
 import static com.aws.iot.util.Coerce.*;
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
@@ -23,8 +24,8 @@ public class ConfigurationReader {
     public static void mergeTLogInto(Configuration c, Path p) throws IOException {
         ConfigurationReader.mergeTLogInto(c, Files.newBufferedReader(p));
     }
-    public static Configuration createFromTLog(Path p) throws IOException {
-        Configuration c = new Configuration();
+    public static Configuration createFromTLog(Context context, Path p) throws IOException {
+        Configuration c = new Configuration(context);
         ConfigurationReader.mergeTLogInto(c, p);
         return c;
     }

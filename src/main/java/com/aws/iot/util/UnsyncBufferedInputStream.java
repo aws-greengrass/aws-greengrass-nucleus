@@ -12,7 +12,7 @@ public class UnsyncBufferedInputStream extends FilterInputStream {
     private UnsyncBufferedInputStream(InputStream in) { super(in); }
     public static InputStream of(File f) throws IOException { return new MappedInputStream(f); }
     public static InputStream of(Path f) throws IOException { return new MappedInputStream(f); }
-    public static InputStream of(InputStream f) throws IOException { // TODO: re-implement
+    public static InputStream of(InputStream f) throws IOException {
         return f instanceof UnsyncBufferedInputStream || f instanceof MappedInputStream
                 ? f : new BufferedInputStream(f);
     }

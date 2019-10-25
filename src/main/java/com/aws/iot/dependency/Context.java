@@ -101,20 +101,20 @@ public class Context implements Closeable {
         shutdown();
     }
     // global state change notification
-    private CopyOnWriteArrayList<GGService.stateChangeListener> listeners;
-    public synchronized void addStateListener(GGService.stateChangeListener l) {
+    private CopyOnWriteArrayList<GGService.GlobalStateChangeListener> listeners;
+    public synchronized void addGlobalStateChangeListener(GGService.GlobalStateChangeListener l) {
         if(listeners==null) listeners = new CopyOnWriteArrayList<>();
         listeners.add(l);
     }
-    public synchronized void removeStateListener(GGService.stateChangeListener l) {
+    public synchronized void removeGlobalStateChangeListener(GGService.GlobalStateChangeListener l) {
         if(listeners!=null) {
             listeners.remove(l);
             if(listeners.isEmpty()) listeners = null;
         }
     }
-    public void notify(GGService l, State was) {
+    public void globalNotifyStateChanged(GGService l, State was) {
         if(listeners!=null)
-            listeners.forEach(s->s.stateChanged(l,was));
+            listeners.forEach(s->s.globalServiceStateChanged(l, was));
     }
     
     public void setAllStates(State ms) {
@@ -176,15 +176,15 @@ public class Context implements Closeable {
                                 continue;
                             }
                         }
-                        args[i] = Topics.errorNode("message", "Synthetic args");
+                        args[i] = Topics.errorNode(Context.this, "message", "Synthetic args");
                     }
-                    args[i] = Context.this.get(T);
+                    else args[i] = Context.this.get(T);
                 }
                 return put(cons.newInstance(args));
             } catch (Throwable ex) {
                 ex.printStackTrace(System.out);
+                throw new IllegalArgumentException("Can't create instance of "+targetClass.getName(), ex);
             }
-            return null;  // TODO noooooo
         }
         public synchronized final T put(T v) {
             if (v == value) return v;
@@ -227,6 +227,7 @@ public class Context implements Closeable {
                             final String name = nullEmpty(named == null ? null : named.value());
                             Class t = f.getType();
                             Object v;
+//                            System.out.println(cl.getSimpleName() + "." + f.getName() + " ...");
 //                            System.out.println("\tSET");
                             if (t == Provider.class) {
 //                                System.out.println("PROVIDER " + t + " " + f + "\n  -> " + f.toGenericString());
@@ -237,7 +238,7 @@ public class Context implements Closeable {
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);
                             f.set(lvalue, v);
-//                            System.out.println(cl.getSimpleName() + "." + f.getName() + " = " + v);
+//                            System.out.println("   "+cl.getSimpleName() + "." + f.getName() + " = " + v);
                             if (asService != null && v instanceof GGService)
                                 asService.addDependency((GGService) v,
                                         startWhen == null ? State.Running

@@ -19,7 +19,6 @@ import java.util.prefs.*;
 
 /** GreenGrass-v2-kernel */
 public class GG2K extends Configuration /*implements Runnable*/ {
-    public final Context context = new Context();
     private String mainServiceName = "main";
     private boolean installOnly = false;
     private boolean broken = false;
@@ -31,6 +30,7 @@ public class GG2K extends Configuration /*implements Runnable*/ {
     }
     @SuppressWarnings("LeakingThisInConstructor")
     public GG2K() {
+        super(new Context());
         context.put(Configuration.class, this);
         context.put(GG2K.class, this);
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
@@ -52,8 +52,8 @@ public class GG2K extends Configuration /*implements Runnable*/ {
         this.args = args;
         Topic root = lookup("system","rootpath")
             .dflt(deTilde(prefs.get("rootpath", "~/gg2root")))
-            .subscribe((w, n, o) -> {
-                rootPath = Paths.get(n.toString());
+            .subscribe((w, n) -> {
+                rootPath = Paths.get(Coerce.toString(n));
                 configPath = Paths.get(deTilde(configPathName));
                 Exec.removePath(clitoolPath);
                 clitoolPath = Paths.get(deTilde(clitoolPathName));

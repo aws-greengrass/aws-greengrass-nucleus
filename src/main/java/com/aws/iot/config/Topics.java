@@ -3,14 +3,16 @@
 
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
+import com.aws.iot.util.Log;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 
 public class Topics extends Node implements Iterable<Node> {
-    Topics(String n, Topics p) {
-        super(n, p);
+    Topics(Context c, String n, Topics p) {
+        super(c, n, p);
     }
     public final ConcurrentHashMap<String, Node> children = new ConcurrentHashMap<>();
     public void appendValueTo(Appendable a) throws IOException {
@@ -43,14 +45,14 @@ public class Topics extends Node implements Iterable<Node> {
         return children.get(name);
     }
     public Topic createLeafChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topic(nm, Topics.this));
+        Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, Topics.this));
         if (n instanceof Topic)
             return (Topic) n;
         else
             throw new IllegalArgumentException(name + " in " + this + " is already a container, cannot become a leaf");
     }
     public Topics createInteriorChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topics(nm, Topics.this));
+        Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, Topics.this));
         if (n instanceof Topics)
             return (Topics) n;
         else
@@ -76,7 +78,7 @@ public class Topics extends Node implements Iterable<Node> {
         return n.createLeafChild(path[limit]);
     }
     void publish(Topic t) {
-        fire(Configuration.WhatHappened.childChanged, t, null);
+        childChanged(WhatHappened.childChanged, t);
     }
     public void mergeMap(long t, Map<Object, Object> map) {
         map.forEach((okey, value) -> {
@@ -125,8 +127,38 @@ public class Topics extends Node implements Iterable<Node> {
     public void remove(Node n) {
         if (!children.remove(n.name, n))
             System.err.println("remove: Missing node " + n.name + " from " + toString());
-        n.fire(Configuration.WhatHappened.removed, null, null);
-        fire(Configuration.WhatHappened.childRemoved, n, null);
+        n.fire(WhatHappened.removed);
+        childChanged(WhatHappened.childRemoved, n);
+    }
+    protected void childChanged(WhatHappened what, Node child) {
+        if (watchers != null && child instanceof Topic)
+            for (Watcher s : watchers)
+                try {
+                    if(s instanceof Subscriber)
+                    ((Subscriber)s).published(what, (Topic)child);
+                } catch (Throwable ex) {
+                    /* TODO if a subscriber fails, we should do more than just log a
+                       message.  Possibly unsubscribe it if the fault is persistent */
+                    context.get(Log.class).error(getFullName(),ex);
+                }
+        if(parent!=null) parent.childChanged(WhatHappened.childChanged, this);
+    }
+    @Override
+    protected void fire(WhatHappened what) {
+        childChanged(what,null);
+    }
+    protected void childChanged(Node child) {
+        if (watchers != null)
+            for (Watcher s : watchers)
+                try {
+                    if (s instanceof ChildChanged)
+                        ((ChildChanged) s).childChanged(child);
+                } catch (Throwable ex) {
+                    /* TODO if a subscriber fails, we should do more than just log a
+                       message.  Possibly unsubscribe it if the fault is persistent */
+                    context.get(Log.class).error(getFullName(),ex);
+                }
+        if(parent!=null) parent.childChanged(this);
     }
     public Topics subscribe(ChildChanged cc) {
         listen(cc);
@@ -147,8 +179,8 @@ public class Topics extends Node implements Iterable<Node> {
         });
         return map;
     }
-    public static Topics errorNode(String name, String message) {
-        Topics t = new Topics(name, null);
+    public static Topics errorNode(Context context, String name, String message) {
+        Topics t = new Topics(context, name, null);
         t.createLeafChild("error").setValue(0, message);
         return t;
     }

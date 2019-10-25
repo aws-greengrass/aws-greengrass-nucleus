@@ -3,6 +3,7 @@
 package com.aws.iot.gg2k;
 
 import com.aws.iot.config.Configuration;
+import com.aws.iot.dependency.Context;
 import org.junit.*;
 import static org.junit.Assert.*;
 
@@ -13,9 +14,9 @@ public class mergeTest {
     @Test
     public void testSomeMethod() {
         try {
-            Configuration c = new Configuration();
+            Configuration c = new Configuration(new Context());
             c.read(GG2K.class.getResource("config.yaml"));
-            Configuration b = new Configuration().copyFrom(c);
+            Configuration b = new Configuration(new Context()).copyFrom(c);
             assertTrue(c.getRoot().equals(b.getRoot()));
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);

@@ -6,12 +6,9 @@ package com.aws.iot.config;
 import com.aws.iot.util.Commitable;
 import com.aws.iot.util.CommitableWriter;
 import static com.aws.iot.util.Utils.*;
-import com.aws.iot.config.Configuration.WhatHappened;
-import static com.aws.iot.config.Configuration.WhatHappened.*;
 import com.aws.iot.util.*;
 import java.io.*;
 import java.nio.file.*;
-import java.util.logging.*;
 
 public class ConfigurationWriter implements Closeable, Subscriber {
     private final Writer out;
@@ -21,7 +18,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 ConfigurationWriter cs = new ConfigurationWriter(c, out)) {
             cs.writeAll();
         } catch (IOException ex) {
-            Logger.getLogger(ConfigurationWriter.class.getName()).log(Level.SEVERE, null, ex);
+            c.root.context.get(Log.class).error("ConfigurationWriter.dump",ex);
         }
     }
     @SuppressWarnings("LeakingThisInConstructor")
@@ -52,10 +49,9 @@ public class ConfigurationWriter implements Closeable, Subscriber {
         Utils.close(out);
     }
     @Override
-    public synchronized void published(WhatHappened what, Object newValue, Object oldValue) {
-        if (what == childChanged)
+    public synchronized void published(WhatHappened what, Topic n) {
+        if (what == WhatHappened.childChanged)
             try {
-                Topic n = (Topic) newValue;
                 if(n.name.startsWith("_")) return;  // Don't log entries whose name starts in '_'
                 appendLong(n.getModtime(), out);
                 out.append(',');
@@ -64,10 +60,10 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 com.aws.iot.util.Coerce.toParseableString(n.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
-                Logger.getLogger(ConfigurationWriter.class.getName()).log(Level.SEVERE, null, ex);
+                n.context.get(Log.class).error("ConfigurationWriter.published",n.getFullName(),ex);
             }
     }
-    public void writeAll() {
-        conf.deepForEachTopic(n -> published(childChanged, n, null));
+    public void writeAll() { //TODO double check this
+        conf.deepForEachTopic(n -> published(WhatHappened.childChanged, n));
     }
 }
