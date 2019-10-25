@@ -37,7 +37,7 @@ Done this way, every object is a singleton.  But if you need to have multiple si
     @Inject @Named("right") Engine re; // right engine
 ```
 
-### Lifecycles
+# Lifecycles
 Objects that subclass GGService also participate in life cycle management.  Such objects
 can be in any of the following states:
 
@@ -49,15 +49,20 @@ can be in any of the following states:
 |    AwaitingStartup | Waiting for some dependency to start Running
 |    Starting | Executed when all dependencies are satisfied. When this step is completed the service will be Running.
 |    Running | Up and running, operating normally.  This is the only state that should ever take a significant amount of time to run.
-|    Unstable | Running, but experiencing problems that the service is attempting to repair itself
-|    Errored | Not running.  It may be possible for the enclosing framework to restart it.
+|    Unstable | Running, but experiencing problems that the service is attempting to repair itself.  The kernel does not participate in the recovery effort.  A good example is a connected device that is not functioning properly, like a GPS receiver inside a building: there's nothing to do except wait until the antenna can see the sky again.  But clients of that service may want to know that it isn't producing good results.
+|    Errored | Not running.  It may be useful for the enclosing framework to restart it.
 |    Recovering | In the process of being restarted.
 |    Shutdown | Shut down, cannot be restarted.
 |    Finished | The service has done it's job and has no more to do.  May be restarted (for example, by a timer)
 
-![lifecycle](lifecycle.svg)
+
+There are two related diagrams that help to understand how these fit together:
 
 ![Dependency-State-Time](DependencyStateTime.png)
+
+On the left is the dependency diagram which shows the interdependencies of all of the services.  On the right is a timeline of the state changes of the individual services.  They all get installed at the beginning, then then get started up in dependency order.  Periodically services will enter some error state, and (usually) recover eventually.
+
+![lifecycle](lifecycle.svg)
 
             
 

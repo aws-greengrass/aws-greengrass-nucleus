@@ -57,9 +57,9 @@ public class Periodicity {
         // f is a random "fuzz factor" to add some noise to the phase offset so that
         // if (for example) there are many devices doing periodic reports,they don't all
         // do it at the same time
-        interval = i != null ? i : Topic.of("interval", TimeUnit.MINUTES.toMillis(5));
-        fuzz = f != null ? f : Topic.of("fuzz", 0.5);
-        phase = p != null ? p : Topic.of("phase", 0);
+        interval = i != null ? i : Topic.of(s.context,"interval", TimeUnit.MINUTES.toMillis(5));
+        fuzz = f != null ? f : Topic.of(s.context,"fuzz", 0.5);
+        phase = p != null ? p : Topic.of(s.context,"phase", 0);
         service = s;
     }
     public synchronized void start(ScheduledExecutorService ses, Runnable r) {

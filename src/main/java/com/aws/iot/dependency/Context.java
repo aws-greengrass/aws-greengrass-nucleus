@@ -176,9 +176,9 @@ public class Context implements Closeable {
                                 continue;
                             }
                         }
-                        args[i] = Topics.errorNode("message", "Synthetic args");
+                        args[i] = Topics.errorNode(Context.this, "message", "Synthetic args");
                     }
-                    args[i] = Context.this.get(T);
+                    else args[i] = Context.this.get(T);
                 }
                 return put(cons.newInstance(args));
             } catch (Throwable ex) {
@@ -227,6 +227,7 @@ public class Context implements Closeable {
                             final String name = nullEmpty(named == null ? null : named.value());
                             Class t = f.getType();
                             Object v;
+//                            System.out.println(cl.getSimpleName() + "." + f.getName() + " ...");
 //                            System.out.println("\tSET");
                             if (t == Provider.class) {
 //                                System.out.println("PROVIDER " + t + " " + f + "\n  -> " + f.toGenericString());
@@ -237,7 +238,7 @@ public class Context implements Closeable {
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);
                             f.set(lvalue, v);
-//                            System.out.println(cl.getSimpleName() + "." + f.getName() + " = " + v);
+//                            System.out.println("   "+cl.getSimpleName() + "." + f.getName() + " = " + v);
                             if (asService != null && v instanceof GGService)
                                 asService.addDependency((GGService) v,
                                         startWhen == null ? State.Running

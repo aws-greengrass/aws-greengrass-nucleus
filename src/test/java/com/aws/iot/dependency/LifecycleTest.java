@@ -16,17 +16,17 @@ public class LifecycleTest {
     @Test
     public void T1() {
         cd = new CountDownLatch(2);
-        Context c = new Context();
+        Context context = new Context();
         java.util.concurrent.ScheduledThreadPoolExecutor ses = new java.util.concurrent.ScheduledThreadPoolExecutor(2);
-        c.put(java.util.concurrent.ScheduledThreadPoolExecutor.class, ses);
-        c.put(java.util.concurrent.ScheduledExecutorService.class, ses);
-        c.put(java.util.concurrent.Executor.class, ses);
-        c.put(java.util.concurrent.ExecutorService.class, ses);
-        c.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
-        c1 v = c.get(c1.class);
-        c.addGlobalStateChangeListener((service, was)->
+        context.put(java.util.concurrent.ScheduledThreadPoolExecutor.class, ses);
+        context.put(java.util.concurrent.ScheduledExecutorService.class, ses);
+        context.put(java.util.concurrent.Executor.class, ses);
+        context.put(java.util.concurrent.ExecutorService.class, ses);
+        context.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
+        c1 v = context.get(c1.class);
+        context.addGlobalStateChangeListener((service, was)->
                 System.out.println(service.getName()+": "+was+" => "+service.getState()));
-        c.setAllStates(Installing);
+        context.setAllStates(Installing);
 //        c.setAllStates(AwaitingStartup);
         try {
             if(!cd.await(1, TimeUnit.SECONDS))
@@ -43,7 +43,7 @@ public class LifecycleTest {
         Assert.assertTrue(v.toString(),v.startupCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.startupCalled);
             Assert.assertTrue(v.getState().isFunctioningProperly());
-        c.shutdown();
+        context.shutdown();
         try { Thread.sleep(50); } catch (InterruptedException ex) { }
         Assert.assertTrue(v.toString(),v.shutdownCalled);
         Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
@@ -52,11 +52,12 @@ public class LifecycleTest {
         Assert.assertNotNull("non-lifecycle", v.C2.C3);
         Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
         Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
-        Assert.assertEquals(42,c.get(Foo.class).what());
+        Assert.assertEquals(42,context.get(Foo.class).what());
     }
-    public static class c1 extends GGService {
-        public c1() {
-            super(Topics.errorNode("c1","testing"));
+    public class c1 extends GGService {
+        @Inject
+        public c1(Context context) {
+            super(Topics.errorNode(context,"c1","testing"));
         }
         @Inject public c2 C2;
         public boolean shutdownCalled, startupCalled, installCalled;
@@ -83,8 +84,9 @@ public class LifecycleTest {
         { System.out.println("Creating  "+this); }
     }
     public static class c2 extends GGService {
-        public c2() {
-            super(Topics.errorNode("c2","testing"));
+        @Inject
+        public c2(Context context) {
+            super(Topics.errorNode(context,"c2","testing"));
         }
         @Inject c3 C3;
 //        @Inject @StartWhen(New) c1 parent;

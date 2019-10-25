@@ -4,17 +4,20 @@
 
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 
 public abstract class Node {
-    protected Node(String n, Topics p) {
+    protected Node(Context c, String n, Topics p) {
+        context = c;
         name = n;
         parent = p;
         fnc = calcFnc();
     }
+    public final Context context;
     public final String name;
     public final Topics parent;
     private final String fnc;
@@ -51,7 +54,7 @@ public abstract class Node {
         return sb.toString();
     }
     protected CopyOnWriteArraySet<Watcher> watchers;
-    protected abstract boolean fire(WhatHappened what);
+    protected abstract void fire(WhatHappened what);
     protected void listen(Watcher s) {
         if (s != null) {
             if (watchers == null)

@@ -3,6 +3,7 @@
 
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
 import static com.aws.iot.util.Utils.*;
 import com.fasterxml.jackson.jr.ob.JSON;
 import java.io.*;
@@ -11,9 +12,16 @@ import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.*;
+import javax.inject.Inject;
 
 public class Configuration {
-    private final Topics root = new Topics(null, null);
+    final Topics root;
+    public final Context context;
+    @Inject
+    public Configuration(Context c) {  // This is one of the few classes that can't use injection
+        c.put(Configuration.class, this);
+        root = new Topics(context = c, null, null);
+    }
 
     /**
      * Find, and create if missing, a topic (a name/value pair) in the config

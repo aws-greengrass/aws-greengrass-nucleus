@@ -2,18 +2,19 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
+import com.aws.iot.util.Log;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
-import java.util.logging.*;
 
 public class Topic extends Node {
-    Topic(String n, Topics p) {
-        super(n, p);
+    Topic(Context c, String n, Topics p) {
+        super(c, n, p);
     }
-    public static Topic of(String n, Object v) {
-        return new Topic(n, null).dflt(v);
+    public static Topic of(Context c, String n, Object v) {
+        return new Topic(c, n, null).dflt(v);
     }
     private long modtime;
     private Object value;
@@ -85,19 +86,18 @@ public class Topic extends Node {
         return this;
     }
     @Override
-    protected boolean fire(WhatHappened what) {
-        boolean errorFree = true;
+    protected void fire(WhatHappened what) {
         if (watchers != null)
             for (Watcher s : watchers)
                 try {
                     if (s instanceof Subscriber)
                         ((Subscriber) s).published(what, this);
                 } catch (Throwable ex) {
-                    errorFree = false;
-                    Logger.getLogger(Configuration.class.getName()).log(Level.SEVERE, null, ex);
+                    /* TODO if a subscriber fails, we should do more than just log a
+                       message.  Possibly unsubscribe it if the fault is persistent */
+                    context.get(Log.class).error(getFullName(),ex);
                 }
-        if(parent!=null) errorFree &= parent.childChanged(this);
-        return errorFree;
+        if(parent!=null) parent.childChanged(this);
     }
     private static BlockingDeque<Runnable> serialized
             = new LinkedBlockingDeque<>();
@@ -135,14 +135,14 @@ public class Topic extends Node {
     public boolean equals(Object o) {
         if (o instanceof Topic) {
             Topic t = (Topic) o;
-            return name.equals(t.name) && Objects.equals(value, t.value);
+            return name.equals(t.name);
         }
         return false;
     }
-//    @Override
-//    public int hashCode() {
-//        return 43 * Objects.hashCode(name) + Objects.hashCode(this.value);
-//    }
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(name);
+    }
     @Override
     public void deepForEachTopic(Consumer<Topic> f) {
         f.accept(this);

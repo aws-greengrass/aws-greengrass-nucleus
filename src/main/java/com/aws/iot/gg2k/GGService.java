@@ -394,7 +394,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     public static GGService errNode(Context context, String name, String message, Throwable ex) {
         try {
             context.get(Log.class).error("Error locating service",name,message,ex);
-            GGService ggs = new GenericExternalService(Topics.errorNode(name,
+            GGService ggs = new GenericExternalService(Topics.errorNode(context, name,
                     "Error locating service " + name + ": " + message
                             + (ex == null ? "" : "\n\t" + ex)));
             return ggs;
@@ -413,7 +413,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                 expr = expr.substring(1).trim();
                 neg = !neg;
             }
-            expr = templateEngine.rewrite(expr).toString();
+            expr = context.get(EZTemplates.class).rewrite(expr).toString();
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -509,12 +509,12 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
              : n instanceof Topics ? run((Topics) n, background)
                 : RunStatus.Errored;
     }
-    @Inject ShellRunner shellRunner;
-    @Inject EZTemplates templateEngine;
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
+        ShellRunner shellRunner = context.get(ShellRunner.class);
+        EZTemplates templateEngine = context.get(EZTemplates.class);
         cmd = templateEngine.rewrite(cmd).toString();
         setStatus(cmd);
         if(background==null) setStatus(null);
@@ -534,6 +534,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
             addEnv(exec, src.parent); // add parents contributions first
             Node env = src.getChild("setenv");
             if(env instanceof Topics) {
+                EZTemplates templateEngine = context.get(EZTemplates.class);
                 ((Topics)env).forEach(n->{
                     if(n instanceof Topic)
                         exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic)n).getOnce())));

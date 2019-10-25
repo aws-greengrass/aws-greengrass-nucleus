@@ -3,6 +3,7 @@
 
 package com.aws.iot.config;
 
+import com.aws.iot.dependency.Context;
 import com.aws.iot.util.Coerce;
 import static com.aws.iot.util.Coerce.*;
 import com.fasterxml.jackson.dataformat.yaml.*;
@@ -11,12 +12,11 @@ import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.logging.*;
 import org.junit.*;
 import static org.junit.Assert.*;
 
 public class ConfigurationTest {
-    Configuration config = new Configuration();
+    Configuration config = new Configuration(new Context());
     int prev = 0;
 
 //    @Test
@@ -74,20 +74,21 @@ public class ConfigurationTest {
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         try {
-            Configuration c2 = ConfigurationReader.createFromTLog(p);
+            Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
 //            System.out.println(c2.hashCode() + " " + config.hashCode());
 //            System.out.println("Read: " + deepToString(c2.getRoot(), 99));
             assertEquals(44, c2.lookup("x", "z").getOnce());
             assertEquals(config, c2);
         } catch (IOException ex) {
-            Logger.getLogger(ConfigurationTest.class.getName()).log(Level.SEVERE, null, ex);
+            ex.printStackTrace(System.out);
+            fail();
         }
 //        config.lookupTopics("services").forEach(s -> System.out.println("Found service " + s.name));
         Topic nv = config.lookup("number");
     }
     @Test
     public void hmm() throws Throwable {
-        Configuration testConfig = new Configuration();
+        Configuration testConfig = new Configuration(new Context());
         try (InputStream inputStream = getClass().getResourceAsStream("test.yaml")) {
             assertNotNull(inputStream);
 //            System.out.println("resource: " + deepToString(inputStream, 200) + "\n\t" + getClass().getName());
