@@ -58,7 +58,7 @@ For code samples, look at ConfigurationTest.java
 ## subscribe() vs getOnce()
 While you can think of this mechanism as a conventional config file, it's better to think of it as a lightweight publish/subscribe mechanism and use that viewpoint to make it possible for code to be reactive to on-the-fly configuration changes, rather than depending on rebooting the system to pick up configuration changes.
 
-For example, it is common for services to have a viable to control the level of detail in diagnostic traces.  It's useful, in a system under test, to be able to change this in order to help in diagnosing problems.  In a conventional system, it's common to write something like this:
+For example, it is common for services to have a variable to control the level of detail in diagnostic traces.  It's useful, in a system under test, to be able to change this in order to help in diagnosing problems.  In a conventional system, it's common to write something like this:
 ```java
 	setTraceLevel(config.get("tracelevel", defaultValue));
 ```
