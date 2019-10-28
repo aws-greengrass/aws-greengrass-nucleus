@@ -3,7 +3,8 @@
 package com.aws.iot.dependency;
 
 import com.aws.iot.config.*;
-import com.aws.iot.gg2k.GGService;
+import com.aws.iot.gg2k.EvergreenService;
+
 import static com.aws.iot.util.Utils.*;
 import java.io.*;
 import java.lang.annotation.*;
@@ -101,18 +102,18 @@ public class Context implements Closeable {
         shutdown();
     }
     // global state change notification
-    private CopyOnWriteArrayList<GGService.GlobalStateChangeListener> listeners;
-    public synchronized void addGlobalStateChangeListener(GGService.GlobalStateChangeListener l) {
+    private CopyOnWriteArrayList<EvergreenService.GlobalStateChangeListener> listeners;
+    public synchronized void addGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
         if(listeners==null) listeners = new CopyOnWriteArrayList<>();
         listeners.add(l);
     }
-    public synchronized void removeGlobalStateChangeListener(GGService.GlobalStateChangeListener l) {
+    public synchronized void removeGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
         if(listeners!=null) {
             listeners.remove(l);
             if(listeners.isEmpty()) listeners = null;
         }
     }
-    public void globalNotifyStateChanged(GGService l, State was) {
+    public void globalNotifyStateChanged(EvergreenService l, State was) {
         if(listeners!=null)
             listeners.forEach(s->s.globalServiceStateChanged(l, was));
     }
@@ -120,8 +121,8 @@ public class Context implements Closeable {
     public void setAllStates(State ms) {
         forEach(f->{
             Object v = f.get();
-            if(v instanceof GGService) {
-                ((GGService)v).setState(ms);
+            if(v instanceof EvergreenService) {
+                ((EvergreenService)v).setState(ms);
             }
         });
     }
@@ -207,7 +208,7 @@ public class Context implements Closeable {
 //            System.out.println("requestInject " + lvalue);
             if (lvalue == null) return;
             Class cl = lvalue.getClass();
-            GGService asService = lvalue instanceof GGService ? (GGService) lvalue : null;
+            EvergreenService asService = lvalue instanceof EvergreenService ? (EvergreenService) lvalue : null;
             InjectionActions injectionActions = lvalue instanceof InjectionActions ? (InjectionActions) lvalue : null;
             if (asService != null) asService.context = Context.this; // inject context early
             if (injectionActions != null)
@@ -239,8 +240,8 @@ public class Context implements Closeable {
                             f.setAccessible(true);
                             f.set(lvalue, v);
 //                            System.out.println("   "+cl.getSimpleName() + "." + f.getName() + " = " + v);
-                            if (asService != null && v instanceof GGService)
-                                asService.addDependency((GGService) v,
+                            if (asService != null && v instanceof EvergreenService)
+                                asService.addDependency((EvergreenService) v,
                                         startWhen == null ? State.Running
                                                 : startWhen.value());
                         } catch (Throwable ex) {

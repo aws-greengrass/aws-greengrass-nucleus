@@ -42,7 +42,7 @@ public class Exec {
             .toLowerCase().contains("wind");
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
-    public static final String GG2uid = Utils.generateRandomString(16).toUpperCase();
+    public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
     private static String[] defaultEnvironment = {
         "PATH=" + System.getenv("PATH"),
         "SHELL=" + System.getenv("SHELL"),
@@ -50,7 +50,7 @@ public class Exec {
         "USER=" + System.getProperty("user.name"),
         "HOME=" + homedir,
         "USERHOME=" + homedir,
-        "GG2UID="+GG2uid,
+        "EVERGREEN_UID="+ EvergreenUid,
         "PWD=" + userdir,};
     public Exec cd(File f) {
         if (f != null)
