@@ -67,7 +67,7 @@ This works, but it requires a reboot to change the trace level.  If there's a no
 	setTraceLevel(config.get("tracelevel", defaultValue));
 	config.subscribe("tracelevel",v->setTraceLevel(v));
 ```
-This removes the must-reboot requirement, but the fact that there are two similar calls to setTraceLevel is kinda boilerplate-ish.  There's duplication and the possibility of differences causing bugs.  The right pattern in GG2 looks like this:
+This removes the must-reboot requirement, but the fact that there are two similar calls to setTraceLevel is kinda boilerplate-ish.  There's duplication and the possibility of differences causing bugs.  The right pattern in Evergreen looks like this:
 ```java
 config.lookup("tracelevel").dflt(defaultValue)
       .subscribe((why, newValue, newValue) -> setTraceLevel(newValue));

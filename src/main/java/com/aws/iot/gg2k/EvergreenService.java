@@ -25,13 +25,13 @@ import java.util.regex.*;
 import javax.inject.*;
 
 
-public class GGService implements InjectionActions, Subscriber, Closeable {
+public class EvergreenService implements InjectionActions, Subscriber, Closeable {
     private final Topic state;
     private Throwable error;
-    protected ConcurrentHashMap<GGService, State> dependencies;
+    protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private Future backingTask;
     public Context context;
-    public static State getState(GGService o) {
+    public static State getState(EvergreenService o) {
         return o.getState();
     }
     public State getState() {
@@ -60,17 +60,15 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     @Override // for listening to state changes
     public void published(final WhatHappened what, final Topic topic) {
         final State newState = (State) topic.getOnce();
+        System.out.println(getName() + ": " + activeState + " -> " + newState);
         if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
-            try {
-                shutdown();
-                Future b = backingTask;
-                if(b!=null) {
-                    backingTask = null;
-                    b.cancel(true);
+            setBackingTask(() -> {
+                try {
+                    shutdown();
+                } catch (Throwable t) {
+                    errored("Failed shutting down", t);
                 }
-            } catch (Throwable t) {
-                errored("Failed shutting down", t);
-            }
+            }, getName() + "=>" + newState);
         }
         try {
             switch(newState) {
@@ -143,8 +141,8 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
             backingTask = context.get(ExecutorService.class).submit(r);
     }
     static final void setState(Object o, State st) {
-        if (o instanceof GGService)
-            ((GGService) o).setState(st);
+        if (o instanceof EvergreenService)
+            ((EvergreenService) o).setState(st);
     }
     public void errored(String message, Throwable e) {
 //        e.printStackTrace();
@@ -213,7 +211,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         setState(State.Shutdown);
     }
     public Context getContext() { return context; }
-    public void addDependency(GGService v, State when) {
+    public void addDependency(EvergreenService v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
 //        System.out.println(getName()+" depends on "+v.getName());
@@ -231,7 +229,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         return dependencies != null
                 && (dependencies.entrySet().stream().anyMatch(ls -> ls.getKey().getState().preceeds(ls.getValue())));
     }
-    public void forAllDependencies(Consumer<? super GGService> f) {
+    public void forAllDependencies(Consumer<? super EvergreenService> f) {
         if(dependencies!=null) dependencies.keySet().forEach(f);
     }
     private void recheckOthersDependencies() {
@@ -241,8 +239,8 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                 changed.set(false);
                 context.forEach(v -> {
                     Object vv= v.value;
-                    if(vv instanceof GGService) {
-                        GGService l = (GGService) vv;
+                    if(vv instanceof EvergreenService) {
+                        EvergreenService l = (EvergreenService) vv;
                         if (l.inState(AwaitingStartup)) {
                             if (!l.hasDependencies()) {
                                 l.setState(State.Starting);
@@ -258,12 +256,12 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
     public String getStatus() { return status; }
     public void setStatus(String s) { status = s; }
     public interface GlobalStateChangeListener {
-        void globalServiceStateChanged(GGService l, State was);
+        void globalServiceStateChanged(EvergreenService l, State was);
     }
     public final Topics config;
-    protected final CopyOnWriteArrayList<GGService> explicitDependencies = new CopyOnWriteArrayList<>();
+    protected final CopyOnWriteArrayList<EvergreenService> explicitDependencies = new CopyOnWriteArrayList<>();
     @SuppressWarnings("LeakingThisInConstructor")
-    public GGService(Topics c) {
+    public EvergreenService(Topics c) {
         config = c;
         state = c.createLeafChild("_State");
         state.setValue(Long.MAX_VALUE, State.New);
@@ -312,14 +310,14 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                         break;
                     }
                 if (x == null)
-                    errored("does not match any GGService state", startWhen);
+                    errored("does not match any EvergreenService state", startWhen);
             }
         }
         addDependency(name, x == null ? State.Running : x);
     }
     public void addDependency(String name, State startWhen) {
         try {
-            GGService d = locate(context, name);
+            EvergreenService d = locate(context, name);
             if (d != null) {
                 explicitDependencies.add(d);
                 addDependency(d, startWhen);
@@ -347,12 +345,12 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
         }
         return sb.toString();
     }
-    public static GGService locate(Context context, String name) throws Throwable {
-        return context.getv(GGService.class, name).computeIfEmpty(v->{
+    public static EvergreenService locate(Context context, String name) throws Throwable {
+        return context.getv(EvergreenService.class, name).computeIfEmpty(v->{
             Configuration c = context.get(Configuration.class);
             Topics t = c.lookupTopics(Configuration.splitPath(name));
             assert(t!=null);
-            GGService ret;
+            EvergreenService ret;
             Class clazz = null;
             Node n = t.getChild("class");
             if (n != null) {
@@ -371,7 +369,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
             if(clazz!=null) {
                 try {
                     Constructor ctor = clazz.getConstructor(Topics.class);
-                    ret = (GGService) ctor.newInstance(t);
+                    ret = (EvergreenService) ctor.newInstance(t);
                     if(clazz.getAnnotation(Singleton.class) !=null) {
                         context.put(ret.getClass(), v);
                     }
@@ -391,13 +389,13 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
             return ret;
         });
     }
-    public static GGService errNode(Context context, String name, String message, Throwable ex) {
+    public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
         try {
             context.get(Log.class).error("Error locating service",name,message,ex);
-            GGService ggs = new GenericExternalService(Topics.errorNode(context, name,
+            EvergreenService service = new GenericExternalService(Topics.errorNode(context, name,
                     "Error locating service " + name + ": " + message
                             + (ex == null ? "" : "\n\t" + ex)));
-            return ggs;
+            return service;
         } catch (Throwable ex1) {
             context.get(Log.class).error(name,message,ex);
             return null;
@@ -420,7 +418,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                     case "onpath":
                         return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
                     case "exists":
-                        return Files.exists(Paths.get(context.get(GG2K.class).deTilde(m.group(2)))) ^ neg;
+                        return Files.exists(Paths.get(context.get(Kernel.class).deTilde(m.group(2)))) ^ neg;
                     case "true": return !neg;
                     default:
                         errored("Unknown operator", m.group(1));
@@ -557,7 +555,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
             return RunStatus.OK;
         }
     }
-    protected void addDependencies(HashSet<GGService> deps) {
+    protected void addDependencies(HashSet<EvergreenService> deps) {
         deps.add(this);
         if (dependencies != null)
             dependencies.keySet().forEach(d -> {
@@ -565,7 +563,7 @@ public class GGService implements InjectionActions, Subscriber, Closeable {
                     d.addDependencies(deps);
             });
     }
-    public boolean satisfiedBy(HashSet<GGService> ready) {
+    public boolean satisfiedBy(HashSet<EvergreenService> ready) {
         return dependencies == null
                 || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
     }

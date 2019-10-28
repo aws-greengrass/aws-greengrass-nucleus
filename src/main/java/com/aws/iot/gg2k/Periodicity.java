@@ -21,8 +21,8 @@ public class Periodicity {
      */
     private final Topic interval, phase, fuzz;
     private ScheduledFuture future;
-    private final GGService service;
-    public static Periodicity of(GGService s) {
+    private final EvergreenService service;
+    public static Periodicity of(EvergreenService s) {
         Node n = s.config.getChild("periodic");
         if (n == null) return null;
         try {
@@ -50,10 +50,10 @@ public class Periodicity {
         }
         return null;
     }
-    public static Periodicity of(Node n, GGService s) throws Throwable {
+    public static Periodicity of(Node n, EvergreenService s) throws Throwable {
         return null;
     }
-    private Periodicity(Topic i, Topic f, Topic p, GGService s) throws IllegalArgumentException {
+    private Periodicity(Topic i, Topic f, Topic p, EvergreenService s) throws IllegalArgumentException {
         // f is a random "fuzz factor" to add some noise to the phase offset so that
         // if (for example) there are many devices doing periodic reports,they don't all
         // do it at the same time

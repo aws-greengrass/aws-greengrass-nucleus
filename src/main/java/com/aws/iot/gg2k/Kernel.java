@@ -18,7 +18,7 @@ import java.util.function.*;
 import java.util.prefs.*;
 
 /** GreenGrass-v2-kernel */
-public class GG2K extends Configuration /*implements Runnable*/ {
+public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
     private boolean installOnly = false;
     private boolean broken = false;
@@ -26,13 +26,13 @@ public class GG2K extends Configuration /*implements Runnable*/ {
     boolean haveRead = false;
     private final Map<String,Class> serviceImplementors = new HashMap<>();
     public static void main(String[] args) {
-        GG2K ggc = new GG2K().parseArgs(args).launch();
+        Kernel kernel = new Kernel().parseArgs(args).launch();
     }
     @SuppressWarnings("LeakingThisInConstructor")
-    public GG2K() {
+    public Kernel() {
         super(new Context());
         context.put(Configuration.class, this);
-        context.put(GG2K.class, this);
+        context.put(Kernel.class, this);
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
         context.put(ScheduledThreadPoolExecutor.class, ses);
         context.put(ScheduledExecutorService.class, ses);
@@ -47,11 +47,11 @@ public class GG2K extends Configuration /*implements Runnable*/ {
         });
 
     }
-    public GG2K parseArgs(String... args) {
+    public Kernel parseArgs(String... args) {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
         Topic root = lookup("system","rootpath")
-            .dflt(deTilde(prefs.get("rootpath", "~/gg2root")))
+            .dflt(deTilde(prefs.get("rootpath", "~/root")))
             .subscribe((w, n) -> {
                 rootPath = Paths.get(Coerce.toString(n));
                 configPath = Paths.get(deTilde(configPathName));
@@ -127,20 +127,20 @@ public class GG2K extends Configuration /*implements Runnable*/ {
         });
         return this;
     }
-    public GG2K launch() {
+    public Kernel launch() {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
-        installCliTool(this.getClass().getClassLoader().getResource("gg2launch"));
+        installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
         Queue<String> autostart = new LinkedList<>();
         if (!ensureCreated(configPath) || !ensureCreated(rootPath)
                 || !ensureCreated(workPath) || !ensureCreated(clitoolPath))
             broken = true;
-        Exec.setDefaultEnv("GGHOME", rootPath.toString());
+        Exec.setDefaultEnv("EVERGREEN_HOME", rootPath.toString());
         try {
             EZPlugins pim = context.get(EZPlugins.class);
             pim.setCacheDirectory(rootPath.resolve("plugins"));
             pim.annotated(ImplementsService.class, cl->{
-                if(!GGService.class.isAssignableFrom(cl)) {
-                    System.err.println(cl+" needs to be a subclass of GGService in order to use ImplementsService");
+                if(!EvergreenService.class.isAssignableFrom(cl)) {
+                    System.err.println(cl+" needs to be a subclass of EvergreenService in order to use ImplementsService");
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
@@ -187,7 +187,7 @@ public class GG2K extends Configuration /*implements Runnable*/ {
             context.put(ShellRunner.class,
                     context.get(ShellRunner.Dryrun.class));
         try {
-            GGService main = getMain(); // Trigger boot  (!?!?)
+            EvergreenService main = getMain(); // Trigger boot  (!?!?)
             autostart.forEach(s->main.addDependency(s, AwaitingStartup));
         } catch (Throwable ex) {
             log.error("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ",ex);
@@ -236,10 +236,10 @@ public class GG2K extends Configuration /*implements Runnable*/ {
 //            return;
 //        System.out.println("Running...");
 //    }
-    private GGService mainService;
-    public GGService getMain() throws Throwable {
-        GGService m = mainService;
-        if(m == null) m = mainService = (GGService)GGService.locate(context, mainServiceName);
+    private EvergreenService mainService;
+    public EvergreenService getMain() throws Throwable {
+        EvergreenService m = mainService;
+        if(m == null) m = mainService = (EvergreenService) EvergreenService.locate(context, mainServiceName);
         return m;
     }
     public void installCliTool(URL resource) {
@@ -254,11 +254,11 @@ public class GG2K extends Configuration /*implements Runnable*/ {
             context.get(Log.class).error("installCliTool",t);
         }
     }
-    public Collection<GGService> orderedDependencies() {
+    public Collection<EvergreenService> orderedDependencies() {
         try {
-            final HashSet<GGService> pending = new LinkedHashSet<>();
+            final HashSet<EvergreenService> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
-            final HashSet<GGService> ready = new LinkedHashSet<>();
+            final HashSet<EvergreenService> ready = new LinkedHashSet<>();
             while (!pending.isEmpty()) {
                 int sz = pending.size();
                 pending.removeIf(l -> {
@@ -312,7 +312,7 @@ public class GG2K extends Configuration /*implements Runnable*/ {
         Log log = context.get(Log.class);
         try {
             log.significant("Installing software", getMain());
-            GGService[] d = orderedDependencies().toArray(new GGService[0]);
+            EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].inState(Running))
                     try {
@@ -327,10 +327,10 @@ public class GG2K extends Configuration /*implements Runnable*/ {
     }
 
     
-    public GG2K print(OutputStream out) {
+    public Kernel print(OutputStream out) {
         return print(new BufferedWriter(new OutputStreamWriter(out)));
     }
-    public GG2K print(Writer out) {
+    public Kernel print(Writer out) {
         try {
             com.fasterxml.jackson.jr.ob.JSON.std
                     .with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())

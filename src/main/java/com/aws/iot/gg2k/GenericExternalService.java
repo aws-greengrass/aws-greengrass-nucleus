@@ -4,7 +4,7 @@ package com.aws.iot.gg2k;
 
 import static com.aws.iot.dependency.State.*;
 
-public class GenericExternalService extends GGService {
+public class GenericExternalService extends EvergreenService {
     public GenericExternalService(com.aws.iot.config.Topics c) {
         super(c);
     }

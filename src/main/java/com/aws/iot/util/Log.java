@@ -49,7 +49,7 @@ public interface Log {
         public final Object[] args;
     }
     @ImplementsService(name = "log")
-    public static class Default extends GGService implements Log {
+    public static class Default extends EvergreenService implements Log {
         // TODO: be less stupid
         @Inject
         public Default(Topics conf) {
@@ -73,11 +73,11 @@ public interface Log {
             if(out==null) {
                 /* Time to initialize.  This would normally happen earlier, like in
                  * postInject, but the log gets created a little early for that. */
-                GG2K gg = context.get(GG2K.class);
+                Kernel kernel = context.get(Kernel.class);
                 config.lookup("file")
-                        .dflt("~root/gg2.log")
+                        .dflt("~root/evergreen.log")
                         .subscribe((w, nv)
-                                -> logTo(gg.deTilde(Coerce.toString(nv.getOnce()))));
+                                -> logTo(kernel.deTilde(Coerce.toString(nv.getOnce()))));
                 config.lookup("level")
                         .dflt(0)
                         .validate((nv, ov) -> {

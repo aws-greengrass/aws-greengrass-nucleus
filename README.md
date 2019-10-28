@@ -1,4 +1,4 @@
-# GG2 Kernel
+# Evergreen Kernel
 [![Build Status](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQmkyeEZPT3VpbGFjUDdNUC9Hc2hqZ0NYdEtCdUMxcFVXRUpOWVFTcmhicmZ0N05MVmlqb3Vwa0JFT2JhK2FUdjBaODdHUFJXVU5rMVM0RDhoRmlMY2ZFPSIsIml2UGFyYW1ldGVyU3BlYyI6IktQVGdUaU5Pc2M3V0tYU2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)](https://us-west-2.console.aws.amazon.com/codesuite/codebuild/projects/Stargate-Dev-Build)
 
 ### *Copyright &copy; 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.*
@@ -26,20 +26,20 @@ Error handling is woefully inadequate, *for now*.
 ### A quick tour through com.aws.iot
 1. [**config**](src/main/java/com/aws/iot/config) Manages the system configuration (model).  It's fundamentally a hierarchic key-value store with timestamps.  It can be serialized to/from yaml, json, or a transaction log.  The transaction log can be replayed to reconstruct the config, or streamed live to another process to maintain a mirror. The terminology is borrowed from the world of publish/subscribe systems.  Node values can have validators and watcher.
 2. [**dependency**](src/main/java/com/aws/iot/dependency) The dependency injection framework.  The meat is in `context.java` which contains a Map of known objects, and the ability to get (and magically create) objects from the Context.  When an object is created by the framework, in does dependency injection.  If the created object participates in the Lifecycle framework, its lifecycle is initiated.  This feeds the Lifecycle dependency graph.
-3. [**gg2k**](src/main/java/com/aws/iot/gg2k) Ties the model to Lifecycle objects in the dependency graph.  The primary class is `GGService`, which contains most of the *GreenGrass* semantics.  `GenericExternalService` is a subclass that implements a service whose behavior is defined by bash scripts.  Either of these classes may be subclassed to provide services whose behavior is defined by code running within GG2.
+3. [**gg2k**](src/main/java/com/aws/iot/gg2k) Ties the model to Lifecycle objects in the dependency graph.  The primary class is `EvergreenService`, which contains most of the *GreenGrass* semantics.  `GenericExternalService` is a subclass that implements a service whose behavior is defined by bash scripts.  Either of these classes may be subclassed to provide services whose behavior is defined by code running within Evergreen.
 4. [**util**](src/main/java/com/aws/iot/util) A grab-bag of useful utilities.
 
 You'll probably find the coding style to be a trifle odd.  It is very paranoid about failures and tries to catch, cope with, and (maybe) repair failures locally.  Mike Duigou did a nice talk on this topic: [Always Be Running: long running and fault tolerant java services](https://youtu.be/agXce0lSo60).
 
 ### Building
-This project has continous integration implemented using AWS CodeBuild. For each push to the master branch, the library is built and deployed to a private maven repository.
+This project has continuous integration implemented using AWS CodeBuild. For each push to the master branch, the library is built and deployed to a private maven repository.
 
 You can set this up in your project as follows: 
 
 ```xml
 <repositories>
     <repository>
-        <id>stargate-dev-snapshot</id>
+        <id>evergreen-dev-snapshot</id>
         <name>Kernel Snapshot</name>
         <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
     </repository>
@@ -49,7 +49,7 @@ You can set this up in your project as follows:
 ```xml
 <dependency>
     <groupId>com.aws.iot</groupId>
-    <artifactId>gg2-kernel</artifactId>
+    <artifactId>evergreen-kernel</artifactId>
     <version>1.0-SNAPSHOT</version>
 </dependency>
 ```
