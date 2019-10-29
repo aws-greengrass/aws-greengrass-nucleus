@@ -5,7 +5,7 @@ package com.aws.iot.dependency;
 
 import com.aws.iot.config.Topics;
 import static com.aws.iot.dependency.State.*;
-import com.aws.iot.gg2k.GGService;
+import com.aws.iot.gg2k.EvergreenService;
 import java.util.concurrent.*;
 import org.junit.*;
 import javax.inject.*;
@@ -54,7 +54,7 @@ public class LifecycleTest {
         Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
         Assert.assertEquals(42,context.get(Foo.class).what());
     }
-    public class c1 extends GGService {
+    public class c1 extends EvergreenService {
         @Inject
         public c1(Context context) {
             super(Topics.errorNode(context,"c1","testing"));
@@ -83,7 +83,7 @@ public class LifecycleTest {
         @Override public String toString() { return id; }
         { System.out.println("Creating  "+this); }
     }
-    public static class c2 extends GGService {
+    public static class c2 extends EvergreenService {
         @Inject
         public c2(Context context) {
             super(Topics.errorNode(context,"c2","testing"));

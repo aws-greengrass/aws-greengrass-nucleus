@@ -10,14 +10,15 @@ import java.util.function.*;
 import javax.inject.*;
 
 public interface ShellRunner {
-    public abstract Exec setup(String note, String command, GGService onBehalfOf);
+    public abstract Exec setup(String note, String command, EvergreenService onBehalfOf);
     public abstract boolean successful(Exec e, String command, IntConsumer background);
 
     public static class Default implements ShellRunner {
         @Inject Log log;
-        @Inject GG2K config;
+        @Inject
+        Kernel config;
         @Override
-        public synchronized Exec setup(String note, String command, GGService onBehalfOf) {
+        public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
             if (!isEmpty(command) && onBehalfOf != null) {
                 if (!isEmpty(note))
                     log.significant("run", note);
@@ -64,7 +65,7 @@ public interface ShellRunner {
     public static class Dryrun implements ShellRunner {
         @Inject Log log;
         @Override
-        public synchronized Exec setup(String note, String command, GGService onBehalfOf) {
+        public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
             log.significant("# " + note + "\n" + command);
             return OK;
         }

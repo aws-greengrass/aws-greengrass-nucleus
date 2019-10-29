@@ -6,7 +6,7 @@ import java.util.concurrent.*;
 import org.junit.*;
 import static org.junit.Assert.*;
 
-public class GG2KTest {
+public class KernelTest {
 //    boolean seenDocker, seenShell;
 //    int seenTickTock = 4;
 //    long lastTickTock = 0;
@@ -14,10 +14,10 @@ public class GG2KTest {
     public void testSomeMethod() {
         try {
             CountDownLatch OK = new CountDownLatch(1);
-            String tdir = System.getProperty("user.home") + "/gg2ktest";
+            String tdir = System.getProperty("user.home") + "/kernelTest";
 //            System.out.println("tdir = " + tdir);
-            GG2K gg = new GG2K();
-            gg.setLogWatcher(logline -> {
+            Kernel kernel = new Kernel();
+            kernel.setLogWatcher(logline -> {
                 if (logline.args.length >= 2) {
 //                    String a0 = String.valueOf(logline.args[0]);
                     String a1 = String.valueOf(logline.args[1]);
@@ -33,15 +33,15 @@ public class GG2KTest {
 //                    }
                 }
             });
-            gg.parseArgs("-r", tdir,
+            kernel.parseArgs("-r", tdir,
                     "-log", "stdout",
-                    "-i", GG2K.class.getResource("config.yaml").toString()
+                    "-i", Kernel.class.getResource("config.yaml").toString()
             );
-            gg.launch();
+            kernel.launch();
 //            System.out.println("Done");
             boolean ok = OK.await(200, TimeUnit.SECONDS);
-            gg.dump();
-            gg.shutdown();
+            kernel.dump();
+            kernel.shutdown();
             for (Expected pattern : expectations)
                 if (pattern.seen <= 0)
                     fail("Didnt see: " + pattern.message);
@@ -66,10 +66,10 @@ public class GG2KTest {
     }
     private final Expected[] expectations = {
         new Expected("RUNNING", "Main service"),
-        new Expected("docs.docker.com/", "docker hello world"),
+        //new Expected("docs.docker.com/", "docker hello world"),
         new Expected("tick-tock", "periodic", 3),
         new Expected("ANSWER=42", "global setenv"),
-        new Expected("GG2UID=", "generated unique token"),
+        new Expected("EVERGREEN_UID=", "generated unique token"),
         new Expected("mqtt.moquette.run", "moquette mqtt server"),
         new Expected("JUSTME=fancy a spot of tea?", "local setenv in main service"),};
 
