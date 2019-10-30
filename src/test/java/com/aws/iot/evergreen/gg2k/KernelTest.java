@@ -4,7 +4,7 @@ package com.aws.iot.evergreen.gg2k;
 
 import java.util.concurrent.*;
 
-import com.aws.iot.evergreen.Kernel;
+import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.*;
 import static org.junit.Assert.*;
 

@@ -2,12 +2,11 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.util;
 
-import com.aws.iot.evergreen.config.*;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.EvergreenService;
-import com.aws.iot.evergreen.Kernel;
-import com.aws.iot.evergreen.*;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+
 import static com.aws.iot.evergreen.util.Utils.*;
 import java.io.*;
 import java.time.*;

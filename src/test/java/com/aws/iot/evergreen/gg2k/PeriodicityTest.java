@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.gg2k;
 
-import static com.aws.iot.evergreen.Periodicity.parseInterval;
+import static com.aws.iot.evergreen.kernel.Periodicity.parseInterval;
 import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 import org.junit.Test;

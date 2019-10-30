@@ -5,7 +5,7 @@ package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Topics;
 
-import com.aws.iot.evergreen.EvergreenService;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 
 import java.util.concurrent.*;
 import org.junit.*;
