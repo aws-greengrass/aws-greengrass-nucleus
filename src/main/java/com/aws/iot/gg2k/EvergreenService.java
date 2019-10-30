@@ -106,7 +106,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                         setBackingTask(() -> {
                             try {
                                 run();
-                                if(!errored()) setState(State.Finished);
+                                // subclasses implementing run() should handle state transition;
                             } catch (Throwable t) {
                                 errored("Failed starting up", t);
                             }
@@ -189,6 +189,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * it is called right after postInject.
      */
     protected void run() {
+        setState(State.Finished);
     }
     /**
      * Called when a running service encounters an error.
@@ -401,35 +402,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             return null;
         }
     }
-    boolean shouldSkip(Topics n) {
-        Node skipif = n.getChild("skipif");
-        boolean neg = skipif == null && (skipif = n.getChild("doif")) != null;
-        if (skipif instanceof Topic) {
-            Topic tp = (Topic) skipif;
-            String expr = String.valueOf(tp.getOnce()).trim();
-            if (expr.startsWith("!")) {
-                expr = expr.substring(1).trim();
-                neg = !neg;
-            }
-            expr = context.get(EZTemplates.class).rewrite(expr).toString();
-            Matcher m = skipcmd.matcher(expr);
-            if (m.matches())
-                switch (m.group(1)) {
-                    case "onpath":
-                        return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
-                    case "exists":
-                        return Files.exists(Paths.get(context.get(Kernel.class).deTilde(m.group(2)))) ^ neg;
-                    case "true": return !neg;
-                    default:
-                        errored("Unknown operator", m.group(1));
-                        return false;
-                }
-            // Assume it's a shell script: test for 0 return code and nothing on stderr
-            return neg ^ (run(tp, expr, null, n)!=RunStatus.Errored);
-        }
-        return false;
-    }
-    private static final Pattern skipcmd = Pattern.compile("(exists|onpath) +(.+)");
+
     Node pickByOS(String name) {
         Node n = config.getChild(name);
         if (n instanceof Topics)
@@ -494,67 +467,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return bestn;
     }
     public enum RunStatus { OK, NothingDone, Errored }
-    protected RunStatus run(String name, IntConsumer background) {
-        Node n = pickByOS(name);
-        if(n==null) {
-//            if(required) log().warn("Missing",name,this);
-            return RunStatus.NothingDone;
-        }
-        return run(n, background);
-    }
-    protected RunStatus run(Node n, IntConsumer background) {
-        return n instanceof Topic ? run((Topic) n, background, null)
-             : n instanceof Topics ? run((Topics) n, background)
-                : RunStatus.Errored;
-    }
-    protected RunStatus run(Topic t, IntConsumer background, Topics config) {
-        return run(t, Coerce.toString(t.getOnce()), background, config);
-    }
-    protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
-        ShellRunner shellRunner = context.get(ShellRunner.class);
-        EZTemplates templateEngine = context.get(EZTemplates.class);
-        cmd = templateEngine.rewrite(cmd).toString();
-        setStatus(cmd);
-        if(background==null) setStatus(null);
-//        RunStatus OK = shellRunner.setup(t.getFullName(), cmd, background, this, null) != ShellRunner.Failed
-//                ? RunStatus.OK : RunStatus.Errored;
-        Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
-        if(exec!=null) { // there's something to run
-            addEnv(exec, t.parent);
-            log().significant(this,"exec",cmd);
-            return shellRunner.successful(exec, cmd, background)
-                    ? RunStatus.OK : RunStatus.Errored;
-        }
-        else return RunStatus.NothingDone;
-    }
-    private void addEnv(Exec exec, Topics src) {
-        if(src!=null) {
-            addEnv(exec, src.parent); // add parents contributions first
-            Node env = src.getChild("setenv");
-            if(env instanceof Topics) {
-                EZTemplates templateEngine = context.get(EZTemplates.class);
-                ((Topics)env).forEach(n->{
-                    if(n instanceof Topic)
-                        exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic)n).getOnce())));
-                });
-            }
-        }
-    }
-    protected RunStatus run(Topics t, IntConsumer background) {
-        if (!shouldSkip(t)) {
-            Node script = t.getChild("script");
-            if (script instanceof Topic)
-                return run((Topic) script, background, t);
-            else {
-                errored("Missing script: for ", t.getFullName());
-                return RunStatus.Errored;
-            }
-        }
-        else {
-            log().significant("Skipping", t.getFullName());
-            return RunStatus.OK;
-        }
-    }
+
     protected void addDependencies(HashSet<EvergreenService> deps) {
         deps.add(this);
         if (dependencies != null)
@@ -567,5 +480,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return dependencies == null
                 || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
     }
+
 
 }
