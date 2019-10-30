@@ -1,6 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
-package com.aws.iot.evergreen.gg2k;
+package com.aws.iot.evergreen.kernel;
 
 import static com.aws.iot.evergreen.kernel.Periodicity.parseInterval;
 import java.util.concurrent.TimeUnit;

@@ -1,10 +1,9 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
-package com.aws.iot.evergreen.gg2k;
+package com.aws.iot.evergreen.kernel;
 
 import java.util.concurrent.*;
 
-import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.*;
 import static org.junit.Assert.*;
 
