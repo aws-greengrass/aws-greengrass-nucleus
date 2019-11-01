@@ -15,21 +15,23 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.iot.gg2k.client.common.FrameReader.*;
 
 
-@ImplementsService(name = "ipcServer", autostart = true)
-public class IPCServer extends GGService {
+@ImplementsService(name = "IPCService", autostart = true)
+public class IPCService extends GGService {
 
     private ServerSocket ss;
     @Inject
     private Dispatcher dispatcher;
     @Inject
     private ConnectionsManager connManager;
-    private boolean isRunning = true;
+    private AtomicBoolean isRunning = new AtomicBoolean(true);
 
-    public IPCServer(Topics c) {
+
+    public IPCService(Topics c) {
         super(c);
     }
 
@@ -49,11 +51,11 @@ public class IPCServer extends GGService {
     @Override
     public void run() {
         log().log(Log.Level.Note, "IPC Server listening");
-        while (isRunning) {
+        while (isRunning.get()) {
             try {
                 new GGServiceConnection(ss.accept(), dispatcher, connManager).start();
             } catch (IOException e) {
-                if (!isRunning) {
+                if (!isRunning.get()) {
                     e.printStackTrace();
                     shutdown();
                 }
@@ -65,13 +67,13 @@ public class IPCServer extends GGService {
     @Override
     public void shutdown() {
         log().log(Log.Level.Note, "IPC Server shutdown called");
-        isRunning = false;
+        isRunning.set(false);
         try {
-            dispatcher.shutdown();
             ss.close();
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
+        dispatcher.shutdown();
     }
 
     @Override
@@ -85,16 +87,16 @@ public class IPCServer extends GGService {
         void send(MessageFrame f);
     }
 
-    public static class GGServiceConnection implements IPCServer.ClientConnection, Closeable {
+    public static class GGServiceConnection implements ClientConnection, Closeable {
 
         Socket soc;
-        Dispatcher dispathcer;
+        Dispatcher dispatcher;
         ConnectionsManager connectionsManager;
         String clientId;
 
-        public GGServiceConnection(Socket soc, Dispatcher dispathcer, ConnectionsManager connectionsManager) throws SocketException {
+        public GGServiceConnection(Socket soc, Dispatcher dispatcher, ConnectionsManager connectionsManager) throws SocketException {
             this.soc = soc;
-            this.dispathcer = dispathcer;
+            this.dispatcher = dispatcher;
             this.connectionsManager = connectionsManager;
             this.clientId = UUID.randomUUID().toString();
             this.soc.setKeepAlive(true);
@@ -109,7 +111,7 @@ public class IPCServer extends GGService {
                     connectionsManager.addConnection(this);
 
                     while ((f = readFrame(dis)) != null) {
-                        dispathcer.dispatch(f, clientId);
+                        dispatcher.dispatch(f, clientId);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
