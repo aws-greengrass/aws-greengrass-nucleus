@@ -5,11 +5,6 @@ plain:
   startup:
     all: "{platform.invoke} {args}"
 main:
-  install:
-    skipif: true
-    all:
+  requires: IPCService
   run: |-
-    pwd
-    while true; do
-    date; echo RUNNING; sleep 1200
-    done
+    sleep 30

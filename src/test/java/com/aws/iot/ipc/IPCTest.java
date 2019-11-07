@@ -1,9 +1,10 @@
 package com.aws.iot.ipc;
 
-import com.aws.iot.gg2k.GG2KTest;
-import com.aws.iot.gg2k.client.KernelIPCClient;
-import com.aws.iot.gg2k.client.KernelIPCClientImpl;
-import com.aws.iot.gg2k.client.config.KernelIPCClientConfig;
+
+import com.aws.iot.config.Topic;
+import com.aws.iot.evergreen.ipc.IPCClient;
+import com.aws.iot.evergreen.ipc.IPCClientImpl;
+import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -21,7 +22,7 @@ public class IPCTest {
         com.aws.iot.gg2k.GG2K gg = new com.aws.iot.gg2k.GG2K();
 
         gg.setLogWatcher(logline -> {
-            if (logline.args.length == 1 && logline.args[0].equals("IPC Server listening")) {
+            if (logline.args.length == 1 && logline.args[0].equals("Run called for IPC service") ) {
                 OK.countDown();
             }
         });
@@ -31,9 +32,17 @@ public class IPCTest {
                 "-i", getClass().getResource("ipc.yaml").toString()
         );
         gg.launch();
-        OK.await(30, TimeUnit.SECONDS);
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress("127.0.0.1").port(20020).build();
-        KernelIPCClient client = new KernelIPCClientImpl(config);
+        OK.await(10, TimeUnit.SECONDS);
+
+        IPCService ipc = (IPCService) gg.context.getvIfExists("IPCService").get();
+        Topic port = (Topic) ipc.config.getChild("port");
+
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress("127.0.0.1").port((Integer)port.getOnce()).build();
+        IPCClient client = new IPCClientImpl(config);
+        client.connect();
         assertTrue(client.ping());
+        client.disconnect();
+
+        gg.shutdown();
     }
 }
