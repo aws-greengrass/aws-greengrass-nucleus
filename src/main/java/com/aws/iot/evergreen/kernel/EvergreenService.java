@@ -345,7 +345,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             assert(t!=null);
             if(t.isEmpty()) {
                 // No definition of this service was found in the config file.
-                // Look elsewhere...
+                // weave config fragments in from elsewhere...
                 Kernel k = context.get(Kernel.class);
 //                System.out.println("***Trying to populate "+name);
                 for(String s:k.getServiceServerURLlist())

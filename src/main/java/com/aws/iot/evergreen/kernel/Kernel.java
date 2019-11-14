@@ -208,6 +208,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ",t);
             }
         }
+        writeEffectiveConfig();
         try {
             installEverything();
             if(!installOnly)
@@ -291,15 +292,24 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return Collections.EMPTY_LIST;
         }
     }
-    public void installEverything() throws Throwable {
-        if (broken)
-            return;
+    public void writeEffectiveConfig() {
+        // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
+        writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
+    }
+    
+    /*
+     * When a config file gets read, it gets woven together from fragmemnts from
+     * multiple sources.  This writes a fresh copy of the config file, as it is,
+     * after the weaving-together process.
+     */
+    public void writeEffectiveConfig(Path p) {
         Log log = context.get(Log.class);
         try {
-            CommitableWriter out = CommitableWriter.commitOnClose(configPath.resolve("effectiveConfig.evg"));
+            CommitableWriter out = CommitableWriter.commitOnClose(p);
             try {
                 writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
                 out.commit();
+                log.note("Wrote efective config",p);
             } catch(Throwable t) { 
                 log.error("Failed to write effective config",t);
                 out.abandon();
@@ -307,6 +317,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch(Throwable t) {
             log.error("Failed to write effective config",t);
         }
+        
+    }
+    public void installEverything() throws Throwable {
+        if (broken)
+            return;
+        Log log = context.get(Log.class);
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
