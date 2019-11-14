@@ -54,7 +54,7 @@ public abstract class Node {
         return sb.toString();
     }
     protected CopyOnWriteArraySet<Watcher> watchers;
-    protected abstract void fire(WhatHappened what);
+    abstract void fire(WhatHappened what);
     protected void listen(Watcher s) {
         if (s != null) {
             if (watchers == null)

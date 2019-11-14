@@ -289,7 +289,7 @@ public class POJOUtil {
             writePOJO(out, pojo.toString());
     }
     public static void writePOJO(Path path, Object pojo) {
-        try (CommitableFile out = CommitableFile.of(path)) {
+        try (CommitableFile out = CommitableFile.abandonOnClose(path)) {
             System.out.println("Writing "+path);
             IonWriter w = IonTextWriterBuilder.pretty().build(out);
             writePOJO(w, pojo);

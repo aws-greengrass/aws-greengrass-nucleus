@@ -1,21 +1,5 @@
 ---
-  haskell:
-    install:
-      debian: sudo apt-get install haskell-platform
-      fedora: sudo yum install haskell-platform
-      macos: curl --silent -sSL https://get.haskellstack.org/ | sh
-    invoke:
-      all: haskell {args}
-  python3.6:
-    install:
-      debian: sudo apt-get install python3.6
-    invoke:
-      all: python3.6 {args}
-  python2.7:
-    install:
-      debian: sudo apt-get install python2.7
-    invoke:
-      all: python2.7 {args}
+
   jdk11:
     install:
       debian:
@@ -138,7 +122,7 @@
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock
+      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock, hello
       xyzzy: localhttp, broken
       setenv:
           JUSTME: fancy a spot of tea?

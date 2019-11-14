@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.util.Log;
 import static com.aws.iot.evergreen.util.Utils.*;
 import com.fasterxml.jackson.jr.ob.JSON;
 import java.io.*;
@@ -11,13 +12,15 @@ import java.net.*;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 import java.util.function.*;
 import javax.inject.Inject;
 
 public class Configuration {
     final Topics root;
     public final Context context;
-    @Inject
+    @Inject @SuppressWarnings("LeakingThisInConstructor")
     public Configuration(Context c) {  // This is one of the few classes that can't use injection
         c.put(Configuration.class, this);
         root = new Topics(context = c, null, null);
@@ -70,6 +73,10 @@ public class Configuration {
     public Topics getRoot() {
         return root;
     }
+    public boolean isEmpty() {
+        return root==null || root.isEmpty();
+    }
+    public int size() { return root==null ? 0 : root.size(); }
     /**
      * Merges a Map into this configuration. The most common use case is for
      * reading textual config files via jackson-jr. For example, to merge a
@@ -120,6 +127,7 @@ public class Configuration {
                 case "json":
                     mergeMap(timestamp, (java.util.Map) JSON.std.anyFrom(in));
                     break;
+                case "evg":  // evergreen
                 case "yaml":
                     mergeMap(timestamp, (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
                     break;
@@ -133,6 +141,29 @@ public class Configuration {
             close(in);
         }
         return this;
+    }
+    public Throwable readMerge(URL u) {
+        CountDownLatch ready = new CountDownLatch(1);
+        AtomicReference<Throwable> ret = new AtomicReference<>();
+        /* We run the operation on the publish queue to ensure that no listeners are
+         * fired while the large config change is happening */
+        context.runOnPublishQueue(()->{
+            try {
+                Configuration nc = new Configuration(context);
+                nc.copyFrom(this);
+                nc.read(u);
+                /* TODO: figure out what needs to be shut down and restarted */
+                copyFrom(nc);
+            } catch(Throwable t) {
+                context.get(Log.class).error("readMerge",u,t);
+                ret.set(t);
+            }
+            ready.countDown();
+        });
+        try {
+            ready.await();
+        } catch (InterruptedException ex) { ret.set(ex); }
+        return ret.get();
     }
     @Override
     public int hashCode() {

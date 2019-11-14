@@ -4,5 +4,6 @@
 package com.aws.iot.evergreen.util;
 
 public interface Commitable {
-    public void commit() throws java.io.IOException;
+    public void commit();
+    public void abandon();
 }

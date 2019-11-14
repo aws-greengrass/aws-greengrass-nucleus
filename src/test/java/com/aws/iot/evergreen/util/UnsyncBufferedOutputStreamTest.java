@@ -22,7 +22,7 @@ public class UnsyncBufferedOutputStreamTest {
         v = 0;
         System.out.println("Buffer size "+n);
         try {
-            out = UnsyncBufferedOutputStream.of(cf = CommitableFile.of(t), n);
+            out = UnsyncBufferedOutputStream.of(cf = CommitableFile.abandonOnClose(t), n);
             for (int i = 20; --i >= 0;) {
                 w();
                 w(13);

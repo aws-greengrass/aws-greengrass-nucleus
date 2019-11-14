@@ -2,20 +2,13 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.ConfigurationWriter;
-import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.WhatHappened;
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.EZPlugins;
-import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.CommitableWriter;
-import com.aws.iot.evergreen.util.Exec;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.config.*;
+import com.aws.iot.evergreen.dependency.*;
+import com.aws.iot.evergreen.util.*;
 
 import static com.aws.iot.evergreen.util.Utils.*;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.jr.ob.JSON;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
 import java.io.*;
 import java.net.*;
@@ -60,7 +53,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
         Topic root = lookup("system","rootpath")
-            .dflt(deTilde(prefs.get("rootpath", "~/root")))
+            .dflt(deTilde(prefs.get("rootpath", "~/.evergreen")))
             .subscribe((w, n) -> {
                 rootPath = Paths.get(Coerce.toString(n));
                 configPath = Paths.get(deTilde(configPathName));
@@ -105,7 +98,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 case "-root":
                 case "-r": {
                     String r = deTilde(getArg());
-                    if (isEmpty(r) || !ensureCreated(Paths.get(r))) {
+                    if (Utils.isEmpty(r) || !ensureCreated(Paths.get(r))) {
                         System.err.println(r + ": not a valid root directory");
                         broken = true;
                         break;
@@ -126,13 +119,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     break;
             }
         context.get(EZTemplates.class).addEvaluator(expr->{
+            Object value;
             switch(expr) {
-                case "root":   return rootPath;
-                case "work":   return workPath;
-                case "bin":    return clitoolPath;
-                case "config": return configPath;
-                default:       return find(splitPath(expr));
+                case "root":   value = rootPath; break;
+                case "work":   value = workPath; break;
+                case "bin":    value = clitoolPath; break;
+                case "config": value = configPath; break;
+                default:
+                    if((value = System.getProperty(expr)) == null
+                            && (value = System.getenv(expr)) == null)
+                        value = find(splitPath(expr));
             }
+            return value;
         });
         return this;
     }
@@ -164,13 +162,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch(Throwable t) {
             System.err.println("Error launching plugins: "+t);
         }
-        Path transactionLogPath = Paths.get(deTilde("~root/config/config.tlog"));
-        Path configurationFile = Paths.get(deTilde("~root/config/config.yaml"));
+        Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
+        Path configurationFile = configPath.resolve("config.yaml"); //Paths.get(deTilde("~root/config/config.yaml"));
         if (!broken)
             try {
                 if (haveRead) {
                     // new config file came in from the outside
-                    try ( CommitableWriter out = CommitableWriter.of(configurationFile)) {
+                    try ( CommitableWriter out = CommitableWriter.abandonOnClose(configurationFile)) {
                         print(uncloseable(out));
                         out.commit();
                     }
@@ -181,6 +179,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     if (Files.exists(transactionLogPath))
                         read(transactionLogPath);
                 }
+//                if(size()<=1) {
+//                    read(Kernel.class.getResource("default.yaml"));
+//                }
                 ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
             } catch (Throwable ioe) {
                 ioe.printStackTrace(System.err);
@@ -263,7 +264,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.get(Log.class).error("installCliTool",t);
         }
     }
-    public Collection<EvergreenService> orderedDependencies() {
+    private Collection<EvergreenService> cachedOD = null;
+    public void clearODcache() { cachedOD = null; }
+    public synchronized Collection<EvergreenService> orderedDependencies() {
+        if(cachedOD != null) return cachedOD;
         try {
             final HashSet<EvergreenService> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
@@ -281,7 +285,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     // didn't find anything to remove, there must be a cycle
                     break;
             }
-            return ready;
+            return cachedOD = ready;
         } catch (Throwable ex) {
             context.get(Log.class).error(ex);
             return Collections.EMPTY_LIST;
@@ -291,6 +295,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (broken)
             return;
         Log log = context.get(Log.class);
+        try {
+            CommitableWriter out = CommitableWriter.commitOnClose(configPath.resolve("effectiveConfig.evg"));
+            try {
+                writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
+                out.commit();
+            } catch(Throwable t) { 
+                log.error("Failed to write effective config",t);
+                out.abandon();
+            }
+        } catch(Throwable t) {
+            log.error("Failed to write effective config",t);
+        }
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
@@ -314,6 +330,21 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 l.forAllDependencies(d->System.out.println("    "+d.getName()+": "+d.getState()));
             }
         });
+    }
+    public void writeConfig(Writer w) {
+        Map<String, Object> h = new LinkedHashMap<>();
+        orderedDependencies().forEach(l -> {
+            if (l instanceof EvergreenService) {
+                EvergreenService s = (EvergreenService) l;
+                h.put(s.getName(), s.config.toPOJO());
+            }
+        });
+        try {
+            JSON.std.with(new YAMLFactory())
+                    .write(h, w);
+        } catch (IOException ex) {
+            ex.printStackTrace(System.out);
+        }
     }
     public void shutdown() {
         if (broken)
@@ -383,4 +414,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String getArg() {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
     }
+    private final Deque<String> serviceServerURLlist = new LinkedList<>();
+    public Collection<String> getServiceServerURLlist() { return serviceServerURLlist; }
+    public void addServiceServerURL(Object url) {
+        if(url!=null) {
+            String u = url.toString();
+            if(!u.endsWith("/")) u += "/";
+            if(!serviceServerURLlist.contains(u))
+            serviceServerURLlist.addFirst(u);
+        }
+    }
+    {
+        addServiceServerURL("https://raw.githubusercontent.com/JamesGosling/SailingForecast/master/docs/evg/");  // Ignore this hack
+        addServiceServerURL(EvergreenService.class.getResource("/config"));
+    };
 }
