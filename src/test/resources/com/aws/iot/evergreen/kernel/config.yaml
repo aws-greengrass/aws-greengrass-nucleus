@@ -136,3 +136,5 @@
       download:
         hw.jar: http://foo/hw.jar
       args: -jar {hw.jar}
+  system:
+      ServiceSearchList: https://raw.githubusercontent.com/JamesGosling/SailingForecast/master/docs/evg/

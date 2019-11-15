@@ -94,6 +94,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 case "-l":
                     lookup("system","logfile").setValue(getArg());
                     break;
+                case "-search":
+                case "-s":
+                    addServiceSearchURL(getArg());
+                    break;
                 case "-root":
                 case "-r": {
                     String r = deTilde(getArg());
@@ -398,18 +402,28 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String getArg() {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
     }
-    private final Deque<String> serviceServerURLlist = new LinkedList<>();
-    public Collection<String> getServiceServerURLlist() { return serviceServerURLlist; }
-    public void addServiceServerURL(Object url) {
+    private final List<String> serviceServerURLlist = new ArrayList<>();
+    private boolean serviceServerURLlistIsPopulated;
+    public Collection<String> getServiceServerURLlist() {
+        if(!serviceServerURLlistIsPopulated) {
+            serviceServerURLlistIsPopulated = true;
+            addServiceSearchURLs(System.getProperty("ServiceSearchList"));
+            addServiceSearchURLs(System.getenv("ServiceSearchList"));
+            addServiceSearchURLs(find("system", "ServiceSearchList"));
+            addServiceSearchURL(EvergreenService.class.getResource("/config"));
+        }
+        return serviceServerURLlist;
+    }
+    public void addServiceSearchURLs(Object urls) {
+        for(String s:Coerce.toStringArray(urls))
+            addServiceSearchURL(s);
+    }
+    public void addServiceSearchURL(Object url) {
         if(url!=null) {
             String u = url.toString();
             if(!u.endsWith("/")) u += "/";
             if(!serviceServerURLlist.contains(u))
-            serviceServerURLlist.addFirst(u);
+                serviceServerURLlist.add(u);
         }
     }
-    {
-        addServiceServerURL("https://raw.githubusercontent.com/JamesGosling/SailingForecast/master/docs/evg/");  // Ignore this hack
-        addServiceServerURL(EvergreenService.class.getResource("/config"));
-    };
 }
