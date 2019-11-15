@@ -6,7 +6,6 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.util.Log;
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.function.*;
 
 public class Topic extends Node {
@@ -79,14 +78,11 @@ public class Topic extends Node {
         if (Objects.equals(validated, currentValue)) return this;
         value = validated;
         modtime = proposedModtime;
-        serialized.add(() -> {
-            fire(WhatHappened.changed);
-            if (parent != null) parent.publish(this);
-        });
+        context.queuePublish(this);
         return this;
     }
     @Override
-    protected void fire(WhatHappened what) {
+    public void fire(WhatHappened what) {
         if (watchers != null)
             for (Watcher s : watchers)
                 try {
@@ -98,26 +94,6 @@ public class Topic extends Node {
                     context.get(Log.class).error(getFullName(),ex);
                 }
         if(parent!=null) parent.childChanged(this);
-    }
-    private static BlockingDeque<Runnable> serialized
-            = new LinkedBlockingDeque<>();
-    static {
-        new Thread() {
-            {
-                setName("Serialized listener processor");
-                setPriority(Thread.MAX_PRIORITY - 1);
-                setDaemon(true);
-            }
-            @Override
-            public void run() {
-                while (true)
-                    try {
-                        serialized.takeFirst().run();
-                    } catch (Throwable t) {
-                        t.printStackTrace(System.out);
-                    }
-            }
-        }.start();
     }
     @Override public void copyFrom(Node n) {
         if (n instanceof Topic)

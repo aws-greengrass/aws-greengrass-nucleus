@@ -2,21 +2,13 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.ConfigurationWriter;
-import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.WhatHappened;
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.EZPlugins;
-import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.CommitableWriter;
-import com.aws.iot.evergreen.util.Exec;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.config.*;
+import com.aws.iot.evergreen.dependency.*;
+import com.aws.iot.evergreen.util.*;
 
 import static com.aws.iot.evergreen.util.Utils.*;
-import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.jr.ob.JSON;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
@@ -60,7 +52,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
         Topic root = lookup("system","rootpath")
-            .dflt(deTilde(prefs.get("rootpath", "~/root")))
+            .dflt(deTilde(prefs.get("rootpath", "~/.evergreen")))
             .subscribe((w, n) -> {
                 rootPath = Paths.get(Coerce.toString(n));
                 configPath = Paths.get(deTilde(configPathName));
@@ -102,10 +94,14 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 case "-l":
                     lookup("system","logfile").setValue(getArg());
                     break;
+                case "-search":
+                case "-s":
+                    addServiceSearchURL(getArg());
+                    break;
                 case "-root":
                 case "-r": {
                     String r = deTilde(getArg());
-                    if (isEmpty(r) || !ensureCreated(Paths.get(r))) {
+                    if (Utils.isEmpty(r) || !ensureCreated(Paths.get(r))) {
                         System.err.println(r + ": not a valid root directory");
                         broken = true;
                         break;
@@ -118,7 +114,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     mainServiceName = getArg();
                     break;
                 case "-print":
-                    print(System.out);
+                    writeConfig(new OutputStreamWriter(System.out));
                     break;
                 default:
                     System.err.println("Undefined command line argument: " + arg);
@@ -126,13 +122,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     break;
             }
         context.get(EZTemplates.class).addEvaluator(expr->{
+            Object value;
             switch(expr) {
-                case "root":   return rootPath;
-                case "work":   return workPath;
-                case "bin":    return clitoolPath;
-                case "config": return configPath;
-                default:       return find(splitPath(expr));
+                case "root":   value = rootPath; break;
+                case "work":   value = workPath; break;
+                case "bin":    value = clitoolPath; break;
+                case "config": value = configPath; break;
+                default:
+                    if((value = System.getProperty(expr)) == null
+                            && (value = System.getenv(expr)) == null)
+                        value = find(splitPath(expr));
             }
+            return value;
         });
         return this;
     }
@@ -164,16 +165,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch(Throwable t) {
             System.err.println("Error launching plugins: "+t);
         }
-        Path transactionLogPath = Paths.get(deTilde("~root/config/config.tlog"));
-        Path configurationFile = Paths.get(deTilde("~root/config/config.yaml"));
+        Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
+        Path configurationFile = configPath.resolve("config.yaml"); //Paths.get(deTilde("~root/config/config.yaml"));
         if (!broken)
             try {
                 if (haveRead) {
                     // new config file came in from the outside
-                    try ( CommitableWriter out = CommitableWriter.of(configurationFile)) {
-                        print(uncloseable(out));
-                        out.commit();
-                    }
+                    writeEffectiveConfig(configurationFile);
                     Files.deleteIfExists(transactionLogPath);
                 } else {
                     if (Files.exists(configurationFile))
@@ -181,10 +179,14 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     if (Files.exists(transactionLogPath))
                         read(transactionLogPath);
                 }
+//                if(size()<=1) {
+//                    read(Kernel.class.getResource("default.yaml"));
+//                }
                 ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
             } catch (Throwable ioe) {
-                ioe.printStackTrace(System.err);
+                // Too early in the boot to log a message
                 System.err.println("Couldn't read config: " + getUltimateMessage(ioe));
+                ioe.printStackTrace(System.err);
                 broken = true;
                 return this;
             }
@@ -207,6 +209,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ",t);
             }
         }
+        writeEffectiveConfig();
         try {
             installEverything();
             if(!installOnly)
@@ -227,6 +230,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                             PosixFilePermissions.fromString("rwx------")));
             return true;
         } catch (IOException ex) {
+            // Likely to be too early in the boot to log a message
+            // TODO: fix log mechanism to allow for early logging
             System.err.println("Could not create " + p);
             ex.printStackTrace(System.err);
             return false;
@@ -263,7 +268,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.get(Log.class).error("installCliTool",t);
         }
     }
-    public Collection<EvergreenService> orderedDependencies() {
+    private Collection<EvergreenService> cachedOD = null;
+    public void clearODcache() { cachedOD = null; }
+    public synchronized Collection<EvergreenService> orderedDependencies() {
+        if(cachedOD != null) return cachedOD;
         try {
             final HashSet<EvergreenService> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
@@ -281,10 +289,30 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     // didn't find anything to remove, there must be a cycle
                     break;
             }
-            return ready;
+            return cachedOD = ready;
         } catch (Throwable ex) {
             context.get(Log.class).error(ex);
             return Collections.EMPTY_LIST;
+        }
+    }
+    public void writeEffectiveConfig() {
+        // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
+        writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
+    }
+    
+    /*
+     * When a config file gets read, it gets woven together from fragmemnts from
+     * multiple sources.  This writes a fresh copy of the config file, as it is,
+     * after the weaving-together process.
+     */
+    public void writeEffectiveConfig(Path p) {
+        Log log = context.get(Log.class);
+        try(CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
+            writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
+            out.commit();
+            log.note("Wrote effective config",p);
+        } catch(Throwable t) {
+            log.error("Failed to write effective config",t);
         }
     }
     public void installEverything() throws Throwable {
@@ -315,6 +343,21 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             }
         });
     }
+    public void writeConfig(Writer w) {
+        Map<String, Object> h = new LinkedHashMap<>();
+        orderedDependencies().forEach(l -> {
+            if (l instanceof EvergreenService) {
+                EvergreenService s = (EvergreenService) l;
+                h.put(s.getName(), s.config.toPOJO());
+            }
+        });
+        try {
+            JSON.std.with(new YAMLFactory())
+                    .write(h, w);
+        } catch (IOException ex) {
+            context.get(Log.class).error("Couldn't write config file", ex);
+        }
+    }
     public void shutdown() {
         if (broken)
             return;
@@ -334,23 +377,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
 
     }
-
-    
-    public Kernel print(OutputStream out) {
-        return print(new BufferedWriter(new OutputStreamWriter(out)));
-    }
-    public Kernel print(Writer out) {
-        try {
-            com.fasterxml.jackson.jr.ob.JSON.std
-                    .with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
-                    .with(PRETTY_PRINT_OUTPUT)
-                    //                    .without(AUTO_CLOSE_TARGET)
-                    .write(toPOJO(), out);
-        } catch (IOException ex) {
-            ex.printStackTrace(System.out);
-        }
-        return this;
-    }
     public String deTilde(String s) {
         if (s.startsWith("~/"))
             s = homePath.resolve(s.substring(2)).toString();
@@ -361,13 +387,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (clitoolPath != null && s.startsWith("~bin/"))
             s = clitoolPath.resolve(s.substring(5)).toString();
         return s;
-    }
-    public static Writer uncloseable(Writer w) {
-        return new FilterWriter(w) {
-            @Override
-            public void close() {
-            }
-        };
     }
     public Path rootPath;
     public Path configPath;
@@ -382,5 +401,29 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private int argpos = 0;
     private String getArg() {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
+    }
+    private final List<String> serviceServerURLlist = new ArrayList<>();
+    private boolean serviceServerURLlistIsPopulated;
+    public Collection<String> getServiceServerURLlist() {
+        if(!serviceServerURLlistIsPopulated) {
+            serviceServerURLlistIsPopulated = true;
+            addServiceSearchURLs(System.getProperty("ServiceSearchList"));
+            addServiceSearchURLs(System.getenv("ServiceSearchList"));
+            addServiceSearchURLs(find("system", "ServiceSearchList"));
+            addServiceSearchURL(EvergreenService.class.getResource("/config"));
+        }
+        return serviceServerURLlist;
+    }
+    public void addServiceSearchURLs(Object urls) {
+        for(String s:Coerce.toStringArray(urls))
+            addServiceSearchURL(s);
+    }
+    public void addServiceSearchURL(Object url) {
+        if(url!=null) {
+            String u = url.toString();
+            if(!u.endsWith("/")) u += "/";
+            if(!serviceServerURLlist.contains(u))
+                serviceServerURLlist.add(u);
+        }
     }
 }

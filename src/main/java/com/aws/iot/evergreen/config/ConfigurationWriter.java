@@ -13,7 +13,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     private final Writer out;
     private final Configuration conf;
     public static void dump(Configuration c, Path file) {
-        try (CommitableWriter out = CommitableWriter.of(file);
+        try (CommitableWriter out = CommitableWriter.abandonOnClose(file);
                 ConfigurationWriter cs = new ConfigurationWriter(c, out)) {
             cs.writeAll();
         } catch (IOException ex) {
@@ -27,7 +27,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
         conf.getRoot().listen(this);
     }
     ConfigurationWriter(Configuration c, Path p) throws IOException {
-        this(c, CommitableWriter.of(p));
+        this(c, CommitableWriter.abandonOnClose(p));
     }
     public static ConfigurationWriter logTransactionsTo(Configuration c, Path p) throws IOException {
         return new ConfigurationWriter(c,

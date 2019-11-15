@@ -49,4 +49,24 @@ public class CoerceTest {
         assertEquals(en.Gross, Coerce.toEnum(en.class, "gro"));
         assertEquals(null, Coerce.toEnum(en.class, "grok"));
     }
+    @Test
+    public void T5() {
+        t("");
+        t("[]");
+        t("[  ]");
+        t("[foo, bar, baz]", "foo", "bar", "baz");
+        t("foo, bar, baz]", "foo", "bar", "baz]");
+        t("foo","foo");
+        t("foo, bar, baz","foo", "bar", "baz");
+        t("foo , bar, baz ","foo", "bar", "baz");
+        t("foo,  bar, baz","foo", "bar", "baz");
+        t("foo, , baz","foo", "", "baz");
+    }
+    void t(String T, String... expect) {
+        String[] t = Coerce.toStringArray(T);
+        int len = t.length;
+        assertTrue(len==expect.length);
+        for(int i = 0; i<len; i++)
+            assertEquals(expect[i], t[i]);
+    }
 }

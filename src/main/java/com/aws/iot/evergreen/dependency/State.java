@@ -15,10 +15,9 @@ public enum State {
      */
     New(true, false, false),
     /**
-     * Associated artifacts are being installed. TODO: This should probably be
-     * preceded by a new state: PreparingToInstall which can run while the
-     * service is running, and should do downloads in preparation to
-     * installation.
+     * Associated artifacts are being installed. TODO: How to handle the download
+     * phase of installation is a topic of debate.  For now, Downloading isn't a state
+     * since it can (and should) be done in the background by a MIN_PRIORITY thread.
      */
     Installing(true, false, false),
     /**

@@ -55,7 +55,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @Override // for listening to state changes
     public void published(final WhatHappened what, final Topic topic) {
         final State newState = (State) topic.getOnce();
-        System.out.println(getName() + ": " + activeState + " -> " + newState);
+//        System.out.println(getName() + ": " + activeState + " -> " + newState);
         if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             setBackingTask(() -> {
                 try {
@@ -80,6 +80,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                     break;
                 case AwaitingStartup:
                     awaitingStartup();
+                    if(!hasDependencies() && !errored()) setState(State.Starting);
                     break;
                 case Starting:
                     setBackingTask(() -> {
@@ -128,7 +129,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         if(bt!=null) {
             backingTask = null;
             if(!bt.isDone()) {
-                System.out.println("Cancelling "+db);
+//                System.out.println("Cancelling "+db);
                 bt.cancel(true);
             }
         }
@@ -147,7 +148,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
     public void errored(String message, Object e) {
         if(context==null) {
-            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
+//            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
             if(e instanceof Throwable) ((Throwable)e).printStackTrace(System.err);
         }
         else log().error(this,message,e);
@@ -169,19 +170,22 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * certain amount of setup to be done, but we're not actually going to start the app.
      */
     protected void awaitingStartup() {
-        if(!hasDependencies() && !errored()) setState(State.Starting);
     }
     /**
      * Called when all dependencies are Running. If there are no dependencies,
      * it is called right after postInject.  The service doesn't transition to Running
-     * until *after* this state is complete.
+     * until *after* this state is complete.  The service transitions to Running when
+     * startup() completes
      */
     Periodicity timer;
     public void startup() {
     }
     /**
-     * Called when all dependencies are Running. If there are no dependencies,
-     * it is called right after postInject.
+     * Called when all dependencies are Running. Transitions out of Running only happen
+     * by having the run method (or some method/Thread spawned by it) explicitly set
+     * the services state.  run() is executed on it's own thread, but termination of
+     * that thread does not automatically trigger a state transition.  The default
+     * implementation does nothing except transition immediately to Finished.
      */
     protected void run() {
         setState(State.Finished);
@@ -210,18 +214,11 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public void addDependency(EvergreenService v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
+        context.get(Kernel.class).clearODcache();
 //        System.out.println(getName()+" depends on "+v.getName());
         dependencies.put(v, when);
     }
     private boolean hasDependencies() {
-//        if(dependencies==null) {
-//            System.out.println(getName()+": no dependencies");
-//            return false;
-//        } else {
-//            dependencies.entrySet().stream().forEach(ls -> {
-//                System.out.println(getName() +"/"+ getState()+" :: "+ls.getKey().getName()+"/"+ls.getKey().getState());
-//            });
-//        }
         return dependencies != null
                 && (dependencies.entrySet().stream().anyMatch(ls -> ls.getKey().getState().preceeds(ls.getValue())));
     }
@@ -346,6 +343,28 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             Configuration c = context.get(Configuration.class);
             Topics t = c.lookupTopics(Configuration.splitPath(name));
             assert(t!=null);
+            if(t.isEmpty()) {
+                // No definition of this service was found in the config file.
+                // weave config fragments in from elsewhere...
+                Kernel k = context.get(Kernel.class);
+//                System.out.println("***Trying to populate "+name);
+                for(String s:k.getServiceServerURLlist())
+                    if(t.isEmpty())
+                        try {
+                            // TODO: should probably think hard about what file extension to use
+                            // TODO: allow the file to be a zip package?
+                            URL u = new URL(s+name+".evg");
+//                            System.out.println("Reading "+u);
+                            k.read(u);
+//                            System.out.println("*** found "+name);
+                            context.get(Log.class).log(
+                                    t.isEmpty() ? Log.Level.Error : Log.Level.Note,
+                                    name, "Found external definition");
+                        } catch (IOException ex) {}
+                    else break;
+                if(t.isEmpty())
+                    t.createLeafChild("run").dflt("echo No definition found for "+name+";exit -1");
+            }
             EvergreenService ret;
             Class clazz = null;
             Node n = t.getChild("class");
@@ -415,12 +434,11 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         // TODO: a loopy set of hacks
         ranks.put("all", 0);
         ranks.put("any", 0);
-        if (Files.exists(Paths.get("/bin/bash"))) {
+        if (Files.exists(Paths.get("/bin/bash"))
+                || Files.exists(Paths.get("/usr/bin/bash"))) {
             ranks.put("unix", 3);
             ranks.put("posix", 3);
         }
-        if (Files.exists(Paths.get("/usr/bin/bash")))
-            ranks.put("posix", 3);
         if (Files.exists(Paths.get("/proc")))
             ranks.put("linux", 10);
         if (Files.exists(Paths.get("/usr/bin/apt-get")))

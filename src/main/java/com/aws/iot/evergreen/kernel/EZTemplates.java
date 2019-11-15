@@ -61,7 +61,7 @@ public class EZTemplates {
         return sb;
     }
     public static void writeTo(CharSequence cs, Path dest) throws IOException {
-        CommitableWriter cw = CommitableWriter.of(dest);
+        CommitableWriter cw = CommitableWriter.abandonOnClose(dest);
         cw.append(cs);
         cw.commit();
     }

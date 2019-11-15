@@ -1,0 +1,4 @@
+main:
+    run: |
+        (echo This installation of Evergreen is unconfigured.; echo Edit the file $[config]/config.yaml)|tee /dev/tty
+    periodic: 20 seconds

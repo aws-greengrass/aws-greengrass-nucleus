@@ -25,18 +25,16 @@ public class Topics extends Node implements Iterable<Node> {
         a.append(':');
         appendValueTo(a);
     }
+    public int size() { return children.size(); }
     @Override public void copyFrom(Node from) {
         assert(from!=null);
         if(from instanceof Topics) {
             ((Topics)from).forEach(n->{
                 assert(n!=null);
-                if(n instanceof Topic) {
-                    Topic t = createLeafChild(n.name);
-                    t.copyFrom(n);
-                } else {
-                    Topics t = createInteriorChild(n.name);
-                    t.copyFrom(n);
-                }
+                if(n instanceof Topic)
+                    createLeafChild(n.name).copyFrom(n);
+                else
+                    createInteriorChild(n.name).copyFrom(n);
             });
         }
         else
@@ -78,7 +76,7 @@ public class Topics extends Node implements Iterable<Node> {
             n = n.createInteriorChild(path[i]);
         return n.createLeafChild(path[limit]);
     }
-    void publish(Topic t) {
+    public void publish(Topic t) {
         childChanged(WhatHappened.childChanged, t);
     }
     public void mergeMap(long t, Map<Object, Object> map) {

@@ -4,9 +4,12 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.config.Topic;
+import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.util.*;
+import java.util.regex.*;
 
 public class Coerce {
     private Coerce() {
@@ -59,6 +62,28 @@ public class Coerce {
         if(o instanceof Topic) o = ((Topic)o).getOnce();
         return o == null ? null : o.toString();
     }
+    public static String[] toStringArray(Object o) {
+        if(o instanceof Topic) o = ((Topic)o).getOnce();
+        if(o==null) return new String[0];
+        if(o instanceof String[]) return (String[]) o;
+        if(o.getClass().isArray()) {
+            int len = Array.getLength(o);
+            String[] ret = new String[len];
+            for(int i = 0; i<len; i++) {
+                Object e = Array.get(o, i);
+                ret[i] = e==null ? "" : e.toString();
+            }
+            return ret;
+        }
+        String body = o.toString();
+        Matcher uw = unwrap.matcher(body);
+        if(uw.matches()) body = uw.group(1);
+        body = body.trim();
+        if(isEmpty(body)) return new String[0];
+        return seperators.split(body);
+    }
+    private static Pattern seperators = Pattern.compile(" *, *");
+    private static Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
     public static <T extends Enum> T toEnum(Class<T> cl, Object o) {
         if(cl.isAssignableFrom(o.getClass())) return (T)o;
         T[] values = cl.getEnumConstants();

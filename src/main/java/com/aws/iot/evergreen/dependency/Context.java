@@ -2,8 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.dependency;
 
-import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.*;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 
 import static com.aws.iot.evergreen.util.Utils.*;
@@ -182,6 +181,7 @@ public class Context implements Closeable {
                     }
                     else args[i] = Context.this.get(T);
                 }
+//                System.out.println("**Construct "+Utils.deepToString(cons, 90)+" "+Utils.deepToString(args, 90));
                 return put(cons.newInstance(args));
             } catch (Throwable ex) {
                 ex.printStackTrace(System.out);
@@ -265,6 +265,34 @@ public class Context implements Closeable {
                 }
         }
 
+    }
+    
+    private BlockingDeque<Runnable> serialized
+            = new LinkedBlockingDeque<>();
+    public void runOnPublishQueue(Runnable r) { serialized.add(r); }
+    public void queuePublish(Topic t) {
+        runOnPublishQueue(() -> {
+            t.fire(WhatHappened.changed);
+            if (t.parent != null) t.parent.publish(t);
+        });
+    }
+    {
+        new Thread() {
+            {
+                setName("Serialized listener processor");
+                setPriority(Thread.MAX_PRIORITY - 1);
+//                setDaemon(true);
+            }
+            @Override
+            public void run() {
+                while (true)
+                    try {
+                        serialized.takeFirst().run();
+                    } catch (Throwable t) {
+                        t.printStackTrace(System.out);
+                    }
+            }
+        }.start();
     }
 
     @Retention(RetentionPolicy.RUNTIME)
