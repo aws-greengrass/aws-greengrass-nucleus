@@ -143,6 +143,7 @@ public class Configuration {
         return this;
     }
     public Throwable readMerge(URL u) {
+        // TODO: this should probably be in Kernel
         CountDownLatch ready = new CountDownLatch(1);
         AtomicReference<Throwable> ret = new AtomicReference<>();
         /* We run the operation on the publish queue to ensure that no listeners are
@@ -152,7 +153,8 @@ public class Configuration {
                 Configuration nc = new Configuration(context);
                 nc.copyFrom(this);
                 nc.read(u);
-                /* TODO: figure out what needs to be shut down and restarted */
+                // TODO: figure out what needs to be shut down and restarted
+                //  rather than just doing the blind copy that is here 
                 copyFrom(nc);
             } catch(Throwable t) {
                 context.get(Log.class).error("readMerge",u,t);

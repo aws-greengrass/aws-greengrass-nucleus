@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.util.*;
 import static com.aws.iot.evergreen.util.Utils.*;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
@@ -111,7 +110,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     mainServiceName = getArg();
                     break;
                 case "-print":
-                    print(System.out);
+                    writeConfig(new OutputStreamWriter(System.out));
                     break;
                 default:
                     System.err.println("Undefined command line argument: " + arg);
@@ -168,10 +167,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             try {
                 if (haveRead) {
                     // new config file came in from the outside
-                    try ( CommitableWriter out = CommitableWriter.abandonOnClose(configurationFile)) {
-                        print(uncloseable(out));
-                        out.commit();
-                    }
+                    writeEffectiveConfig(configurationFile);
                     Files.deleteIfExists(transactionLogPath);
                 } else {
                     if (Files.exists(configurationFile))
@@ -184,8 +180,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 //                }
                 ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
             } catch (Throwable ioe) {
-                ioe.printStackTrace(System.err);
+                // Too early in the boot to log a message
                 System.err.println("Couldn't read config: " + getUltimateMessage(ioe));
+                ioe.printStackTrace(System.err);
                 broken = true;
                 return this;
             }
@@ -229,6 +226,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                             PosixFilePermissions.fromString("rwx------")));
             return true;
         } catch (IOException ex) {
+            // Likely to be too early in the boot to log a message
+            // TODO: fix log mechanism to allow for early logging
             System.err.println("Could not create " + p);
             ex.printStackTrace(System.err);
             return false;
@@ -304,20 +303,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      */
     public void writeEffectiveConfig(Path p) {
         Log log = context.get(Log.class);
-        try {
-            CommitableWriter out = CommitableWriter.commitOnClose(p);
-            try {
-                writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
-                out.commit();
-                log.note("Wrote efective config",p);
-            } catch(Throwable t) { 
-                log.error("Failed to write effective config",t);
-                out.abandon();
-            }
+        try(CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
+            writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
+            out.commit();
+            log.note("Wrote effective config",p);
         } catch(Throwable t) {
             log.error("Failed to write effective config",t);
         }
-        
     }
     public void installEverything() throws Throwable {
         if (broken)
@@ -359,7 +351,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             JSON.std.with(new YAMLFactory())
                     .write(h, w);
         } catch (IOException ex) {
-            ex.printStackTrace(System.out);
+            context.get(Log.class).error("Couldn't write config file", ex);
         }
     }
     public void shutdown() {
@@ -381,23 +373,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
 
     }
-
-    
-    public Kernel print(OutputStream out) {
-        return print(new BufferedWriter(new OutputStreamWriter(out)));
-    }
-    public Kernel print(Writer out) {
-        try {
-            com.fasterxml.jackson.jr.ob.JSON.std
-                    .with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
-                    .with(PRETTY_PRINT_OUTPUT)
-                    //                    .without(AUTO_CLOSE_TARGET)
-                    .write(toPOJO(), out);
-        } catch (IOException ex) {
-            ex.printStackTrace(System.out);
-        }
-        return this;
-    }
     public String deTilde(String s) {
         if (s.startsWith("~/"))
             s = homePath.resolve(s.substring(2)).toString();
@@ -408,13 +383,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (clitoolPath != null && s.startsWith("~bin/"))
             s = clitoolPath.resolve(s.substring(5)).toString();
         return s;
-    }
-    public static Writer uncloseable(Writer w) {
-        return new FilterWriter(w) {
-            @Override
-            public void close() {
-            }
-        };
     }
     public Path rootPath;
     public Path configPath;
