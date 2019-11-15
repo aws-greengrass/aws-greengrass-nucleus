@@ -54,6 +54,8 @@ public class CoerceTest {
         t("");
         t("[]");
         t("[  ]");
+        t("[foo, bar, baz]", "foo", "bar", "baz");
+        t("foo, bar, baz]", "foo", "bar", "baz]");
         t("foo","foo");
         t("foo, bar, baz","foo", "bar", "baz");
         t("foo , bar, baz ","foo", "bar", "baz");
