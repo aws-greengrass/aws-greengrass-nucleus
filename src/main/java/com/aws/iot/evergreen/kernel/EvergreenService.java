@@ -38,7 +38,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public Topic getStateTopic() {
         return state;
     }
-    public Log log() { return context.get(Log.class); }
     public boolean isRunningInternally() {
         Future b = backingTask;
         return b!=null && !b.isDone();
@@ -151,7 +150,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 //            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
             if(e instanceof Throwable) ((Throwable)e).printStackTrace(System.err);
         }
-        else log().error(this,message,e);
+        else context.getLog().error(this,message,e);
         setState(State.Errored);
     }
     public boolean errored() {
@@ -303,7 +302,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                         break;
                     }
                 if (x == null)
-                    errored("does not match any EvergreenService state", startWhen);
+                    errored(startWhen+" does not match any EvergreenService state name", name);
             }
         }
         addDependency(name, x == null ? State.Running : x);
@@ -318,8 +317,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             else
                 errored("Couldn't locate", name);
         } catch (Throwable ex) {
-            errored("Failure adding dependency", ex);
-            ex.printStackTrace(System.out);
+            errored("Failure adding dependency to "+this, ex);
         }
     }
     private static final Pattern depParse = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
@@ -357,9 +355,9 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 //                            System.out.println("Reading "+u);
                             k.read(u);
 //                            System.out.println("*** found "+name);
-                            context.get(Log.class).log(
+                            context.getLog().log(
                                     t.isEmpty() ? Log.Level.Error : Log.Level.Note,
-                                    name, "Found external definition");
+                                    name, "Found external definition",s);
                         } catch (IOException ex) {}
                     else break;
                 if(t.isEmpty())
@@ -373,7 +371,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 try {
                     clazz = Class.forName(cn);
                 } catch (Throwable ex) {
-                    ex.printStackTrace(System.out);
+                    context.getLog().error("Can't find class definition",ex);
                     return errNode(context, name, "creating code-backed service from " + cn, ex);
                 }
             }
@@ -389,7 +387,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                         context.put(ret.getClass(), v);
                     }
                 } catch (Throwable ex) {
-                    ex.printStackTrace(System.out);
+                    context.getLog().error("Can't create instance of "+clazz,ex);
                     ret = errNode(context, name, "creating code-backed service from " + clazz.getSimpleName(), ex);
                 }
             }
@@ -399,6 +397,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 try {
                     ret = new GenericExternalService(t);
                 } catch (Throwable ex) {
+                    context.getLog().error("Can't create generic instance from "+Coerce.toString(t),ex);
                     ret = errNode(context, name, "Creating generic service", ex);
                 }
             return ret;
@@ -406,13 +405,13 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
     public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
         try {
-            context.get(Log.class).error("Error locating service",name,message,ex);
+            context.getLog().error("Error locating service",name,message,ex);
             EvergreenService service = new GenericExternalService(Topics.errorNode(context, name,
                     "Error locating service " + name + ": " + message
                             + (ex == null ? "" : "\n\t" + ex)));
             return service;
         } catch (Throwable ex1) {
-            context.get(Log.class).error(name,message,ex);
+            context.getLog().error(name,message,ex);
             return null;
         }
     }

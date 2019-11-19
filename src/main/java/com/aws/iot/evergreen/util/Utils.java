@@ -21,6 +21,16 @@ public class Utils {
         }
         else return null;
     }
+    public static Throwable flush(Object c) {
+        if(c instanceof Flushable)
+        try {
+            ((Flushable)c).flush();
+            return null;
+        } catch (Throwable t) {
+            return t;
+        }
+        else return null;
+    }
     public static boolean isEmpty(String s) {
         if(s==null) return true;
         int len = s.length();

@@ -138,7 +138,7 @@ public class Topics extends Node implements Iterable<Node> {
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
-                    context.get(Log.class).error(getFullName(),ex);
+                    context.getLog().error(getFullName(),ex);
                 }
         if(parent!=null) parent.childChanged(WhatHappened.childChanged, this);
     }
@@ -155,7 +155,7 @@ public class Topics extends Node implements Iterable<Node> {
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
-                    context.get(Log.class).error(getFullName(),ex);
+                    context.getLog().error(getFullName(),ex);
                 }
         if(parent!=null) parent.childChanged(this);
     }
