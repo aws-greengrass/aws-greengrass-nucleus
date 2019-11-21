@@ -2,8 +2,10 @@ package com.aws.iot.ipc;
 
 import com.aws.iot.config.Topics;
 import com.aws.iot.dependency.ImplementsService;
+import com.aws.iot.dependency.State;
 import com.aws.iot.gg2k.GGService;
 import com.aws.iot.ipc.common.Server;
+import com.aws.iot.ipc.exceptions.IPCGenericException;
 import com.aws.iot.ipc.handler.DefaultHandlerImpl;
 
 
@@ -44,20 +46,25 @@ public class IPCService extends GGService {
     public void startup() {
         log().log(Level.Note, "Startup called for IPC service");
         server.startup();
-        //TODO: propagate port number to env variables of external process
-        config.lookup("port").setValue(server.getPort());
+        //TODO: propagate server information to external process via env variables
+        server.getServerInfo().forEach((key,value) -> config.lookup(key).setValue(value));
         super.startup();
     }
 
     @Override
     public void run() {
         log().log(Level.Note, "Run called for IPC service");
-        server.run();
+        try {
+            server.run();
+        } catch (IPCGenericException e) {
+            setState(State.Errored);
+        }
     }
 
     @Override
     public void shutdown() {
         log().log(Level.Note, "Shutdown called for IPC service");
+        //TODO: transition to errored state if shutdown failed ?
         server.shutdown();
         eventHandler.shutdown();
     }

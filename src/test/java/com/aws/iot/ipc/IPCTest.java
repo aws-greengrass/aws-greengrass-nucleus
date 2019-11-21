@@ -37,9 +37,11 @@ public class IPCTest {
         IPCService ipc = (IPCService) gg.context.getvIfExists("IPCService").get();
         Topic port = (Topic) ipc.config.getChild("port");
 
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress("127.0.0.1").port((Integer)port.getOnce()).build();
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress("127.0.0.1").port( Integer.valueOf((String)port.getOnce())).build();
         IPCClient client = new IPCClientImpl(config);
         client.connect();
+        assertTrue(client.ping());
+        assertTrue(client.ping());
         assertTrue(client.ping());
         client.disconnect();
 
