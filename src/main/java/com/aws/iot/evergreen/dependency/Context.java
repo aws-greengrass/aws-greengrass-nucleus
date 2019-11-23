@@ -10,7 +10,6 @@ import static com.aws.iot.evergreen.util.Utils.*;
 import java.io.*;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
-import java.time.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import javax.inject.*;
@@ -24,7 +23,6 @@ public class Context implements Closeable {
     private final Log log = new Log();  // Some painful meta-circularities make life easier if the log is slightly magical
     {
         parts.put(Context.class, new Value(Context.class, this));
-        parts.put(Clock.class, new Value(Clock.class, Clock.systemUTC()));  // can be overwritten
         parts.put(Log.class, new Value(Log.class, log));
     }
     public Log getLog() { return log; }

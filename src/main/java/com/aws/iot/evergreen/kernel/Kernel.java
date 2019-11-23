@@ -199,11 +199,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         .subscribe((w, nv)
                                 -> log.logTo(deTilde(Coerce.toString(nv.getOnce()))));
                 lookup("log","level")
-                        .dflt(0)
+                        .dflt(Log.Level.Note)
                         .validate((nv, ov) -> Coerce.toEnum(Log.Level.class, nv, Log.Level.Note))
                         .subscribe((w, nv) -> log.setLogLevel((Log.Level)nv.getOnce()));
-                if(!log.isDraining())
-                    log.logTo("stdout");
         }
         log.addWatcher(logWatcher);
         if (!forReal)

@@ -10,7 +10,6 @@ import java.time.*;
 import java.time.format.*;
 import java.util.concurrent.*;
 import java.util.function.*;
-import javax.inject.*;
 
 public class Log implements Closeable {
     public enum Level {
@@ -33,12 +32,12 @@ public class Log implements Closeable {
     private volatile Drainer drainer;
     private Thread handler;
     final ArrayBlockingQueue<Entry> queue = new ArrayBlockingQueue<>(100, false);
-    @Inject Clock clock;
     private Level loglevel = Level.Note;
     public void log(Level l, Object... args) {
-        Instant now = clock!=null ? clock.instant() : Clock.systemUTC().instant();
+        /* TODO: eventually, this (and everything else that deals with time)
+         * needs to be make more flexible to work with a simulation-time clock */
         if(l.ordinal()>=loglevel.ordinal())
-            log(new Entry(now, l, args));
+            log(new Entry(Clock.systemUTC().instant(), l, args));
     }
 
     public abstract class Drainer implements Closeable {
