@@ -85,6 +85,9 @@ public class Coerce {
     private static Pattern seperators = Pattern.compile(" *, *");
     private static Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
     public static <T extends Enum> T toEnum(Class<T> cl, Object o) {
+        return toEnum(cl,o,null);
+    }
+    public static <T extends Enum> T toEnum(Class<T> cl, Object o, T dflt) {
         if(cl.isAssignableFrom(o.getClass())) return (T)o;
         T[] values = cl.getEnumConstants();
         if(o instanceof Number)
@@ -96,7 +99,7 @@ public class Coerce {
             if(vs.length()<l) continue;
             if(vs.regionMatches(true, 0, s, 0, l)) return v;
         }
-        return null;
+        return dflt;
     }
     public static String toQuotedString(Object o) {
         if(o instanceof Topic) o = ((Topic)o).getOnce();

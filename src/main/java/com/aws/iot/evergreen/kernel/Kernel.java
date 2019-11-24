@@ -92,7 +92,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     break;
                 case "-log":
                 case "-l":
-                    lookup("system","logfile").setValue(getArg());
+                    lookup("log","file").setValue(getArg());
                     break;
                 case "-search":
                 case "-s":
@@ -185,14 +185,24 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
             } catch (Throwable ioe) {
                 // Too early in the boot to log a message
-                System.err.println("Couldn't read config: " + getUltimateMessage(ioe));
-                ioe.printStackTrace(System.err);
+                context.getLog().error("Couldn't read config", ioe);
                 broken = true;
                 return this;
             }
 //        if (broken)
 //            System.exit(126);
-        final Log log = context.get(Log.class);
+        final Log log = context.getLog();
+        if(!log.isDraining()) {
+            //lookup("system","logfile").
+                lookup("log","file")
+                        .dflt("stdout")
+                        .subscribe((w, nv)
+                                -> log.logTo(deTilde(Coerce.toString(nv.getOnce()))));
+                lookup("log","level")
+                        .dflt(Log.Level.Note)
+                        .validate((nv, ov) -> Coerce.toEnum(Log.Level.class, nv, Log.Level.Note))
+                        .subscribe((w, nv) -> log.setLogLevel((Log.Level)nv.getOnce()));
+        }
         log.addWatcher(logWatcher);
         if (!forReal)
             context.put(ShellRunner.class,
@@ -215,7 +225,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             if(!installOnly)
                 startEverything();
         } catch (Throwable ex) {
-            context.get(Log.class).error("install", ex);
+            context.getLog().error("install", ex);
         }
         return this;
     }
@@ -223,17 +233,14 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         logWatcher = lw;
     }
     private Consumer<Log.Entry> logWatcher = null;
-    private static boolean ensureCreated(Path p) {
+    private boolean ensureCreated(Path p) {
         try {
             Files.createDirectories(p,
                     PosixFilePermissions.asFileAttribute(
                             PosixFilePermissions.fromString("rwx------")));
             return true;
         } catch (IOException ex) {
-            // Likely to be too early in the boot to log a message
-            // TODO: fix log mechanism to allow for early logging
-            System.err.println("Could not create " + p);
-            ex.printStackTrace(System.err);
+            context.getLog().error("Could not create", p, ex);
             return false;
         }
     }
@@ -265,7 +272,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.get(EZTemplates.class).rewrite(resource, dest);
             Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
         } catch(Throwable t) {
-            context.get(Log.class).error("installCliTool",t);
+            context.getLog().error("installCliTool",t);
         }
     }
     private Collection<EvergreenService> cachedOD = null;
@@ -291,7 +298,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             }
             return cachedOD = ready;
         } catch (Throwable ex) {
-            context.get(Log.class).error(ex);
+            context.getLog().error(ex);
             return Collections.EMPTY_LIST;
         }
     }
@@ -306,19 +313,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * after the weaving-together process.
      */
     public void writeEffectiveConfig(Path p) {
-        Log log = context.get(Log.class);
         try(CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
             writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
             out.commit();
-            log.note("Wrote effective config",p);
+            context.getLog().note("Wrote effective config",p);
         } catch(Throwable t) {
-            log.error("Failed to write effective config",t);
+            context.getLog().error("Failed to write effective config",t);
         }
     }
     public void installEverything() throws Throwable {
         if (broken)
             return;
-        Log log = context.get(Log.class);
+        Log log = context.getLog();
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
@@ -328,7 +334,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public void startEverything() throws Throwable {
         if (broken)
             return;
-        Log log = context.get(Log.class);
+        Log log = context.getLog();
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
@@ -355,13 +361,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             JSON.std.with(new YAMLFactory())
                     .write(h, w);
         } catch (IOException ex) {
-            context.get(Log.class).error("Couldn't write config file", ex);
+            context.getLog().error("Couldn't write config file", ex);
         }
     }
     public void shutdown() {
         if (broken)
             return;
-        Log log = context.get(Log.class);
+        Log log = context.getLog();
         try {
             log.significant("Installing software", getMain());
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);

@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.util.Log;
 import static com.aws.iot.evergreen.util.Utils.*;
 import com.fasterxml.jackson.jr.ob.JSON;
 import java.io.*;
@@ -100,16 +99,15 @@ public class Configuration {
         root.deepForEachTopic(f);
     }
     public Configuration read(String s) throws IOException {
-        System.out.println("Reading " + s);
         return s.contains(":/") ? read(new URL(s)) : read(Paths.get(s));
     }
     public Configuration read(URL url) throws IOException {
-        System.out.println("Reading " + url);
+        context.getLog().significant("Reading URL", url);
         URLConnection u = url.openConnection();
         return read(u.getInputStream(), extension(url.getPath()), u.getLastModified());
     }
     public Configuration read(Path s) throws IOException {
-        System.out.println("Reading " + s);
+        context.getLog().significant("Reading", s);
         return read(Files.newBufferedReader(s), extension(s.toString()),
                 Files.getLastModifiedTime(s).toMillis());
     }
@@ -150,14 +148,14 @@ public class Configuration {
          * fired while the large config change is happening */
         context.runOnPublishQueue(()->{
             try {
-                Configuration nc = new Configuration(context);
-                nc.copyFrom(this);
-                nc.read(u);
+                Configuration copyOfCurrent = new Configuration(context);
+                copyOfCurrent.copyFrom(this);
+                copyOfCurrent.read(u);
                 // TODO: figure out what needs to be shut down and restarted
                 //  rather than just doing the blind copy that is here 
-                copyFrom(nc);
+                copyFrom(copyOfCurrent);
             } catch(Throwable t) {
-                context.get(Log.class).error("readMerge",u,t);
+                context.getLog().error("readMerge",u,t);
                 ret.set(t);
             }
             ready.countDown();

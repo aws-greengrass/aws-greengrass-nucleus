@@ -4,25 +4,28 @@ package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.*;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.util.*;
 
 import static com.aws.iot.evergreen.util.Utils.*;
 import java.io.*;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
-import java.time.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import javax.inject.*;
+import javax.inject.Named;
 
 /**
  * A collection of Objects that work together
  */
 public class Context implements Closeable {
     private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
+    private final Log log = new Log();  // Some painful meta-circularities make life easier if the log is slightly magical
     {
         parts.put(Context.class, new Value(Context.class, this));
-        parts.put(Clock.class, new Value(Clock.class, Clock.systemUTC()));  // can be overwritten
+        parts.put(Log.class, new Value(Log.class, log));
     }
+    public Log getLog() { return log; }
     public <T> T get(Class<T> cl) {
         return getv0(cl, cl).get();
     }
@@ -88,14 +91,15 @@ public class Context implements Closeable {
         if (shuttingDown) return;
         shuttingDown = true;
         forEach(v -> {
+            Object vv = v.value;
             try {
-                Object vv = v.value;
-                if (vv instanceof Closeable)
+                if (vv instanceof Closeable && vv!=log)
                     ((Closeable) vv).close();
             } catch (Throwable t) {
-                t.printStackTrace(System.out);
+                log.error("Failed to shutdown",Coerce.toString(vv),t);
             }
         });
+        Utils.close(log);
     }
     @Override
     public void close() throws IOException {
@@ -184,7 +188,7 @@ public class Context implements Closeable {
 //                System.out.println("**Construct "+Utils.deepToString(cons, 90)+" "+Utils.deepToString(args, 90));
                 return put(cons.newInstance(args));
             } catch (Throwable ex) {
-                ex.printStackTrace(System.out);
+                log.error("Can't create instance of",targetClass,ex);
                 throw new IllegalArgumentException("Can't create instance of "+targetClass.getName(), ex);
             }
         }
@@ -217,7 +221,7 @@ public class Context implements Closeable {
                     injectionActions.preInject();
                 } catch (Throwable e) {
                     if (asService != null) asService.errored("preInject", e);
-                    else e.printStackTrace(System.err);  //TODO: be less stupid
+                    else getLog().error("preInject",cl,e);
                 }
             while (cl != null && cl != Object.class) {
                 for (Field f : cl.getDeclaredFields()) {
@@ -246,11 +250,10 @@ public class Context implements Closeable {
                                         startWhen == null ? State.Running
                                                 : startWhen.value());
                         } catch (Throwable ex) {
-                            ex.printStackTrace(System.err);
                             if (asService != null)
                                 asService.errored("Injecting", ex);
                             else
-                                System.err.println("Error injecting into " + f + "\n\t" + ex);
+                                log.error("Error injecting into", f, ex);
                         }
 //                    else System.out.println("\tSKIP");
                 }
@@ -261,7 +264,7 @@ public class Context implements Closeable {
                     injectionActions.postInject();
                 } catch (Throwable e) {
                     if (asService != null) asService.errored("postInject", e);
-                    else e.printStackTrace(System.err);  //TODO: be less stupid
+                    else log.error("postInject", value.getClass(),e);
                 }
         }
 
@@ -285,12 +288,14 @@ public class Context implements Closeable {
             }
             @Override
             public void run() {
-                while (true)
+                while (true) try {
+                    Runnable task = serialized.takeFirst();
                     try {
-                        serialized.takeFirst().run();
+                        task.run();
                     } catch (Throwable t) {
-                        t.printStackTrace(System.out);
+                        log.error("subscription listener errored",task.getClass(),t);
                     }
+                } catch(InterruptedException e){}
             }
         }.start();
     }

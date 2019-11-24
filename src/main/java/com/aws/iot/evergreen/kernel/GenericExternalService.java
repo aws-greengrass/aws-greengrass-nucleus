@@ -44,27 +44,27 @@ public class GenericExternalService extends EvergreenService {
         if (run("run", exit -> {
             if (exit == 0) {
                 setState(State.Finished);
-                log().significant("Finished", getName());
+                context.getLog().significant("Finished", getName());
             } else {
                 setState(State.Errored);
-                log().error("Failed", getName(), exit);
+                context.getLog().error("Failed", getName(), exit);
             }
         })==RunStatus.NothingDone) {
-            log().significant("run: NothingDone", getName());
+            context.getLog().significant("run: NothingDone", getName());
             setState(State.Finished);
         }
     }
 
     @Override
     public void shutdown() {
-//        log().significant("shutdown", this);
+//        context.getLog().significant("shutdown", this);
         run("shutdown", null);
     }
 
     protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);
         if(n==null) {
-//            if(required) log().warn("Missing",name,this);
+//            if(required) context.getLog().warn("Missing",name,this);
             return RunStatus.NothingDone;
         }
         return run(n, background);
@@ -90,7 +90,7 @@ public class GenericExternalService extends EvergreenService {
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
         if(exec!=null) { // there's something to run
             addEnv(exec, t.parent);
-            log().significant(this,"exec",cmd);
+            context.getLog().significant(this,"exec",cmd);
             return shellRunner.successful(exec, cmd, background)
                     ? RunStatus.OK : RunStatus.Errored;
         }
@@ -138,7 +138,7 @@ public class GenericExternalService extends EvergreenService {
             }
         }
         else {
-            log().significant("Skipping", t.getFullName());
+            context.getLog().significant("Skipping", t.getFullName());
             return RunStatus.OK;
         }
     }

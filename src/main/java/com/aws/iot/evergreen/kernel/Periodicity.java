@@ -75,7 +75,7 @@ public class Periodicity {
             if (ε < 0) ε = 0;
             if (ε > 1) ε = 1;
         } catch (Throwable t) {
-            service.log().warn("Error parsing fuzz factor: " + Coerce.toString(fuzz), t);
+            service.context.getLog().warn("Error parsing fuzz factor: " + Coerce.toString(fuzz), t);
             ε = 0.5f;
         }
         long myT = now / ΔT * ΔT + ϕ

@@ -17,7 +17,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 ConfigurationWriter cs = new ConfigurationWriter(c, out)) {
             cs.writeAll();
         } catch (IOException ex) {
-            c.root.context.get(Log.class).error("ConfigurationWriter.dump",ex);
+            c.root.context.getLog().error("ConfigurationWriter.dump",ex);
         }
     }
     @SuppressWarnings("LeakingThisInConstructor")
@@ -59,7 +59,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 Coerce.toParseableString(n.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
-                n.context.get(Log.class).error("ConfigurationWriter.published",n.getFullName(),ex);
+                n.context.getLog().error("ConfigurationWriter.published",n.getFullName(),ex);
             }
     }
     public void writeAll() { //TODO double check this
