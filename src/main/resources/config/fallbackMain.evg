@@ -1,0 +1,7 @@
+fallbackMain:
+    # TODO: do something reasonable here to cause communication to be re-established
+    # when the root config fails to load
+    run: |
+        (echo The config file failed to load $[config]/config.yaml)|tee /dev/tty
+    periodic: 20 seconds
+
