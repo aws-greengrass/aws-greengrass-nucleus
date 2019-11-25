@@ -2,38 +2,35 @@ package com.aws.iot.ipc.handler;
 
 import com.aws.iot.evergreen.ipc.common.Constants;
 import com.aws.iot.ipc.common.Connection;
+import com.aws.iot.ipc.exceptions.IPCClientNotAuthorizedException;
 
-import static com.aws.iot.evergreen.ipc.common.FrameReader.*;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
 public class AuthHandler {
+    /**
+     *
+     * @param request
+     * @param connection
+     * @return
+     * @throws Exception
+     */
 
-    public AuthResponse doAuth(MessageFrame request, Connection connection) {
+    public String doAuth(MessageFrame request, Connection connection) throws IPCClientNotAuthorizedException {
 
         // First frame should be the auth request
         if (request.message.getOpCode() != Constants.AUTH_OP_CODE) {
-            return new AuthResponse(null,false,"Invalid Auth request");
+            throw new IPCClientNotAuthorizedException("Invalid Auth request");
         }
 
         if(!connection.isLocal()){
-            // Do Auth
+            //TODO: Do Auth
         }
-        //TODO: implement
+        //TODO: do this in a backward compatible way
         String clientId = new String(request.message.getPayload());
         if(clientId.isEmpty()){
-            return new AuthResponse(null,false,"ClientId is empty");
+            throw new IPCClientNotAuthorizedException("ClientId is empty");
         }
-        return new AuthResponse(clientId,true,null);
+        return clientId;
     }
 
-    class AuthResponse{
-        public final String clientId;
-        public final boolean isAuthorized;
-        public final String errorMsg;
-
-        public AuthResponse(String clientId, boolean isAuthorized, String errorMsg) {
-            this.clientId = clientId;
-            this.isAuthorized = isAuthorized;
-            this.errorMsg = errorMsg;
-        }
-    }
 }

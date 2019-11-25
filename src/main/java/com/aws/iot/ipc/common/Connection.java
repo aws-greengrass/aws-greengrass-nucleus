@@ -2,7 +2,6 @@ package com.aws.iot.ipc.common;
 
 import com.aws.iot.ipc.exceptions.ClientClosedConnectionException;
 import com.aws.iot.ipc.exceptions.ConnectionIOException;
-import com.aws.iot.ipc.exceptions.ConnectionClosedException;
 
 import java.io.*;
 import java.net.Socket;
@@ -10,12 +9,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.iot.evergreen.ipc.common.FrameReader.*;
 
+/**
+ * Represents a long lived connection with an external process.
+ */
+
 public interface Connection {
-    MessageFrame read() throws ClientClosedConnectionException, ConnectionIOException;
+
+    MessageFrame read() throws ConnectionIOException;
 
     MessageFrame readWithTimeOut(int timeoutInMilliSec);
 
-    void write(MessageFrame f) throws ConnectionIOException, ConnectionClosedException;
+    void write(MessageFrame f) throws ConnectionIOException;
 
     void close();
 
@@ -23,16 +27,7 @@ public interface Connection {
 
     boolean isShutdown();
 
-
-    /**
-     * Represents a long lived connection with an external process.
-     * <p>
-     * ConnectionImpl does the following:
-     * 1. listen for incoming messages and forwards them to event handler.
-     * 2. forward connection closed by client/ connection closed events to event handler
-     * 3. write outgoing message to the external process
-     */
-    class DefaultConnectionImpl implements Connection, Closeable {
+    class SocketConnectionImpl implements Connection, Closeable {
 
         private final AtomicBoolean isShutdown = new AtomicBoolean(false);
         private final Socket s;
@@ -40,7 +35,7 @@ public interface Connection {
         private final DataInputStream dataInputStream;
         private final DataOutputStream dataOutputStream;
 
-        public DefaultConnectionImpl(Socket s) throws IOException {
+        public SocketConnectionImpl(Socket s) throws IOException {
             this.s = s;
             this.s.setKeepAlive(true);
             this.dataInputStream = new DataInputStream(this.s.getInputStream());
@@ -48,8 +43,13 @@ public interface Connection {
             this.isLocalAddress = s.getInetAddress().isLoopbackAddress();
         }
 
+        /**
+         * Blocking call which will return when one MessageFrame is read from the connection input stream.
+         * readFrame is synchronized to prevent parallel reads from a single input stream. All read error are
+         * propagated upstream
+         */
         @Override
-        public MessageFrame read() throws ClientClosedConnectionException, ConnectionIOException {
+        public MessageFrame read() throws ConnectionIOException {
             try {
                 return readFrame(dataInputStream);
             } catch (EOFException eofException) {
@@ -64,15 +64,33 @@ public interface Connection {
             return null;
         }
 
+        /**
+         * Close the socket, this will also close the input/output stream. Synchronization between
+         * close and write is deferred to the callee. Closing an already closed connection will have no effect.
+         */
         @Override
         public void close() {
             isShutdown.set(true);
-            if (!s.isClosed()) {
-                try {
-                    s.close();
-                } catch (Exception e) {
-                    //log and do not throw
-                }
+            try {
+                s.close();
+            } catch (Exception e) {
+                //log
+            }
+        }
+
+        /**
+         * Converts the message frame into bits and write them to output stream. writeFrame synchronizes multiple
+         * concurrent writes to the same output stream.
+         *
+         * @param f MessageFrame that will be written to the output stream
+         * @throws ConnectionIOException if any IO Error occurs while writing bits to the stream
+         */
+        @Override
+        public void write(MessageFrame f) throws ConnectionIOException {
+            try {
+                writeFrame(f, dataOutputStream);
+            } catch (IOException e) {
+                throw new ConnectionIOException("Error writing frame", e);
             }
         }
 
@@ -81,21 +99,12 @@ public interface Connection {
             return isLocalAddress;
         }
 
+        /**
+         * @return true if the connection close() method was invoked.
+         */
         @Override
         public boolean isShutdown() {
             return isShutdown.get();
-        }
-
-        @Override
-        public synchronized void write(MessageFrame f) throws ConnectionIOException, ConnectionClosedException {
-            if (isShutdown.get()) {
-                throw new ConnectionClosedException("Connection shutting down");
-            }
-            try {
-                writeFrame(f, dataOutputStream);
-            } catch (IOException e) {
-                throw new ConnectionIOException("Error writing frame", e);
-            }
         }
     }
 }

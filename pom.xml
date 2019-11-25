@@ -8,7 +8,8 @@
     <repositories>
         <repository>
             <id>evergreen-ipc-java-sdk</id>
-            <name>Evergreen ipc java sdk</name>
+            <name>Evergreen Ipc Java Sdk</name>
+            <!-- cloud front url fronting the Evergreen Ipc Java Sdk artifact in S3-->
             <url>https://d1bgkjsnbar9z4.cloudfront.net/</url>
         </repository>
     </repositories>

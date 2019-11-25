@@ -1,6 +1,6 @@
 package com.aws.iot.ipc.exceptions;
 
-public class ClientClosedConnectionException extends Exception {
+public class ClientClosedConnectionException extends ConnectionIOException {
     public ClientClosedConnectionException(String message) {
         super(message);
     }

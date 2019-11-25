@@ -7,4 +7,4 @@ plain:
 main:
   requires: IPCService
   run: |-
-    sleep 30
+    sleep 300
