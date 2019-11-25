@@ -1,8 +1,9 @@
-package com.aws.iot.ipc.handler;
+package com.aws.iot.evergreen.ipc.handler;
 
-import com.aws.iot.ipc.common.ConnectionWriter;
-import com.aws.iot.ipc.exceptions.IPCException;
-import com.aws.iot.util.Log;
+import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
+import com.aws.iot.evergreen.ipc.exceptions.IPCException;
+import com.aws.iot.evergreen.util.Log;
+
 
 import javax.inject.Inject;
 import java.util.concurrent.*;

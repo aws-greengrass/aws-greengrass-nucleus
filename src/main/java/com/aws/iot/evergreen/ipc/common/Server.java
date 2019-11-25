@@ -1,9 +1,10 @@
-package com.aws.iot.ipc.common;
+package com.aws.iot.evergreen.ipc.common;
 
-import com.aws.iot.ipc.common.Connection.SocketConnectionImpl;
-import com.aws.iot.ipc.exceptions.IPCException;
-import com.aws.iot.ipc.handler.ConnectionManager;
-import com.aws.iot.util.Log;
+import com.aws.iot.evergreen.ipc.common.Connection.SocketConnectionImpl;
+import com.aws.iot.evergreen.ipc.exceptions.IPCException;
+import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.util.Log;
+
 
 import javax.inject.Inject;
 import java.io.IOException;

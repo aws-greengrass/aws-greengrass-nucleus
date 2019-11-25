@@ -1,4 +1,4 @@
-package com.aws.iot.ipc.exceptions;
+package com.aws.iot.evergreen.ipc.exceptions;
 
 public class ConnectionIOException extends Exception {
     public ConnectionIOException(String message) {

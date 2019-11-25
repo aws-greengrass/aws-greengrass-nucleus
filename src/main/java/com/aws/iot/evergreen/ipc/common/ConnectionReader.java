@@ -1,9 +1,9 @@
-package com.aws.iot.ipc.common;
+package com.aws.iot.evergreen.ipc.common;
 
-import com.aws.iot.ipc.exceptions.ClientClosedConnectionException;
-import com.aws.iot.ipc.exceptions.ConnectionIOException;
-import com.aws.iot.ipc.handler.ConnectionManager;
-import com.aws.iot.ipc.handler.MessageDispatcher;
+import com.aws.iot.evergreen.ipc.exceptions.ClientClosedConnectionException;
+import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
+import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.ipc.handler.MessageDispatcher;
 
 /**
  * One ConnectionReader instance will be created per connection to read incoming messages.

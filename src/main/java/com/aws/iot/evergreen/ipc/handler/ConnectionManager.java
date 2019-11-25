@@ -1,11 +1,12 @@
-package com.aws.iot.ipc.handler;
+package com.aws.iot.evergreen.ipc.handler;
 
-import com.aws.iot.ipc.common.Connection;
-import com.aws.iot.ipc.common.ConnectionReader;
-import com.aws.iot.ipc.common.ConnectionWriter;
-import com.aws.iot.ipc.exceptions.ConnectionIOException;
-import com.aws.iot.ipc.exceptions.IPCClientNotAuthorizedException;
-import com.aws.iot.util.Log;
+import com.aws.iot.evergreen.ipc.common.Connection;
+import com.aws.iot.evergreen.ipc.common.ConnectionReader;
+import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
+import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
+import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.util.Log;
+
 
 import javax.inject.Inject;
 import java.util.concurrent.ConcurrentHashMap;

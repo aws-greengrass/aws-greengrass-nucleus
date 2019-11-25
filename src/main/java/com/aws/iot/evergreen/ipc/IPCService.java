@@ -1,16 +1,18 @@
-package com.aws.iot.ipc;
+package com.aws.iot.evergreen.ipc;
 
-import com.aws.iot.config.Topics;
-import com.aws.iot.dependency.ImplementsService;
-import com.aws.iot.dependency.State;
-import com.aws.iot.gg2k.GGService;
-import com.aws.iot.ipc.common.Server;
-import com.aws.iot.ipc.exceptions.IPCException;
-import com.aws.iot.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.ipc.common.Server;
+import com.aws.iot.evergreen.ipc.exceptions.IPCException;
+import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.util.Log;
 
 import javax.inject.Inject;
 
-import static com.aws.iot.util.Log.Level;
+import static com.aws.iot.evergreen.util.Log.*;
+
 
 /**
  *  Entry point to the kernel service IPC mechanism. IPC service manages the lifecycle of all IPC components
@@ -65,7 +67,7 @@ import static com.aws.iot.util.Log.Level;
  */
 
 @ImplementsService(name = "IPCService", autostart = true)
-public class IPCService extends GGService {
+public class IPCService extends EvergreenService {
 
     //TODO: figure out how to inject the interface ConnectionManager
     @Inject
@@ -73,6 +75,9 @@ public class IPCService extends GGService {
 
     @Inject
     private Server server;
+
+    @Inject
+    Log log;
 
     public IPCService(Topics c) {
         super(c);
@@ -84,14 +89,14 @@ public class IPCService extends GGService {
      */
     @Override
     public void startup() {
-        log().log(Level.Note, "Startup called for IPC service");
+        log.log(Level.Note, "Startup called for IPC service");
         try {
             server.startup();
             //TODO: propagate server information to external process via env variables
             server.getServerInfo().forEach((key,value) -> config.lookup(key).setValue(value));
             super.startup();
         } catch (IPCException e) {
-            log().error("Error starting IPC service", e);
+            log.error("Error starting IPC service", e);
             setState(State.Unstable);
             recover();
         }
@@ -102,11 +107,11 @@ public class IPCService extends GGService {
      */
     @Override
     public void run() {
-        log().log(Level.Note, "Run called for IPC service");
+        log.log(Level.Note, "Run called for IPC service");
         try {
             server.run();
         } catch (IPCException e) {
-            log().error("IPC service run() errored", e);
+            log.error("IPC service run() errored", e);
             setState(State.Unstable);
             recover();
         }
@@ -128,7 +133,7 @@ public class IPCService extends GGService {
      */
     @Override
     public void shutdown() {
-        log().log(Level.Note, "Shutdown called for IPC service");
+        log.log(Level.Note, "Shutdown called for IPC service");
         //TODO: transition to errored state if shutdown failed ?
         server.shutdown();
         connectionManager.shutdown();

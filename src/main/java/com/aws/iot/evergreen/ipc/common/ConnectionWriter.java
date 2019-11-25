@@ -1,8 +1,7 @@
-package com.aws.iot.ipc.common;
+package com.aws.iot.evergreen.ipc.common;
 
-import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.ipc.exceptions.ConnectionIOException;
-import com.aws.iot.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
+import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
 
 public class ConnectionWriter {
 

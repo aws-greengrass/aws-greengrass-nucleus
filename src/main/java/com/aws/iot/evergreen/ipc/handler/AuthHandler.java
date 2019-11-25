@@ -1,8 +1,8 @@
-package com.aws.iot.ipc.handler;
+package com.aws.iot.evergreen.ipc.handler;
 
 import com.aws.iot.evergreen.ipc.common.Constants;
-import com.aws.iot.ipc.common.Connection;
-import com.aws.iot.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.ipc.common.Connection;
+import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 
 import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 

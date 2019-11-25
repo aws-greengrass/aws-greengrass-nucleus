@@ -1,4 +1,4 @@
-package com.aws.iot.ipc.exceptions;
+package com.aws.iot.evergreen.ipc.exceptions;
 
 public class IPCClientNotAuthorizedException extends Exception {
     public IPCClientNotAuthorizedException(String message) {
