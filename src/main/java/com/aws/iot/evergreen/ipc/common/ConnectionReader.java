@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.ipc.handler.MessageDispatcher;
 
 /**
  * One ConnectionReader instance will be created per connection to read incoming messages.
- * synchronisation strategy: connections.read method is synchronized, spinning up multiple
+ * synchronisation strategy: reading from the connection is synchronized on the input stream, spinning up multiple
  * ConnectionReader per connection will be safe but exhausts resources.
  */
 public class ConnectionReader {

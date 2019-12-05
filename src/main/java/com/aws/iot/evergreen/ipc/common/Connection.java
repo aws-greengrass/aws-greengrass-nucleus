@@ -17,8 +17,6 @@ public interface Connection {
 
     MessageFrame read() throws ConnectionIOException;
 
-    MessageFrame readWithTimeOut(int timeoutInMilliSec);
-
     void write(MessageFrame f) throws ConnectionIOException;
 
     void close();
@@ -57,11 +55,6 @@ public interface Connection {
             } catch (Exception e) {
                 throw new ConnectionIOException("Error reading Frame",e);
             }
-        }
-
-        @Override
-        public MessageFrame readWithTimeOut(int timeoutInMilliSec) {
-            return null;
         }
 
         /**

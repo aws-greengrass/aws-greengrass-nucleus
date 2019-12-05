@@ -7,7 +7,6 @@ import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.util.Log;
 
-
 import javax.inject.Inject;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -71,13 +70,13 @@ public class ConnectionManager {
                 return;
             }
             // update the connected clients map and close the existing connection.
-            ConnectionWriter connectionWriter = new ConnectionWriter(connection, this, clientId);
-            ConnectionWriter existingConnection;
-            if ((existingConnection = clientIdConnectionWriterMap.put(clientId, connectionWriter)) != null) {
-                existingConnection.write(new MessageFrame(authReq.sequenceNumber, errorMessage("Duplicate clientId" + clientId), FrameType.RESPONSE));
-                existingConnection.close();
-                log.note("Closed existing connection with client id" + clientId);
-            }
+            clientIdConnectionWriterMap.compute(clientId, (id, existingConnection) -> {
+                if (existingConnection != null) {
+                    existingConnection.close();
+                    log.note("Closed existing connection with client id " + clientId);
+                }
+                return new ConnectionWriter(connection, this, clientId);
+            });
         } catch (Exception e) {
             log.error("Error processing new connection request", e);
             return;

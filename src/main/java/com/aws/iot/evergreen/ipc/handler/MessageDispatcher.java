@@ -68,7 +68,7 @@ public class MessageDispatcher {
         MessageFrame msgFrame = new MessageFrame(msg, FrameType.REQUEST);
         //TODO: return CompletableFuture with a timeout
         try {
-            threadPoolExecutor.submit(() -> processOutGoingMessage(clientId, msgFrame, future));
+            threadPoolExecutor.submit(() -> processOutgoingMessage(clientId, msgFrame, future));
         } catch (RejectedExecutionException e) {
             future.completeExceptionally(e);
         }
@@ -85,7 +85,7 @@ public class MessageDispatcher {
      * @param msgFrame
      * @param future future used to track the response of the
      */
-    public void processOutGoingMessage(String clientId, MessageFrame msgFrame, CompletableFuture<Message> future) {
+    public void processOutgoingMessage(String clientId, MessageFrame msgFrame, CompletableFuture<Message> future) {
         ConnectionWriter connection = connectionManager.getConnectionWriter(clientId);
         if (connection == null) {
             future.completeExceptionally(new IPCException("Invalid Client Id"));
