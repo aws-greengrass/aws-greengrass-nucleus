@@ -1,0 +1,10 @@
+---
+
+#launchers:
+plain:
+  startup:
+    all: "{platform.invoke} {args}"
+main:
+  requires: IPCService
+  run: |-
+    sleep 300
