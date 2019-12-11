@@ -8,8 +8,15 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 
 import java.util.concurrent.*;
-import org.junit.*;
+import org.junit.jupiter.api.Test;
+
 import javax.inject.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class LifecycleTest {
     static int seq;
@@ -31,29 +38,29 @@ public class LifecycleTest {
 //        c.setAllStates(AwaitingStartup);
         try {
             if(!cd.await(1, TimeUnit.SECONDS))
-                Assert.fail("Startup timed out");
+                fail("Startup timed out");
         } catch (InterruptedException ex) {
             ex.printStackTrace(System.out);
-            Assert.fail("Startup interrupted out");
+            fail("Startup interrupted out");
         }
-        Assert.assertNotNull(v);
-        Assert.assertNotNull(v.C2);
-        Assert.assertSame(v.C2, v.C2.C3.prov.get());
-            Assert.assertTrue(v.getState().isFunctioningProperly());
-        Assert.assertTrue(v.toString(),v.installCalled);
-        Assert.assertTrue(v.toString(),v.startupCalled);
-        Assert.assertTrue(v.C2.toString(),v.C2.startupCalled);
-            Assert.assertTrue(v.getState().isFunctioningProperly());
+        assertNotNull(v);
+        assertNotNull(v.C2);
+        assertSame(v.C2, v.C2.C3.prov.get());
+        assertTrue(v.getState().isFunctioningProperly());
+        assertTrue(v.installCalled, v.toString());
+        assertTrue(v.startupCalled, v.toString());
+        assertTrue(v.C2.startupCalled, v.C2.toString());
+        assertTrue(v.getState().isFunctioningProperly());
         context.shutdown();
         try { Thread.sleep(50); } catch (InterruptedException ex) { }
-        Assert.assertTrue(v.toString(),v.shutdownCalled);
-        Assert.assertTrue(v.C2.toString(),v.C2.shutdownCalled);
+        assertTrue(v.shutdownCalled,v.toString());
+        assertTrue(v.C2.shutdownCalled, v.C2.toString());
         System.out.println("XYXXY: "+v.getState());
-            Assert.assertEquals(State.Shutdown, v.getState());
-        Assert.assertNotNull("non-lifecycle", v.C2.C3);
-        Assert.assertSame("non-lifecycle-loop", v.C2.C3, v.C2.C3.self);
-        Assert.assertSame("non-lifecycle-parent-ref", v.C2, v.C2.C3.parent);
-        Assert.assertEquals(42,context.get(Foo.class).what());
+        assertEquals(State.Shutdown, v.getState());
+        assertNotNull(v.C2.C3, "non-lifecycle");
+        assertSame(v.C2.C3, v.C2.C3.self, "non-lifecycle-loop");
+        assertSame(v.C2, v.C2.C3.parent, "non-lifecycle-parent-ref");
+        assertEquals(42,context.get(Foo.class).what());
     }
     public class c1 extends EvergreenService {
         @Inject
@@ -70,7 +77,7 @@ public class LifecycleTest {
         @Override public void startup() {
             startupCalled = true;
             // Depen dependencies must be started first
-            Assert.assertTrue(C2.getState().isFunctioningProperly());
+            assertTrue(C2.getState().isFunctioningProperly());
             System.out.println("Startup "+this);
             super.startup();
         }
@@ -96,7 +103,7 @@ public class LifecycleTest {
         @Override public String toString() { return id; }
         { System.out.println("Creating  "+this); }
         @Override public void startup() {
-            Assert.assertNotNull(C3);
+            assertNotNull(C3);
             startupCalled = true;
             System.out.println("Startup "+this);
             System.out.println("  C3="+C3);

@@ -4,8 +4,10 @@
 package com.aws.iot.evergreen.util;
 
 import java.io.*;
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class UnsyncBufferedInputStreamTest {
 
