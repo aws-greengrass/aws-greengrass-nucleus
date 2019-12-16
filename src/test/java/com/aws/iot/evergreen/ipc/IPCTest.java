@@ -2,12 +2,12 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
-
 import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.net.URI;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -18,6 +18,7 @@ public class IPCTest {
     public static int port;
     public static String address;
     public static Kernel kernel;
+
     @BeforeClass
     public static void setup() throws Exception {
         // starting daemon
@@ -27,7 +28,7 @@ public class IPCTest {
         kernel = new Kernel();
 
         kernel.setLogWatcher(logline -> {
-            if (logline.args.length == 1 && logline.args[0].equals("Run called for IPC service") ) {
+            if (logline.args.length == 1 && logline.args[0].equals("Run called for IPC service")) {
                 OK.countDown();
             }
         });
@@ -38,12 +39,11 @@ public class IPCTest {
         );
         kernel.launch();
         OK.await(10, TimeUnit.SECONDS);
-        IPCService ipc = (IPCService) kernel.context.getvIfExists("IPCService").get();
-        Topic portTopic = (Topic) ipc.config.getChild("port");
-        port = Integer.valueOf((String)portTopic.getOnce());
-        address = "127.0.0.1";
+        Topic kernelUri = kernel.lookup("setenv", "KERNEL_URI");
+        URI serverUri = new URI((String) kernelUri.getOnce());
+        port = serverUri.getPort();
+        address = serverUri.getHost();
     }
-
 
     @AfterClass
     public static void teardown() {

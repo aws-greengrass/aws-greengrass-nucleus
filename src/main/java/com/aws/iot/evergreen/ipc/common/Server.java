@@ -1,19 +1,20 @@
 package com.aws.iot.evergreen.ipc.common;
 
+import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.ipc.common.Connection.SocketConnectionImpl;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
 import com.aws.iot.evergreen.util.Log;
-
 
 import javax.inject.Inject;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static com.aws.iot.evergreen.ipc.IPCService.*;
 
 
 /**
@@ -21,7 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class Server {
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
-    private final Map<String, String> serverInfo = new HashMap<>();
     private ServerSocket serverSocket;
     @Inject
     private Log log;
@@ -29,15 +29,20 @@ public class Server {
     @Inject
     private ConnectionManager connectionManager;
 
+    @Inject
+    private Configuration config;
+
     //TODO: handle scenario where server can recover from IOException and bind to the same address:port
     public void startup() throws IPCException {
         try {
             serverSocket = new ServerSocket();
             // specifying port 0 causes  the system to pick an ephemeral port and a valid local address to bind the socket
             serverSocket.bind(new InetSocketAddress(0));
-            //TODO: return a uri instead of a map
-            serverInfo.put("port", Integer.toString(serverSocket.getLocalPort()));
-            serverInfo.put("hostname", serverSocket.getInetAddress().getHostAddress());
+            String serverUri = "tcp://" + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort();
+            log.log(Log.Level.Note, "IPC service  URI: ", serverUri);
+            // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
+            // set via environment variables
+            config.lookup("setenv", "KERNEL_URI").setValue(serverUri);
         } catch (IOException e) {
             throw new IPCException("Server socket failed to bind() ", e);
         }
@@ -80,7 +85,4 @@ public class Server {
         }
     }
 
-    public Map<String, String> getServerInfo() {
-        return serverInfo;
-    }
 }
