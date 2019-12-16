@@ -5,8 +5,9 @@ package com.aws.iot.evergreen.util;
 
 import java.io.*;
 import java.nio.file.*;
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class UnsyncBufferedOutputStreamTest {
     OutputStream out;
@@ -32,9 +33,9 @@ public class UnsyncBufferedOutputStreamTest {
             }
             out.flush();
             cf.commit();
-            assertEquals("Size check", v, Files.size(t));
+            assertEquals(v, Files.size(t), "Size check");
             byte[] in = Files.readAllBytes(t);
-            assertEquals("Size check 2", v, in.length);
+            assertEquals(v, in.length, "Size check 2");
             for(int i = 0; i<in.length; i++) 
                 assertEquals(i&0xFF, in[i]&0xFF);
         } catch (IOException ex) {
