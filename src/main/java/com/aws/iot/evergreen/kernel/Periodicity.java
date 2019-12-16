@@ -9,10 +9,10 @@ import static com.aws.iot.evergreen.util.Utils.parseLong;
 import java.nio.CharBuffer;
 import java.util.TimeZone;
 import java.util.concurrent.*;
-//import java.util.concurrent.TimeUnit; not flexible enouth :-(
+//import java.util.concurrent.TimeUnit; not flexible enough :-(
 
 /**
- * Support for serices that are periodic. For now, it's very simplistic
+ * Support for services that are periodic. For now, it's very simplistic
  */
 public class Periodicity {
     /**
