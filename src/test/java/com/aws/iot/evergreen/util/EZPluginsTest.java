@@ -4,9 +4,12 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.dependency.EZPlugins;
+import org.junit.jupiter.api.Test;
+
 import java.io.*;
-import static org.junit.Assert.*;
-import org.junit.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class EZPluginsTest {
     int hits;

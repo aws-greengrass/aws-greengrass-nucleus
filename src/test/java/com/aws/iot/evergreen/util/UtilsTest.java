@@ -6,17 +6,15 @@ package com.aws.iot.evergreen.util;
 import static com.aws.iot.evergreen.util.Utils.*;
 import java.nio.*;
 import java.util.*;
-import org.junit.*;
-import org.junit.rules.*;
+import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.CoreMatchers.*;
 
-import static org.junit.Assert.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class UtilsTest {
-
-    @Rule
-    public ExpectedException exception = ExpectedException.none();
     
     @Test
     public void testLparse() {
@@ -36,8 +34,8 @@ public class UtilsTest {
     private static void testLparse1(String s, long expecting, String remaining) {
         CharBuffer cb = CharBuffer.wrap(s);
         long v = Utils.parseLong(cb);
-        assertEquals(s, expecting, v);
-        assertEquals(s, remaining, cb.toString());
+        assertEquals(expecting, v, s);
+        assertEquals(remaining, cb.toString(), s);
     }
 
     @Test
@@ -51,22 +49,19 @@ public class UtilsTest {
     }
     @Test
     public void testLparseBadSize() {
-        exception.expect(IndexOutOfBoundsException.class);
-        testLparseRadix1("12", 0, 3, 16, -1);
+        assertThrows(IndexOutOfBoundsException.class, () -> testLparseRadix1("12", 0, 3, 16, -1));
     }
     @Test
     public void testLparseBadLead() {
-        exception.expect(NumberFormatException.class);
-        testLparseRadix1("X12", 0, 3, 16, -1);
+        assertThrows(NumberFormatException.class, () -> testLparseRadix1("X12", 0, 3, 16, -1));
     }
     @Test
     public void testLparseBadTail() {
-        exception.expect(NumberFormatException.class);
-        testLparseRadix1("12X", 0, 3, 16, -1);
+        assertThrows(NumberFormatException.class, () -> testLparseRadix1("12X", 0, 3, 16, -1));
     }
     private static void testLparseRadix1(String s, int start, int stop, int radix, long expecting) {
         long v = Utils.parseLongChecked(s, start, stop, radix);
-        assertEquals(s, expecting, v);
+        assertEquals(expecting, v, s);
     }
 
     @Test
@@ -96,16 +91,14 @@ public class UtilsTest {
 
     @Test
     public void immutableMapOddParams() {
-        exception.expect(IllegalArgumentException.class);
-        Utils.immutableMap("a", 1, "b", 2, "c");
+        assertThrows(IllegalArgumentException.class, () -> Utils.immutableMap("a", 1, "b", 2, "c"));
     }
 
     @Test
     public void immutableMapWrite() {
         Map<String, Integer> map = Utils.immutableMap("a", 1);
         assertThat(map.get("a"), is(equalTo(1)));
-        exception.expect(UnsupportedOperationException.class);
-        map.put("b", 4);
+        assertThrows(UnsupportedOperationException.class, () -> map.put("b", 4));
     }
 
 }
