@@ -92,8 +92,6 @@ public class IPCService extends EvergreenService {
         log.log(Level.Note, "Startup called for IPC service");
         try {
             server.startup();
-            //TODO: propagate server information to external process via env variables
-            server.getServerInfo().forEach((key,value) -> config.lookup(key).setValue(value));
             super.startup();
         } catch (IPCException e) {
             log.error("Error starting IPC service", e);
@@ -116,7 +114,6 @@ public class IPCService extends EvergreenService {
             recover();
         }
     }
-
 
     private void recover(){
         try{
