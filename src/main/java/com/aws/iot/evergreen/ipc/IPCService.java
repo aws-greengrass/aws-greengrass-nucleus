@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.ipc;
 
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;

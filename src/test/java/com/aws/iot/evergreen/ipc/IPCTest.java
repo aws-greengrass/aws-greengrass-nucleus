@@ -11,6 +11,7 @@ import java.net.URI;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.ipc.common.Server.KERNEL_URI_ENV_VARIABLE_NAME;
 import static org.junit.Assert.assertTrue;
 
 public class IPCTest {
@@ -39,7 +40,7 @@ public class IPCTest {
         );
         kernel.launch();
         OK.await(10, TimeUnit.SECONDS);
-        Topic kernelUri = kernel.lookup("setenv", "KERNEL_URI");
+        Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();

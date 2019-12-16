@@ -1,7 +1,6 @@
 package com.aws.iot.evergreen.ipc.common;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.ipc.common.Connection.SocketConnectionImpl;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
@@ -14,13 +13,12 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.aws.iot.evergreen.ipc.IPCService.*;
-
 
 /**
  * Wrapper over server socket, binds to an arbitrary port and local address.
  */
 public class Server {
+    public final static String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private ServerSocket serverSocket;
     @Inject
@@ -42,7 +40,7 @@ public class Server {
             log.log(Log.Level.Note, "IPC service  URI: ", serverUri);
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
-            config.lookup("setenv", "KERNEL_URI").setValue(serverUri);
+            config.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME).setValue(serverUri);
         } catch (IOException e) {
             throw new IPCException("Server socket failed to bind() ", e);
         }
