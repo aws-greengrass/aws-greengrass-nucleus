@@ -42,6 +42,13 @@ public class GenericExternalService extends EvergreenService {
     public void run() {
 //        log().significant("running", this);
         if (run("run", exit -> {
+            if (getState() != State.Running) {
+                // If the state changed, means some other handler already handles the state transition. Eg. shutdown()
+                // Don't try to set state in this case.
+                if (exit != 0)
+                    context.getLog().error("Error in running ", getName(), exit);
+                return;
+            }
             if (exit == 0) {
                 setState(State.Finished);
                 context.getLog().significant("Finished", getName());
@@ -57,8 +64,13 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void shutdown() {
-//        context.getLog().significant("shutdown", this);
         run("shutdown", null);
+        super.shutdown();
+        if (runningExec != null && !runningExec.terminated()){
+            getContext().getLog().error("Service not shutdown. Force kill: " + getName());
+            // TODO: Send SIGTERM, wait for a timeout, recheck and send SIGKILL.
+            runningExec.terminateForcibly();
+        }
     }
 
     protected RunStatus run(String name, IntConsumer background) {
@@ -79,6 +91,8 @@ public class GenericExternalService extends EvergreenService {
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
+
+    private Exec runningExec = null;
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
         ShellRunner shellRunner = context.get(ShellRunner.class);
         EZTemplates templateEngine = context.get(EZTemplates.class);
@@ -91,6 +105,7 @@ public class GenericExternalService extends EvergreenService {
         if(exec!=null) { // there's something to run
             addEnv(exec, t.parent);
             context.getLog().significant(this,"exec",cmd);
+            runningExec = exec;
             return shellRunner.successful(exec, cmd, background)
                     ? RunStatus.OK : RunStatus.Errored;
         }
@@ -139,7 +154,7 @@ public class GenericExternalService extends EvergreenService {
         }
         else {
             context.getLog().significant("Skipping", t.getFullName());
-            return RunStatus.OK;
+            return RunStatus.NothingDone;
         }
     }
 

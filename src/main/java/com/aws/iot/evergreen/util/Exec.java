@@ -131,6 +131,17 @@ public class Exec {
                 appendStackTrace(ex, stderr);
         }
     }
+
+    public boolean terminated() {
+        return this.process == null || !this.process.isAlive();
+    }
+
+    public void terminateForcibly() {
+        if (!terminated()) {
+            this.process.destroyForcibly();
+        }
+    }
+
     public String asString() {
         StringBuilder sb = new StringBuilder();
         Consumer<CharSequence> f = s -> sb.append(s);

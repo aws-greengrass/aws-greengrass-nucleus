@@ -21,7 +21,7 @@ import java.util.prefs.*;
 /** Evergreen-kernel */
 public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
-    private boolean installOnly = false;
+    protected boolean installOnly = false;
     private boolean broken = false;
     boolean forReal = true;
     boolean haveRead = false;
@@ -34,7 +34,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         super(new Context());
         context.put(Configuration.class, this);
         context.put(Kernel.class, this);
-        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
+        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(4);
         context.put(ScheduledThreadPoolExecutor.class, ses);
         context.put(ScheduledExecutorService.class, ses);
         context.put(Executor.class, ses);
@@ -222,8 +222,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         writeEffectiveConfig();
         try {
             installEverything();
-            if(!installOnly)
-                startEverything();
         } catch (Throwable ex) {
             context.getLog().error("install", ex);
         }
@@ -325,22 +323,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (broken)
             return;
         Log log = context.getLog();
-        log.significant("Installing software", getMain());
+        log.significant("Installing software", getMain().toString());
         orderedDependencies().forEach(l -> {
-            log.significant("Starting to install", l);
+            log.significant("Starting to install", l.toString());
             l.setState(State.Installing);
         });
     }
-    public void startEverything() throws Throwable {
-        if (broken)
-            return;
-        Log log = context.getLog();
-        log.significant("Installing software", getMain());
-        orderedDependencies().forEach(l -> {
-            log.significant("Starting to install", l);
-            l.setState(State.AwaitingStartup);
-        });
-    }
+
     public void dump() {
         orderedDependencies().forEach(l -> {
             System.out.println(l.getName()+": "+l.getState());
@@ -369,15 +358,19 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return;
         Log log = context.getLog();
         try {
-            log.significant("Installing software", getMain());
+            log.significant("Shutdown software", getMain().toString());
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
-            for (int i = d.length; --i >= 0;) // shutdown in reverse order
+            for (int i = d.length; --i >= 0;) {// shutdown in reverse order
                 if (d[i].inState(State.Running))
                     try {
                         d[i].close();
                     } catch (Throwable t) {
                         log.error(d[i], "Failed to shutdown", t);
                     }
+            }
+            // Wait for tasks in the executor to end.
+            ExecutorService executorService = context.get(ExecutorService.class);
+            executorService.awaitTermination(30, TimeUnit.SECONDS);
         } catch (Throwable ex) {
             log.error("Shutdown hook failure", ex);
         }

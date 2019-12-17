@@ -54,23 +54,28 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @Override // for listening to state changes
     public void published(final WhatHappened what, final Topic topic) {
         final State newState = (State) topic.getOnce();
-//        System.out.println(getName() + ": " + activeState + " -> " + newState);
+        if (context != null && context.getLog() != null)
+            getContext().getLog().note(getName() + ": " + activeState + " -> " + newState);
         if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             setBackingTask(() -> {
                 try {
-                    shutdown();
+                    if (timer == null) {
+                        shutdown();
+                    } // otherwise let Periodicity handle state transition
                 } catch (Throwable t) {
                     errored("Failed shutting down", t);
                 }
+                backingTask = null;
             }, getName() + "=>" + newState);
         }
+
         try {
             switch(newState) {
                 case Installing:
                     setBackingTask(() -> {
                         try {
                             install();
-                            setState(State.AwaitingStartup);
+                            if (!errored()) setState(State.AwaitingStartup);
                         } catch (Throwable t) {
                             errored("Failed installing up", t);
                         }
@@ -79,7 +84,20 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                     break;
                 case AwaitingStartup:
                     awaitingStartup();
+                    if (installOnly()) {
+                        break;
+                    }
                     if(!hasDependencies() && !errored()) setState(State.Starting);
+                    else {
+                        recheckOthersDependencies();
+                        // block until all dependencies are in RUNNING or 'startwhen' status.
+                        new Thread(() -> {
+                            waitingDependencyReady();
+                            if (getState() == State.AwaitingStartup) {
+                                setState(State.Starting);
+                            }
+                        }).start();
+                    }
                     break;
                 case Starting:
                     setBackingTask(() -> {
@@ -97,7 +115,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                     break;
                 case Running:
                     if(activeState != State.Unstable) {
-                        recheckOthersDependencies();
                         setBackingTask(() -> {
                             try {
                                 run();
@@ -123,17 +140,22 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         }
         activeState = newState;
     }
+
+    String backingTaskInfo = null;
     private synchronized void setBackingTask(Runnable r, String db) {
         Future bt = backingTask;
         if(bt!=null) {
             backingTask = null;
             if(!bt.isDone()) {
-//                System.out.println("Cancelling "+db);
+                context.getLog().error("Cancelling "+backingTaskInfo);
                 bt.cancel(true);
             }
+            backingTaskInfo = null;
         }
-        if(r!=null)
+        if(r!=null) {
             backingTask = context.get(ExecutorService.class).submit(r);
+            backingTaskInfo = db;
+        }
     }
     static final void setState(Object o, State st) {
         if (o instanceof EvergreenService)
@@ -216,6 +238,14 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         context.get(Kernel.class).clearODcache();
 //        System.out.println(getName()+" depends on "+v.getName());
         dependencies.put(v, when);
+
+        v.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+            if (dependencies != null && !this.hasDependencies()) {
+                synchronized (dependencies) {
+                    dependencies.notify();
+                }
+            }
+        });
     }
     private boolean hasDependencies() {
         return dependencies != null
@@ -233,17 +263,29 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                     Object vv= v.value;
                     if(vv instanceof EvergreenService) {
                         EvergreenService l = (EvergreenService) vv;
-                        if (l.inState(State.AwaitingStartup)) {
-                            if (!l.hasDependencies()) {
-                                l.setState(State.Starting);
-                                changed.set(true);
-                            }
+                        if (l.inState(State.New)) {
+                            l.setState(State.Installing);
+                            changed.set(true);
                         }
                     }
                 });
             }
         }
     }
+
+    private void waitingDependencyReady() {
+        while(this.hasDependencies()) {
+            synchronized (this.dependencies) {
+                try {
+                    dependencies.wait();
+                } catch (InterruptedException e) {
+                    getContext().getLog().error("Interrupted while waiting for startup");
+                    return;
+                }
+            }
+        }
+    }
+
     private String status;
     public String getStatus() { return status; }
     public void setStatus(String s) { status = s; }
@@ -493,5 +535,8 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
     }
 
+    private boolean installOnly() {
+        return context.get(Kernel.class).installOnly;
+    }
 
 }

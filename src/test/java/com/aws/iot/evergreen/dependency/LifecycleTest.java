@@ -53,6 +53,7 @@ public class LifecycleTest {
         assertTrue(v.getState().isFunctioningProperly());
         context.shutdown();
         try { Thread.sleep(50); } catch (InterruptedException ex) { }
+
         assertTrue(v.shutdownCalled,v.toString());
         assertTrue(v.C2.shutdownCalled, v.C2.toString());
         System.out.println("XYXXY: "+v.getState());
@@ -76,12 +77,13 @@ public class LifecycleTest {
         }
         @Override public void startup() {
             startupCalled = true;
-            // Depen dependencies must be started first
+            // Dependencies must be started first
+            System.out.println("C2 state in C1" + C2.getState().toString());
             assertTrue(C2.getState().isFunctioningProperly());
             System.out.println("Startup "+this);
             super.startup();
         }
-        @Override public void shutdown() { 
+        @Override public void shutdown() {
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
             super.shutdown();
@@ -109,7 +111,7 @@ public class LifecycleTest {
             System.out.println("  C3="+C3);
             super.startup();
         }
-        @Override public void shutdown() { 
+        @Override public void shutdown() {
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
             super.shutdown();
