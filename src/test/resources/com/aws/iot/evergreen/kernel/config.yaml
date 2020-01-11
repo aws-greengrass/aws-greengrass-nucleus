@@ -9,11 +9,8 @@
       macos:
         skipif: java -version 2>&1|egrep -i '(java|jdk|jre) *(version)?[ "]*(1.8|8|9|1[0-9])\.'
         script: |-
-            curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.3.7.1/amazon-corretto-11.0.3.7.1-macosx-x64.pkg>/tmp/c11.pkg
+            curl -L --silent https://corretto.aws/downloads/latest/amazon-corretto-11-x64-macos-jdk.pkg >/tmp/c11.pkg
             open /tmp/c11.pkg
-    invoke:
-      macos: /usr/libexec/java_home -v 11 --request -exec {args}
-      linux: java {args}
   git:
       install:
           debian:

@@ -34,20 +34,20 @@ public enum State {
      * ever take a significant amount of time to run.
      */
     Running(true, true, true),
-    /**
-     * Running, but experiencing problems that the service is attempting to
-     * repair itself
-     */
-    Unstable(false, true, false),
+//    /**
+//     * Running, but experiencing problems that the service is attempting to
+//     * repair itself
+//     */
+//    Unstable(false, true, false),
     /**
      * Not running. It may be possible for the enclosing framework to restart
      * it.
      */
     Errored(false, false, false),
-    /**
-     * In the process of being restarted
-     */
-    Recovering(false, false, false),
+//    /**
+//     * In the process of being restarted
+//     */
+//    Recovering(false, false, false),
     /**
      * Shut down, cannot be restarted.  Generally the result of an unresolvable error.
      */

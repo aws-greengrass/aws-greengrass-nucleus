@@ -23,11 +23,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
     private boolean installOnly = false;
     private boolean broken = false;
+    private ConfigurationWriter tlog;
     boolean forReal = true;
     boolean haveRead = false;
     private final Map<String,Class> serviceImplementors = new HashMap<>();
     public static void main(String[] args) {
-        Kernel kernel = new Kernel().parseArgs(args).launch();
+        new Kernel().parseArgs(args).launch();
     }
     @SuppressWarnings("LeakingThisInConstructor")
     public Kernel() {
@@ -182,7 +183,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 //                if(size()<=1) {
 //                    read(Kernel.class.getResource("default.yaml"));
 //                }
-                ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
+                tlog = ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
+                tlog.flushImmediately(true);
             } catch (Throwable ioe) {
                 // Too early in the boot to log a message
                 context.getLog().error("Couldn't read config", ioe);
@@ -251,12 +253,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return 0;
         }
     }
-//    @Override
-//    public void run() {
-//        if (broken)
-//            return;
-//        System.out.println("Running...");
-//    }
     private EvergreenService mainService;
     public EvergreenService getMain() throws Throwable {
         EvergreenService m = mainService;
@@ -368,8 +364,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (broken)
             return;
         Log log = context.getLog();
+        close(tlog);
         try {
-            log.significant("Installing software", getMain());
+            log.significant("Shutting everything down", getMain());
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
             for (int i = d.length; --i >= 0;) // shutdown in reverse order
                 if (d[i].inState(State.Running))

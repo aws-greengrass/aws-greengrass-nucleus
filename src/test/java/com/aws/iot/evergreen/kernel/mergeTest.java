@@ -15,7 +15,7 @@ public class mergeTest {
     public void testSomeMethod() {
         try {
             Configuration c = new Configuration(new Context());
-            c.read(Kernel.class.getResource("config.yaml"));
+            c.read(Kernel.class.getResource("config.yaml"), false);
             Configuration b = new Configuration(new Context()).copyFrom(c);
             assertTrue(c.getRoot().equals(b.getRoot()));
         } catch (Throwable ex) {

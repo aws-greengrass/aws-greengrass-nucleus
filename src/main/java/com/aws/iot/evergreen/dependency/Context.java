@@ -11,6 +11,7 @@ import java.io.*;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.*;
 import javax.inject.*;
 import javax.inject.Named;
@@ -134,6 +135,7 @@ public class Context implements Closeable {
     public class Value<T> implements Provider<T> {
         public volatile T value;
         final Class<T> targetClass;
+        private boolean injectionCompleted;
         Value(Class<T> c, T v) {
             targetClass = c;
             put(v);
@@ -141,7 +143,7 @@ public class Context implements Closeable {
         @Override
         public final T get() {
             T v = value;
-            if (v != null) return v;
+            if (v != null && injectionCompleted) return v;
             return get0();
         }
         private synchronized T get0() {
@@ -195,9 +197,11 @@ public class Context implements Closeable {
         public synchronized final T put(T v) {
             if (v == value) return v;
             if (v == null || targetClass.isAssignableFrom(v.getClass())) {
+                injectionCompleted = false;
                 value = v;
-                doInjection();
-                return v;
+                doInjection(v);
+                injectionCompleted = true;
+                return v; // only assign after injection is complete
             } else
                 throw new IllegalArgumentException(v + " is not assignable to " + targetClass.getSimpleName());
         }
@@ -208,8 +212,7 @@ public class Context implements Closeable {
         public boolean isEmpty() {
             return value == null;
         }
-        private void doInjection() {
-            Object lvalue = value;
+        private void doInjection(Object lvalue) {
 //            System.out.println("requestInject " + lvalue);
             if (lvalue == null) return;
             Class cl = lvalue.getClass();
@@ -273,14 +276,30 @@ public class Context implements Closeable {
     private BlockingDeque<Runnable> serialized
             = new LinkedBlockingDeque<>();
     public void runOnPublishQueue(Runnable r) { serialized.add(r); }
+    public Throwable runOnPublishQueueAndWait(Crashable r) {
+        AtomicReference<Throwable> ret = new AtomicReference<>();
+        CountDownLatch ready = new CountDownLatch(1);
+        runOnPublishQueue(()->{
+            try {
+                r.run();
+            } catch(Throwable t) {
+                ret.set(t);
+                getLog().error("runOnPublishQueueAndWait",t);
+            }
+            ready.countDown();
+        });
+        if(!onPublishThread()) try {
+            ready.await();
+        } catch (InterruptedException ex) { ret.set(ex); }
+        return ret.get();
+    }
     public void queuePublish(Topic t) {
         runOnPublishQueue(() -> {
             t.fire(WhatHappened.changed);
-            if (t.parent != null) t.parent.publish(t);
         });
     }
-    {
-        new Thread() {
+    private boolean onPublishThread() { return Thread.currentThread()==publishThread; }
+    final private Thread publishThread = new Thread() {
             {
                 setName("Serialized listener processor");
                 setPriority(Thread.MAX_PRIORITY - 1);
@@ -297,8 +316,9 @@ public class Context implements Closeable {
                     }
                 } catch(InterruptedException e){}
             }
-        }.start();
-    }
+    };
+    { publishThread.start(); }
+            
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})

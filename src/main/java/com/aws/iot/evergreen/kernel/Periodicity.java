@@ -25,6 +25,7 @@ public class Periodicity {
     public static Periodicity of(EvergreenService s) {
         Node n = s.config.getChild("periodic");
         if (n == null) return null;
+        n.setTransparent();
         try {
             Periodicity ret;
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);
@@ -42,15 +43,12 @@ public class Periodicity {
                         params.findLeafChild("fuzz"),
                         params.findLeafChild("phase"),
                         s);
-                params.subscribe(child->ret.start(ses, action));
+                params.subscribe((what,child)->ret.start(ses, action));
             } else return null;
             return ret;
         } catch (Throwable t) {
             s.errored("Unparseable periodic parameter: " + Utils.deepToString(n), t);
         }
-        return null;
-    }
-    public static Periodicity of(Node n, EvergreenService s) throws Throwable {
         return null;
     }
     private Periodicity(Topic i, Topic f, Topic p, EvergreenService s) throws IllegalArgumentException {

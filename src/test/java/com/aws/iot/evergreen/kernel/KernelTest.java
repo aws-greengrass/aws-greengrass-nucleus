@@ -14,24 +14,21 @@ public class KernelTest {
     @Test
     public void testSomeMethod() {
         try {
-            CountDownLatch OK = new CountDownLatch(1);
             String tdir = System.getProperty("user.home") + "/kernelTest";
-//            System.out.println("tdir = " + tdir);
             Kernel kernel = new Kernel();
             kernel.setLogWatcher(logline -> {
                 if (logline.args.length >= 2) {
-//                    String a0 = String.valueOf(logline.args[0]);
                     String a1 = String.valueOf(logline.args[1]);
-//                    if (a0.endsWith(".run")) {
                         boolean allDone = true;
                         for (Expected pattern : expectations) {
                             if (a1.contains(pattern.pattern))
-                                if (++pattern.seen == 1)
-                                    System.out.println("Just saw " + pattern.message);
+                                if (++pattern.seen == 1) {
+                                    System.out.println("KernelTest: Just saw " + pattern.message);
+                                    OK[pattern.group].countDown();
+                                    System.out.println("\tOK["+pattern.group+"]="+OK[pattern.group].getCount());
+                                }
                             if (pattern.seen <= 0) allDone = false;
                         }
-                        if (allDone) OK.countDown();
-//                    }
                 }
             });
             kernel.parseArgs("-r", tdir,
@@ -40,38 +37,66 @@ public class KernelTest {
             );
             kernel.launch();
 //            System.out.println("Done");
-            boolean ok = OK.await(200, TimeUnit.SECONDS);
-            kernel.dump();
+            boolean ok = OK[0].await(200, TimeUnit.SECONDS);
+            testGroup(0);
+            kernel.context.getLog().note("First phase passed, now for the harder stuff");
+            kernel.find("main","run").setValue("while true; do\n" +
+"        date; sleep 5; echo NEWMAIN\n" +
+"        done");
+//            kernel.writeConfig(new OutputStreamWriter(System.out));
+            testGroup(1);
+            kernel.context.getLog().note("Now merging delta.yaml");
+            kernel.context.get(UpdateSystemSafelyService.class).addUpdateAction("test", 
+              ()->kernel.readMerge(Kernel.class.getResource("delta.yaml"), false));
+            testGroup(2);
             kernel.shutdown();
-            for (Expected pattern : expectations)
-                if (pattern.seen <= 0)
-                    fail("Didnt see: " + pattern.message);
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
             fail();
         }
     }
+    private void testGroup(int g) {
+        try {
+            OK[g].await(100,TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+            ex.printStackTrace(System.out);
+        }
+        for (Expected pattern : expectations)
+            if (pattern.seen <= 0 && pattern.group==g)
+                fail("Didnt see: " + pattern.message);
+    }
 
     private static class Expected {
         final String pattern;
         final String message;
+        final int group;
         int seen = 0;
-        Expected(String p, String m, int n) {
+        Expected(int g, String p, String m, int n) {
+            group = g;
             pattern = p;
             message = m;
             seen = 1 - n;
+            gc[g]++;
         }
-        Expected(String p, String m) {
-            this(p, m, 1);
+        Expected(int group, String p, String m) {
+            this(group, p, m, 1);
         }
     }
-    private final Expected[] expectations = {
-        new Expected("RUNNING", "Main service"),
+    static final int[] gc = new int[10];
+    static final CountDownLatch[] OK = new CountDownLatch[10];
+    private static final Expected[] expectations = {
+        new Expected(0,"RUNNING", "Main service"),
         //new Expected("docs.docker.com/", "docker hello world"),
-        new Expected("tick-tock", "periodic", 3),
-        new Expected("ANSWER=42", "global setenv"),
-        new Expected("EVERGREEN_UID=", "generated unique token"),
-        new Expected("mqtt.moquette.run", "moquette mqtt server"),
-        new Expected("JUSTME=fancy a spot of tea?", "local setenv in main service"),};
-
+        new Expected(0,"tick-tock", "periodic", 3),
+        new Expected(0,"ANSWER=42", "global setenv"),
+        new Expected(0,"EVERGREEN_UID=", "generated unique token"),
+        new Expected(0,"mqtt.moquette.run", "moquette mqtt server"),
+        new Expected(0,"JUSTME=fancy a spot of tea?", "local setenv in main service"),
+        new Expected(1,"NEWMAIN","Assignment to 'run' script'"),
+        new Expected(2,"JUSTME=fancy a spot of coffee?", "merge yaml"),
+    };
+    static {
+        for(int i = gc.length; --i>=0; )
+            OK[i] = new CountDownLatch(gc[i]);
+    }
 }
