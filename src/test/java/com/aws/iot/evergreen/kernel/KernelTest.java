@@ -4,8 +4,9 @@ package com.aws.iot.evergreen.kernel;
 
 import java.util.concurrent.*;
 
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class KernelTest {
 //    boolean seenDocker, seenShell;

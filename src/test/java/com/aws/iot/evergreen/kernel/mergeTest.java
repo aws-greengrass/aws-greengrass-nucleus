@@ -4,8 +4,10 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.dependency.Context;
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class mergeTest {
 //    boolean seenDocker, seenShell;
@@ -17,7 +19,7 @@ public class mergeTest {
             Configuration c = new Configuration(new Context());
             c.read(Kernel.class.getResource("config.yaml"), false);
             Configuration b = new Configuration(new Context()).copyFrom(c);
-            assertTrue(c.getRoot().equals(b.getRoot()));
+            assertEquals(c.getRoot(), b.getRoot());
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
             fail();

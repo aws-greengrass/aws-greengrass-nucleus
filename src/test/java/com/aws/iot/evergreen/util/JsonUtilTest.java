@@ -7,10 +7,13 @@ package com.aws.iot.evergreen.util;
 
 import static com.aws.iot.evergreen.util.POJOUtil.*;
 import static com.aws.iot.evergreen.util.Utils.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.io.*;
 import java.util.*;
-import org.junit.Test;
-import static org.junit.Assert.*;
+
+import org.junit.jupiter.api.Test;
 import software.amazon.ion.*;
 
 public class JsonUtilTest {

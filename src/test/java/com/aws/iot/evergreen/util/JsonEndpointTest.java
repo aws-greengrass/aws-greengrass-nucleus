@@ -4,9 +4,11 @@
 
 package com.aws.iot.evergreen.util;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.*;
-import org.junit.*;
-import static org.junit.Assert.*;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 public class JsonEndpointTest {

@@ -12,8 +12,12 @@ import static com.fasterxml.jackson.jr.ob.JSON.Feature.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class ConfigurationTest {
     Configuration config = new Configuration(new Context());
