@@ -21,16 +21,18 @@ public interface ShellRunner {
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
             if (!isEmpty(command) && onBehalfOf != null) {
-                if (!isEmpty(note))
+                if (!isEmpty(note) && log!=null /* !!?!! */)
                     log.significant("run", note);
-                Topic uid = onBehalfOf.config.createLeafChild("_UID");
+                Topic uid = onBehalfOf.config.createLeafChild("_UID").setTransparent();
                 if(uid.getOnce()==null) uid.setValue(Utils.generateRandomString(16).toUpperCase());
                 int timeout = -1;
                 Node n = onBehalfOf.config.getChild("bashtimeout");
                 if (n instanceof Topic)
                     timeout = Coerce.toInt(((Topic) n).getOnce());
-                if (timeout <= 0)
+                if (timeout <= 0) {
+                    if(config==null) {System.err.println("CONFIG==NULL: "+command); timeout=120; new Throwable("NULL").printStackTrace();} else
                     timeout = Coerce.toInt(config.lookup("system", "bashtimeout").dflt(120).getOnce());
+                }
                 if (timeout <= 0) timeout = 120;
                 return new Exec().withShell(command)
                         .withOut(s -> {

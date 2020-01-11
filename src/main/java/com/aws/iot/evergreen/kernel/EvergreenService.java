@@ -21,10 +21,12 @@ import javax.inject.*;
 
 
 public class EvergreenService implements InjectionActions, Subscriber, Closeable {
+    public static final String stateTopicName = "_State";
     private final Topic state;
     private Throwable error;
     protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private Future backingTask;
+    private Periodicity periodicityInformation;
     public Context context;
     public static State getState(EvergreenService o) {
         return o.getState();
@@ -42,10 +44,13 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         Future b = backingTask;
         return b!=null && !b.isDone();
     }
+    public boolean isPeriodic() { return periodicityInformation!=null; }
     private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
     public void setState(State s) {
         State was = (State) state.getOnce();
         if(s!=was) {
+            context.getLog().note(getName(),was,"=>",s);
+//            if(s==State.Errored) new Throwable("Trace when setting state to Errored:").printStackTrace();
             state.setValue(Long.MAX_VALUE, s);
             context.globalNotifyStateChanged(this, was);
         }
@@ -72,7 +77,8 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             install();
                             setState(State.AwaitingStartup);
                         } catch (Throwable t) {
-                            errored("Failed installing up", t);
+                            errored("Failed installing", t);
+//                            getUltimateCause(t).printStackTrace();
                         }
                         backingTask = null;
                     }, getName()+" => "+newState);
@@ -84,11 +90,11 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 case Starting:
                     setBackingTask(() -> {
                         try {
-                            timer = Periodicity.of(this);
+                            periodicityInformation = Periodicity.of(this);
                             startup();
-                            if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
-                                    ? State.Running
-                                    : State.Finished);
+                            if(!errored()) setState(isPeriodic()  // Let timer do the transition to Running==null
+                                    ? State.Finished
+                                    : State.Running);
                         } catch (Throwable t) {
                             errored("Failed starting up", t);
                         }
@@ -96,7 +102,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                     }, getName()+" => "+newState);
                     break;
                 case Running:
-                    if(activeState != State.Unstable) {
+                    if(!activeState.isRunning()) {
                         recheckOthersDependencies();
                         setBackingTask(() -> {
                             try {
@@ -123,6 +129,12 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         }
         activeState = newState;
     }
+    /** @return true iff this service is in the process of transitioning from one state
+     * to the state returned by getState() - setState() is "aspirational".  getState()
+     * returns the state that the service aspires to be in.  inTransition() returns true
+     * if that aspiration has been met.
+     */
+    public boolean inTransition() { return activeState!=getState(); }
     private synchronized void setBackingTask(Runnable r, String db) {
         Future bt = backingTask;
         if(bt!=null) {
@@ -175,8 +187,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * it is called right after postInject.  The service doesn't transition to Running
      * until *after* this state is complete.  The service transitions to Running when
      * startup() completes
-     */
-    Periodicity timer;
+     */    
     public void startup() {
     }
     /**
@@ -199,7 +210,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * To shutdown a service, use <tt>setState(Finished)</dd>
      */
     public void shutdown() {
-        Periodicity t = timer;
+        Periodicity t = periodicityInformation;
         if(t!=null) t.shutdown();
     }
     /**
@@ -230,7 +241,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             while (changed.get()) {
                 changed.set(false);
                 context.forEach(v -> {
-                    Object vv= v.value;
+                    Object vv = v.value;
                     if(vv instanceof EvergreenService) {
                         EvergreenService l = (EvergreenService) vv;
                         if (l.inState(State.AwaitingStartup)) {
@@ -255,7 +266,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics c) {
         config = c;
-        state = c.createLeafChild("_State");
+        state = c.createLeafChild(stateTopicName).setTransparent();
         state.setValue(Long.MAX_VALUE, State.New);
         state.validate((n,o)->{
             State s = Coerce.toEnum(State.class, n);
@@ -353,7 +364,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             // TODO: allow the file to be a zip package?
                             URL u = new URL(s+name+".evg");
 //                            System.out.println("Reading "+u);
-                            k.read(u);
+                            k.read(u, false);
 //                            System.out.println("*** found "+name);
                             context.getLog().log(
                                     t.isEmpty() ? Log.Level.Error : Log.Level.Note,

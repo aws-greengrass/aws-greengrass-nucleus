@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.util.Log;
 
 import java.io.*;
 import java.util.*;
@@ -130,44 +129,29 @@ public class Topics extends Node implements Iterable<Node> {
         childChanged(WhatHappened.childRemoved, n);
     }
     protected void childChanged(WhatHappened what, Node child) {
-        if (watchers != null && child instanceof Topic)
+        if (watchers != null)
             for (Watcher s : watchers)
                 try {
-                    if(s instanceof Subscriber)
-                    ((Subscriber)s).published(what, (Topic)child);
+                    if(s instanceof ChildChanged)
+                        ((ChildChanged)s).childChanged(what, child);
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
                     context.getLog().error(getFullName(),ex);
                 }
-        if(parent!=null) parent.childChanged(WhatHappened.childChanged, this);
+        if(parent!=null && !isTransParent()) parent.childChanged(WhatHappened.childChanged, this);
     }
     @Override
     protected void fire(WhatHappened what) {
         childChanged(what,null);
     }
-    protected void childChanged(Node child) {
-        if (watchers != null)
-            for (Watcher s : watchers)
-                try {
-                    if (s instanceof ChildChanged)
-                        ((ChildChanged) s).childChanged(child);
-                } catch (Throwable ex) {
-                    /* TODO if a subscriber fails, we should do more than just log a
-                       message.  Possibly unsubscribe it if the fault is persistent */
-                    context.getLog().error(getFullName(),ex);
-                }
-        if(parent!=null) parent.childChanged(this);
-    }
     public Topics subscribe(ChildChanged cc) {
-        listen(cc);
-        try {
-            cc.childChanged(null);
+        if(listen(cc)) try {
+            cc.childChanged(WhatHappened.initialized, null);
         } catch (Throwable ex) {
             //TODO: do something less stupid
         }
         return this;
-        
     }
     @Override
     public Map<String, Object> toPOJO() {
@@ -186,5 +170,4 @@ public class Topics extends Node implements Iterable<Node> {
     public boolean isEmpty() {
         return children.isEmpty();
     }
-
 }
