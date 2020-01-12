@@ -95,7 +95,7 @@ public class IPCService extends EvergreenService {
             super.startup();
         } catch (IPCException e) {
             log.error("Error starting IPC service", e);
-            setState(State.Unstable);
+//            setState(State.Unstable);    Unstable got deleted, was that wrong?
             recover();
         }
     }
@@ -110,7 +110,7 @@ public class IPCService extends EvergreenService {
             server.run();
         } catch (IPCException e) {
             log.error("IPC service run() errored", e);
-            setState(State.Unstable);
+//            setState(State.Unstable);
             recover();
         }
     }
