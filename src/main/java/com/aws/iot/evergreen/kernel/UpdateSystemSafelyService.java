@@ -47,7 +47,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
      *          the action is installing a new config file, the tag should probably be the
      *          URL of the config.  If a key is duplicated by subsequent actions, they
      *          are suppressed.
-     * @param action The action to be performed
+     * @param action The action to be performed.
      */
     public synchronized void addUpdateAction(String tag, Crashable action) {
         pendingActions.put(tag, action);
