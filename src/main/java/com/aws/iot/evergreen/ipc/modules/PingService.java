@@ -13,7 +13,7 @@ import com.aws.iot.evergreen.util.Log;
 
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.common.Constants.PING_OP_CODE;
+import static com.aws.iot.evergreen.ipc.common.Constants.PING_SERVICE;
 import static com.aws.iot.evergreen.util.Log.*;
 
 
@@ -35,9 +35,9 @@ public class PingService extends EvergreenService {
     @Override
     public void postInject() {
         try {
-            messageDispatcher.registerOpCodeCallBack(PING_OP_CODE, this::ping);
+            messageDispatcher.registerServiceCallback(PING_SERVICE, this::ping);
         } catch (IPCException e) {
-            log.log(Level.Error,"Error registering call back for opcode "+ PING_OP_CODE);
+            log.log(Level.Error,"Error registering callback for service "+ PING_SERVICE);
         }
     }
 
@@ -46,7 +46,7 @@ public class PingService extends EvergreenService {
             String req = new String(request.getPayload());
             if (req.equals("ping")) {
                 log.log(Level.Note, "Ping received");
-                return new Message(PING_OP_CODE, "pong".getBytes());
+                return new Message("pong".getBytes());
             }
         } catch (Exception e) {
             log.log(Level.Error, "Failed to respond to ping", e);
