@@ -133,7 +133,7 @@ public class GenericExternalService extends EvergreenService {
                 neg = !neg;
             }
             expr = context.get(EZTemplates.class).rewrite(expr).toString();
-            context.getLog().note(n.getFullName(),"skip expr",expr);
+//            context.getLog().note(n.getFullName(),"skip expr",expr);
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -150,7 +150,7 @@ public class GenericExternalService extends EvergreenService {
             // Assume it's a shell script: test for 0 return code and nothing on stderr
             return neg ^ (status!=RunStatus.Errored);
         }
-        context.getLog().note(n.getFullName(),"no skipif");
+//        context.getLog().note(n.getFullName(),"no skipif");
         return false;
     }
 
