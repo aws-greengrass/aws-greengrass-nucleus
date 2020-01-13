@@ -266,7 +266,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics c) {
         config = c;
-        state = c.createLeafChild(stateTopicName).setTransparent();
+        state = c.createLeafChild(stateTopicName).setParentNeedsToKnow(false);
         state.setValue(Long.MAX_VALUE, State.New);
         state.validate((n,o)->{
             State s = Coerce.toEnum(State.class, n);

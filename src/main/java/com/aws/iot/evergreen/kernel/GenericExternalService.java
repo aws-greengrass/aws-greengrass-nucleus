@@ -19,7 +19,7 @@ public class GenericExternalService extends EvergreenService {
     public GenericExternalService(Topics c) {
         super(c);
         c.subscribe((what,child)->{
-            if(!c.isTransParent()) {
+            if(c.parentNeedsToKnow()) {
                 context.getLog().warn(getName(),"responding to change to",child);
                 if(child.childOf("install"))
                     setState(State.Installing);
@@ -97,11 +97,7 @@ public class GenericExternalService extends EvergreenService {
 
     protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);
-        if(n==null) {
-            context.getLog().warn(getName(),"Missing",name);
-            return RunStatus.NothingDone;
-        }
-        return run(n, background);
+        return n==null ? RunStatus.NothingDone : run(n, background);
     }
 
     protected RunStatus run(Node n, IntConsumer background) {
@@ -147,7 +143,7 @@ public class GenericExternalService extends EvergreenService {
                 neg = !neg;
             }
             expr = context.get(EZTemplates.class).rewrite(expr).toString();
-            context.getLog().note(n.getFullName(),"skip expr",expr);
+//            context.getLog().note(n.getFullName(),"skip expr",expr);
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -161,12 +157,12 @@ public class GenericExternalService extends EvergreenService {
                         return false;
                 }
             RunStatus status = run(tp, expr, null, n);
-            context.getLog().note(n.getFullName(),neg ? "skipif !OK": "skipif OK",status,expr);
-            context.getLog().note(n.getFullName(),"skipif output", Exec.sh(expr));
+//            context.getLog().note(n.getFullName(),neg ? "skipif !OK": "skipif OK",status,expr);
+//            context.getLog().note(n.getFullName(),"skipif output", Exec.sh(expr));
             // Assume it's a shell script: test for 0 return code and nothing on stderr
             return neg ^ (status!=RunStatus.Errored);
         }
-        context.getLog().note(n.getFullName(),"no skipif");
+//        context.getLog().note(n.getFullName(),"no skipif");
         return false;
     }
 

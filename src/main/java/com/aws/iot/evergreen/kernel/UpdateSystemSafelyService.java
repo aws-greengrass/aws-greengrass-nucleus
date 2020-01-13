@@ -101,7 +101,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
          * @param disruptionPending true iff a disruption is pending.  After a disruption,
          *      disruptableCheck is called with this being false to signal to the handler
          *      that it's OK to start activity
-         * @return Estimated time that this handler will be willing to be disrupted. If
+         * @return Estimated time when this handler will be willing to be disrupted,
+         *      expressed as milliseconds since the epoch. If
          *      the returned value is less than now (System.currentTimeMillis()) the handler
          *      is granting permission to be disrupted.  Otherwise, it will be asked again
          *      sometime later.

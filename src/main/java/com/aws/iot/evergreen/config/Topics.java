@@ -139,7 +139,7 @@ public class Topics extends Node implements Iterable<Node> {
                        message.  Possibly unsubscribe it if the fault is persistent */
                     context.getLog().error(getFullName(),ex);
                 }
-        if(parent!=null && !isTransParent()) parent.childChanged(WhatHappened.childChanged, this);
+        if(parent!=null && parentNeedsToKnow()) parent.childChanged(WhatHappened.childChanged, this);
     }
     @Override
     protected void fire(WhatHappened what) {

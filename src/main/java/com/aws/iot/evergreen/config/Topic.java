@@ -92,7 +92,7 @@ public class Topic extends Node {
                        message.  Possibly unsubscribe it if the fault is persistent */
                     context.getLog().error(getFullName(),ex);
                 }
-        if(parent!=null && !isTransParent()) parent.childChanged(what, this);
+        if(parent!=null && parentNeedsToKnow()) parent.childChanged(what, this);
     }
     @Override public void copyFrom(Node n) {
         if (n instanceof Topic)

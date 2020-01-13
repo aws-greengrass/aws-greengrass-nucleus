@@ -25,7 +25,7 @@ public class Periodicity {
     public static Periodicity of(EvergreenService s) {
         Node n = s.config.getChild("periodic");
         if (n == null) return null;
-        n.setTransparent();
+        n.setParentNeedsToKnow(false);
         try {
             Periodicity ret;
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);

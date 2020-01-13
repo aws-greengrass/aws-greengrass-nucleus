@@ -206,7 +206,9 @@ public class Exec implements Closeable {
                         break;
                 }
             } catch (Throwable t) {
-                appendStackTrace(t, out);
+                // nothing that can go wrong here worries us, they're
+                // all EOFs
+                // appendStackTrace(t, out);
             }
             if (whenDone != null && numberOfCopiers.decrementAndGet() <= 0)
                 try {

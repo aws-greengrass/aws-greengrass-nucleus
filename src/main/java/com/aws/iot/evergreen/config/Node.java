@@ -20,7 +20,7 @@ public abstract class Node {
     public final Context context;
     public final String name;
     public final Topics parent;
-    private boolean transParent; // parent doesn't get notified of changes to this node
+    private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
     private final String fnc;
     public boolean appendNameTo(Appendable a) throws IOException {
         if (name == null)
@@ -45,7 +45,10 @@ public abstract class Node {
     public abstract void appendTo(Appendable a) throws IOException;
     public abstract Object toPOJO();
     public abstract void copyFrom(Node n);
-    public <T extends Node> T setTransparent() { transParent = true; return (T)this; }
+    public <T extends Node> T setParentNeedsToKnow(boolean np) {
+        parentNeedsToKnow = np;
+        return (T)this;
+    }
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -97,11 +100,11 @@ public abstract class Node {
         return n.equals(name) || parent!=null && parent.childOf(n);
     }
     /**
-     * @return true iff changes to this node should be ignored by it's parent
+     * @return false iff changes to this node should be ignored by it's parent
      * (ie. it's completely handled locally)
      */
-    public boolean isTransParent() {
-        return transParent;
+    public boolean parentNeedsToKnow() {
+        return parentNeedsToKnow;
     }
 
 }

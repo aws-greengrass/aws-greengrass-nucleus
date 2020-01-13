@@ -23,7 +23,7 @@ public interface ShellRunner {
             if (!isEmpty(command) && onBehalfOf != null) {
                 if (!isEmpty(note) && log!=null /* !!?!! */)
                     log.significant("run", note);
-                Topic uid = onBehalfOf.config.createLeafChild("_UID").setTransparent();
+                Topic uid = onBehalfOf.config.createLeafChild("_UID").setParentNeedsToKnow(false);
                 if(uid.getOnce()==null) uid.setValue(Utils.generateRandomString(16).toUpperCase());
                 int timeout = -1;
                 Node n = onBehalfOf.config.getChild("bashtimeout");
