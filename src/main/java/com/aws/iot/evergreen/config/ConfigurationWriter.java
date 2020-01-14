@@ -16,7 +16,6 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     public static void dump(Configuration c, Path file) {
         try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
             cs.writeAll();
-            cs.close();
         } catch (IOException ex) {
             c.root.context.getLog().error("ConfigurationWriter.dump",ex);
         }
