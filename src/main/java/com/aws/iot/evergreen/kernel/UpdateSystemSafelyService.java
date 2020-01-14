@@ -30,19 +30,18 @@ import javax.inject.*;
 public class UpdateSystemSafelyService extends EvergreenService {
     @Inject Log log;
     private final LinkedHashMap<String, Crashable> pendingActions = new LinkedHashMap<>();
-    private final CopyOnWriteArrayList<DisruptableCheck> disrutableChecks = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<DisruptableCheck> disruptableChecks = new CopyOnWriteArrayList<>();
 
     public UpdateSystemSafelyService(Topics c) {
         super(c);
     }
-    public void addDisrutableCheck(DisruptableCheck d) {
-        disrutableChecks.add(d);
+    public void addDisruptableCheck(DisruptableCheck d) {
+        disruptableChecks.add(d);
     }
-    public void removeDisrutableCheck(DisruptableCheck d) {
-        disrutableChecks.remove(d);
+    public void removeDisruptableCheck(DisruptableCheck d) {
+        disruptableChecks.remove(d);
     }
     /**
-     * 
      * @param tag used both as a printable description and a de-duplication key.  eg. If
      *          the action is installing a new config file, the tag should probably be the
      *          URL of the config.  If a key is duplicated by subsequent actions, they
@@ -62,7 +61,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 log.error(getName(), "Error processing system update", todo.getKey(), t);
             }
         pendingActions.clear();
-        for (DisruptableCheck c : disrutableChecks) c.disruptableCheck(false); // Notify disruption is over
+        for (DisruptableCheck c : disruptableChecks) c.disruptionCompleted(); // Notify disruption is over
     }
     @SuppressWarnings("SleepWhileInLoop")
     @Override public void run() {
@@ -73,8 +72,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
             long maxt = now;
 
             log.note(getName(), "updates pending:", pendingActions.size());
-            for (DisruptableCheck c : disrutableChecks) {
-                long ct = c.disruptableCheck(true);
+            for (DisruptableCheck c : disruptableChecks) {
+                long ct = c.whenIsDisruptionOK();
                 if (ct > maxt) maxt = ct;
             }
             if (maxt > now) try {
@@ -97,16 +96,17 @@ public class UpdateSystemSafelyService extends EvergreenService {
 
     public static interface DisruptableCheck {
         /**
-         * 
-         * @param disruptionPending true iff a disruption is pending.  After a disruption,
-         *      disruptableCheck is called with this being false to signal to the handler
-         *      that it's OK to start activity
+         * Inform a listener that a disruption is pending to find out when a disruption
+         * is acceptable.
          * @return Estimated time when this handler will be willing to be disrupted,
          *      expressed as milliseconds since the epoch. If
          *      the returned value is less than now (System.currentTimeMillis()) the handler
          *      is granting permission to be disrupted.  Otherwise, it will be asked again
          *      sometime later.
          */
-        public long disruptableCheck(boolean disruptionPending);
+        public long whenIsDisruptionOK();
+        /** After a disruption, this is called to signal to the handler that the
+         * disruption is over and it's OK to start activity */
+        public boolean disruptionCompleted();
     }
 }

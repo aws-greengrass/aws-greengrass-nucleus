@@ -212,6 +212,7 @@ public class Exec implements Closeable {
             }
             if (whenDone != null && numberOfCopiers.decrementAndGet() <= 0)
                 try {
+                    // TODO: configurable timeout?
                     process.waitFor(10, TimeUnit.SECONDS); // be graceful
                     setClosed();
                 } catch (Throwable t) {
@@ -245,6 +246,7 @@ public class Exec implements Closeable {
             Process p = process;
             if(p!=null) {
                 p.destroy();
+                // TODO: configurable timeout?
                 if(!waitClosed(2000)) {
                     p.destroyForcibly();
                     if(!waitClosed(5000))
@@ -260,7 +262,7 @@ public class Exec implements Closeable {
     public static Path which(String fn) {  // mirrors shell command
         fn = deTilde(fn);
         if(fn.startsWith("/")) {
-            // TODO sorts out windows filename issues, if we ever care
+            // TODO sort out windows filename issues, if we ever care
             Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
@@ -298,7 +300,8 @@ public class Exec implements Closeable {
                 }
             };
             bg.start();
-            bg.join(500);
+            // TODO: configurable timeout?
+            bg.join(2000);
             addPathEntries(path.toString().trim());
             // Ensure some level of sanity
             ensurePresent("/usr/local/bin","/bin","/usr/bin", "/sbin", "/usr/sbin",

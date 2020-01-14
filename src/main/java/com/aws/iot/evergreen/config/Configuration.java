@@ -99,11 +99,11 @@ public class Configuration {
     public Configuration read(String s) throws IOException {
         return s.contains(":/") ? read(new URL(s), false) : read(Paths.get(s));
     }
-    public Configuration read(URL url, boolean sourceTimestamp) throws IOException {
+    public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         context.getLog().significant("Reading URL", url);
         URLConnection u = url.openConnection();
         return read(u.getInputStream(), extension(url.getPath()),
-                sourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
+                useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
     }
     public Configuration read(Path s) throws IOException {
         context.getLog().significant("Reading", s);
