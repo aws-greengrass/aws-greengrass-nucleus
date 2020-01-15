@@ -26,7 +26,7 @@ public class MessageDispatcher {
 
     public static final int DEFAULT_EXECUTOR_POOL_SIZE = Runtime.getRuntime().availableProcessors() * 2;
     private final ConcurrentHashMap<Integer, CompletableFuture<Message>> sequenceNumberFutureMap = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Integer, Function<Message, Message>> opCodeCallBackMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Function<Message, Message>> destinationCallbackMap = new ConcurrentHashMap<>();
     private final ThreadPoolExecutor threadPoolExecutor;
 
     public MessageDispatcher() {
@@ -38,16 +38,16 @@ public class MessageDispatcher {
         this.threadPoolExecutor = threadPoolExecutor;
     }
     /**
-     * Registers a call back for an opcode, Dispatcher will invoke the function for all message with registered opcode
-     * @param opCode
+     * Registers a call back for a destination, Dispatcher will invoke the function for all message with registered destination
+     * @param destination
      * @param callBack Function which takes a message and return a message. The function implementation needs to the thread safe
-     * @throws IPCException if the callback is already registered for an opcode
+     * @throws IPCException if the callback is already registered for a destination
      */
-    public void registerOpCodeCallBack(Integer opCode, Function<Message, Message> callBack) throws IPCException {
-        log.log(Log.Level.Note, "registering callBack for opcode ", opCode);
-        Function<Message, Message> existingFunction = opCodeCallBackMap.putIfAbsent(opCode, callBack);
+    public void registerServiceCallback(String destination, Function<Message, Message> callBack) throws IPCException {
+        log.log(Log.Level.Note, "registering callBack for destination ", destination);
+        Function<Message, Message> existingFunction = destinationCallbackMap.putIfAbsent(destination, callBack);
         if (existingFunction != null) {
-            throw new IPCException("callBack for opcode already registered");
+            throw new IPCException("callBack for destination already registered");
         }
     }
 
@@ -63,9 +63,9 @@ public class MessageDispatcher {
      * @param clientId clientId of process
      * @return future which will be updated when the external process responds with a message
      */
-    public CompletableFuture<Message> sendMessage(String clientId, Message msg) {
+    public CompletableFuture<Message> sendMessage(String clientId, Message msg, String destination) {
         CompletableFuture<Message> future = new CompletableFuture<>();
-        MessageFrame msgFrame = new MessageFrame(msg, FrameType.REQUEST);
+        MessageFrame msgFrame = new MessageFrame(destination, msg, FrameType.REQUEST);
         //TODO: return CompletableFuture with a timeout
         try {
             threadPoolExecutor.submit(() -> processOutgoingMessage(clientId, msgFrame, future));
@@ -131,24 +131,24 @@ public class MessageDispatcher {
     /**
      * Process a new message that is a new request as follows
      *
-     * Looks up the opcode callback for the request
+     * Looks up the destination callback for the request
      *  returns error message to the process if callback not found
      * invokes the callback with the payload,
      * response from callback/ errors from callback is written to the connection
      *
-     * @param msgFrame contains the opcode and payload of the request
+     * @param msgFrame contains the destination and payload of the request
      * @param clientId clientId of the process who sent the request
      */
     private void processIncomingMessage(String clientId, MessageFrame msgFrame) {
         Message response;
         final Message msg = msgFrame.message;
         try {
-            Function<Message, Message> opcodeCallback = opCodeCallBackMap.get(msg.getOpCode());
-            response = (opcodeCallback == null) ? errorMessage("Invalid opcode " + msg.getOpCode()) : opcodeCallback.apply(msg);
+            Function<Message, Message> destinationCallback = destinationCallbackMap.get(msgFrame.destination);
+            response = (destinationCallback == null) ? errorMessage("Invalid destination " + msgFrame.destination) : destinationCallback.apply(msg);
         } catch (Exception e) {
             //TODO: do we surface the actual message to client vs a generic server failed to process request exception
             response = errorMessage(e.getMessage());
-            log.error("Error processing request with opcode" + msg.getOpCode(), e);
+            log.error("Error processing request with destination " + msgFrame.destination, e);
         }
 
         ConnectionWriter connection = connectionManager.getConnectionWriter(clientId);
@@ -157,7 +157,7 @@ public class MessageDispatcher {
             return;
         }
         try {
-            connection.write(new MessageFrame(msgFrame.sequenceNumber, response, FrameType.RESPONSE));
+            connection.write(new MessageFrame(msgFrame.sequenceNumber, msgFrame.destination, response, FrameType.RESPONSE));
         } catch (Exception e) {
             log.error("Error writing message, dropping message for request :" + msgFrame.sequenceNumber);
         }

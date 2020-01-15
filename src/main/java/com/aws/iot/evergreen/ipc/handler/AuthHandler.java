@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.ipc.common.Constants;
 import com.aws.iot.evergreen.ipc.common.Connection;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 
+import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
 public class AuthHandler {
@@ -18,7 +19,7 @@ public class AuthHandler {
     public String doAuth(MessageFrame request, Connection connection) throws IPCClientNotAuthorizedException {
 
         // First frame should be the auth request
-        if (request.message.getOpCode() != Constants.AUTH_OP_CODE) {
+        if (!request.destination.equals(AUTH_SERVICE)) {
             throw new IPCClientNotAuthorizedException("Invalid Auth request");
         }
 

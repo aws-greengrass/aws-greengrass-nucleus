@@ -38,7 +38,7 @@ import static com.aws.iot.evergreen.util.Log.*;
  *  Message Dispatcher:
  *  - Handles incoming messages from connections
  *  - Acts as an interface for modules inside the kernel to
- *    - Register call backs for an opcode
+ *    - Register call backs for a destination
  *    - Send messages to an outside process
  *  - Manages the thread pool which process all incoming and outgoing messages
  *
@@ -53,8 +53,8 @@ import static com.aws.iot.evergreen.util.Log.*;
  *  Incoming message from an external process
  *  Connection reader is run on a separate thread which does the blocking read on connection input stream,
  *  Message read by connection reader is forwarded to connection dispatcher, if the message is a new request,
- *  dispatcher looks up the call back based on the request opcode and invokes the call back. The result of the
- *  call back is sent out via the same connection.
+ *  dispatcher looks up the call back based on the request destination and invokes the callback. The result of the
+ *  callback is sent out via the same connection.
  *  If the message is a response to a previous request, dispatcher looks up the future object associated with the
  *  request using the sequence number and updates the future.
  *
