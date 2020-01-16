@@ -25,7 +25,7 @@ import java.util.function.*;
             .background(exc -> System.out.println("exit "+exc));
     </pre>
  */
-public class Exec {
+public class Exec implements Closeable {
     private String[] environment = defaultEnvironment;
     private String[] cmds;
     private File dir = userdir;
@@ -37,6 +37,7 @@ public class Exec {
     private Consumer<CharSequence> stdout = NOP;
     private Consumer<CharSequence> stderr = NOP;
     private Copier stderrc, stdoutc;
+    private boolean closed = false;
     public static final boolean isWindows = System.getProperty("os.name")
             .toLowerCase().contains("wind");
     private static final File userdir = new File(System.getProperty("user.dir"));
@@ -135,10 +136,7 @@ public class Exec {
         StringBuilder sb = new StringBuilder();
         Consumer<CharSequence> f = s -> sb.append(s);
         withOut(f).withErr(f).exec();
-        int l = sb.length();
-        if (l > 0)
-            sb.setLength(l - 1); // trim guaranteed trailing newline
-        return sb.toString();
+        return sb.toString().trim();
     }
     public boolean successful(boolean ignoreStderr) {
         exec();
@@ -208,21 +206,63 @@ public class Exec {
                         break;
                 }
             } catch (Throwable t) {
-                appendStackTrace(t, out);
+                // nothing that can go wrong here worries us, they're
+                // all EOFs
+                // appendStackTrace(t, out);
             }
             if (whenDone != null && numberOfCopiers.decrementAndGet() <= 0)
                 try {
-                    process.waitFor(10, TimeUnit.SECONDS);
-                    whenDone.accept(process.exitValue());
+                    // TODO: configurable timeout?
+                    process.waitFor(10, TimeUnit.SECONDS); // be graceful
+                    setClosed();
                 } catch (Throwable t) {
                     t.printStackTrace(System.out);
                 }
         }
     }
+    synchronized void setClosed() {
+        if(!closed) {
+            IntConsumer wd = whenDone;
+            int exit = process!=null ? process.exitValue() : -1;
+            closed = true;
+            process = null;
+            stderrc = null;
+            stdoutc = null;
+            whenDone = null;
+            if(wd!=null) wd.accept(exit);
+            notifyAll();
+        }
+    }
+    public boolean isRunning() { return !closed; }
+    public synchronized boolean waitClosed(int timeout) {
+        if(!closed) try {
+            wait(timeout);
+        } catch(InterruptedException ie){}
+        return closed;
+    }
+    @Override
+    public synchronized void close() throws IOException {
+        if(!closed) {
+            Process p = process;
+            if(p!=null) {
+                p.destroy();
+                // TODO: configurable timeout?
+                if(!waitClosed(2000)) {
+                    p.destroyForcibly();
+                    if(!waitClosed(5000))
+                        throw new IOException("Could not stop "+this);
+                }
+            }
+        }
+    }
+    @Override
+    public String toString() {
+        return Utils.deepToString(cmds, 90).toString();
+    }
     public static Path which(String fn) {  // mirrors shell command
         fn = deTilde(fn);
         if(fn.startsWith("/")) {
-            // TODO sorts out windows filename issues, if we ever care
+            // TODO sort out windows filename issues, if we ever care
             Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
@@ -260,7 +300,8 @@ public class Exec {
                 }
             };
             bg.start();
-            bg.join(500);
+            // TODO: configurable timeout?
+            bg.join(2000);
             addPathEntries(path.toString().trim());
             // Ensure some level of sanity
             ensurePresent("/usr/local/bin","/bin","/usr/bin", "/sbin", "/usr/sbin",

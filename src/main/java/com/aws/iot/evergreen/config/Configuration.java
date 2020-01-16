@@ -11,8 +11,6 @@ import java.net.*;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
 import java.util.function.*;
 import javax.inject.Inject;
 
@@ -99,12 +97,13 @@ public class Configuration {
         root.deepForEachTopic(f);
     }
     public Configuration read(String s) throws IOException {
-        return s.contains(":/") ? read(new URL(s)) : read(Paths.get(s));
+        return s.contains(":/") ? read(new URL(s), false) : read(Paths.get(s));
     }
-    public Configuration read(URL url) throws IOException {
+    public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         context.getLog().significant("Reading URL", url);
         URLConnection u = url.openConnection();
-        return read(u.getInputStream(), extension(url.getPath()), u.getLastModified());
+        return read(u.getInputStream(), extension(url.getPath()),
+                useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
     }
     public Configuration read(Path s) throws IOException {
         context.getLog().significant("Reading", s);
@@ -140,30 +139,17 @@ public class Configuration {
         }
         return this;
     }
-    public Throwable readMerge(URL u) {
-        // TODO: this should probably be in Kernel
-        CountDownLatch ready = new CountDownLatch(1);
-        AtomicReference<Throwable> ret = new AtomicReference<>();
+    public Throwable readMerge(URL u, boolean sourceTimestamp) {
+        // TODO: Does not handle dependencies properly yet
+        // TODO: Nor are environment variables accounted for properly
         /* We run the operation on the publish queue to ensure that no listeners are
-         * fired while the large config change is happening */
-        context.runOnPublishQueue(()->{
-            try {
-                Configuration copyOfCurrent = new Configuration(context);
-                copyOfCurrent.copyFrom(this);
-                copyOfCurrent.read(u);
-                // TODO: figure out what needs to be shut down and restarted
-                //  rather than just doing the blind copy that is here 
-                copyFrom(copyOfCurrent);
-            } catch(Throwable t) {
-                context.getLog().error("readMerge",u,t);
-                ret.set(t);
-            }
-            ready.countDown();
+         * fired while the large config change is happening.  They get reconciled
+         * all together */
+        return context.runOnPublishQueueAndWait(()->{
+                context.getLog().note("Merging "+u);
+                read(u, sourceTimestamp);
+                context.getLog().note("Finished "+u);
         });
-        try {
-            ready.await();
-        } catch (InterruptedException ex) { ret.set(ex); }
-        return ret.get();
     }
     @Override
     public int hashCode() {
