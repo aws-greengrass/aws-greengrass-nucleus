@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.util.Log;
 import javax.inject.Inject;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.FrameType;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.Message.errorMessage;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
@@ -65,7 +66,7 @@ public class ConnectionManager {
             try {
                 clientId = authHandler.doAuth(authReq, connection);
             } catch (IPCClientNotAuthorizedException e) {
-                connection.write(new MessageFrame(authReq.sequenceNumber, errorMessage(e.getMessage()), FrameType.RESPONSE));
+                connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, errorMessage(e.getMessage()), FrameType.RESPONSE));
                 connection.close();
                 return;
             }
