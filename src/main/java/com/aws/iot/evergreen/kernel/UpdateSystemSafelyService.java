@@ -68,6 +68,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
         // run() is invoked on it's own thread
         log.note(getName(), "Checking for updates");
         while (!pendingActions.isEmpty()) {
+            // TODO: should really use an injected clock to support simulation-time
+            //      it's a big project and would affect many parts of the system.
             final long now = System.currentTimeMillis();
             long maxt = now;
 
@@ -77,7 +79,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 if (ct > maxt) maxt = ct;
             }
             if (maxt > now) try {
-                log.note(getName(), "Holding for", maxt - now, "millisÏ");
+                log.note(getName(), "Holding for", maxt - now, "millis");
                 Thread.sleep(maxt - now);
             } catch (InterruptedException ex) {
             }
@@ -107,6 +109,6 @@ public class UpdateSystemSafelyService extends EvergreenService {
         public long whenIsDisruptionOK();
         /** After a disruption, this is called to signal to the handler that the
          * disruption is over and it's OK to start activity */
-        public boolean disruptionCompleted();
+        public void disruptionCompleted();
     }
 }

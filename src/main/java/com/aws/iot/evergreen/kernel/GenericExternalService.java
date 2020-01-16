@@ -19,29 +19,24 @@ public class GenericExternalService extends EvergreenService {
     public GenericExternalService(Topics c) {
         super(c);
         c.subscribe((what,child)->{
-            if(c.parentNeedsToKnow()) {
+            if(c.parentNeedsToKnow() && !child.childOf("shutdown")) {
                 context.getLog().warn(getName(),"responding to change to",child);
-                if(child.childOf("install"))
-                    setState(State.Installing);
-                else setState(State.AwaitingStartup);
+                setState(child.childOf("install") ? State.Installing : State.AwaitingStartup);
             }
         });
     }
     @Override
     public void install() {
-//        log().significant("install", this);
         run("install", null);
         super.install();
     }
     @Override
     public void awaitingStartup() {
-//        log().significant("awaitingStartup", this);
         run("awaitingStartup", null);
         super.awaitingStartup();
     }
     @Override
     public void startup() {
-//        log().significant("startup", this);
         if(run("startup", null)==RunStatus.Errored)
             setState(State.Errored);
         super.startup();
@@ -79,19 +74,16 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void shutdown() {
         inShutdown = true;
-//        context.getLog().significant(this,"starting shutdown");
+        run("shutdown", null);
         Exec e = currentScript;
         if(e!=null && e.isRunning()) try {
             context.getLog().significant(getName(),"shutting down",e);
             e.close();
             e.waitClosed(1000);
-//            new Throwable().printStackTrace();
         } catch(IOException ioe) {
             context.getLog().error(
                     this,"shutdown failure",Utils.getUltimateMessage(ioe));
         }
-//        context.getLog().significant("shutdown", this);
-        run("shutdown", null);
         inShutdown = false;
     }
 
@@ -116,8 +108,6 @@ public class GenericExternalService extends EvergreenService {
         cmd = templateEngine.rewrite(cmd).toString();
         setStatus(cmd);
         if(background==null) setStatus(null);
-//        RunStatus OK = shellRunner.setup(t.getFullName(), cmd, background, this, null) != ShellRunner.Failed
-//                ? RunStatus.OK : RunStatus.Errored;
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
         currentScript = exec;
         if(exec!=null) { // there's something to run
@@ -143,7 +133,6 @@ public class GenericExternalService extends EvergreenService {
                 neg = !neg;
             }
             expr = context.get(EZTemplates.class).rewrite(expr).toString();
-//            context.getLog().note(n.getFullName(),"skip expr",expr);
             Matcher m = skipcmd.matcher(expr);
             if (m.matches())
                 switch (m.group(1)) {
@@ -157,12 +146,9 @@ public class GenericExternalService extends EvergreenService {
                         return false;
                 }
             RunStatus status = run(tp, expr, null, n);
-//            context.getLog().note(n.getFullName(),neg ? "skipif !OK": "skipif OK",status,expr);
-//            context.getLog().note(n.getFullName(),"skipif output", Exec.sh(expr));
             // Assume it's a shell script: test for 0 return code and nothing on stderr
             return neg ^ (status!=RunStatus.Errored);
         }
-//        context.getLog().note(n.getFullName(),"no skipif");
         return false;
     }
 

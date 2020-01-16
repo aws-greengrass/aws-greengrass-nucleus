@@ -50,7 +50,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         State was = (State) state.getOnce();
         if(s!=was) {
             context.getLog().note(getName(),was,"=>",s);
-//            if(s==State.Errored) new Throwable("Trace when setting state to Errored:").printStackTrace();
             state.setValue(Long.MAX_VALUE, s);
             context.globalNotifyStateChanged(this, was);
         }
@@ -59,7 +58,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @Override // for listening to state changes
     public void published(final WhatHappened what, final Topic topic) {
         final State newState = (State) topic.getOnce();
-//        System.out.println(getName() + ": " + activeState + " -> " + newState);
         if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             setBackingTask(() -> {
                 try {
@@ -78,7 +76,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             setState(State.AwaitingStartup);
                         } catch (Throwable t) {
                             errored("Failed installing", t);
-//                            getUltimateCause(t).printStackTrace();
                         }
                         backingTask = null;
                     }, getName()+" => "+newState);
@@ -139,10 +136,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         Future bt = backingTask;
         if(bt!=null) {
             backingTask = null;
-            if(!bt.isDone()) {
-//                System.out.println("Cancelling "+db);
-                bt.cancel(true);
-            }
+            if(!bt.isDone()) bt.cancel(true);
         }
         if(r!=null)
             backingTask = context.get(ExecutorService.class).submit(r);
@@ -152,14 +146,12 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             ((EvergreenService) o).setState(st);
     }
     public void errored(String message, Throwable e) {
-//        e.printStackTrace();
         e = getUltimateCause(e);
         error = e;
         errored(message, (Object)e);
     }
     public void errored(String message, Object e) {
         if(context==null) {
-//            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
             if(e instanceof Throwable) ((Throwable)e).printStackTrace(System.err);
         }
         else context.getLog().error(this,message,e);
@@ -225,7 +217,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
         context.get(Kernel.class).clearODcache();
-//        System.out.println(getName()+" depends on "+v.getName());
         dependencies.put(v, when);
     }
     private boolean hasDependencies() {
@@ -278,9 +269,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
     @Override
     public void postInject() {
-//        addDependency(config.getChild("dependencies"));   // possible synonyms
-//        addDependency(config.getChild("dependency"));
-//        addDependency(config.getChild("defautimpl"));
         addDependency(config.getChild("requires"));
     }
     public boolean addDependency(Node d) {
@@ -356,16 +344,13 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 // No definition of this service was found in the config file.
                 // weave config fragments in from elsewhere...
                 Kernel k = context.get(Kernel.class);
-//                System.out.println("***Trying to populate "+name);
                 for(String s:k.getServiceServerURLlist())
                     if(t.isEmpty())
                         try {
                             // TODO: should probably think hard about what file extension to use
                             // TODO: allow the file to be a zip package?
                             URL u = new URL(s+name+".evg");
-//                            System.out.println("Reading "+u);
                             k.read(u, false);
-//                            System.out.println("*** found "+name);
                             context.getLog().log(
                                     t.isEmpty() ? Log.Level.Error : Log.Level.Note,
                                     name, "Found external definition",s);

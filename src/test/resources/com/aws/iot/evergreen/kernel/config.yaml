@@ -7,10 +7,11 @@
           sudo curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
           sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
       macos:
-        skipif: java -version 2>&1|egrep -i '(java|jdk|jre) *(version)?[ "]*(1.8|8|9|1[0-9])\.'
         script: |-
-            curl -L --silent https://corretto.aws/downloads/latest/amazon-corretto-11-x64-macos-jdk.pkg >/tmp/c11.pkg
-            open /tmp/c11.pkg
+            brew tap homebrew/cask-versions
+            brew cask install corretto
+    requires:
+        macos: homebrew
   git:
       install:
           debian:
