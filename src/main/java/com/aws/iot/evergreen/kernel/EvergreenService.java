@@ -21,10 +21,12 @@ import javax.inject.*;
 
 
 public class EvergreenService implements InjectionActions, Subscriber, Closeable {
+    public static final String stateTopicName = "_State";
     private final Topic state;
     private Throwable error;
     protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private Future backingTask;
+    private Periodicity periodicityInformation;
     public Context context;
     public static State getState(EvergreenService o) {
         return o.getState();
@@ -42,10 +44,12 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         Future b = backingTask;
         return b!=null && !b.isDone();
     }
+    public boolean isPeriodic() { return periodicityInformation!=null; }
     private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
     public void setState(State s) {
         State was = (State) state.getOnce();
         if(s!=was) {
+            context.getLog().note(getName(),was,"=>",s);
             state.setValue(Long.MAX_VALUE, s);
             context.globalNotifyStateChanged(this, was);
         }
@@ -54,7 +58,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @Override // for listening to state changes
     public void published(final WhatHappened what, final Topic topic) {
         final State newState = (State) topic.getOnce();
-//        System.out.println(getName() + ": " + activeState + " -> " + newState);
         if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             setBackingTask(() -> {
                 try {
@@ -72,7 +75,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             install();
                             setState(State.AwaitingStartup);
                         } catch (Throwable t) {
-                            errored("Failed installing up", t);
+                            errored("Failed installing", t);
                         }
                         backingTask = null;
                     }, getName()+" => "+newState);
@@ -84,11 +87,11 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 case Starting:
                     setBackingTask(() -> {
                         try {
-                            timer = Periodicity.of(this);
+                            periodicityInformation = Periodicity.of(this);
                             startup();
-                            if(!errored()) setState(timer==null  // Let timer do the transition to Running==null
-                                    ? State.Running
-                                    : State.Finished);
+                            if(!errored()) setState(isPeriodic()  // Let timer do the transition to Running==null
+                                    ? State.Finished
+                                    : State.Running);
                         } catch (Throwable t) {
                             errored("Failed starting up", t);
                         }
@@ -96,7 +99,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                     }, getName()+" => "+newState);
                     break;
                 case Running:
-                    if(activeState != State.Unstable) {
+                    if(!activeState.isRunning()) {
                         recheckOthersDependencies();
                         setBackingTask(() -> {
                             try {
@@ -123,14 +126,17 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         }
         activeState = newState;
     }
+    /** @return true iff this service is in the process of transitioning from one state
+     * to the state returned by getState() - setState() is "aspirational".  getState()
+     * returns the state that the service aspires to be in.  inTransition() returns true
+     * if that aspiration has been met.
+     */
+    public boolean inTransition() { return activeState!=getState(); }
     private synchronized void setBackingTask(Runnable r, String db) {
         Future bt = backingTask;
         if(bt!=null) {
             backingTask = null;
-            if(!bt.isDone()) {
-//                System.out.println("Cancelling "+db);
-                bt.cancel(true);
-            }
+            if(!bt.isDone()) bt.cancel(true);
         }
         if(r!=null)
             backingTask = context.get(ExecutorService.class).submit(r);
@@ -140,14 +146,12 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             ((EvergreenService) o).setState(st);
     }
     public void errored(String message, Throwable e) {
-//        e.printStackTrace();
         e = getUltimateCause(e);
         error = e;
         errored(message, (Object)e);
     }
     public void errored(String message, Object e) {
         if(context==null) {
-//            System.err.println("ERROR EARLY IN BOOT\n\t"+message+" "+e);
             if(e instanceof Throwable) ((Throwable)e).printStackTrace(System.err);
         }
         else context.getLog().error(this,message,e);
@@ -175,8 +179,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * it is called right after postInject.  The service doesn't transition to Running
      * until *after* this state is complete.  The service transitions to Running when
      * startup() completes
-     */
-    Periodicity timer;
+     */    
     public void startup() {
     }
     /**
@@ -199,7 +202,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * To shutdown a service, use <tt>setState(Finished)</dd>
      */
     public void shutdown() {
-        Periodicity t = timer;
+        Periodicity t = periodicityInformation;
         if(t!=null) t.shutdown();
     }
     /**
@@ -214,7 +217,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
         context.get(Kernel.class).clearODcache();
-//        System.out.println(getName()+" depends on "+v.getName());
         dependencies.put(v, when);
     }
     private boolean hasDependencies() {
@@ -230,7 +232,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             while (changed.get()) {
                 changed.set(false);
                 context.forEach(v -> {
-                    Object vv= v.value;
+                    Object vv = v.value;
                     if(vv instanceof EvergreenService) {
                         EvergreenService l = (EvergreenService) vv;
                         if (l.inState(State.AwaitingStartup)) {
@@ -255,7 +257,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics c) {
         config = c;
-        state = c.createLeafChild("_State");
+        state = c.createLeafChild(stateTopicName).setParentNeedsToKnow(false);
         state.setValue(Long.MAX_VALUE, State.New);
         state.validate((n,o)->{
             State s = Coerce.toEnum(State.class, n);
@@ -267,9 +269,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
     @Override
     public void postInject() {
-//        addDependency(config.getChild("dependencies"));   // possible synonyms
-//        addDependency(config.getChild("dependency"));
-//        addDependency(config.getChild("defautimpl"));
         addDependency(config.getChild("requires"));
     }
     public boolean addDependency(Node d) {
@@ -345,16 +344,13 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 // No definition of this service was found in the config file.
                 // weave config fragments in from elsewhere...
                 Kernel k = context.get(Kernel.class);
-//                System.out.println("***Trying to populate "+name);
                 for(String s:k.getServiceServerURLlist())
                     if(t.isEmpty())
                         try {
                             // TODO: should probably think hard about what file extension to use
                             // TODO: allow the file to be a zip package?
                             URL u = new URL(s+name+".evg");
-//                            System.out.println("Reading "+u);
-                            k.read(u);
-//                            System.out.println("*** found "+name);
+                            k.read(u, false);
                             context.getLog().log(
                                     t.isEmpty() ? Log.Level.Error : Log.Level.Note,
                                     name, "Found external definition",s);

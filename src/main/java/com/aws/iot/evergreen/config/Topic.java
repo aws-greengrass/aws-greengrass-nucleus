@@ -3,7 +3,6 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.util.Log;
 import java.io.*;
 import java.util.*;
 import java.util.function.*;
@@ -27,17 +26,15 @@ public class Topic extends Node {
      * @param s
      */
     public Topic subscribe(Subscriber s) {
-        listen(s);
-        try {
-            s.published(WhatHappened.initialized, this);
-        } catch (Throwable ex) {
-            //TODO: do something less stupid
-        }
+        if(listen(s)) try {
+                s.published(WhatHappened.initialized, this);
+            } catch (Throwable ex) {
+                //TODO: do something less stupid
+            }
         return this;
     }
     public Topic validate(Validator s) {
-        listen(s);
-        try {
+        if(listen(s)) try {
             if(value!=null) value = s.validate(value, null);
         } catch (Throwable ex) {
             //TODO: do something less stupid
@@ -67,6 +64,7 @@ public class Topic extends Node {
         return setValue(System.currentTimeMillis(), nv);
     }
     public synchronized Topic setValue(long proposedModtime, final Object proposed) {
+//        context.getLog().note("proposing change to "+getFullName()+": "+value+" => "+proposed);
 //        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
 //        if(proposed==Errored)
 //            new Exception("setValue to Errored").printStackTrace();
@@ -78,6 +76,7 @@ public class Topic extends Node {
         if (Objects.equals(validated, currentValue)) return this;
         value = validated;
         modtime = proposedModtime;
+//        context.getLog().note("seen change to "+getFullName()+": "+currentValue+" => "+validated);
         context.queuePublish(this);
         return this;
     }
@@ -93,7 +92,7 @@ public class Topic extends Node {
                        message.  Possibly unsubscribe it if the fault is persistent */
                     context.getLog().error(getFullName(),ex);
                 }
-        if(parent!=null) parent.childChanged(this);
+        if(parent!=null && parentNeedsToKnow()) parent.childChanged(what, this);
     }
     @Override public void copyFrom(Node n) {
         if (n instanceof Topic)

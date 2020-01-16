@@ -12,9 +12,9 @@ import java.nio.file.*;
 public class ConfigurationWriter implements Closeable, Subscriber {
     private final Writer out;
     private final Configuration conf;
+    private  boolean flushImmediately;
     public static void dump(Configuration c, Path file) {
-        try (CommitableWriter out = CommitableWriter.abandonOnClose(file);
-                ConfigurationWriter cs = new ConfigurationWriter(c, out)) {
+        try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
             cs.writeAll();
         } catch (IOException ex) {
             c.root.context.getLog().error("ConfigurationWriter.dump",ex);
@@ -47,6 +47,11 @@ public class ConfigurationWriter implements Closeable, Subscriber {
         }
         Utils.close(out);
     }
+    public ConfigurationWriter flushImmediately(boolean fl) {
+        flushImmediately = fl;
+        if(fl) flush(out);
+        return this;
+    }
     @Override
     public synchronized void published(WhatHappened what, Topic n) {
         if (what == WhatHappened.childChanged)
@@ -61,6 +66,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
             } catch (IOException ex) {
                 n.context.getLog().error("ConfigurationWriter.published",n.getFullName(),ex);
             }
+        if(flushImmediately) flush(out);
     }
     public void writeAll() { //TODO double check this
         conf.deepForEachTopic(n -> published(WhatHappened.childChanged, n));

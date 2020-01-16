@@ -6,8 +6,8 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.*;
+import java.io.IOException;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -18,56 +18,78 @@ import java.util.regex.Pattern;
 public class GenericExternalService extends EvergreenService {
     public GenericExternalService(Topics c) {
         super(c);
+        c.subscribe((what,child)->{
+            if(c.parentNeedsToKnow() && !child.childOf("shutdown")) {
+                context.getLog().warn(getName(),"responding to change to",child);
+                setState(child.childOf("install") ? State.Installing : State.AwaitingStartup);
+            }
+        });
     }
     @Override
     public void install() {
-//        log().significant("install", this);
         run("install", null);
         super.install();
     }
     @Override
     public void awaitingStartup() {
-//        log().significant("awaitingStartup", this);
         run("awaitingStartup", null);
         super.awaitingStartup();
     }
     @Override
     public void startup() {
-//        log().significant("startup", this);
         if(run("startup", null)==RunStatus.Errored)
             setState(State.Errored);
         super.startup();
     }
     @Override
     public void run() {
-//        log().significant("running", this);
         if (run("run", exit -> {
-            if (exit == 0) {
-                setState(State.Finished);
-                context.getLog().significant("Finished", getName());
-            } else {
-                setState(State.Errored);
-                context.getLog().error("Failed", getName(), exit);
-            }
+            currentScript = null;
+            if(!inShutdown)
+                if (exit == 0) {
+                    setState(State.Finished);
+                    context.getLog().significant(getName(), "Finished");
+                } else {
+                    setState(State.Errored);
+                    context.getLog().error(getName(), "Failed", exit2String(exit));
+                }
         })==RunStatus.NothingDone) {
-            context.getLog().significant("run: NothingDone", getName());
+            context.getLog().significant(getName(), "run: NothingDone");
             setState(State.Finished);
         }
     }
-
+    static final String[] sigCodes = {
+        "SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE",
+        "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM",
+        "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP", "SIGTSTP", "SIGTTIN", "SIGTTOU",
+        "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH", "SIGIO",
+        "SIGPWR", "SIGSYS",
+    };
+    public static String exit2String(int exitCode) {
+        return exitCode>128 && exitCode<129+sigCodes.length
+            ? sigCodes[exitCode-129]
+            : "exit("+((exitCode<<24)>>24)+")";
+    }
+    private boolean inShutdown;
     @Override
     public void shutdown() {
-//        context.getLog().significant("shutdown", this);
+        inShutdown = true;
         run("shutdown", null);
+        Exec e = currentScript;
+        if(e!=null && e.isRunning()) try {
+            context.getLog().significant(getName(),"shutting down",e);
+            e.close();
+            e.waitClosed(1000);
+        } catch(IOException ioe) {
+            context.getLog().error(
+                    this,"shutdown failure",Utils.getUltimateMessage(ioe));
+        }
+        inShutdown = false;
     }
 
     protected RunStatus run(String name, IntConsumer background) {
         Node n = pickByOS(name);
-        if(n==null) {
-//            if(required) context.getLog().warn("Missing",name,this);
-            return RunStatus.NothingDone;
-        }
-        return run(n, background);
+        return n==null ? RunStatus.NothingDone : run(n, background);
     }
 
     protected RunStatus run(Node n, IntConsumer background) {
@@ -79,20 +101,22 @@ public class GenericExternalService extends EvergreenService {
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
+    private Exec currentScript;
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
         ShellRunner shellRunner = context.get(ShellRunner.class);
         EZTemplates templateEngine = context.get(EZTemplates.class);
         cmd = templateEngine.rewrite(cmd).toString();
         setStatus(cmd);
         if(background==null) setStatus(null);
-//        RunStatus OK = shellRunner.setup(t.getFullName(), cmd, background, this, null) != ShellRunner.Failed
-//                ? RunStatus.OK : RunStatus.Errored;
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
+        currentScript = exec;
         if(exec!=null) { // there's something to run
             addEnv(exec, t.parent);
             context.getLog().significant(this,"exec",cmd);
-            return shellRunner.successful(exec, cmd, background)
+            RunStatus ret = shellRunner.successful(exec, cmd, background)
                     ? RunStatus.OK : RunStatus.Errored;
+            if(background==null) currentScript = null;
+            return ret;
         }
         else return RunStatus.NothingDone;
     }
@@ -121,8 +145,9 @@ public class GenericExternalService extends EvergreenService {
                         errored("Unknown operator", m.group(1));
                         return false;
                 }
+            RunStatus status = run(tp, expr, null, n);
             // Assume it's a shell script: test for 0 return code and nothing on stderr
-            return neg ^ (run(tp, expr, null, n)!=RunStatus.Errored);
+            return neg ^ (status!=RunStatus.Errored);
         }
         return false;
     }
