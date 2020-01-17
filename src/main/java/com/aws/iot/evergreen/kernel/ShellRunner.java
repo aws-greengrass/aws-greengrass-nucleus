@@ -2,12 +2,17 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.*;
-import com.aws.iot.evergreen.util.*;
-import static com.aws.iot.evergreen.util.Utils.*;
+import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.Log;
+
+import javax.inject.Inject;
 import java.util.concurrent.TimeUnit;
-import java.util.function.*;
-import javax.inject.*;
+import java.util.function.IntConsumer;
+
+import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {
     public abstract Exec setup(String note, String command, EvergreenService onBehalfOf);
@@ -23,8 +28,6 @@ public interface ShellRunner {
             if (!isEmpty(command) && onBehalfOf != null) {
                 if (!isEmpty(note) && log!=null /* !!?!! */)
                     log.significant("run", note);
-                Topic uid = onBehalfOf.config.createLeafChild("_UID").setParentNeedsToKnow(false);
-                if(uid.getOnce()==null) uid.setValue(Utils.generateRandomString(16).toUpperCase());
                 int timeout = -1;
                 Node n = onBehalfOf.config.getChild("bashtimeout");
                 if (n instanceof Topic)
@@ -46,7 +49,7 @@ public interface ShellRunner {
                             onBehalfOf.setStatus(ss);
                         })
                         .withTimeout(timeout, TimeUnit.SECONDS)
-                        .setenv("SVCUID",String.valueOf(uid.getOnce()))
+                        .setenv("SVCUID",String.valueOf(onBehalfOf.config.findLeafChild("_UID").getOnce()))
                         .cd(config.workPath.toFile());
             }
             return null;
