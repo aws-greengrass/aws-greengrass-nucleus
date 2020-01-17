@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 
+import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.handler.MessageDispatcher;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -41,11 +42,11 @@ public class PingService extends EvergreenService {
         }
     }
 
-    public Message ping(Message request) {
+    public Message ping(Message request, RequestContext context) {
         try {
             String req = new String(request.getPayload());
             if (req.equals("ping")) {
-                log.log(Level.Note, "Ping received");
+                log.log(Level.Note, "Ping received from service " + context.serviceName);
                 return new Message("pong".getBytes());
             }
         } catch (Exception e) {

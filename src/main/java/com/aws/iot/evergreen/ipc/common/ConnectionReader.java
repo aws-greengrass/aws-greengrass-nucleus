@@ -14,14 +14,15 @@ public class ConnectionReader {
 
     public final Connection connection;
     public final ConnectionManager connectionManager;
-    public final String clientId;
     public final MessageDispatcher messageDispatcher;
+    private final RequestContext context;
 
-    public ConnectionReader(Connection connection, ConnectionManager connectionManager, MessageDispatcher messageDispatcher, String clientId) {
+    public ConnectionReader(Connection connection, ConnectionManager connectionManager,
+                            MessageDispatcher messageDispatcher, RequestContext context) {
         this.connection = connection;
         this.connectionManager = connectionManager;
-        this.clientId = clientId;
         this.messageDispatcher = messageDispatcher;
+        this.context = context;
     }
 
     /**
@@ -33,21 +34,21 @@ public class ConnectionReader {
     public void read() {
         try {
             while (!connection.isShutdown()) {
-                messageDispatcher.incomingMessage(clientId,connection.read());
+                messageDispatcher.incomingMessage(context, connection.read());
             }
         } catch (ClientClosedConnectionException ce) {
             // log
-            connectionManager.clientClosedConnection(clientId);
+            connectionManager.clientClosedConnection(context.clientId);
         } catch (ConnectionIOException e) {
             // connection.isShutdown() differentiates between ConnectionIOException thrown
             // when a connection is closed by connectionManager vs ConnectionIOException thrown by an actual error
             if (!connection.isShutdown()) {
                 // log
-                connectionManager.connectionError(clientId);
+                connectionManager.connectionError(context.clientId);
             }
         } catch (Exception e) {
             // log
-            connectionManager.connectionError(clientId);
+            connectionManager.connectionError(context.clientId);
         }
     }
 }
