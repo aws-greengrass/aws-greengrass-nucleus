@@ -1,6 +1,8 @@
 package com.aws.iot.evergreen.ipc.handler;
 
+import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
+import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
 
@@ -26,7 +28,7 @@ public class MessageDispatcher {
 
     public static final int DEFAULT_EXECUTOR_POOL_SIZE = Runtime.getRuntime().availableProcessors() * 2;
     private final ConcurrentHashMap<Integer, CompletableFuture<Message>> sequenceNumberFutureMap = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Function<Message, Message>> destinationCallbackMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
     private final ThreadPoolExecutor threadPoolExecutor;
 
     public MessageDispatcher() {
@@ -43,12 +45,17 @@ public class MessageDispatcher {
      * @param callBack Function which takes a message and return a message. The function implementation needs to the thread safe
      * @throws IPCException if the callback is already registered for a destination
      */
-    public void registerServiceCallback(String destination, Function<Message, Message> callBack) throws IPCException {
+    public void registerServiceCallback(String destination, IPCCallback callBack) throws IPCException {
         log.log(Log.Level.Note, "registering callBack for destination ", destination);
-        Function<Message, Message> existingFunction = destinationCallbackMap.putIfAbsent(destination, callBack);
+        IPCCallback existingFunction = destinationCallbackMap.putIfAbsent(destination, callBack);
         if (existingFunction != null) {
             throw new IPCException("callBack for destination already registered");
         }
+    }
+
+    @FunctionalInterface
+    public interface IPCCallback {
+        Message handleMessage(Message m, RequestContext context);
     }
 
     /**
@@ -106,17 +113,17 @@ public class MessageDispatcher {
      *
      * incomingMessage can be invoked concurrently by multiple connections and should be thread safe
      *
-     * @param clientId clientId of the process who sent the message
+     * @param context
      * @param msgFrame
      */
-    public void incomingMessage(String clientId, MessageFrame msgFrame) {
+    public void incomingMessage(RequestContext context, MessageFrame msgFrame) {
         switch (msgFrame.type) {
             case REQUEST:
                 try {
-                    threadPoolExecutor.submit(() -> processIncomingMessage(clientId, msgFrame));
+                    threadPoolExecutor.submit(() -> processIncomingMessage(context, msgFrame));
                 } catch (RejectedExecutionException e) {
                     log.error("Unable to process incoming message from client "
-                            + clientId + " seq: " + msgFrame.sequenceNumber, e);
+                            + context.clientId + " seq: " + msgFrame.sequenceNumber, e);
                 }
                 break;
             case RESPONSE:
@@ -136,24 +143,24 @@ public class MessageDispatcher {
      * invokes the callback with the payload,
      * response from callback/ errors from callback is written to the connection
      *
+     * @param context
      * @param msgFrame contains the destination and payload of the request
-     * @param clientId clientId of the process who sent the request
      */
-    private void processIncomingMessage(String clientId, MessageFrame msgFrame) {
+    private void processIncomingMessage(RequestContext context, MessageFrame msgFrame) {
         Message response;
         final Message msg = msgFrame.message;
         try {
-            Function<Message, Message> destinationCallback = destinationCallbackMap.get(msgFrame.destination);
-            response = (destinationCallback == null) ? errorMessage("Invalid destination " + msgFrame.destination) : destinationCallback.apply(msg);
+            IPCCallback destinationCallback = destinationCallbackMap.get(msgFrame.destination);
+            response = (destinationCallback == null) ? errorMessage("Invalid destination " + msgFrame.destination) : destinationCallback.handleMessage(msg, context);
         } catch (Exception e) {
             //TODO: do we surface the actual message to client vs a generic server failed to process request exception
             response = errorMessage(e.getMessage());
             log.error("Error processing request with destination " + msgFrame.destination, e);
         }
 
-        ConnectionWriter connection = connectionManager.getConnectionWriter(clientId);
+        ConnectionWriter connection = connectionManager.getConnectionWriter(context.clientId);
         if (connection == null) {
-            log.error("Client id :" + clientId + " not found, dropping response for request :" + msgFrame.sequenceNumber);
+            log.error("Client id :" + context.clientId + " not found, dropping response for request :" + msgFrame.sequenceNumber);
             return;
         }
         try {
