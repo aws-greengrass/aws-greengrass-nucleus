@@ -82,16 +82,18 @@ public class Topic extends Node {
     }
     @Override
     public void fire(WhatHappened what) {
-        if (watchers != null)
-            for (Watcher s : watchers)
+        if (watchers != null) {
+            for (Watcher s : watchers) {
                 try {
                     if (s instanceof Subscriber)
                         ((Subscriber) s).published(what, this);
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
-                    context.getLog().error(getFullName(),ex);
+                    context.getLog().error(getFullName(), ex);
                 }
+            }
+        }
         if(parent!=null && parentNeedsToKnow()) parent.childChanged(what, this);
     }
     @Override public void copyFrom(Node n) {
