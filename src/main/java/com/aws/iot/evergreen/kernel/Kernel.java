@@ -334,7 +334,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
-            l.setState(State.AwaitingStartup);
+            // Commenting out since this will conflict the setState(AwaitingStartup) in EvergreenService
+            //l.setState(State.AwaitingStartup);
         });
     }
     public void dump() {
@@ -368,13 +369,23 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             log.significant("Shutting everything down", getMain());
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
-            for (int i = d.length; --i >= 0;) // shutdown in reverse order
+            for (int i = d.length; --i >= 0;) { // shutdown in reverse order
                 if (d[i].inState(State.Running))
                     try {
                         d[i].close();
                     } catch (Throwable t) {
                         log.error(d[i], "Failed to shutdown", t);
                     }
+            }
+
+            // Wait for tasks in the executor to end.
+            ExecutorService executorService = context.get(ExecutorService.class);
+            this.context.runOnPublishQueueAndWait(() -> {
+                executorService.shutdown();
+                log.note("shutdown on executor service");
+            });
+            executorService.awaitTermination(30, TimeUnit.SECONDS);
+            log.note("executor service terminated");
         } catch (Throwable ex) {
             log.error("Shutdown hook failure", ex);
         }
