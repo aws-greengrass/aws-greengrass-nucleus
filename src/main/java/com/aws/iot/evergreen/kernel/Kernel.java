@@ -2,21 +2,53 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.*;
-import com.aws.iot.evergreen.dependency.*;
-import com.aws.iot.evergreen.util.*;
-
-import static com.aws.iot.evergreen.util.Utils.*;
+import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.ConfigurationWriter;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.WhatHappened;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.EZPlugins;
+import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.CommitableWriter;
+import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import java.io.*;
-import java.net.*;
-import java.nio.file.*;
-import java.nio.file.attribute.*;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.function.*;
-import java.util.prefs.*;
+
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.prefs.Preferences;
+
+import static com.aws.iot.evergreen.util.Utils.close;
+import static com.aws.iot.evergreen.util.Utils.deepToString;
+import static com.aws.iot.evergreen.util.Utils.homePath;
 
 /** Evergreen-kernel */
 public class Kernel extends Configuration /*implements Runnable*/ {

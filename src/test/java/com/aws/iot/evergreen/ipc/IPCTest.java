@@ -1,7 +1,9 @@
 package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
@@ -12,14 +14,18 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotFoundException;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.Pair;
+import com.aws.iot.evergreen.util.TestUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.ipc.common.Server.KERNEL_URI_ENV_VARIABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -166,6 +172,25 @@ public class IPCTest {
                 .build();
 
         assertThrows(ResourceNotOwnedException.class, () -> c.registerResource(req));
+        client.disconnect();
+    }
+
+    @Test
+    public void lifecycleTest() throws Exception {
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.find("ServiceName", "_UID").getOnce()).build();
+        IPCClient client = new IPCClientImpl(config);
+        client.connect();
+        LifecycleImpl c = new LifecycleImpl(client);
+
+        Pair<CompletableFuture<Void>, BiConsumer<String, String>> p = TestUtils.asyncAssertOnBiConsumer((a, b) -> {
+            assertEquals(State.Finished.toString(), a);
+            assertEquals(State.Errored.toString(), b);
+        });
+
+        c.listenToStateChanges("ServiceName", p.getRight());
+        c.requestStateChange("Errored");
+        p.getLeft().get(500, TimeUnit.MILLISECONDS);
         client.disconnect();
     }
 }

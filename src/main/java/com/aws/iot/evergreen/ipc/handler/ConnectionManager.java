@@ -10,7 +10,10 @@ import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.util.Log;
 
 import javax.inject.Inject;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.FrameType;
@@ -30,6 +33,7 @@ import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 public class ConnectionManager {
 
     private final ConcurrentHashMap<String, ConnectionWriter> clientIdConnectionWriterMap = new ConcurrentHashMap<>();
+    private final Set<Consumer<String>> connectionClosedCallbacks = new HashSet<>();
 
     @Inject
     Log log;
@@ -126,6 +130,13 @@ public class ConnectionManager {
         });
     }
 
+    /**
+     * Register to be called with the clientId after the client has closed the connection.
+     */
+    public boolean registerConnectionClosedCallback(Consumer<String> callback) {
+        return connectionClosedCallbacks.add(callback);
+    }
+
     public ConnectionWriter getConnectionWriter(String clientId) {
         return clientIdConnectionWriterMap.get(clientId);
     }
@@ -142,6 +153,7 @@ public class ConnectionManager {
         ConnectionWriter conn = clientIdConnectionWriterMap.remove(clientId);
         if (conn != null) {
             conn.close();
+            connectionClosedCallbacks.forEach(x -> x.accept(clientId));
             return true;
         }
         return false;

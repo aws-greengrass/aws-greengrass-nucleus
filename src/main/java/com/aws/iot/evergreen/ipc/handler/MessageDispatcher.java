@@ -1,18 +1,23 @@
 package com.aws.iot.evergreen.ipc.handler;
 
-import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
 
-
 import javax.inject.Inject;
-import java.util.concurrent.*;
-import java.util.function.Function;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.ipc.common.FrameReader.*;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.FrameType;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.Message.errorMessage;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
 /***
  * Interface exposed to components inside the kernel to interact with external processes
@@ -51,6 +56,14 @@ public class MessageDispatcher {
         if (existingFunction != null) {
             throw new IPCException("callBack for destination already registered");
         }
+    }
+
+    /**
+     * Registers a callback for when a connection is closed.
+     */
+    public boolean registerConnectionClosedCallback(Consumer<String> callback) {
+        log.log(Log.Level.Note, "registering callback for connection closing");
+        return connectionManager.registerConnectionClosedCallback(callback);
     }
 
     @FunctionalInterface
