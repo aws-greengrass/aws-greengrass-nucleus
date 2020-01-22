@@ -63,6 +63,9 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @Override // for listening to state changes
     public void published(final WhatHappened what, final Topic topic) {
         final State newState = (State) topic.getOnce();
+        if (activeState == newState) {
+            return;
+        }
         if(activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
             shutdownLatch = new CountDownLatch(1);
             // Assume that shutdown task won't be cancelled. Following states (installing/awaitingStartup) wait until shutdown task complete.
@@ -296,7 +299,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 
     public Context getContext() { return context; }
 
-    CountDownLatch dependencyReadyLatch = new CountDownLatch(1);
+    final CountDownLatch dependencyReadyLatch = new CountDownLatch(1);
     public void addDependency(EvergreenService v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
@@ -307,12 +310,15 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             if (this.getState() == State.Starting || this.getState().isRunning()) {
                 // if dependency is down, restart the service and wait for dependency up
                 if (!dependencyReady(v)) {
-                    dependencyReadyLatch = new CountDownLatch(1);
                     context.getLog().note("Restart service because of dependency error. ", this.getName());
                     this.setState(State.AwaitingStartup);
                 }
-            } else if (dependencyReady()) {
-                dependencyReadyLatch.countDown();
+            }
+
+            synchronized (dependencyReadyLatch) {
+                if (dependencyReady()) {
+                    dependencyReadyLatch.notifyAll();
+                }
             }
         });
     }
@@ -331,11 +337,11 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
 
     private void waitForDependencyReady() throws InterruptedException {
-        if (dependencyReady()) {
-            return;
+        synchronized (dependencyReadyLatch) {
+            while (!dependencyReady()) {
+                dependencyReadyLatch.wait();
+            }
         }
-
-        dependencyReadyLatch.await();
     }
 
     public void forAllDependencies(Consumer<? super EvergreenService> f) {
