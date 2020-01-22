@@ -98,6 +98,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             errored("waiting for shutdown complete", e);
                             return;
                         }
+                        // TODO: wait until all install dependency ready.
                         if (!errored() && getState() == State.Installing) {
                             setBackingTask(() -> {
                                 try {
@@ -125,7 +126,11 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             return;
                         }
                         if (dependencies != null) {
-                            waitForDependencyReady();
+                            try {
+                                waitForDependencyReady();
+                            } catch (InterruptedException e) {
+                                errored("waiting for dependency ready", e);
+                            }
                         }
                         // if no other state change happened in between
                         if(!errored() && getState() == State.AwaitingStartup) {
@@ -255,6 +260,10 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             context.getLog().error("Handle error", error);
             error = null;
         }
+        // TODO Improve error restarts by collecting statistics on errors.  eg. If it error's often, start adding backoff waits.
+        //  Maybe doing a little inspection of exceptions to be smarter.  eg. file system full messages could trigger a disk
+        //  cleanup before the restart,  Or network errors could look at the network state and not restart until the network
+        //  reconnects.
 
         switch (this.activeState) {
             case Installing:
@@ -312,7 +321,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         if (dependencies == null) {
             return true;
         }
-        return dependencies.entrySet().stream().allMatch(ls -> dependencyReady(ls.getKey()));
+        return dependencies.keySet().stream().allMatch(ls -> dependencyReady(ls));
     }
 
     private boolean dependencyReady(EvergreenService v) {
@@ -321,17 +330,12 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return (state.isHappy()) && startWhenState.preceedsOrEqual(state);
     }
 
-    private void waitForDependencyReady() {
+    private void waitForDependencyReady() throws InterruptedException {
         if (dependencyReady()) {
             return;
         }
 
-        try {
-            dependencyReadyLatch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return;
+        dependencyReadyLatch.await();
     }
 
     public void forAllDependencies(Consumer<? super EvergreenService> f) {

@@ -21,7 +21,6 @@ import java.util.prefs.*;
 /** Evergreen-kernel */
 public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
-    private boolean installOnly = false;
     private boolean broken = false;
     private ConfigurationWriter tlog;
     boolean forReal = true;
@@ -71,9 +70,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             });
         while (getArg() != (Object) done)
             switch (arg) {
-                case "-install":
-                    installOnly = true;
-                    break;
                 case "-dryrun":
                     forReal = false;
                     break;
@@ -224,8 +220,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         writeEffectiveConfig();
         try {
             installEverything();
-            if(!installOnly)
-                startEverything();
         } catch (Throwable ex) {
             context.getLog().error("install", ex);
         }
@@ -325,17 +319,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
             l.setState(State.Installing);
-        });
-    }
-    public void startEverything() throws Throwable {
-        if (broken)
-            return;
-        Log log = context.getLog();
-        log.significant("Installing software", getMain());
-        orderedDependencies().forEach(l -> {
-            log.significant("Starting to install", l);
-            // Commenting out since this will conflict the setState(AwaitingStartup) in EvergreenService
-            //l.setState(State.AwaitingStartup);
         });
     }
     public void dump() {

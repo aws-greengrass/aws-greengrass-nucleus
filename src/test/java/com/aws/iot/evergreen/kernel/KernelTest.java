@@ -9,6 +9,7 @@ import java.util.concurrent.*;
 import com.aws.iot.evergreen.dependency.State;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class KernelTest {
@@ -74,6 +75,7 @@ public class KernelTest {
         });
         kernel.launch();
         boolean ok = assertionLatch.await(60, TimeUnit.SECONDS);
+        assertTrue(ok);
 
         if (expectedStateTransitionList.size() != 0) {
             for (ExpectedStateTransition e: expectedStateTransitionList) {
@@ -124,6 +126,7 @@ public class KernelTest {
             );
             kernel.launch();
             boolean ok = OK[0].await(200, TimeUnit.SECONDS);
+            assertTrue(ok);
             testGroup(0);
             System.out.println("First phase passed, now for the harder stuff");
             kernel.find("main","run").setValue("while true; do\n" +
