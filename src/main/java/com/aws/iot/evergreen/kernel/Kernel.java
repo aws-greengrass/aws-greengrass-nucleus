@@ -21,7 +21,6 @@ import java.util.prefs.*;
 /** Evergreen-kernel */
 public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
-    private boolean installOnly = false;
     private boolean broken = false;
     private ConfigurationWriter tlog;
     boolean forReal = true;
@@ -71,9 +70,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             });
         while (getArg() != (Object) done)
             switch (arg) {
-                case "-install":
-                    installOnly = true;
-                    break;
                 case "-dryrun":
                     forReal = false;
                     break;
@@ -223,9 +219,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         writeEffectiveConfig();
         try {
-            installEverything();
-            if(!installOnly)
-                startEverything();
+            startupAllServices();
         } catch (Throwable ex) {
             context.getLog().error("install", ex);
         }
@@ -317,7 +311,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.getLog().error("Failed to write effective config",t);
         }
     }
-    public void installEverything() throws Throwable {
+    public void startupAllServices() throws Throwable {
         if (broken)
             return;
         Log log = context.getLog();
@@ -325,16 +319,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
             l.setState(State.Installing);
-        });
-    }
-    public void startEverything() throws Throwable {
-        if (broken)
-            return;
-        Log log = context.getLog();
-        log.significant("Installing software", getMain());
-        orderedDependencies().forEach(l -> {
-            log.significant("Starting to install", l);
-            l.setState(State.AwaitingStartup);
         });
     }
     public void dump() {
@@ -368,13 +352,23 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             log.significant("Shutting everything down", getMain());
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
-            for (int i = d.length; --i >= 0;) // shutdown in reverse order
+            for (int i = d.length; --i >= 0;) { // shutdown in reverse order
                 if (d[i].inState(State.Running))
                     try {
                         d[i].close();
                     } catch (Throwable t) {
                         log.error(d[i], "Failed to shutdown", t);
                     }
+            }
+
+            // Wait for tasks in the executor to end.
+            ExecutorService executorService = context.get(ExecutorService.class);
+            this.context.runOnPublishQueueAndWait(() -> {
+                executorService.shutdown();
+                log.note("shutdown on executor service");
+            });
+            executorService.awaitTermination(30, TimeUnit.SECONDS);
+            log.note("executor service terminated");
         } catch (Throwable ex) {
             log.error("Shutdown hook failure", ex);
         }

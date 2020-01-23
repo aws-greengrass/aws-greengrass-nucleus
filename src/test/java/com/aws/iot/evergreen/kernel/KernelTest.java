@@ -2,16 +2,103 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.kernel;
 
+import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.concurrent.*;
 
+import com.aws.iot.evergreen.dependency.State;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class KernelTest {
-//    boolean seenDocker, seenShell;
+//    boolean seenDocker, seenShell
 //    int seenTickTock = 4;
 //    long lastTickTock = 0;
+    @Test
+    public void testErrorRetry() throws InterruptedException {
+            String tdir = System.getProperty("user.home") + "/kernelTest";
+            Kernel kernel = new Kernel();
+            kernel.parseArgs("-r", tdir,
+                    "-log", "stdout",
+                    "-i", Kernel.class.getResource("config_broken.yaml").toString()
+            );
+
+        LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(Arrays.asList(
+                new ExpectedStateTransition("installErrorRetry", State.New, State.Installing),
+                new ExpectedStateTransition("installErrorRetry", State.Installing, State.Errored),
+                new ExpectedStateTransition("installErrorRetry", State.Errored, State.Installing),
+                new ExpectedStateTransition("installErrorRetry", State.Installing, State.AwaitingStartup),
+
+                // main service doesn't start until dependency ready
+                new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
+                new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting),
+                new ExpectedStateTransition("main", State.Starting, State.Running),
+
+                // runErrorRetry restart on error
+                new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
+                new ExpectedStateTransition("runErrorRetry", State.Errored, State.AwaitingStartup),
+
+                // main service restart on dependency error
+                new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
+                new ExpectedStateTransition("main", State.Running, State.AwaitingStartup),
+                new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
+                new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting)
+            ));
+
+        CountDownLatch assertionLatch = new CountDownLatch(1);
+
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
+            if (expectedStateTransitionList.size() == 0) {
+                return;
+            }
+
+            ExpectedStateTransition expected = expectedStateTransitionList.peek();
+
+            if (service.getName().equals(expected.serviceName) &&
+                was.equals(expected.was) &&
+                service.getState().equals(expected.current)) {
+                System.out.println(String.format("Just saw state event for service %s: %s=> %s",
+                        expected.serviceName,
+                        expected.was,
+                        expected.current
+                        ));
+
+                expectedStateTransitionList.pollFirst();
+                if (expectedStateTransitionList.size() == 0) {
+                    // all assersion done.
+                    assertionLatch.countDown();
+                }
+            }
+
+        });
+        kernel.launch();
+        boolean ok = assertionLatch.await(60, TimeUnit.SECONDS);
+
+        if (expectedStateTransitionList.size() != 0 || !ok) {
+            for (ExpectedStateTransition e: expectedStateTransitionList) {
+                System.err.println(String.format("Fail to see state event for service %s: %s=> %s",
+                        e.serviceName,
+                        e.was,
+                        e.current
+                        ));
+            }
+            fail("Not seen all expected state transitions");
+        }
+    }
+
+    private class ExpectedStateTransition {
+        String serviceName;
+        State was;
+        State current;
+        public ExpectedStateTransition(String name, State was, State current) {
+            this.serviceName = name;
+            this.was = was;
+            this.current = current;
+        }
+    }
+
     @Test
     public void testSomeMethod() {
         try {
@@ -37,10 +124,10 @@ public class KernelTest {
                     "-i", Kernel.class.getResource("config.yaml").toString()
             );
             kernel.launch();
-//            System.out.println("Done");
             boolean ok = OK[0].await(200, TimeUnit.SECONDS);
+            assertTrue(ok);
             testGroup(0);
-            kernel.context.getLog().note("First phase passed, now for the harder stuff");
+            System.out.println("First phase passed, now for the harder stuff");
             kernel.find("main","run").setValue("while true; do\n" +
 "        date; sleep 5; echo NEWMAIN\n" +
 "        done");

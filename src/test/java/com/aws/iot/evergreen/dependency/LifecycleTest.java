@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class LifecycleTest {
     static int seq;
     static CountDownLatch cd;
+
     @Test
     public void T1() {
         cd = new CountDownLatch(2);
@@ -35,7 +36,6 @@ public class LifecycleTest {
         context.addGlobalStateChangeListener((service, was)->
                 System.out.println(service.getName()+": "+was+" => "+service.getState()));
         context.setAllStates(State.Installing);
-//        c.setAllStates(AwaitingStartup);
         try {
             if(!cd.await(1, TimeUnit.SECONDS))
                 fail("Startup timed out");
@@ -56,7 +56,7 @@ public class LifecycleTest {
         assertTrue(v.shutdownCalled,v.toString());
         assertTrue(v.C2.shutdownCalled, v.C2.toString());
         System.out.println("XYXXY: "+v.getState());
-        assertEquals(State.Shutdown, v.getState());
+        assertEquals(State.Finished, v.getState());
         assertNotNull(v.C2.C3, "non-lifecycle");
         assertSame(v.C2.C3, v.C2.C3.self, "non-lifecycle-loop");
         assertSame(v.C2, v.C2.C3.parent, "non-lifecycle-parent-ref");
@@ -81,7 +81,7 @@ public class LifecycleTest {
             System.out.println("Startup "+this);
             super.startup();
         }
-        @Override public void shutdown() { 
+        @Override public void shutdown() {
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
             super.shutdown();
@@ -103,13 +103,13 @@ public class LifecycleTest {
         @Override public String toString() { return id; }
         { System.out.println("Creating  "+this); }
         @Override public void startup() {
+            System.out.println("Startup "+this);
             assertNotNull(C3);
             startupCalled = true;
-            System.out.println("Startup "+this);
             System.out.println("  C3="+C3);
             super.startup();
         }
-        @Override public void shutdown() { 
+        @Override public void shutdown() {
             shutdownCalled = true;
             System.out.println("Shutdown "+this);
             super.shutdown();
