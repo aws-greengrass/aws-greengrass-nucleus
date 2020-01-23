@@ -219,7 +219,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         writeEffectiveConfig();
         try {
-            installEverything();
+            startupAllServices();
         } catch (Throwable ex) {
             context.getLog().error("install", ex);
         }
@@ -311,7 +311,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.getLog().error("Failed to write effective config",t);
         }
     }
-    public void installEverything() throws Throwable {
+    public void startupAllServices() throws Throwable {
         if (broken)
             return;
         Log log = context.getLog();

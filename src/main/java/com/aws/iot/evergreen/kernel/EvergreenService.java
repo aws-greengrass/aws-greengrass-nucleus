@@ -44,7 +44,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return b!=null && !b.isDone();
     }
     public boolean isPeriodic() { return periodicityInformation!=null; }
-    private boolean errorHandlerErrored; // cheezy hack to avoid repeating error handlers
     public void setState(State s) {
         final State was = (State) state.getOnce();
 
@@ -70,11 +69,12 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             shutdownLatch = new CountDownLatch(1);
             // Assume that shutdown task won't be cancelled. Following states (installing/awaitingStartup) wait until shutdown task complete.
             // May consider just merge shutdown() into other state's handling.
+            State oldState = activeState;
             setBackingTask(() -> {
                 try {
                     shutdown();
                 } catch (Throwable t) {
-                    if (activeState != State.Errored) {
+                    if (oldState != State.Errored) {
                         errored("Failed shutting down", t);
                     } else {
                         context.getLog().error(this,"Failed shutting down", t);
@@ -172,9 +172,9 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                 case Errored:
                     if (activeState != State.Errored) // already in the process of error handling
                         try {
-                            if(!errorHandlerErrored) handleError();
+                            handleError();
                         } catch (Throwable t) {
-                            errorHandlerErrored = true;
+                            // TODO: handle the case where error happens in error recovery.
                             errored("Error handler failed", t);
                         }
                     break;
@@ -299,7 +299,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 
     public Context getContext() { return context; }
 
-    final CountDownLatch dependencyReadyLatch = new CountDownLatch(1);
+    final Object dependencyReadyLock = new Object();
     public void addDependency(EvergreenService v, State when) {
         if (dependencies == null)
             dependencies = new ConcurrentHashMap<>();
@@ -310,14 +310,15 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             if (this.getState() == State.Starting || this.getState().isRunning()) {
                 // if dependency is down, restart the service and wait for dependency up
                 if (!dependencyReady(v)) {
+                    // TODO: if service is able to handle dependency down, don't restart.
                     context.getLog().note("Restart service because of dependency error. ", this.getName());
                     this.setState(State.AwaitingStartup);
                 }
             }
 
-            synchronized (dependencyReadyLatch) {
+            synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
-                    dependencyReadyLatch.notifyAll();
+                    dependencyReadyLock.notifyAll();
                 }
             }
         });
@@ -337,9 +338,9 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
 
     private void waitForDependencyReady() throws InterruptedException {
-        synchronized (dependencyReadyLatch) {
+        synchronized (dependencyReadyLock) {
             while (!dependencyReady()) {
-                dependencyReadyLatch.wait();
+                dependencyReadyLock.wait();
             }
         }
     }
