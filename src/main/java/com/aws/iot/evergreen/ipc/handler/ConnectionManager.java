@@ -3,7 +3,6 @@ package com.aws.iot.evergreen.ipc.handler;
 import com.aws.iot.evergreen.ipc.common.Connection;
 import com.aws.iot.evergreen.ipc.common.ConnectionReader;
 import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.util.Log;
@@ -53,7 +52,7 @@ public class ConnectionManager {
     }
 
     public void processNewConnection(Connection connection) {
-        RequestContext context;
+        String clientId;
         try {
             // blocking read operation for auth frame
             MessageFrame authReq;
@@ -65,27 +64,27 @@ public class ConnectionManager {
                 return;
             }
             try {
-                context = authHandler.doAuth(authReq);
+                clientId = authHandler.doAuth(authReq, connection);
             } catch (IPCClientNotAuthorizedException e) {
                 connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, errorMessage(e.getMessage()), FrameType.RESPONSE));
                 connection.close();
                 return;
             }
             // update the connected clients map and close the existing connection.
-            clientIdConnectionWriterMap.compute(context.clientId, (id, existingConnection) -> {
+            clientIdConnectionWriterMap.compute(clientId, (id, existingConnection) -> {
                 if (existingConnection != null) {
                     existingConnection.close();
-                    log.note("Closed existing connection with client id " + context.clientId);
+                    log.note("Closed existing connection with client id " + clientId);
                 }
-                return new ConnectionWriter(connection, this, context);
+                return new ConnectionWriter(connection, this, clientId);
             });
         } catch (Exception e) {
             log.error("Error processing new connection request", e);
             return;
         }
-        log.note("Client connected with Id: ", context.clientId);
+        log.note("Client connected with Id: ", clientId);
         //start reading from the new connection
-        new ConnectionReader(connection, this, messageDispatcher, context).read();
+        new ConnectionReader(connection, this, messageDispatcher, clientId).read();
     }
 
     /**

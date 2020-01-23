@@ -24,10 +24,6 @@ public class GenericExternalService extends EvergreenService {
                 setState(child.childOf("install") ? State.Installing : State.AwaitingStartup);
             }
         });
-
-        // Set a unique ID used for IPC Auth
-        Topic uid = c.createLeafChild("_UID").setParentNeedsToKnow(false);
-        uid.setValue(Utils.generateRandomString(16).toUpperCase());
     }
     @Override
     public void install() {

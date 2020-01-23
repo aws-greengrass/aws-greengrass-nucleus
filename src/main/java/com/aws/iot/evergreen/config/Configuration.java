@@ -5,8 +5,6 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
 import static com.aws.iot.evergreen.util.Utils.*;
-
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.fasterxml.jackson.jr.ob.JSON;
 import java.io.*;
 import java.net.*;
@@ -69,27 +67,6 @@ public class Configuration {
             n = n.findInteriorChild(path[i]);
         return n;
     }
-
-    /**
-     * Find Topic by path after resolving the path for the OS.
-     * Allows us to find Service.Lookup, or Service.Linux.Lookup whichever is appropriate.
-     */
-    public Topic findResolvedTopic(String... path) {
-        Topics t = findTopics(Arrays.copyOfRange(path, 0, path.length - 1));
-        if (t == null) {
-            return null;
-        }
-        Node topics = EvergreenService.pickByOS(t);
-        if (topics != null) {
-            if (topics instanceof Topics) {
-                return ((Topics) topics).findLeafChild(path[path.length - 1]);
-            } else if (topics instanceof Topic) {
-                return (Topic) topics;
-            }
-        }
-        return find(path);
-    }
-
     public Topics getRoot() {
         return root;
     }
@@ -185,7 +162,7 @@ public class Configuration {
     public static String[] splitPath(String path) {
         return seperator.split(path);
     }
-
+    
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
 
     public static final Object removed = new Object() {

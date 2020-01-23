@@ -5,23 +5,6 @@ plain:
   startup:
     all: "{platform.invoke} {args}"
 main:
-  requires: IPCService, mqtt, ServiceName
+  requires: IPCService
   run: |-
     sleep 300
-
-mqtt:
-  requires: IPCService
-  resources:
-    - evergreen_1._mqtt._tcp.local
-    - evergreen_1._http._tcp.local
-  run:
-    exit 0
-
-
-ServiceName:
-  requires: IPCService
-  any:
-    resources:
-      - http-resource
-  run:
-    exit 0

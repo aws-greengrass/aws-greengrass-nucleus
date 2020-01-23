@@ -302,7 +302,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
         writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
     }
-
+    
     /*
      * When a config file gets read, it gets woven together from fragmemnts from
      * multiple sources.  This writes a fresh copy of the config file, as it is,
