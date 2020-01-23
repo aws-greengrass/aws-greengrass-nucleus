@@ -1,7 +1,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.model.PackageEntry;
-import com.aws.iot.evergreen.packagemanager.model.Recipe;
+import com.aws.iot.evergreen.packagemanager.model.Package;
 import java.nio.file.Path;
 
 public class SoftwareInstaller {
@@ -15,8 +15,8 @@ public class SoftwareInstaller {
         this.workingDirectory = workingDirectory;
     }
 
-    public void copyInstall(Recipe rootRecipe) {
-        PackageEntry rootPackage = databaseAccessor.get(rootRecipe.getPackageName(), rootRecipe.getPackageVersion());
+    public void copyInstall(Package rootPackage) {
+        PackageEntry packageEntry = databaseAccessor.get(rootPackage.getPackageName(), rootPackage.getPackageVersion());
         // copy artifacts to working directory rootPackage.getArtifactUrls()
 
         // repeat for dependencies
