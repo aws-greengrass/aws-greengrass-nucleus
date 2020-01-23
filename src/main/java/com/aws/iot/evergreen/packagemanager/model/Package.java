@@ -7,7 +7,7 @@ import java.util.Set;
 
 // not thread safe yet
 // should be used in single thread
-public class Recipe {
+public class Package {
 
     private final String serviceName;
 
@@ -19,19 +19,19 @@ public class Recipe {
 
     private final Set<Dependency> dependencies;
 
-    private final Map<String, Recipe> dependencyRecipeMap;
+    private final Map<String, Package> dependencyPackageMap;
 
-    public Recipe(String serviceName, String packageName, String packageVersion, Set<String> artifactUrls, Set<Dependency> dependencies) {
+    public Package(String serviceName, String packageName, String packageVersion, Set<String> artifactUrls, Set<Dependency> dependencies) {
         this.serviceName = serviceName;
         this.packageName = packageName;
         this.packageVersion = packageVersion;
         this.artifactUrls = Collections.unmodifiableSet(artifactUrls);
         this.dependencies = Collections.unmodifiableSet(dependencies);
 
-        this.dependencyRecipeMap = new HashMap<>();
+        this.dependencyPackageMap = new HashMap<>();
     }
 
-    public Recipe(String packageName, String packageVersion, Set<String> artifactUrls, Set<Dependency> dependencies) {
+    public Package(String packageName, String packageVersion, Set<String> artifactUrls, Set<Dependency> dependencies) {
         this(null, packageName, packageVersion, artifactUrls, dependencies);
     }
 
@@ -55,8 +55,8 @@ public class Recipe {
         return dependencies;
     }
 
-    public Map<String, Recipe> getDependencyRecipeMap() {
-        return dependencyRecipeMap;
+    public Map<String, Package> getDependencyRecipeMap() {
+        return dependencyPackageMap;
     }
 
     public static class Dependency {

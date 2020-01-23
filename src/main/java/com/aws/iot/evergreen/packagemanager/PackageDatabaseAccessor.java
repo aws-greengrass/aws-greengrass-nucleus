@@ -4,7 +4,7 @@ import com.aws.iot.evergreen.packagemanager.model.PackageEntry;
 
 public class PackageDatabaseAccessor {
 
-    public PackageEntry create(String packageName, String packageVersion) {
+    public PackageEntry createIfNotExist(String packageName, String packageVersion) {
         return null;
     }
 

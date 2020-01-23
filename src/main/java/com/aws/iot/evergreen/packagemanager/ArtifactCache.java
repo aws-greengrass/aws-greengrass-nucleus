@@ -1,7 +1,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.model.PackageEntry;
-import com.aws.iot.evergreen.packagemanager.model.Recipe;
+import com.aws.iot.evergreen.packagemanager.model.Package;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -19,8 +19,8 @@ public class ArtifactCache {
         this.cacheFolder = cacheFolder;
     }
 
-    public void cacheArtifact(Recipe rootRecipe) {
-        Set<String> artifactUrls = rootRecipe.getArtifactUrls();
+    public void cacheArtifact(Package rootPackage) {
+        Set<String> artifactUrls = rootPackage.getArtifactUrls();
 
         List<String> localArtifactUrl = new ArrayList<>();
         for (String  artifactUrl : artifactUrls) {
@@ -40,7 +40,7 @@ public class ArtifactCache {
         }
 
         // Update package database with local URL
-        PackageEntry packageEntry = databaseAccessor.get(rootRecipe.getPackageName(), rootRecipe.getPackageVersion());
+        PackageEntry packageEntry = databaseAccessor.get(rootPackage.getPackageName(), rootPackage.getPackageVersion());
         databaseAccessor.update(new PackageEntry(packageEntry, localArtifactUrl));
 
         // Repeat step for dependencies
