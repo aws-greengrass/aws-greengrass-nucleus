@@ -51,7 +51,7 @@ public enum State {
     /**
      * Shut down, cannot be restarted.  Generally the result of an unresolvable error.
      */
-    Shutdown(false, false, false),
+    Broken(false, false, false),
     /**
      * The service has done it's job and has no more to do. May be restarted
      * (for example, a monitoring task that will be restarted by a timer)
@@ -80,5 +80,9 @@ public enum State {
     }
     public boolean preceeds(State other) {
         return ordinal()<other.ordinal();
+    }
+
+    public boolean preceedsOrEqual(State other) {
+        return ordinal()<=other.ordinal();
     }
 }

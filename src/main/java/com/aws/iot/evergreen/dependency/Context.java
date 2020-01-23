@@ -118,7 +118,7 @@ public class Context implements Closeable {
             if(listeners.isEmpty()) listeners = null;
         }
     }
-    public void globalNotifyStateChanged(EvergreenService l, State was) {
+    public void globalNotifyStateChanged(EvergreenService l, final State was) {
         if(listeners!=null)
             listeners.forEach(s->s.globalServiceStateChanged(l, was));
     }
@@ -272,7 +272,7 @@ public class Context implements Closeable {
         }
 
     }
-    
+
     private BlockingDeque<Runnable> serialized
             = new LinkedBlockingDeque<>();
     public void runOnPublishQueue(Runnable r) { serialized.add(r); }

@@ -31,7 +31,9 @@ public class GenericExternalService extends EvergreenService {
     }
     @Override
     public void install() {
-        run("install", null);
+        if(run("install", null) == RunStatus.Errored) {
+            setState(State.Errored);
+        }
         super.install();
     }
     @Override
