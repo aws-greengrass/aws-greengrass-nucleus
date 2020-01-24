@@ -22,7 +22,7 @@ public class ArtifactCache {
     public void cacheArtifact(Package rootPackage) {
         Set<String> artifactUrls = rootPackage.getArtifactUrls();
 
-        List<String> localArtifactUrl = new ArrayList<>();
+        List<String> localArtifactPaths = new ArrayList<>();
         for (String  artifactUrl : artifactUrls) {
             // replace this with real implementation
             ArtifactProvider artifactProvider = new ArtifactProvider() {
@@ -36,12 +36,12 @@ public class ArtifactCache {
 
             //cache bytes to local cache directory, return local URL
             //add to the list
-            localArtifactUrl.add("placeholder");
+            localArtifactPaths.add("placeholder");
         }
 
         // Update package database with local URL
         PackageEntry packageEntry = databaseAccessor.findPackage(rootPackage.getPackageName(), rootPackage.getPackageVersion());
-        databaseAccessor.updatePackageArtifacts(packageEntry, localArtifactUrl);
+        databaseAccessor.updatePackageArtifacts(packageEntry, localArtifactPaths);
 
         // Repeat step for dependencies
     }

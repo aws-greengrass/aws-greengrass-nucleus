@@ -38,7 +38,7 @@ public class PackageDatabaseAccessor {
     private void createArtifactTableIfNotExist() {
         String sql = "CREATE TABLE IF NOT EXISTS artifact (\n"
                 + "    id integer primary key,\n"
-                + "    url text NOT NULL,\n"
+                + "    path text NOT NULL,\n"
                 + "    package_id integer NOT NULL,\n"
                 + "    FOREIGN KEY (package_id) REFERENCES package (id)"
                 + ");";
@@ -67,13 +67,13 @@ public class PackageDatabaseAccessor {
         }
     }
 
-    public void updatePackageArtifacts(PackageEntry entry, List<String> artifactUrls) {
-        if (entry.getArtifactUrls().isEmpty()) {
-            String sql = "INSERT INTO package(url,package_id) VALUES(?,?)";
+    public void updatePackageArtifacts(PackageEntry entry, List<String> artifactPaths) {
+        if (entry.getArtifactPaths().isEmpty()) {
+            String sql = "INSERT INTO package(path,package_id) VALUES(?,?)";
             try (Connection connection = DriverManager.getConnection(DB_URL);
                 PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                for (String artifact : artifactUrls) {
-                    preparedStatement.setString(1, artifact);
+                for (String path : artifactPaths) {
+                    preparedStatement.setString(1, path);
                     preparedStatement.setInt(2, entry.getId());
                     preparedStatement.addBatch();
                 }
@@ -89,8 +89,8 @@ public class PackageDatabaseAccessor {
     public PackageEntry findPackage(String packageName, String packageVersion) {
         PackageEntry packageEntry = findPackageEntity(packageName, packageVersion);
         if (packageEntry != null) {
-            List<String> artifactUrls = findArtifactEntities(packageEntry.getId());
-            return new PackageEntry(packageEntry, artifactUrls);
+            List<String> artifactPaths = findArtifactEntities(packageEntry.getId());
+            return new PackageEntry(packageEntry, artifactPaths);
         }
         return null;
     }
@@ -121,11 +121,11 @@ public class PackageDatabaseAccessor {
 
             ResultSet rs = preparedStatement.executeQuery();
 
-            List<String> artifactUrls = new ArrayList<>();
+            List<String> artifactPaths = new ArrayList<>();
             if (rs.next()) {
-                artifactUrls.add(rs.getString("url"));
+                artifactPaths.add(rs.getString("path"));
             }
-            return artifactUrls;
+            return artifactPaths;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to find packageEntity");
         }
