@@ -16,7 +16,7 @@ public class SoftwareInstaller {
     }
 
     public void copyInstall(Package rootPackage) {
-        PackageEntry packageEntry = databaseAccessor.get(rootPackage.getPackageName(), rootPackage.getPackageVersion());
+        PackageEntry packageEntry = databaseAccessor.findPackage(rootPackage.getPackageName(), rootPackage.getPackageVersion());
         // copy artifacts to working directory rootPackage.getArtifactUrls()
 
         // repeat for dependencies

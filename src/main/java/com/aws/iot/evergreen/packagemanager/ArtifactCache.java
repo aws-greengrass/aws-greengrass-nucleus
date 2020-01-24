@@ -40,8 +40,8 @@ public class ArtifactCache {
         }
 
         // Update package database with local URL
-        PackageEntry packageEntry = databaseAccessor.get(rootPackage.getPackageName(), rootPackage.getPackageVersion());
-        databaseAccessor.update(new PackageEntry(packageEntry, localArtifactUrl));
+        PackageEntry packageEntry = databaseAccessor.findPackage(rootPackage.getPackageName(), rootPackage.getPackageVersion());
+        databaseAccessor.updatePackageArtifacts(packageEntry, localArtifactUrl);
 
         // Repeat step for dependencies
     }
