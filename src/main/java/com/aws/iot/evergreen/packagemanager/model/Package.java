@@ -15,24 +15,24 @@ public class Package {
 
     private final String packageVersion;
 
+    private final Map<String, String> lifecycle;
+
     private final Set<String> artifactUrls;
 
     private final Set<Dependency> dependencies;
 
     private final Map<String, Package> dependencyPackageMap;
 
-    public Package(String serviceName, String packageName, String packageVersion, Set<String> artifactUrls, Set<Dependency> dependencies) {
+    public Package(String serviceName, String packageName, String packageVersion, Map<String, String> lifecycle,
+                   Set<String> artifactUrls, Set<Dependency> dependencies) {
         this.serviceName = serviceName;
         this.packageName = packageName;
         this.packageVersion = packageVersion;
+        this.lifecycle = Collections.unmodifiableMap(lifecycle);
         this.artifactUrls = Collections.unmodifiableSet(artifactUrls);
         this.dependencies = Collections.unmodifiableSet(dependencies);
 
         this.dependencyPackageMap = new HashMap<>();
-    }
-
-    public Package(String packageName, String packageVersion, Set<String> artifactUrls, Set<Dependency> dependencies) {
-        this(null, packageName, packageVersion, artifactUrls, dependencies);
     }
 
     public String getServiceName() {
@@ -45,6 +45,10 @@ public class Package {
 
     public String getPackageVersion() {
         return packageVersion;
+    }
+
+    public Map<String, String> getLifecycle() {
+        return lifecycle;
     }
 
     public Set<String> getArtifactUrls() {
@@ -76,6 +80,7 @@ public class Package {
         public String getPackageVersion() {
             return packageVersion;
         }
+
     }
 
 
