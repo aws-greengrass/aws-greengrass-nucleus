@@ -110,7 +110,7 @@ public class IPCService extends EvergreenService {
             server.run();
         } catch (IPCException e) {
             log.error("IPC service run() errored", e);
-// TODO: Unstable got deleted, was that the right thing to do?  Needs thinking about            
+// TODO: Unstable got deleted, was that the right thing to do?  Needs thinking about
 //            setState(State.Unstable);
             recover();
         }

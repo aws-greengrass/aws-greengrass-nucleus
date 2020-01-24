@@ -241,7 +241,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
      * it is called right after postInject.  The service doesn't transition to Running
      * until *after* this state is complete.  The service transitions to Running when
      * startup() completes
-     */    
+     */
     public void startup() {
     }
     /**
@@ -565,7 +565,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         } catch (UnknownHostException ex) {
         }
     }
-    static Node pickByOS(Topics n) {
+    public static Node pickByOS(Topics n) {
         Node bestn = null;
         int bestrank = -1;
         for (Map.Entry<String, Node> me : ((Topics) n).children.entrySet()) {

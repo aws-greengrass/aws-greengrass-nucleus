@@ -7,12 +7,12 @@ public class ConnectionWriter {
 
     public final Connection connection;
     public final ConnectionManager connectionManager;
-    public final String clientId;
+    private final RequestContext context;
 
-    public ConnectionWriter(Connection connection, ConnectionManager connectionManager, String clientId) {
+    public ConnectionWriter(Connection connection, ConnectionManager connectionManager, RequestContext context) {
         this.connection = connection;
         this.connectionManager = connectionManager;
-        this.clientId = clientId;
+        this.context = context;
     }
 
     /**
@@ -25,7 +25,7 @@ public class ConnectionWriter {
         try {
             connection.write(f);
         } catch (ConnectionIOException connectionIOException) {
-            connectionManager.connectionError(clientId);
+            connectionManager.connectionError(context.clientId);
             throw connectionIOException;
         }
     }

@@ -1,37 +1,57 @@
 package com.aws.iot.evergreen.ipc.handler;
 
-import com.aws.iot.evergreen.ipc.common.Constants;
-import com.aws.iot.evergreen.ipc.common.Connection;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.Utils;
+
+import javax.inject.Inject;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
-public class AuthHandler {
+public class AuthHandler implements InjectionActions {
+    public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
+
+    @Inject
+    private Kernel kernel;
+
     /**
      *
      * @param request
-     * @param connection
      * @return
      * @throws Exception
      */
-
-    public String doAuth(MessageFrame request, Connection connection) throws IPCClientNotAuthorizedException {
-
+    public RequestContext doAuth(MessageFrame request) throws IPCClientNotAuthorizedException {
         // First frame should be the auth request
         if (!request.destination.equals(AUTH_SERVICE)) {
             throw new IPCClientNotAuthorizedException("Invalid Auth request");
         }
 
-        if(!connection.isLocal()){
-            //TODO: Do Auth
+        String authToken = new String(request.message.getPayload(), StandardCharsets.UTF_8);
+        String clientId = UUID.randomUUID().toString();
+
+        // Lookup the provided auth token to associate it with a service (or reject it)
+        String serviceName = (String) kernel.getRoot().lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
+
+        if (serviceName == null) {
+            throw new IPCClientNotAuthorizedException("Invalid Auth request");
         }
-        //TODO: do this in a backward compatible way
-        String clientId = new String(request.message.getPayload());
-        if(clientId.isEmpty()){
-            throw new IPCClientNotAuthorizedException("ClientId is empty");
-        }
-        return clientId;
+        RequestContext context = new RequestContext();
+        context.clientId = clientId;
+        context.serviceName = serviceName;
+        return context;
     }
 
+    public static void registerAuthToken(EvergreenService s) {
+        Topic uid = s.config.createLeafChild("_UID").setParentNeedsToKnow(false);
+        String authToken = Utils.generateRandomString(16).toUpperCase();
+        uid.setValue(authToken);
+        s.config.parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).setValue(s.getName());
+    }
 }
