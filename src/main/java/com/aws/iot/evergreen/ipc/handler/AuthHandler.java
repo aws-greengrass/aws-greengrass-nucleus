@@ -1,24 +1,23 @@
 package com.aws.iot.evergreen.ipc.handler;
 
-import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.Utils;
 
 import javax.inject.Inject;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
 public class AuthHandler implements InjectionActions {
-    public static final String AUTH_TOKEN_TOPIC_NAME = "auth-tokens";
+    public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
 
-    @Inject
-    private Configuration config;
     @Inject
     private Kernel kernel;
 
@@ -38,19 +37,21 @@ public class AuthHandler implements InjectionActions {
         String clientId = UUID.randomUUID().toString();
 
         // Lookup the provided auth token to associate it with a service (or reject it)
-        AtomicReference<String> serviceName = new AtomicReference<>();
-        kernel.getRoot().deepForEachTopic(t -> {
-            if(t.name.equals("_UID") && t.getOnce().equals(authToken)) {
-                serviceName.set(t.parent.name);
-            }
-        });
+        String serviceName = (String) kernel.getRoot().lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
 
-        if (serviceName.get() == null) {
+        if (serviceName == null) {
             throw new IPCClientNotAuthorizedException("Invalid Auth request");
         }
         RequestContext context = new RequestContext();
         context.clientId = clientId;
-        context.serviceName = serviceName.get();
+        context.serviceName = serviceName;
         return context;
+    }
+
+    public static void registerAuthToken(EvergreenService s) {
+        Topic uid = s.config.createLeafChild("_UID").setParentNeedsToKnow(false);
+        String authToken = Utils.generateRandomString(16).toUpperCase();
+        uid.setValue(authToken);
+        s.config.parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).setValue(s.getName());
     }
 }

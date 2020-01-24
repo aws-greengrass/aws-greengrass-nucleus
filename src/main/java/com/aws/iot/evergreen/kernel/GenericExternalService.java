@@ -6,6 +6,7 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.ipc.handler.AuthHandler;
 import com.aws.iot.evergreen.util.*;
 import java.io.IOException;
 
@@ -25,9 +26,7 @@ public class GenericExternalService extends EvergreenService {
             }
         });
 
-        // Set a unique ID used for IPC Auth
-        Topic uid = c.createLeafChild("_UID").setParentNeedsToKnow(false);
-        uid.setValue(Utils.generateRandomString(16).toUpperCase());
+        AuthHandler.registerAuthToken(this);
     }
     @Override
     public void install() {

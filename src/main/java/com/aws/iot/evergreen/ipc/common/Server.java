@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class Server {
     public final static String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
+    private static final String LOCAL_IP = "127.0.0.1";
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private ServerSocket serverSocket;
     @Inject
@@ -34,9 +35,9 @@ public class Server {
     public void startup() throws IPCException {
         try {
             serverSocket = new ServerSocket();
-            // specifying port 0 causes  the system to pick an ephemeral port and a valid local address to bind the socket
+            // specifying port 0 causes the system to pick an ephemeral port and a valid local address to bind the socket
             serverSocket.bind(new InetSocketAddress(0));
-            String serverUri = "tcp://127.0.0.1:" + serverSocket.getLocalPort();
+            String serverUri = "tcp://"+ LOCAL_IP + ":" + serverSocket.getLocalPort();
             log.log(Log.Level.Note, "IPC service  URI: ", serverUri);
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables

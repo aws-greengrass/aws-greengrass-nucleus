@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.Resource;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryResponseStatus;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.LockScope;
 import com.aws.iot.evergreen.util.Log;
 
 import javax.inject.Inject;
@@ -20,12 +21,16 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
+/**
+ * Class to handle the business logic for Service Discovery including CRUD operations.
+ */
 public class ServiceDiscoveryAgent implements InjectionActions {
     public static final String REGISTERED_RESOURCES = "registered-resources";
-
     public static final String SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY = "resources";
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     @Inject
     private Configuration config;
@@ -39,11 +44,18 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     public ServiceDiscoveryAgent() {
     }
 
-    public synchronized GeneralResponse<Resource, ServiceDiscoveryResponseStatus> registerResource(RegisterResourceRequest request, String serviceName) {
+    /**
+     * Register a resource with Service Discovery. Will throw if the resource is already registered.
+     *
+     * @param request
+     * @param serviceName
+     * @return
+     */
+    public GeneralResponse<Resource, ServiceDiscoveryResponseStatus> registerResource(RegisterResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Resource, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
-        // TODO input validation
+        // TODO input validation. https://sim.amazon.com/issues/P32540011
 
         boolean pathIsReserved =
                 kernel.orderedDependencies().parallelStream()
@@ -68,100 +80,130 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             response.setErrorMessage(String.format("Service %s is not allowed to register %s", serviceName, resourcePath));
             return response;
         }
-        if (isRegistered(resourcePath)) {
-            response.setError(ServiceDiscoveryResponseStatus.AlreadyRegistered);
-            response.setErrorMessage(String.format("%s already exists", resourcePath));
+
+        try (LockScope scope = LockScope.lock(lock.writeLock())) {
+            if (isRegistered(resourcePath)) {
+                response.setError(ServiceDiscoveryResponseStatus.AlreadyRegistered);
+                response.setErrorMessage(String.format("%s already exists", resourcePath));
+                return response;
+            }
+
+            SDAResource sdaResource = SDAResource.builder()
+                    .resource(request.getResource())
+                    .publishedToDNSSD(request.isPublishToDNSSD())
+                    .owningService(serviceName).build();
+            config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
+
+            response.setError(ServiceDiscoveryResponseStatus.Success);
+            response.setResponse(request.getResource());
             return response;
         }
-
-        // Save resource
-        SDAResource sdaResource = SDAResource.builder()
-                .resource(request.getResource())
-                .publishedToDNSSD(request.isPublishToDNSSD())
-                .owningService(serviceName).build();
-        config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
-
-        response.setError(ServiceDiscoveryResponseStatus.Success);
-        response.setResponse(request.getResource());
-        return response;
     }
 
-    private boolean isRegistered(String resourcePath) {
-        return config.find(REGISTERED_RESOURCES, resourcePath) != null;
-    }
-
-    public synchronized GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request, String serviceName) {
+    /**
+     * Update an already existing resource. The update will only update the URI, TXT Records, and whether
+     * it is published to DNS-SD or not.
+     *
+     * @param request
+     * @param serviceName
+     * @return
+     */
+    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Void, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
-        // TODO input validation
+        // TODO input validation. https://sim.amazon.com/issues/P32540011
 
-        if (!isRegistered(resourcePath)) {
-            response.setError(ServiceDiscoveryResponseStatus.ResourceNotFound);
-            response.setErrorMessage(String.format("%s was not found", resourcePath));
+        try (LockScope scope = LockScope.lock(lock.writeLock())) {
+            if (!isRegistered(resourcePath)) {
+                response.setError(ServiceDiscoveryResponseStatus.ResourceNotFound);
+                response.setErrorMessage(String.format("%s was not found", resourcePath));
+                return response;
+            }
+
+            SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
+            if (!resource.getOwningService().equals(serviceName)) {
+                response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
+                response.setErrorMessage(String.format("Service %s is not allowed to update %s", serviceName, resourcePath));
+                return response;
+            }
+
+            // update resource (only some fields are updatable)
+            resource.getResource().setTxtRecords(request.getResource().getTxtRecords());
+            resource.getResource().setUri(request.getResource().getUri());
+            resource.setPublishedToDNSSD(request.isPublishToDNSSD());
+
+            response.setError(ServiceDiscoveryResponseStatus.Success);
             return response;
         }
-
-        SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
-        if (!resource.getOwningService().equals(serviceName)) {
-            response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-            response.setErrorMessage(String.format("Service %s is not allowed to update %s", serviceName, resourcePath));
-            return response;
-        }
-
-        // update resource (only some fields are updatable)
-        resource.getResource().setTxtRecords(request.getResource().getTxtRecords());
-        resource.getResource().setUri(request.getResource().getUri());
-        resource.setPublishedToDNSSD(request.isPublishToDNSSD());
-
-        response.setError(ServiceDiscoveryResponseStatus.Success);
-        return response;
     }
 
-    public synchronized GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request, String serviceName) {
+    /**
+     * Remove an existing resource.
+     *
+     * @param request
+     * @param serviceName
+     * @return
+     */
+    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Void, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
-        // TODO input validation
+        // TODO input validation. https://sim.amazon.com/issues/P32540011
 
-        if (!isRegistered(resourcePath)) {
-            response.setError(ServiceDiscoveryResponseStatus.ResourceNotFound);
-            response.setErrorMessage(String.format("%s was not found", resourcePath));
+        try (LockScope scope = LockScope.lock(lock.writeLock())) {
+            if (!isRegistered(resourcePath)) {
+                response.setError(ServiceDiscoveryResponseStatus.ResourceNotFound);
+                response.setErrorMessage(String.format("%s was not found", resourcePath));
+                return response;
+            }
+
+            SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
+            if (!resource.getOwningService().equals(serviceName)) {
+                response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
+                response.setErrorMessage(String.format("Service %s is not allowed to remove %s", serviceName, resourcePath));
+                return response;
+            }
+
+            config.find(REGISTERED_RESOURCES, resourcePath).remove();
+            response.setError(ServiceDiscoveryResponseStatus.Success);
             return response;
         }
-
-        SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
-        if (!resource.getOwningService().equals(serviceName)) {
-            response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-            response.setErrorMessage(String.format("Service %s is not allowed to remove %s", serviceName, resourcePath));
-            return response;
-        }
-
-        // Remove from master list
-        config.find(REGISTERED_RESOURCES, resourcePath).remove();
-        response.setError(ServiceDiscoveryResponseStatus.Success);
-        return response;
     }
 
+    /**
+     * Lookup resources. Returns a list of matching resources. Any null field in the input request
+     * will be treated as a wildcard, so any value will match it.
+     *
+     * @param request
+     * @param serviceName
+     * @return
+     */
     public GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> lookupResources(LookupResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
-        // TODO: input validation
+        // TODO: input validation. https://sim.amazon.com/issues/P32540011
         response.setError(ServiceDiscoveryResponseStatus.Success);
         List<Resource> matchingResources = new ArrayList<>();
 
-        // Try a direct lookup
-        response.setResponse(matchingResources);
-        if (isRegistered(resourcePath)) {
-            matchingResources.add(((SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce()).getResource());
+        try (LockScope scope = LockScope.lock(lock.readLock())) {
+            // Try a direct lookup
+            response.setResponse(matchingResources);
+            if (isRegistered(resourcePath)) {
+                matchingResources.add(((SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce()).getResource());
+                return response;
+            }
+
+            // Exact match not found, try a fuzzy search
+            matchingResources.addAll(findMatchingResourcesInMap(request));
+
             return response;
         }
+    }
 
-        // Exact match not found, try a fuzzy search
-        matchingResources.addAll(findMatchingResourcesInMap(request));
-
-        return response;
+    private boolean isRegistered(String resourcePath) {
+        return config.find(REGISTERED_RESOURCES, resourcePath) != null;
     }
 
     private List<Resource> findMatchingResourcesInMap(LookupResourceRequest request) {
