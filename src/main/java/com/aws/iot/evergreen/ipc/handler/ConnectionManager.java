@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.ipc.handler;
 import com.aws.iot.evergreen.ipc.common.Connection;
 import com.aws.iot.evergreen.ipc.common.ConnectionReader;
 import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
+import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
@@ -66,9 +67,11 @@ public class ConnectionManager {
             }
             try {
                 context = authHandler.doAuth(authReq);
+                connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, new FrameReader.Message(new byte[0]), FrameType.RESPONSE));
             } catch (IPCClientNotAuthorizedException e) {
                 connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, errorMessage(e.getMessage()), FrameType.RESPONSE));
                 connection.close();
+                log.note("Unauthorized client");
                 return;
             }
             // update the connected clients map and close the existing connection.

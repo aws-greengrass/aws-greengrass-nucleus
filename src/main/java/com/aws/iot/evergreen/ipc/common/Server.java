@@ -36,7 +36,7 @@ public class Server {
             serverSocket = new ServerSocket();
             // specifying port 0 causes  the system to pick an ephemeral port and a valid local address to bind the socket
             serverSocket.bind(new InetSocketAddress(0));
-            String serverUri = "tcp://" + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort();
+            String serverUri = "tcp://127.0.0.1:" + serverSocket.getLocalPort();
             log.log(Log.Level.Note, "IPC service  URI: ", serverUri);
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
