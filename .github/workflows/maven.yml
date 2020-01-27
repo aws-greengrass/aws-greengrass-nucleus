@@ -1,0 +1,51 @@
+name: Java CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches: '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - uses: actions/cache@v1
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    - name: Build with Maven
+      run: mvn -ntp -q test
+    - name: Convert Jacoco to Cobertura
+      run: curl -o cover2cover.py https://raw.githubusercontent.com/captainmalloc/cover2cover/7bf07a34cefeaa842246686f30c1999aada7e6b6/cover2cover.py && python3 cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
+    - name: cobertura-report
+      uses: 5monkeys/cobertura-action@v1
+      with:
+        # The GITHUB_TOKEN for this repo
+        repo_token: ${{ github.token }}
+        # Path to the cobertura file.
+        path: target/jacoco-report/cobertura.xml
+        # If files with 100% should be skipped from report.
+        skip_covered: false
+        # Minimum allowed coverage percentage as an integer.
+        minimum_coverage: 40
+        # Show line rate as specific column.
+        show_line: true
+        # Show branch rate as specific column.
+        show_branch: true
+    - name: Upload Coverage
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: Coverage Report
+        path: target/jacoco-report
+    - name: Publish with Maven
+      run: mvn -ntp -q --settings settings.xml clean deploy -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
+      if: github.event == 'push' && github.ref == 'master'
