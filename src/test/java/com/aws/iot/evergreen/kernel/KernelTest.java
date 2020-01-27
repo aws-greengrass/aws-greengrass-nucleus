@@ -76,6 +76,7 @@ public class KernelTest {
         kernel.launch();
         boolean ok = assertionLatch.await(60, TimeUnit.SECONDS);
 
+        kernel.shutdown();
         if (expectedStateTransitionList.size() != 0 || !ok) {
             for (ExpectedStateTransition e: expectedStateTransitionList) {
                 System.err.println(String.format("Fail to see state event for service %s: %s=> %s",
