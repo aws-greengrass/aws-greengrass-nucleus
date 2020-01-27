@@ -22,6 +22,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle.LIFECYCLE_SERVICE_NAME;
@@ -37,10 +40,17 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     @Inject
     private MessageDispatcher messageDispatcher;
+
+    @Inject
+    private ThreadPoolExecutor executor;
+
     private EvergreenService.GlobalStateChangeListener onServiceChange = (service, prev) -> {
         Map<String, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
+        State currentState = service.getState();
         if (callbacks != null) {
-            callbacks.values().forEach(x -> x.accept(prev, service.getState()));
+            // Run all callbacks inside the executor so as not to block
+            // the main subscription handler thread
+            callbacks.values().forEach(x -> executor.submit(() -> x.accept(prev, currentState)));
         }
     };
 
@@ -96,6 +106,7 @@ public class LifecycleIPCAgent implements InjectionActions {
                 StateTransitionEvent trans = StateTransitionEvent.builder()
                         .newState(newState.toString())
                         .oldState(oldState.toString())
+                        .service(listenRequest.getServiceName())
                         .build();
 
                 GeneralRequest<StateTransitionEvent, LifecycleRequestTypes> req =
@@ -107,9 +118,9 @@ public class LifecycleIPCAgent implements InjectionActions {
                     // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
                     messageDispatcher.sendMessage(context.clientId,
                             new FrameReader.Message(SendAndReceiveIPCUtil.encode(req)),
-                            LIFECYCLE_SERVICE_NAME).get();
+                            LIFECYCLE_SERVICE_NAME).get(5, TimeUnit.SECONDS);
                     // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
-                } catch (IOException | InterruptedException | ExecutionException e) {
+                } catch (IOException | InterruptedException | ExecutionException | TimeoutException e) {
                     // Log
                     e.printStackTrace();
                 }

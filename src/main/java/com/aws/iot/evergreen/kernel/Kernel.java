@@ -385,12 +385,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             log.significant("Shutting everything down", getMain());
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
             for (int i = d.length; --i >= 0;) { // shutdown in reverse order
-                if (d[i].inState(State.Running))
-                    try {
-                        d[i].close();
-                    } catch (Throwable t) {
-                        log.error(d[i], "Failed to shutdown", t);
-                    }
+                try {
+                    d[i].close();
+                } catch (Throwable t) {
+                    log.error(d[i], "Failed to shutdown", t);
+                }
             }
 
             // Wait for tasks in the executor to end.

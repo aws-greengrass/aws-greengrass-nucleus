@@ -2,19 +2,38 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.dependency;
 
-import com.aws.iot.evergreen.config.*;
+import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.*;
+import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.util.Utils;
 
-import static com.aws.iot.evergreen.util.Utils.*;
-import java.io.*;
-import java.lang.annotation.*;
-import java.lang.reflect.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.*;
-import javax.inject.*;
+import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
+import java.io.Closeable;
+import java.io.IOException;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static com.aws.iot.evergreen.util.Utils.isEmpty;
+import static com.aws.iot.evergreen.util.Utils.nullEmpty;
 
 /**
  * A collection of Objects that work together
@@ -122,7 +141,7 @@ public class Context implements Closeable {
         if(listeners!=null)
             listeners.forEach(s->s.globalServiceStateChanged(l, was));
     }
-    
+
     public void setAllStates(State ms) {
         forEach(f->{
             Object v = f.get();
@@ -318,7 +337,7 @@ public class Context implements Closeable {
             }
     };
     { publishThread.start(); }
-            
+
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
