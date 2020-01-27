@@ -1,5 +1,5 @@
 # Evergreen Kernel
-[![Build Status](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQmkyeEZPT3VpbGFjUDdNUC9Hc2hqZ0NYdEtCdUMxcFVXRUpOWVFTcmhicmZ0N05MVmlqb3Vwa0JFT2JhK2FUdjBaODdHUFJXVU5rMVM0RDhoRmlMY2ZFPSIsIml2UGFyYW1ldGVyU3BlYyI6IktQVGdUaU5Pc2M3V0tYU2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)](https://us-west-2.console.aws.amazon.com/codesuite/codebuild/projects/Stargate-Dev-Build)
+![Java CI](https://github.com/aws/aws-greengrass-kernel/workflows/Java%20CI/badge.svg?branch=master)
 
 ### *Copyright &copy; 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #### *SPDX-License-Identifier: Apache-2.0*
