@@ -295,6 +295,10 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     @Override
     public void close() {
         setState(State.Finished);
+        // if the current task is not shutdown
+        if (shutdownLatch.getCount() == 0 && backingTask != null) {
+            backingTask.cancel(true);
+        }
     }
 
     public Context getContext() { return context; }
