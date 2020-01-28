@@ -3,15 +3,22 @@ package com.aws.iot.evergreen.ipc;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.ipc.handler.AuthHandler;
+import com.aws.iot.evergreen.ipc.impl.AuthInterceptor;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.ipc.common.Server;
-import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Log;
+import io.grpc.BindableService;
+import io.grpc.Server;
+import io.grpc.ServerInterceptors;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
+import io.grpc.util.MutableHandlerRegistry;
 
 import javax.inject.Inject;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.util.Log.*;
+import static com.aws.iot.evergreen.util.Log.Level;
 
 
 /**
@@ -68,19 +75,30 @@ import static com.aws.iot.evergreen.util.Log.*;
 
 @ImplementsService(name = "IPCService", autostart = true)
 public class IPCService extends EvergreenService {
+    public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
+    private final io.grpc.Server grpcServer;
+    private static final MutableHandlerRegistry registry = new MutableHandlerRegistry();
 
-    //TODO: figure out how to inject the interface ConnectionManager
     @Inject
-    private ConnectionManager connectionManager;
-
-    @Inject
-    private Server server;
+    private static AuthHandler auth;
 
     @Inject
     Log log;
+    @Inject
+    private Kernel kernel;
+    private Server server;
 
     public IPCService(Topics c) {
         super(c);
+        grpcServer = NettyServerBuilder.forPort(0)
+                .fallbackHandlerRegistry(registry)
+                .permitKeepAliveWithoutCalls(true)
+                .maxConcurrentCallsPerConnection(6) // Not chosen for any particular reason
+                .build();
+    }
+
+    public static void registerService(BindableService service) {
+        registry.addService(ServerInterceptors.intercept(service, new AuthInterceptor(auth)));
     }
 
     /**
@@ -91,11 +109,12 @@ public class IPCService extends EvergreenService {
     public void startup() {
         log.log(Level.Note, "Startup called for IPC service");
         try {
-            server.startup();
+            server = grpcServer.start();
+            kernel.getRoot().lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME).setValue("tcp://127.0.0.1:" + server.getPort());
             super.startup();
-        } catch (IPCException e) {
+        } catch (IOException e) {
             log.error("Error starting IPC service", e);
-//            setState(State.Unstable);
+            setState(State.Errored);
             recover();
         }
     }
@@ -106,14 +125,6 @@ public class IPCService extends EvergreenService {
     @Override
     public void run() {
         log.log(Level.Note, "Run called for IPC service");
-        try {
-            server.run();
-        } catch (IPCException e) {
-            log.error("IPC service run() errored", e);
-// TODO: Unstable got deleted, was that the right thing to do?  Needs thinking about
-//            setState(State.Unstable);
-            recover();
-        }
     }
 
     private void recover(){
@@ -123,7 +134,6 @@ public class IPCService extends EvergreenService {
         }catch (Exception e){
             //TODO: Failed to rebind server, report status as error to kernel
             setState(State.Errored);
-            //
         }
     }
     /**
@@ -132,9 +142,10 @@ public class IPCService extends EvergreenService {
     @Override
     public void shutdown() {
         log.log(Level.Note, "Shutdown called for IPC service");
-        //TODO: transition to errored state if shutdown failed ?
-        server.shutdown();
-        connectionManager.shutdown();
+        try {
+            server.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+        }
     }
 
     /**
