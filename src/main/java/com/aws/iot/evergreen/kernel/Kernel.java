@@ -304,6 +304,24 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
         writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
     }
+
+    /** TODO : Remove after packaging demo and have this be taken care of by dynamic config loading
+     * at safe times through UpdateSystemSafelyService
+     */
+    public void update(String updateConfigPath, List<String> serviceNames) throws MalformedURLException, Throwable{
+        readMerge(new File(updateConfigPath).toURI().toURL(), false);
+        for (String service: serviceNames) {
+            EvergreenService es = EvergreenService.locate(context, service);
+            es.install();
+            es.awaitingStartup();
+            es.startup();
+            es.run();
+            getMain().addDependency(es, State.Running);
+
+        }
+
+        clearODcache();
+    }
     
     /*
      * When a config file gets read, it gets woven together from fragmemnts from
