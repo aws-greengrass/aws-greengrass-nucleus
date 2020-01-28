@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.packagemanager;
 import com.aws.iot.evergreen.packagemanager.model.PackageEntry;
 import com.aws.iot.evergreen.packagemanager.model.Package;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -30,6 +31,10 @@ public class ArtifactCache {
 
         for (String packageName : allPackages.keySet()) {
             Package curPackage = allPackages.get(packageName);
+            Path dest_package_root = Paths.get(cacheFolder.toString(), packageName);
+            if (!new File(dest_package_root.toString()).mkdir()) {
+                throw new RuntimeException("Failed to create package directory in cache!");
+            }
             Set<String> artifactUrls = curPackage.getArtifactUrls();
             List<String> localArtifactPaths = new ArrayList<>();
             for (String artifactUrl : artifactUrls) {
@@ -40,8 +45,8 @@ public class ArtifactCache {
 
                 //cache bytes to local cache directory, return local URL
                 //add to the list
-                Path dest = Paths.get(cacheFolder.toString(), packageName);
                 Path source = Paths.get(artifactUrl);
+                Path dest = Paths.get(dest_package_root.toString(), packageName);
                 Files.copy(source, dest, REPLACE_EXISTING);
 
                 localArtifactPaths.add(dest.toString());
