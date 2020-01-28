@@ -1,6 +1,8 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.model.Package;
+
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,7 +31,11 @@ public class PackageManager {
     public Package loadPackage(String packageFolder) {
         Package rootPackage = packageLoader.loadPackage(Paths.get(packageFolder));
         // cache artifact
-        artifactCache.cacheArtifact(rootPackage);
+        try {
+            artifactCache.cacheArtifact(rootPackage);
+        } catch (IOException e) {
+            // TODO : Better handling
+        }
         //root recipe should contain service name
         serviceRegistryMap.put(rootPackage.getServiceName(), rootPackage);
 
