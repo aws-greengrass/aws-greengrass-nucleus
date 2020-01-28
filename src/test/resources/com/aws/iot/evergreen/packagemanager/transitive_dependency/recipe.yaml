@@ -1,0 +1,22 @@
+---
+  service: MonitorService
+  name: Monitor
+  version: 1.0
+  lifecycle:
+    install:
+      debian:
+        skipif: onpath git
+        script: sudo apt-get install git
+      macos:
+        skipif: onpath git
+        script: brew install git
+      requires:
+        macos: homebrew
+  artifacts:
+    - s3@https://aws.com/loc
+    - github@https://github.com/loc1
+  dependencies:
+    - name: Log
+      version: 2.0
+    - name: Cool-Database
+      version: 1.0
