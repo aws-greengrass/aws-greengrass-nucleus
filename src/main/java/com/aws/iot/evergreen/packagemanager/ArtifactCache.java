@@ -25,16 +25,27 @@ public class ArtifactCache {
         this.cacheFolder = cacheFolder;
     }
 
-    public void cacheArtifact(Package rootPackage) throws IOException {
+    public void cacheArtifact(Package rootPackage) {
         Map<String, Package> allPackages = rootPackage.getDependencyPackageMap();
-        allPackages.put(rootPackage.getPackageName(), rootPackage);
+        allPackages.put(rootPackage.getPackageName() + "-" + rootPackage.getPackageVersion(), rootPackage);
 
         for (String packageName : allPackages.keySet()) {
             Package curPackage = allPackages.get(packageName);
-            Path dest_package_root = Paths.get(cacheFolder.toString(), packageName);
-            if (!new File(dest_package_root.toString()).mkdir()) {
-                throw new RuntimeException("Failed to create package directory in cache!");
+            Path dest_package_root_path = Paths.get(cacheFolder.toString(), packageName);
+            File dest_package_root_dir = new File(dest_package_root_path.toString());
+            if (!dest_package_root_dir.exists()){
+                dest_package_root_dir.mkdir();
+            } else {
+                // Package/version already exists, move to next
+                continue;
             }
+
+            Map<String, Package> curPackageDependencies = curPackage.getDependencyPackageMap();
+            if(curPackageDependencies.size() > 0) {
+                // Needs to remove duplicates to save on processing time
+                allPackages.putAll(curPackageDependencies);
+            }
+
             Set<String> artifactUrls = curPackage.getArtifactUrls();
             List<String> localArtifactPaths = new ArrayList<>();
             for (String artifactUrl : artifactUrls) {
@@ -46,8 +57,13 @@ public class ArtifactCache {
                 //cache bytes to local cache directory, return local URL
                 //add to the list
                 Path source = Paths.get(artifactUrl);
-                Path dest = Paths.get(dest_package_root.toString(), packageName);
-                Files.copy(source, dest, REPLACE_EXISTING);
+                Path dest = Paths.get(dest_package_root_path.toString(), packageName);
+
+                try {
+                    Files.copy(source, dest, REPLACE_EXISTING);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to copy artifact " + artifactUrl + " from package " + packageName);
+                }
 
                 localArtifactPaths.add(dest.toString());
             }
