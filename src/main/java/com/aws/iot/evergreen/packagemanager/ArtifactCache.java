@@ -3,13 +3,16 @@ package com.aws.iot.evergreen.packagemanager;
 import com.aws.iot.evergreen.packagemanager.model.PackageEntry;
 import com.aws.iot.evergreen.packagemanager.model.Package;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.nio.file.*;
 
@@ -27,10 +30,20 @@ public class ArtifactCache {
     }
 
     public void cacheArtifact(Package rootPackage) {
-        Map<String, Package> rootDepMap = rootPackage.getDependencyPackageMap();
         Map<String, Package> allPackages = new HashMap<>();
-        allPackages.putAll(rootDepMap);
-        allPackages.put(rootPackage.getPackageName() + "-" + rootPackage.getPackageVersion(), rootPackage);
+        Queue<Package> packageQueue = new LinkedList<>();
+        packageQueue.offer(rootPackage);
+
+        while (!packageQueue.isEmpty()) {
+            Package pkg = packageQueue.poll();
+            allPackages.put(pkg.getPackageName() + "-" + pkg.getPackageVersion(), pkg);
+            for (Package.Dependency dependency : pkg.getDependencies()) {
+                Map<String, Package> depPackages = pkg.getDependencyPackageMap();
+                for (Package p : depPackages.values()) {
+                    packageQueue.offer(p);
+                }
+            }
+        }
 
         for (String packageName : allPackages.keySet()) {
             Package curPackage = allPackages.get(packageName);
@@ -41,12 +54,6 @@ public class ArtifactCache {
             } else {
                 // Package/version already exists, move to next
                 continue;
-            }
-
-            Map<String, Package> curPackageDependencies = curPackage.getDependencyPackageMap();
-            if(curPackageDependencies.size() > 0) {
-                // Needs to remove duplicates to save on processing time
-                allPackages.putAll(curPackageDependencies);
             }
 
             Set<String> artifactUrls = curPackage.getArtifactUrls();
