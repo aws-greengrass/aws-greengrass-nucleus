@@ -1,7 +1,11 @@
 package com.aws.iot.evergreen.packagemanager.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,7 +19,7 @@ public class Package {
 
     private final String packageVersion;
 
-    private final Map<String, String> lifecycle;
+    private final Map<String, Object> lifecycle;
 
     private final Set<String> artifactUrls;
 
@@ -23,14 +27,18 @@ public class Package {
 
     private final Map<String, Package> dependencyPackageMap;
 
-    public Package(String serviceName, String packageName, String packageVersion, Map<String, String> lifecycle,
-                   Set<String> artifactUrls, Set<Dependency> dependencies) {
+    @JsonCreator
+    public Package(@JsonProperty("service") String serviceName, @JsonProperty("name") String packageName,
+                   @JsonProperty("version") String packageVersion,
+                   @JsonProperty("lifecycle") Map<String, Object> lifecycle,
+                   @JsonProperty("artifacts") List<String> artifactUrls,
+                   @JsonProperty("dependencies") Set<Dependency> dependencies) {
         this.serviceName = serviceName;
         this.packageName = packageName;
         this.packageVersion = packageVersion;
-        this.lifecycle = Collections.unmodifiableMap(lifecycle);
-        this.artifactUrls = Collections.unmodifiableSet(artifactUrls);
-        this.dependencies = Collections.unmodifiableSet(dependencies);
+        this.lifecycle = lifecycle == null ? Collections.emptyMap() : Collections.unmodifiableMap(lifecycle);
+        this.artifactUrls = artifactUrls == null ? Collections.emptySet() : new HashSet<>(artifactUrls);
+        this.dependencies = dependencies == null ? Collections.emptySet() : Collections.unmodifiableSet(dependencies);
 
         this.dependencyPackageMap = new HashMap<>();
     }
@@ -47,7 +55,7 @@ public class Package {
         return packageVersion;
     }
 
-    public Map<String, String> getLifecycle() {
+    public Map<String, Object> getLifecycle() {
         return lifecycle;
     }
 
@@ -59,7 +67,7 @@ public class Package {
         return dependencies;
     }
 
-    public Map<String, Package> getDependencyRecipeMap() {
+    public Map<String, Package> getDependencyPackageMap() {
         return dependencyPackageMap;
     }
 
@@ -68,7 +76,8 @@ public class Package {
 
         private String packageVersion;
 
-        public Dependency(String packageName, String packageVersion) {
+        @JsonCreator
+        public Dependency(@JsonProperty("name") String packageName, @JsonProperty("version") String packageVersion) {
             this.packageName = packageName;
             this.packageVersion = packageVersion;
         }

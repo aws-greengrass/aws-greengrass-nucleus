@@ -34,7 +34,7 @@ public class SoftwareInstaller {
             for (String path : packageEntry.getArtifactPaths()) {
                 copyCachedArtifactsToWorkingDirectory(serviceWorkingDirectory, path);
             }
-            for (Package dependency :  pkg.getDependencyRecipeMap().values()) {
+            for (Package dependency : pkg.getDependencyPackageMap().values()) {
                 packageQueue.offer(dependency);
             }
         }

@@ -48,7 +48,7 @@ public class PackageLoader {
                 String serializedRecipe = new MockPackageProvider().getPackageRecipe(dependency.getPackageName(),
                         dependency.getPackageVersion(), "deploymentId");
                 Package dpkg = constructAndRegisterPackage(new ByteArrayInputStream(serializedRecipe.getBytes()));
-                pkg.getDependencyRecipeMap()
+                pkg.getDependencyPackageMap()
                         .put(dependency.getPackageName() + "-" + dependency.getPackageVersion(), dpkg);
                 packageQueue.offer(dpkg);
             }
