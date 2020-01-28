@@ -34,7 +34,7 @@ public class PackageManager {
         try {
             artifactCache.cacheArtifact(rootPackage);
         } catch (IOException e) {
-            // TODO : Better handling
+            throw new RuntimeException("Failed to correctly load artifacts for " + rootPackage.getPackageName());
         }
         //root recipe should contain service name
         serviceRegistryMap.put(rootPackage.getServiceName(), rootPackage);
