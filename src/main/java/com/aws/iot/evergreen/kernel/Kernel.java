@@ -2,6 +2,10 @@
  * SPDX-License-Identifier: Apache-2.0 */
 
 package com.aws.iot.evergreen.kernel;
+import com.aws.iot.evergreen.config.*;
+import com.aws.iot.evergreen.dependency.*;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
+import com.aws.iot.evergreen.util.*;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
@@ -98,8 +102,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
-
+        context.put(PackageManager.class, new PackageManager());
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                shutdown();
+            }
+        });
     }
 
     public static void main(String[] args) {
