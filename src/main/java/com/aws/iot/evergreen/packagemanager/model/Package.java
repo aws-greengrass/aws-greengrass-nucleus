@@ -92,5 +92,15 @@ public class Package {
 
     }
 
+    public boolean equals(Package pkg) {
+        boolean ret = true;
+        if (!pkg.getPackageName().equalsIgnoreCase(getPackageName())){
+            ret = false;
+        } else if(!pkg.getPackageVersion().equalsIgnoreCase((getPackageVersion()))) {
+            ret = false;
+        }
+
+        return ret;
+    }
 
 }

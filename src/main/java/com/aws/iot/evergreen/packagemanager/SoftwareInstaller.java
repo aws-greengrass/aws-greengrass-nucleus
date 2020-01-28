@@ -52,12 +52,13 @@ public class SoftwareInstaller {
     }
 
     private Path createServiceWorkingDirectory(String serviceName) {
-        Path serviceDirectory = workingDirectory.resolve(serviceName);
-        if (!new File(serviceDirectory.toString()).mkdir()) {
-            throw new RuntimeException("Failed to create service working directory");
+        Path serviceDirectoryPath = workingDirectory.resolve(serviceName);
+        File serviceDirectory = new File(serviceDirectoryPath.toString());
+        if (!serviceDirectory.exists()){
+            serviceDirectory.mkdir();
         }
 
-        return serviceDirectory;
+        return serviceDirectoryPath;
     }
 
 }
