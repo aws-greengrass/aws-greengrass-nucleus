@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +27,9 @@ public class ArtifactCache {
     }
 
     public void cacheArtifact(Package rootPackage) {
-        Map<String, Package> allPackages = rootPackage.getDependencyPackageMap();
+        Map<String, Package> rootDepMap = rootPackage.getDependencyPackageMap();
+        Map<String, Package> allPackages = new HashMap<>();
+        allPackages.putAll(rootDepMap);
         allPackages.put(rootPackage.getPackageName() + "-" + rootPackage.getPackageVersion(), rootPackage);
 
         for (String packageName : allPackages.keySet()) {
