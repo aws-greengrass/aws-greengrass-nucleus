@@ -48,4 +48,4 @@ jobs:
         path: target/jacoco-report
     - name: Publish with Maven
       run: mvn -ntp -q --settings settings.xml clean deploy -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
-      if: github.event == 'push' && github.ref == 'master'
+      if: github.event == 'push'
