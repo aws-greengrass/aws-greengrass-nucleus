@@ -4,6 +4,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.*;
 import com.aws.iot.evergreen.dependency.*;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.util.*;
 
 import static com.aws.iot.evergreen.util.Utils.*;
@@ -41,6 +42,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
+        context.put(PackageManager.class, new PackageManager());
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
