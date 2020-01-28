@@ -3,14 +3,14 @@ package com.aws.iot.evergreen.builtin.services.servicediscovery;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.ipc.IPCService;
+import com.aws.iot.evergreen.ipc.Ipc;
+import com.aws.iot.evergreen.ipc.impl.ServiceDiscoveryImpl;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
-import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
-import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
-import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
-import com.aws.iot.evergreen.ipc.services.servicediscovery.Resource;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryResponseStatus;
-import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.LockScope;
 import com.aws.iot.evergreen.util.Log;
@@ -27,7 +27,8 @@ import java.util.stream.Collectors;
 /**
  * Class to handle the business logic for Service Discovery including CRUD operations.
  */
-public class ServiceDiscoveryAgent implements InjectionActions {
+@ImplementsService(name = "servicediscovery", autostart = true)
+public class ServiceDiscoveryAgent extends EvergreenService implements InjectionActions {
     public static final String REGISTERED_RESOURCES = "registered-resources";
     public static final String SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY = "resources";
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
@@ -41,7 +42,9 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     @Inject
     private Kernel kernel;
 
-    public ServiceDiscoveryAgent() {
+    public ServiceDiscoveryAgent(Topics c) {
+        super(c);
+        IPCService.registerService(new ServiceDiscoveryImpl(this));
     }
 
     /**
@@ -51,9 +54,9 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * @param serviceName
      * @return
      */
-    public GeneralResponse<Resource, ServiceDiscoveryResponseStatus> registerResource(RegisterResourceRequest request, String serviceName) {
+    public GeneralResponse<Ipc.Resource, ServiceDiscoveryResponseStatus> registerResource(Ipc.RegisterResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
-        GeneralResponse<Resource, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
+        GeneralResponse<Ipc.Resource, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
         // TODO input validation. https://sim.amazon.com/issues/P32540011
 
@@ -90,7 +93,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
 
             SDAResource sdaResource = SDAResource.builder()
                     .resource(request.getResource())
-                    .publishedToDNSSD(request.isPublishToDNSSD())
+                    .publishedToDNSSD(request.getPublishToDNSSD())
                     .owningService(serviceName).build();
             config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
 
@@ -108,7 +111,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * @param serviceName
      * @return
      */
-    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request, String serviceName) {
+    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(Ipc.UpdateResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Void, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
@@ -129,9 +132,12 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             }
 
             // update resource (only some fields are updatable)
-            resource.getResource().setTxtRecords(request.getResource().getTxtRecords());
-            resource.getResource().setUri(request.getResource().getUri());
-            resource.setPublishedToDNSSD(request.isPublishToDNSSD());
+            Ipc.Resource.Builder updater = resource.getResource().toBuilder()
+                    .clearTxtRecords()
+                    .putAllTxtRecords(request.getResource().getTxtRecordsMap())
+                    .setUri(request.getResource().getUri());
+            resource.setPublishedToDNSSD(request.getPublishToDNSSD());
+            resource.setResource(updater.build());
 
             response.setError(ServiceDiscoveryResponseStatus.Success);
             return response;
@@ -145,7 +151,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * @param serviceName
      * @return
      */
-    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request, String serviceName) {
+    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(Ipc.RemoveResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Void, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
@@ -179,13 +185,13 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * @param serviceName
      * @return
      */
-    public GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> lookupResources(LookupResourceRequest request, String serviceName) {
+    public GeneralResponse<List<Ipc.Resource>, ServiceDiscoveryResponseStatus> lookupResources(Ipc.LookupResourcesRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
-        GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
+        GeneralResponse<List<Ipc.Resource>, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
         // TODO: input validation. https://sim.amazon.com/issues/P32540011
         response.setError(ServiceDiscoveryResponseStatus.Success);
-        List<Resource> matchingResources = new ArrayList<>();
+        List<Ipc.Resource> matchingResources = new ArrayList<>();
 
         try (LockScope scope = LockScope.lock(lock.readLock())) {
             // Try a direct lookup
@@ -206,7 +212,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
         return config.find(REGISTERED_RESOURCES, resourcePath) != null;
     }
 
-    private List<Resource> findMatchingResourcesInMap(LookupResourceRequest request) {
+    private List<Ipc.Resource> findMatchingResourcesInMap(Ipc.LookupResourcesRequest request) {
         // Just use a dumb linear search since we probably don't have *that* many resources.
         // Can definitely be optimized in future.
         return config.lookupTopics(REGISTERED_RESOURCES).children.values().stream()
@@ -215,30 +221,30 @@ public class ServiceDiscoveryAgent implements InjectionActions {
                 .collect(Collectors.toList());
     }
 
-    private static String resourceToPath(Resource r) {
+    private static String resourceToPath(Ipc.Resource r) {
         List<String> ll = new LinkedList<>();
-        if (r.getName() != null)
+        if (!r.getName().isEmpty())
         ll.add(r.getName());
-        if (r.getServiceSubtype() != null)
+        if (!r.getServiceSubtype().isEmpty())
         ll.add(r.getServiceSubtype() + "._sub");
-        if (r.getServiceType() != null)
+        if (!r.getServiceType().isEmpty())
         ll.add(r.getServiceType());
         ll.add("_" + r.getServiceProtocol().name().toLowerCase());
-        if (r.getDomain() != null)
+        if (!r.getDomain().isEmpty())
         ll.add(r.getDomain());
         return String.join(".", ll);
     }
 
-    private static boolean matchResourceFields(Resource input, Resource validateAgainst) {
-        return nullOrEqual(input.getName(), validateAgainst.getName())
-                && nullOrEqual(input.getServiceType(), validateAgainst.getServiceType())
-                && nullOrEqual(input.getServiceSubtype(), validateAgainst.getServiceSubtype())
-                && nullOrEqual(input.getServiceProtocol(), validateAgainst.getServiceProtocol())
-                && nullOrEqual(input.getDomain(), validateAgainst.getDomain());
+    private static boolean matchResourceFields(Ipc.Resource input, Ipc.Resource validateAgainst) {
+        return nullEmptyOrEqual(input.getName(), validateAgainst.getName())
+                && nullEmptyOrEqual(input.getServiceType(), validateAgainst.getServiceType())
+                && nullEmptyOrEqual(input.getServiceSubtype(), validateAgainst.getServiceSubtype())
+                && nullEmptyOrEqual(input.getServiceProtocol(), validateAgainst.getServiceProtocol())
+                && nullEmptyOrEqual(input.getDomain(), validateAgainst.getDomain());
     }
 
-    private static boolean nullOrEqual(Object input, Object validateAgainst) {
-        if (input == null) {
+    private static boolean nullEmptyOrEqual(Object input, Object validateAgainst) {
+        if (input == null || (input instanceof String && ((String) input).isEmpty())) {
             return true;
         }
         return Objects.equals(input, validateAgainst);
