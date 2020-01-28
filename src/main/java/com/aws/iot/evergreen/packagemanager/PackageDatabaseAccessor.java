@@ -69,15 +69,15 @@ public class PackageDatabaseAccessor {
 
     public void updatePackageArtifacts(PackageEntry entry, List<String> artifactPaths) {
         if (entry.getArtifactPaths().isEmpty()) {
-            String sql = "INSERT INTO package(path,package_id) VALUES(?,?)";
+            String sql = "INSERT INTO artifact(path,package_id) VALUES(?,?)";
             try (Connection connection = DriverManager.getConnection(DB_URL);
                 PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                //TODO figure out why batch update doesn't work
                 for (String path : artifactPaths) {
                     preparedStatement.setString(1, path);
                     preparedStatement.setInt(2, entry.getId());
-                    preparedStatement.addBatch();
+                    preparedStatement.executeUpdate();
                 }
-                preparedStatement.executeBatch();
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to insert artifacts", e);
             }
@@ -90,7 +90,7 @@ public class PackageDatabaseAccessor {
         PackageEntry packageEntry = findPackageEntity(packageName, packageVersion);
         if (packageEntry != null) {
             List<String> artifactPaths = findArtifactEntities(packageEntry.getId());
-            return new PackageEntry(packageEntry, artifactPaths);
+            return new PackageEntry(packageEntry.getId(), packageName, packageVersion, artifactPaths);
         }
         return null;
     }
@@ -122,7 +122,7 @@ public class PackageDatabaseAccessor {
             ResultSet rs = preparedStatement.executeQuery();
 
             List<String> artifactPaths = new ArrayList<>();
-            if (rs.next()) {
+            while (rs.next()) {
                 artifactPaths.add(rs.getString("path"));
             }
             return artifactPaths;

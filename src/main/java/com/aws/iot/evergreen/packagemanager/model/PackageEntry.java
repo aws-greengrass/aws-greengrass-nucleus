@@ -20,16 +20,24 @@ public class PackageEntry {
         this.artifactPaths = Collections.emptyList();
     }
 
-    public PackageEntry(PackageEntry packageEntry, List<String> artifactPaths) {
-        this.id = packageEntry.id;
-        this.packageName = packageEntry.packageName;
-        this.packageVersion = packageEntry.packageVersion;
+    public PackageEntry(int id, String packageName, String packageVersion, List<String> artifactPaths) {
+        this.id = id;
+        this.packageName = packageName;
+        this.packageVersion = packageVersion;
 
         this.artifactPaths = Collections.unmodifiableList(artifactPaths);
     }
 
     public int getId() {
         return id;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public String getPackageVersion() {
+        return packageVersion;
     }
 
     public List<String> getArtifactPaths() {
