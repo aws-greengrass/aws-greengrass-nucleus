@@ -387,6 +387,24 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
     }
 
+    /** TODO : Remove after packaging demo and have this be taken care of by dynamic config loading
+     * at safe times through UpdateSystemSafelyService
+     */
+    public void update(String updateConfigPath, List<String> serviceNames) throws MalformedURLException, Throwable{
+        readMerge(new File(updateConfigPath).toURI().toURL(), false);
+        for (String service: serviceNames) {
+            EvergreenService es = EvergreenService.locate(context, service);
+            es.install();
+            es.awaitingStartup();
+            es.startup();
+            es.run();
+            getMain().addDependency(es, State.Running);
+
+        }
+
+        clearODcache();
+    }
+    
     /*
      * When a config file gets read, it gets woven together from fragments from
      * multiple sources.  This writes a fresh copy of the config file, as it is,
