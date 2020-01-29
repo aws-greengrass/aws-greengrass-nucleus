@@ -93,6 +93,7 @@ public class IPCService extends EvergreenService {
         grpcServer = NettyServerBuilder.forPort(0)
                 .fallbackHandlerRegistry(registry)
                 .permitKeepAliveWithoutCalls(true)
+                .keepAliveTimeout(300, TimeUnit.DAYS)
                 .maxConcurrentCallsPerConnection(6) // Not chosen for any particular reason
                 .build();
     }

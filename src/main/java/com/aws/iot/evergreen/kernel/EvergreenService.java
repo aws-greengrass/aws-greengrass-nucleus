@@ -4,19 +4,41 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.*;
-import com.aws.iot.evergreen.dependency.*;
-import com.aws.iot.evergreen.util.*;
+import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Subscriber;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.WhatHappened;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.Log;
+
+import javax.inject.Singleton;
+import java.io.Closeable;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.net.InetAddress;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
-import java.io.*;
-import java.lang.reflect.*;
-import java.net.*;
-import java.nio.file.*;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.function.*;
-import java.util.regex.*;
-import javax.inject.*;
 
 
 public class EvergreenService implements InjectionActions, Subscriber, Closeable {
@@ -147,7 +169,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                         try {
                             periodicityInformation = Periodicity.of(this);
                             startup();
-                            if(!errored()) setState(isPeriodic()  // Let timer do the transition to Running==null
+                            if(!errored() && getState() == State.Starting) setState(isPeriodic()  // Let timer do the transition to Running==null
                                     ? State.Finished
                                     : State.Running);
                         } catch (Throwable t) {
@@ -572,7 +594,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public static Node pickByOS(Topics n) {
         Node bestn = null;
         int bestrank = -1;
-        for (Map.Entry<String, Node> me : ((Topics) n).children.entrySet()) {
+        for (Map.Entry<String, Node> me : n.children.entrySet()) {
             int g = rank(me.getKey());
             if (g > bestrank) {
                 bestrank = g;
@@ -593,8 +615,10 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
     public boolean satisfiedBy(HashSet<EvergreenService> ready) {
         return dependencies == null
-                || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
+                || ready.containsAll(dependencies.keySet());
     }
 
-
+    public boolean isDaemonOrIPCManaged() {
+        return pickByOS("run") == null && pickByOS("startup") != null;
+    }
 }

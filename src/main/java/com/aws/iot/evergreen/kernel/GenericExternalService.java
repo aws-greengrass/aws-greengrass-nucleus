@@ -12,6 +12,7 @@ import java.io.IOException;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,27 +43,61 @@ public class GenericExternalService extends EvergreenService {
     }
     @Override
     public void startup() {
-        if(run("startup", null)==RunStatus.Errored)
-            setState(State.Errored);
-        super.startup();
-    }
-    @Override
-    public void run() {
-        if (run("run", exit -> {
-            currentScript = null;
-            if(!inShutdown)
+        IntConsumer bg = null;
+        CountDownLatch startupLatch = new CountDownLatch(1);
+        if (isDaemonOrIPCManaged()) {
+            bg = (exit) -> {
                 if (exit == 0) {
-                    setState(State.Finished);
-                    context.getLog().significant(getName(), "Finished");
+                    if (getState().equals(State.Running)) {
+                        setState(State.Finished);
+                        context.getLog().significant(getName(), "Finished");
+                    } else {
+                        setState(State.Running);
+                        context.getLog().significant(getName(), "Running");
+                    }
                 } else {
                     setState(State.Errored);
                     context.getLog().error(getName(), "Failed", exit2String(exit));
                 }
-        })==RunStatus.NothingDone) {
-            context.getLog().significant(getName(), "run: NothingDone");
-            setState(State.Finished);
+                startupLatch.countDown();
+            };
+            this.getStateTopic().subscribe((w, n) -> {
+                if (State.Running.equals(n.getOnce())) {
+                    startupLatch.countDown();
+                }
+            });
+        } else {
+            startupLatch.countDown();
+        }
+        if(run("startup", bg)==RunStatus.Errored)
+            setState(State.Errored);
+
+        try {
+            startupLatch.await();
+        } catch (InterruptedException ignored) {
+        }
+        super.startup();
+    }
+    @Override
+    public void run() {
+        if (!isDaemonOrIPCManaged()) {
+            if (run("run", exit -> {
+                currentScript = null;
+                if (!inShutdown)
+                    if (exit == 0) {
+                        setState(State.Finished);
+                        context.getLog().significant(getName(), "Finished");
+                    } else {
+                        setState(State.Errored);
+                        context.getLog().error(getName(), "Failed", exit2String(exit));
+                    }
+            }) == RunStatus.NothingDone) {
+                context.getLog().significant(getName(), "run: NothingDone");
+                setState(State.Finished);
+            }
         }
     }
+
     static final String[] sigCodes = {
         "SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE",
         "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM",

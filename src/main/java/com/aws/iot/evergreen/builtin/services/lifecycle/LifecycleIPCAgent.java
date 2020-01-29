@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 import javax.inject.Inject;
@@ -36,8 +37,8 @@ public class LifecycleIPCAgent extends EvergreenService implements InjectionActi
 
     private EvergreenService.GlobalStateChangeListener onServiceChange = (service, prev) -> {
         List<BiConsumer<State, State>> callbacks = listeners.get(service.getName());
-        State currentState = service.getState();
         if (callbacks != null) {
+            State currentState = service.getState();
             // Run all callbacks inside the executor so as not to block
             // the main subscription handler thread
             callbacks.forEach(x -> executor.submit(() -> x.accept(prev, currentState)));
@@ -97,11 +98,13 @@ public class LifecycleIPCAgent extends EvergreenService implements InjectionActi
             old.add((oldState, newState) -> {
                 // Observer isn't threadsafe, so we need to sync on it
                 synchronized (observer) {
-                    observer.onNext(Ipc.StateTransition.newBuilder()
-                            .setService(listenRequest.getService())
-                            .setOldState(oldState.toString())
-                            .setNewState(newState.toString())
-                            .build());
+                    if (!((ServerCallStreamObserver) observer).isCancelled()) {
+                        observer.onNext(Ipc.StateTransition.newBuilder()
+                                .setService(listenRequest.getService())
+                                .setOldState(oldState.toString())
+                                .setNewState(newState.toString())
+                                .build());
+                    }
                 }
             });
 
