@@ -10,22 +10,24 @@ import static com.aws.iot.evergreen.util.Coerce.toDouble;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.aws.iot.evergreen.util.Coerce.toQuotedString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CoerceTest {
 
     @Test
     public void T1() {
-        assertEquals(true, toBoolean(true));
-        assertEquals(true, toBoolean("true"));
-        assertEquals(true, toBoolean(1));
-        assertEquals(true, toBoolean("yes"));
-        assertEquals(true, toBoolean(99));
-        assertEquals(false, toBoolean(false));
-        assertEquals(false, toBoolean("false"));
-        assertEquals(false, toBoolean("bozo"));
-        assertEquals(false, toBoolean(null));
-        assertEquals(false, toBoolean(0));
+        assertTrue(toBoolean(true));
+        assertTrue(toBoolean("true"));
+        assertTrue(toBoolean(1));
+        assertTrue(toBoolean("yes"));
+        assertTrue(toBoolean(99));
+        assertFalse(toBoolean(false));
+        assertFalse(toBoolean("false"));
+        assertFalse(toBoolean("bozo"));
+        assertFalse(toBoolean(null));
+        assertFalse(toBoolean(0));
     }
 
     @Test
@@ -54,7 +56,7 @@ public class CoerceTest {
         assertEquals(en.Green, Coerce.toEnum(en.class, "g"));
         assertEquals(en.Green, Coerce.toEnum(en.class, "greE"));
         assertEquals(en.Gross, Coerce.toEnum(en.class, "gro"));
-        assertEquals(null, Coerce.toEnum(en.class, "grok"));
+        assertNull(Coerce.toEnum(en.class, "grok"));
     }
 
     @Test
@@ -74,7 +76,7 @@ public class CoerceTest {
     void t(String T, String... expect) {
         String[] t = Coerce.toStringArray(T);
         int len = t.length;
-        assertTrue(len == expect.length);
+        assertEquals(len, expect.length);
         for (int i = 0; i < len; i++) {
             assertEquals(expect[i], t[i]);
         }

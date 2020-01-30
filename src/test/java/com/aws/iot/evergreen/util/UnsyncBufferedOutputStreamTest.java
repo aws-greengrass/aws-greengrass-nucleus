@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.util;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@Tag("Integration")
 public class UnsyncBufferedOutputStreamTest {
     OutputStream out;
     CommitableFile cf;
