@@ -3,28 +3,51 @@
 
 package com.aws.iot.evergreen.util;
 
-import java.io.*;
-import java.lang.reflect.*;
-import java.nio.file.*;
-import java.util.*;
-import software.amazon.ion.*;
-import software.amazon.ion.system.*;
+import software.amazon.ion.IonReader;
+import software.amazon.ion.IonType;
+import software.amazon.ion.IonWriter;
+import software.amazon.ion.system.IonReaderBuilder;
+import software.amazon.ion.system.IonTextWriterBuilder;
+import software.amazon.ion.system.IonWriterBuilder;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Array;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 public class POJOUtil {
+
+    public static final IonReaderBuilder readerBuilder = IonReaderBuilder.standard().immutable();
+    //    public static final IonWriterBuilder writerBuilder = IonBinaryWriterBuilder.standard().immutable();
+    public static final IonWriterBuilder writerBuilder = IonTextWriterBuilder.pretty().immutable();
+    public static final Object EOF = new Object() {
+        @Override
+        public String toString() {
+            return "EOF";
+        }
+    };
 
     public static HashMap map(Object... kvs) {
         HashMap ret = new HashMap();
         int limit = kvs.length - 1;
-        for (int i = 0; i < limit; i += 2)
+        for (int i = 0; i < limit; i += 2) {
             ret.put(kvs[i], kvs[i + 1]);
+        }
         return ret;
     }
+
     public static boolean isError(Map v) {
         return jsget(v, "error") != null;
     }
 
     public static String getError(Map v) {
-        return Objects.toString(jsget(v, "error"),"");
+        return Objects.toString(jsget(v, "error"), "");
     }
 
     public static Object jsget(Map v, String key) {
@@ -36,8 +59,9 @@ public class POJOUtil {
     }
 
     public static String jsstr(Object v) {
-        if (v == null)
+        if (v == null) {
             return null;
+        }
         String s = Utils.deepToString(v).toString().trim();
         return Utils.isEmpty(s) ? null : s;
     }
@@ -55,31 +79,25 @@ public class POJOUtil {
     }
 
     public static int jsint(Object o) {
-        if (o == null)
+        if (o == null) {
             return 0;
-        if (o instanceof Number)
+        }
+        if (o instanceof Number) {
             return ((Number) o).intValue();
+        }
         try {
             return Integer.parseInt(o.toString());
         } catch (NumberFormatException t) {
             return 0;
         }
     }
-    public static final IonReaderBuilder readerBuilder = IonReaderBuilder.standard().immutable();
-//    public static final IonWriterBuilder writerBuilder = IonBinaryWriterBuilder.standard().immutable();
-    public static final IonWriterBuilder writerBuilder = IonTextWriterBuilder.pretty().immutable();
-    public static final Object EOF = new Object() {
-        @Override
-        public String toString() {
-            return "EOF";
-        }
-    };
 
     public static Object readPOJO(IonReader in) {
         Object ret;
         IonType t = in.getType();
-        if (t == null && in.next() == null)
+        if (t == null && in.next() == null) {
             return EOF;
+        }
         switch (in.getType()) {
             case SYMBOL:
             case STRING:
@@ -118,8 +136,9 @@ public class POJOUtil {
             case STRUCT: {
                 Map m = new HashMap();
                 in.stepIn();
-                while (in.next() != null)
+                while (in.next() != null) {
                     m.put(in.getFieldName(), readPOJO(in));
+                }
                 in.stepOut();
                 ret = m;
             }
@@ -127,19 +146,22 @@ public class POJOUtil {
             case SEXP:
             case LIST: {
                 String tname = null;
-                for (String s : in.getTypeAnnotations())
+                for (String s : in.getTypeAnnotations()) {
                     tname = s;
+                }
                 in.stepIn();
                 int hash = tname == null ? -1 : tname.indexOf('#');
                 if (hash < 0) {
                     Collection o = null;
-                    if (tname != null)
+                    if (tname != null) {
                         try {
                             o = (Collection) Class.forName(tname).newInstance();
                         } catch (ClassNotFoundException | IllegalAccessException | InstantiationException ex) {
                         }
-                    if (o == null)
+                    }
+                    if (o == null) {
                         o = new ArrayList();
+                    }
                     while (in.next() != null) {
                         Object v = readPOJO(in);
                         o.add(v);
@@ -202,25 +224,40 @@ public class POJOUtil {
         }
         return ret;
     }
+
     public static void writePOJO(IonWriter out, long pojo) throws IOException {
         out.writeInt(pojo);
     }
+
     public static void writePOJO(IonWriter out, double pojo) throws IOException {
         out.writeFloat(pojo);
     }
+
     public static void writePOJO(IonWriter out, boolean pojo) throws IOException {
         out.writeBool(pojo);
     }
+
     public static void writePOJO(IonWriter out, CharSequence pojo) throws IOException {
-        if(pojo==null) out.writeNull(IonType.STRING);
-        else out.writeString(pojo.toString());
+        if (pojo == null) {
+            out.writeNull(IonType.STRING);
+        } else {
+            out.writeString(pojo.toString());
+        }
     }
+
     public static void writePOJO(IonWriter out, byte[] pojo) throws IOException {
-        if(pojo==null) out.writeNull();
-        else out.writeBlob(pojo);
+        if (pojo == null) {
+            out.writeNull();
+        } else {
+            out.writeBlob(pojo);
+        }
     }
+
     public static void writePOJO(IonWriter out, Map pojo) throws IOException {
-        if(pojo==null) { out.writeNull(IonType.STRUCT); return; }
+        if (pojo == null) {
+            out.writeNull(IonType.STRUCT);
+            return;
+        }
         out.stepIn(IonType.STRUCT);
         pojo.forEach((k, v) -> {
             out.setFieldName(k.toString());
@@ -232,8 +269,12 @@ public class POJOUtil {
         });
         out.stepOut();
     }
+
     public static void writePOJO(IonWriter out, Collection pojo) throws IOException {
-        if(pojo==null) { out.writeNull(IonType.LIST); return; }
+        if (pojo == null) {
+            out.writeNull(IonType.LIST);
+            return;
+        }
         out.addTypeAnnotation(pojo.getClass().getName());
         out.stepIn(IonType.LIST);
         pojo.forEach(v -> {
@@ -245,52 +286,63 @@ public class POJOUtil {
         });
         out.stepOut();
     }
+
     public static void writePOJOArray(IonWriter out, Object pojo) throws IOException {
-        if(pojo==null) { out.writeNull(IonType.LIST); return; }
+        if (pojo == null) {
+            out.writeNull(IonType.LIST);
+            return;
+        }
         int limit = Array.getLength(pojo);
         out.addTypeAnnotation(pojo.getClass().getComponentType().getName() + '#' + limit);
         out.stepIn(IonType.LIST);
-        for (int i = 0; i < limit; i++)
+        for (int i = 0; i < limit; i++) {
             writePOJO(out, Array.get(pojo, i));
+        }
         out.stepOut();
     }
+
     public static void writeFinishPOJO(IonWriter out, Map pojo) throws IOException {
         writePOJO(out, pojo);
         out.finish();
     }
+
     public static void writeFinishPOJO(IonWriter out, Object pojo) throws IOException {
         writePOJO(out, pojo);
         out.finish();
     }
+
     public static void writePOJO(IonWriter out, Object pojo) throws IOException {
         if (pojo == null) {
             out.writeNull();
             return;
         }
         Class cl = pojo.getClass();
-        if (pojo instanceof Number)
-            if (cl == Double.class || cl == Float.class)
+        if (pojo instanceof Number) {
+            if (cl == Double.class || cl == Float.class) {
                 writePOJO(out, ((Number) pojo).doubleValue());
-            else
+            } else {
                 writePOJO(out, ((Number) pojo).longValue());
-        else if (pojo instanceof Map)
+            }
+        } else if (pojo instanceof Map) {
             writePOJO(out, (Map) pojo);
-        else if (pojo instanceof Collection)
+        } else if (pojo instanceof Collection) {
             writePOJO(out, (Collection) pojo);
-        else if (pojo instanceof CharSequence)
+        } else if (pojo instanceof CharSequence) {
             writePOJO(out, (CharSequence) pojo);
-        else if (cl == Boolean.class)
+        } else if (cl == Boolean.class) {
             writePOJO(out, (boolean) pojo);
-        else if (pojo instanceof byte[])
+        } else if (pojo instanceof byte[]) {
             writePOJO(out, (byte[]) pojo);
-        else if (cl.isArray())
+        } else if (cl.isArray()) {
             writePOJOArray(out, pojo);
-        else
+        } else {
             writePOJO(out, pojo.toString());
+        }
     }
+
     public static void writePOJO(Path path, Object pojo) {
         try (CommitableFile out = CommitableFile.abandonOnClose(path)) {
-            System.out.println("Writing "+path);
+            System.out.println("Writing " + path);
             IonWriter w = IonTextWriterBuilder.pretty().build(out);
             writePOJO(w, pojo);
             w.finish();
@@ -299,8 +351,9 @@ public class POJOUtil {
             ex.printStackTrace(System.out);
         }
     }
+
     public static Object readPOJO(Path path) throws IOException {
-        try(InputStream in = Files.newInputStream(path)) {
+        try (InputStream in = Files.newInputStream(path)) {
             return readPOJO(readerBuilder.build(in));
         }
     }

@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.LockScope;
 import com.aws.iot.evergreen.util.Log;
 
-import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -23,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 /**
  * Class to handle the business logic for Service Discovery including CRUD operations.
@@ -44,6 +44,38 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     public ServiceDiscoveryAgent() {
     }
 
+    private static String resourceToPath(Resource r) {
+        List<String> ll = new LinkedList<>();
+        if (r.getName() != null) {
+            ll.add(r.getName());
+        }
+        if (r.getServiceSubtype() != null) {
+            ll.add(r.getServiceSubtype() + "._sub");
+        }
+        if (r.getServiceType() != null) {
+            ll.add(r.getServiceType());
+        }
+        ll.add("_" + r.getServiceProtocol().name().toLowerCase());
+        if (r.getDomain() != null) {
+            ll.add(r.getDomain());
+        }
+        return String.join(".", ll);
+    }
+
+    private static boolean matchResourceFields(Resource input, Resource validateAgainst) {
+        return nullOrEqual(input.getName(), validateAgainst.getName()) && nullOrEqual(input.getServiceType(),
+                validateAgainst.getServiceType()) && nullOrEqual(input.getServiceSubtype(),
+                validateAgainst.getServiceSubtype()) && nullOrEqual(input.getServiceProtocol(),
+                validateAgainst.getServiceProtocol()) && nullOrEqual(input.getDomain(), validateAgainst.getDomain());
+    }
+
+    private static boolean nullOrEqual(Object input, Object validateAgainst) {
+        if (input == null) {
+            return true;
+        }
+        return Objects.equals(input, validateAgainst);
+    }
+
     /**
      * Register a resource with Service Discovery. Will throw if the resource is already registered.
      *
@@ -60,8 +92,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
         boolean pathIsReserved =
                 kernel.orderedDependencies().parallelStream()
                         .map(service -> config.findResolvedTopic(service.getName(), SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY))
-                        .filter(Objects::nonNull)
-                        .anyMatch(t -> {
+                        .filter(Objects::nonNull).anyMatch(t -> {
                             Object o = t.getOnce();
                             if (o instanceof Collection) {
                                 String name = t.name;
@@ -77,7 +108,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
 
         if (pathIsReserved) {
             response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-            response.setErrorMessage(String.format("Service %s is not allowed to register %s", serviceName, resourcePath));
+            response.setErrorMessage(String.format("Service %s is not allowed to register %s", serviceName,
+                    resourcePath));
             return response;
         }
 
@@ -88,10 +120,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
                 return response;
             }
 
-            SDAResource sdaResource = SDAResource.builder()
-                    .resource(request.getResource())
-                    .publishedToDNSSD(request.isPublishToDNSSD())
-                    .owningService(serviceName).build();
+            SDAResource sdaResource =
+                    SDAResource.builder().resource(request.getResource()).publishedToDNSSD(request.isPublishToDNSSD()).owningService(serviceName).build();
             config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
 
             response.setError(ServiceDiscoveryResponseStatus.Success);
@@ -108,7 +138,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * @param serviceName
      * @return
      */
-    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request, String serviceName) {
+    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request,
+                                                                                String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Void, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
@@ -124,7 +155,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
             if (!resource.getOwningService().equals(serviceName)) {
                 response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-                response.setErrorMessage(String.format("Service %s is not allowed to update %s", serviceName, resourcePath));
+                response.setErrorMessage(String.format("Service %s is not allowed to update %s", serviceName,
+                        resourcePath));
                 return response;
             }
 
@@ -145,7 +177,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * @param serviceName
      * @return
      */
-    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request, String serviceName) {
+    public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request,
+                                                                                String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Void, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
@@ -161,7 +194,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
             if (!resource.getOwningService().equals(serviceName)) {
                 response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-                response.setErrorMessage(String.format("Service %s is not allowed to remove %s", serviceName, resourcePath));
+                response.setErrorMessage(String.format("Service %s is not allowed to remove %s", serviceName,
+                        resourcePath));
                 return response;
             }
 
@@ -209,38 +243,6 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     private List<Resource> findMatchingResourcesInMap(LookupResourceRequest request) {
         // Just use a dumb linear search since we probably don't have *that* many resources.
         // Can definitely be optimized in future.
-        return config.lookupTopics(REGISTERED_RESOURCES).children.values().stream()
-                .map(node -> ((SDAResource) ((Topic) node).getOnce()).getResource())
-                .filter(r -> matchResourceFields(request.getResource(), r))
-                .collect(Collectors.toList());
-    }
-
-    private static String resourceToPath(Resource r) {
-        List<String> ll = new LinkedList<>();
-        if (r.getName() != null)
-        ll.add(r.getName());
-        if (r.getServiceSubtype() != null)
-        ll.add(r.getServiceSubtype() + "._sub");
-        if (r.getServiceType() != null)
-        ll.add(r.getServiceType());
-        ll.add("_" + r.getServiceProtocol().name().toLowerCase());
-        if (r.getDomain() != null)
-        ll.add(r.getDomain());
-        return String.join(".", ll);
-    }
-
-    private static boolean matchResourceFields(Resource input, Resource validateAgainst) {
-        return nullOrEqual(input.getName(), validateAgainst.getName())
-                && nullOrEqual(input.getServiceType(), validateAgainst.getServiceType())
-                && nullOrEqual(input.getServiceSubtype(), validateAgainst.getServiceSubtype())
-                && nullOrEqual(input.getServiceProtocol(), validateAgainst.getServiceProtocol())
-                && nullOrEqual(input.getDomain(), validateAgainst.getDomain());
-    }
-
-    private static boolean nullOrEqual(Object input, Object validateAgainst) {
-        if (input == null) {
-            return true;
-        }
-        return Objects.equals(input, validateAgainst);
+        return config.lookupTopics(REGISTERED_RESOURCES).children.values().stream().map(node -> ((SDAResource) ((Topic) node).getOnce()).getResource()).filter(r -> matchResourceFields(request.getResource(), r)).collect(Collectors.toList());
     }
 }

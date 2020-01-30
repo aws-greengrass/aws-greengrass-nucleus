@@ -3,11 +3,17 @@ package com.aws.iot.evergreen.ipc.common;
 import com.aws.iot.evergreen.ipc.exceptions.ClientClosedConnectionException;
 import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.aws.iot.evergreen.ipc.common.FrameReader.*;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.readFrame;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.writeFrame;
 
 /**
  * Represents a long lived connection with an external process.
@@ -51,9 +57,9 @@ public interface Connection {
             try {
                 return readFrame(dataInputStream);
             } catch (EOFException eofException) {
-                throw new ClientClosedConnectionException("Client closed connection",eofException);
+                throw new ClientClosedConnectionException("Client closed connection", eofException);
             } catch (Exception e) {
-                throw new ConnectionIOException("Error reading Frame",e);
+                throw new ConnectionIOException("Error reading Frame", e);
             }
         }
 

@@ -8,9 +8,9 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Utils;
 
-import javax.inject.Inject;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
@@ -21,8 +21,14 @@ public class AuthHandler implements InjectionActions {
     @Inject
     private Kernel kernel;
 
+    public static void registerAuthToken(EvergreenService s) {
+        Topic uid = s.config.createLeafChild("_UID").setParentNeedsToKnow(false);
+        String authToken = Utils.generateRandomString(16).toUpperCase();
+        uid.setValue(authToken);
+        s.config.parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).setValue(s.getName());
+    }
+
     /**
-     *
      * @param request
      * @return
      * @throws Exception
@@ -46,12 +52,5 @@ public class AuthHandler implements InjectionActions {
         context.clientId = clientId;
         context.serviceName = serviceName;
         return context;
-    }
-
-    public static void registerAuthToken(EvergreenService s) {
-        Topic uid = s.config.createLeafChild("_UID").setParentNeedsToKnow(false);
-        String authToken = Utils.generateRandomString(16).toUpperCase();
-        uid.setValue(authToken);
-        s.config.parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).setValue(s.getName());
     }
 }

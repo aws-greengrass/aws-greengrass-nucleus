@@ -6,13 +6,19 @@ package com.aws.iot.evergreen.util;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import org.junit.jupiter.api.Test;
 
-import java.io.*;
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class EZPluginsTest {
     int hits;
+
+    private static Throwable cause(Throwable t) {
+        Throwable c = t.getCause();
+        return c == null ? t : cause(c);
+    }
+
     @Test
     public void testMatch() {
         System.out.println(Exec.sh("pwd"));
@@ -53,9 +59,5 @@ public class EZPluginsTest {
             System.out.println("B:" + s);
         }
 
-    }
-    private static Throwable cause(Throwable t) {
-        Throwable c = t.getCause();
-        return c==null ? t : cause(c);
     }
 }
