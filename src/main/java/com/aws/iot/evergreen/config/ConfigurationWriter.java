@@ -3,60 +3,77 @@
 
 package com.aws.iot.evergreen.config;
 
-import com.aws.iot.evergreen.util.*;
+import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.Commitable;
+import com.aws.iot.evergreen.util.CommitableWriter;
+import com.aws.iot.evergreen.util.Utils;
 
-import static com.aws.iot.evergreen.util.Utils.*;
-import java.io.*;
-import java.nio.file.*;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+
+import static com.aws.iot.evergreen.util.Utils.appendLong;
+import static com.aws.iot.evergreen.util.Utils.flush;
 
 public class ConfigurationWriter implements Closeable, Subscriber {
     private final Writer out;
     private final Configuration conf;
-    private  boolean flushImmediately;
-    public static void dump(Configuration c, Path file) {
-        try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
-            cs.writeAll();
-        } catch (IOException ex) {
-            c.root.context.getLog().error("ConfigurationWriter.dump",ex);
-        }
-    }
+    private boolean flushImmediately;
+
     @SuppressWarnings("LeakingThisInConstructor")
     ConfigurationWriter(Configuration c, Writer o) {
         out = o;
         conf = c;
         conf.getRoot().listen(this);
     }
+
     ConfigurationWriter(Configuration c, Path p) throws IOException {
         this(c, CommitableWriter.abandonOnClose(p));
     }
-    public static ConfigurationWriter logTransactionsTo(Configuration c, Path p) throws IOException {
-        return new ConfigurationWriter(c,
-                Files.newBufferedWriter(p,
-                        StandardOpenOption.WRITE,
-                        StandardOpenOption.APPEND,
-                        StandardOpenOption.DSYNC,
-                        StandardOpenOption.CREATE));
+
+    public static void dump(Configuration c, Path file) {
+        try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
+            cs.writeAll();
+        } catch (IOException ex) {
+            c.root.context.getLog().error("ConfigurationWriter.dump", ex);
+        }
     }
+
+    public static ConfigurationWriter logTransactionsTo(Configuration c, Path p) throws IOException {
+        return new ConfigurationWriter(c, Files.newBufferedWriter(p, StandardOpenOption.WRITE,
+                StandardOpenOption.APPEND, StandardOpenOption.DSYNC, StandardOpenOption.CREATE));
+    }
+
     @Override
     public void close() throws IOException {
         try {
             conf.getRoot().remove(this);
-            if (out instanceof Commitable)
+            if (out instanceof Commitable) {
                 ((Commitable) out).commit();
+            }
         } catch (Throwable ioe) {
         }
         Utils.close(out);
     }
+
     public ConfigurationWriter flushImmediately(boolean fl) {
         flushImmediately = fl;
-        if(fl) flush(out);
+        if (fl) {
+            flush(out);
+        }
         return this;
     }
+
     @Override
     public synchronized void published(WhatHappened what, Topic n) {
-        if (what == WhatHappened.childChanged)
+        if (what == WhatHappened.childChanged) {
             try {
-                if(n.name.startsWith("_")) return;  // Don't log entries whose name starts in '_'
+                if (n.name.startsWith("_")) {
+                    return;  // Don't log entries whose name starts in '_'
+                }
                 appendLong(n.getModtime(), out);
                 out.append(',');
                 n.appendNameTo(out);
@@ -64,10 +81,14 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 Coerce.toParseableString(n.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
-                n.context.getLog().error("ConfigurationWriter.published",n.getFullName(),ex);
+                n.context.getLog().error("ConfigurationWriter.published", n.getFullName(), ex);
             }
-        if(flushImmediately) flush(out);
+        }
+        if (flushImmediately) {
+            flush(out);
+        }
     }
+
     public void writeAll() { //TODO double check this
         conf.deepForEachTopic(n -> published(WhatHappened.childChanged, n));
     }

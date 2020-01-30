@@ -3,31 +3,39 @@
 
 package com.aws.iot.evergreen.util;
 
-import java.io.*;
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 
 public class UnsyncBufferedOutputStream extends FilterOutputStream {
     private byte[] buffer;
     private int pos;
+
     private UnsyncBufferedOutputStream(OutputStream out, int bsize) {
         super(out);
         buffer = new byte[Math.max(bsize, 64)];
     }
+
     public static OutputStream of(OutputStream outputStream) {
         return of(outputStream, 1 << 13);
     }
+
     public static OutputStream of(OutputStream outputStream, int sz) {
-        return outputStream instanceof UnsyncBufferedOutputStream ? outputStream
-                : new UnsyncBufferedOutputStream(outputStream, sz);
+        return outputStream instanceof UnsyncBufferedOutputStream ? outputStream :
+                new UnsyncBufferedOutputStream(outputStream, sz);
     }
+
     @Override
     public void write(int b) throws IOException {
         byte[] f = buffer;
-        if (pos >= f.length)
+        if (pos >= f.length) {
             flush();
+        }
         f[pos++] = (byte) b;
     }
+
     @Override
-    public void write(byte b[], int off, int len) throws IOException {
+    public void write(byte[] b, int off, int len) throws IOException {
         byte[] f = buffer;
         if (pos + len <= f.length) {
             System.arraycopy(b, off, f, pos, len);
@@ -37,10 +45,12 @@ public class UnsyncBufferedOutputStream extends FilterOutputStream {
             if (len < f.length) {
                 System.arraycopy(b, off, f, pos, len);
                 pos = len;
-            } else
+            } else {
                 out.write(b, off, len);
+            }
         }
     }
+
     @Override
     public void flush() throws IOException {
         if (pos > 0 && buffer != null) {
@@ -48,6 +58,7 @@ public class UnsyncBufferedOutputStream extends FilterOutputStream {
             pos = 0;
         }
     }
+
     @Override
     public void close() throws IOException {
         if (buffer != null) {

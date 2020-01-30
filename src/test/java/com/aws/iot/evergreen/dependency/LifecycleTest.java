@@ -4,13 +4,13 @@
 package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Topics;
-
 import com.aws.iot.evergreen.kernel.EvergreenService;
-
-import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
 
-import javax.inject.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import javax.inject.Inject;
+import javax.inject.Provider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -33,12 +33,13 @@ public class LifecycleTest {
         context.put(java.util.concurrent.ExecutorService.class, ses);
         context.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
         c1 v = context.get(c1.class);
-        context.addGlobalStateChangeListener((service, was)->
-                System.out.println(service.getName()+": "+was+" => "+service.getState()));
+        context.addGlobalStateChangeListener((service, was) -> System.out.println(service.getName() + ": " + was + " " +
+                "=> " + service.getState()));
         context.setAllStates(State.Installing);
         try {
-            if(!cd.await(1, TimeUnit.SECONDS))
+            if (!cd.await(1, TimeUnit.SECONDS)) {
                 fail("Startup timed out");
+            }
         } catch (InterruptedException ex) {
             ex.printStackTrace(System.out);
             fail("Startup interrupted out");
@@ -52,82 +53,131 @@ public class LifecycleTest {
         assertTrue(v.C2.startupCalled, v.C2.toString());
         assertTrue(v.getState().isFunctioningProperly());
         context.shutdown();
-        try { Thread.sleep(50); } catch (InterruptedException ex) { }
-        assertTrue(v.shutdownCalled,v.toString());
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException ex) {
+        }
+        assertTrue(v.shutdownCalled, v.toString());
         assertTrue(v.C2.shutdownCalled, v.C2.toString());
-        System.out.println("XYXXY: "+v.getState());
+        System.out.println("XYXXY: " + v.getState());
         assertEquals(State.Finished, v.getState());
         assertNotNull(v.C2.C3, "non-lifecycle");
         assertSame(v.C2.C3, v.C2.C3.self, "non-lifecycle-loop");
         assertSame(v.C2, v.C2.C3.parent, "non-lifecycle-parent-ref");
-        assertEquals(42,context.get(Foo.class).what());
+        assertEquals(42, context.get(Foo.class).what());
     }
+
+    public interface Foo {
+        public int what();
+
+        public static class Default implements Foo {
+            @Override
+            public int what() {
+                return 42;
+            }
+        }
+    }
+
+    public static class c2 extends EvergreenService {
+        final String id = "c2/" + ++seq;
+        //        @Inject @StartWhen(New) c1 parent;
+        public boolean shutdownCalled, startupCalled;
+        @Inject
+        c3 C3;
+
+        {
+            System.out.println("Creating  " + this);
+        }
+
+        @Inject
+        public c2(Context context) {
+            super(Topics.errorNode(context, "c2", "testing"));
+        }
+
+        @Override
+        public String toString() {
+            return id;
+        }
+
+        @Override
+        public void startup() {
+            System.out.println("Startup " + this);
+            assertNotNull(C3);
+            startupCalled = true;
+            System.out.println("  C3=" + C3);
+            super.startup();
+        }
+
+        @Override
+        public void shutdown() {
+            shutdownCalled = true;
+            System.out.println("Shutdown " + this);
+            super.shutdown();
+            cd.countDown();
+        }
+    }
+
+    public static class c3 {
+        @Inject
+        c3 self;
+        @Inject
+        c2 parent;
+        @Inject
+        Provider<c2> prov;
+
+        {
+            System.out.println("Hello from c3: " + this);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "::" + parent;
+        }
+    }
+
     public class c1 extends EvergreenService {
+        final String id = "c1/" + ++seq;
+        @Inject
+        public c2 C2;
+        public boolean shutdownCalled, startupCalled, installCalled;
+
+        {
+            System.out.println("Creating  " + this);
+        }
+
         @Inject
         public c1(Context context) {
-            super(Topics.errorNode(context,"c1","testing"));
+            super(Topics.errorNode(context, "c1", "testing"));
         }
-        @Inject public c2 C2;
-        public boolean shutdownCalled, startupCalled, installCalled;
-        @Override public void install() {
+
+        @Override
+        public void install() {
             installCalled = true;
-            System.out.println("Invoked install "+this);
+            System.out.println("Invoked install " + this);
             super.install();
         }
-        @Override public void startup() {
+
+        @Override
+        public void startup() {
             startupCalled = true;
             // Depen dependencies must be started first
             assertTrue(C2.getState().isFunctioningProperly());
-            System.out.println("Startup "+this);
+            System.out.println("Startup " + this);
             super.startup();
         }
-        @Override public void shutdown() {
+
+        @Override
+        public void shutdown() {
             shutdownCalled = true;
-            System.out.println("Shutdown "+this);
+            System.out.println("Shutdown " + this);
             super.shutdown();
             cd.countDown();
         }
-        final String id = "c1/"+ ++seq;
-        @Override public String toString() { return id; }
-        { System.out.println("Creating  "+this); }
-    }
-    public static class c2 extends EvergreenService {
-        @Inject
-        public c2(Context context) {
-            super(Topics.errorNode(context,"c2","testing"));
-        }
-        @Inject c3 C3;
-//        @Inject @StartWhen(New) c1 parent;
-        public boolean shutdownCalled, startupCalled;
-        final String id = "c2/"+ ++seq;
-        @Override public String toString() { return id; }
-        { System.out.println("Creating  "+this); }
-        @Override public void startup() {
-            System.out.println("Startup "+this);
-            assertNotNull(C3);
-            startupCalled = true;
-            System.out.println("  C3="+C3);
-            super.startup();
-        }
-        @Override public void shutdown() {
-            shutdownCalled = true;
-            System.out.println("Shutdown "+this);
-            super.shutdown();
-            cd.countDown();
+
+        @Override
+        public String toString() {
+            return id;
         }
     }
-    public static class c3 {
-        @Inject c3 self;
-        @Inject c2 parent;
-        @Inject Provider<c2> prov;
-        @Override public String toString() { return super.toString()+"::"+parent; }
-        { System.out.println("Hello from c3: "+this); }
-    }
-    public interface Foo {
-        public int what();
-        public static class Default implements Foo {
-            @Override public int what() { return 42; }
-        }
-    }
-    
+
 }

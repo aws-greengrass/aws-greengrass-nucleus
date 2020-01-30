@@ -2,10 +2,12 @@
  * SPDX-License-Identifier: Apache-2.0 */
 package com.aws.iot.evergreen.dependency;
 
-/** The states in the lifecycle of a service */
+/**
+ * The states in the lifecycle of a service
+ */
 public enum State {
     // TODO Not sure I trust this list yet
-    
+
     /**
      * Object does not have a state (not a Lifecycle)
      */
@@ -34,20 +36,20 @@ public enum State {
      * ever take a significant amount of time to run.
      */
     Running(true, true, true),
-//    /**
-//     * Running, but experiencing problems that the service is attempting to
-//     * repair itself
-//     */
-//    Unstable(false, true, false),
+    //    /**
+    //     * Running, but experiencing problems that the service is attempting to
+    //     * repair itself
+    //     */
+    //    Unstable(false, true, false),
     /**
      * Not running. It may be possible for the enclosing framework to restart
      * it.
      */
     Errored(false, false, false),
-//    /**
-//     * In the process of being restarted
-//     */
-//    Recovering(false, false, false),
+    //    /**
+    //     * In the process of being restarted
+    //     */
+    //    Recovering(false, false, false),
     /**
      * Shut down, cannot be restarted.  Generally the result of an unresolvable error.
      */
@@ -57,32 +59,43 @@ public enum State {
      * (for example, a monitoring task that will be restarted by a timer)
      */
     Finished(true, false, true);
-    
+
     private final boolean happy;
     private final boolean running;
     private final boolean functioningProperly;
+
     private State(boolean h, boolean r, boolean p) {
         happy = h;
         running = r;
         functioningProperly = p;
     }
-    /** Nothing is going wrong, but it may not be fully "up" */
+
+    /**
+     * Nothing is going wrong, but it may not be fully "up"
+     */
     public boolean isHappy() {
         return happy;
     }
-    /** Fully up and running with associated service code executing (may be Unstable) */
+
+    /**
+     * Fully up and running with associated service code executing (may be Unstable)
+     */
     public boolean isRunning() {
         return running;
     }
-    /** Fully up and running, all is good */
+
+    /**
+     * Fully up and running, all is good
+     */
     public boolean isFunctioningProperly() {
         return functioningProperly;
     }
+
     public boolean preceeds(State other) {
-        return ordinal()<other.ordinal();
+        return ordinal() < other.ordinal();
     }
 
     public boolean preceedsOrEqual(State other) {
-        return ordinal()<=other.ordinal();
+        return ordinal() <= other.ordinal();
     }
 }

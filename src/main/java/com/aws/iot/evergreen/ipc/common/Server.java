@@ -6,19 +6,19 @@ import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
 import com.aws.iot.evergreen.util.Log;
 
-import javax.inject.Inject;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.inject.Inject;
 
 
 /**
  * Wrapper over server socket, binds to an arbitrary port and local address.
  */
 public class Server {
-    public final static String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
+    public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
     private static final String LOCAL_IP = "127.0.0.1";
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private ServerSocket serverSocket;
@@ -35,9 +35,10 @@ public class Server {
     public void startup() throws IPCException {
         try {
             serverSocket = new ServerSocket();
-            // specifying port 0 causes the system to pick an ephemeral port and a valid local address to bind the socket
+            // specifying port 0 causes the system to pick an ephemeral port and a valid local address to bind the
+            // socket
             serverSocket.bind(new InetSocketAddress(0));
-            String serverUri = "tcp://"+ LOCAL_IP + ":" + serverSocket.getLocalPort();
+            String serverUri = "tcp://" + LOCAL_IP + ":" + serverSocket.getLocalPort();
             log.log(Log.Level.Note, "IPC service  URI: ", serverUri);
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
@@ -69,7 +70,9 @@ public class Server {
                 connection = new SocketConnectionImpl(soc);
                 connectionManager.newConnection(connection);
             } catch (Exception e) {
-                if (connection != null) connection.close();
+                if (connection != null) {
+                    connection.close();
+                }
                 log.error("Error handling new connection", e);
             }
         }

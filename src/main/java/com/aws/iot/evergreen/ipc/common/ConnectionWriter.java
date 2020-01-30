@@ -18,6 +18,7 @@ public class ConnectionWriter {
     /**
      * writes a message frame to the output stream. IO errors during write is propagated to connection manager
      * IllegalArgumentException thrown by write for an invalid message frame is propagated to callee
+     *
      * @param f
      * @throws ConnectionIOException
      */
@@ -31,7 +32,7 @@ public class ConnectionWriter {
     }
 
     public void close() {
-        if(!connection.isShutdown()){
+        if (!connection.isShutdown()) {
             connection.close();
         }
     }
