@@ -64,18 +64,6 @@ public class IPCTest {
     }
 
     @Test
-    public void pingTest() throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("main", "_UID").getOnce()).build();
-        IPCClient client = new IPCClientImpl(config);
-        client.connect();
-        assertTrue(client.ping());
-        assertTrue(client.ping());
-        assertTrue(client.ping());
-        client.disconnect();
-    }
-
-    @Test
     public void duplicateClientId() throws Exception {
 //        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port).token("duplicateClientId").build();
 //        IPCClient client1 = new IPCClientImpl(config);
