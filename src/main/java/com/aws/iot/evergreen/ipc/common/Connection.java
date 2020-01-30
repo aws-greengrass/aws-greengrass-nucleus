@@ -73,7 +73,7 @@ public interface Connection {
             try {
                 s.close();
             } catch (Exception e) {
-                //log
+                e.printStackTrace();
             }
         }
 

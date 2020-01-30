@@ -10,7 +10,11 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Provider;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
@@ -28,9 +32,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.inject.Provider;
 
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 import static com.aws.iot.evergreen.util.Utils.nullEmpty;
@@ -38,6 +39,7 @@ import static com.aws.iot.evergreen.util.Utils.nullEmpty;
 /**
  * A collection of Objects that work together
  */
+@SuppressFBWarnings(value = "SC_START_IN_CTOR", justification = "Starting thread in constructor is what we want")
 public class Context implements Closeable {
     private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
     private final Log log = new Log();  // Some painful meta-circularities make life easier if the log is slightly
@@ -202,7 +204,7 @@ public class Context implements Closeable {
         }
     }
 
-    public void globalNotifyStateChanged(EvergreenService l, final State was) {
+    public synchronized void globalNotifyStateChanged(EvergreenService l, final State was) {
         if (listeners != null) {
             listeners.forEach(s -> s.globalServiceStateChanged(l, was));
         }
@@ -262,6 +264,8 @@ public class Context implements Closeable {
     public class Value<T> implements Provider<T> {
         final Class<T> targetClass;
         public volatile T value;
+        @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
+                justification = "No need to be sync")
         private boolean injectionCompleted;
 
         Value(Class<T> c, T v) {

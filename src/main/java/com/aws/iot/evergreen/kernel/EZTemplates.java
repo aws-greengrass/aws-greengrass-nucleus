@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
@@ -32,7 +33,7 @@ public class EZTemplates {
     }
 
     public static CharSequence toCS(InputStream in) throws IOException {
-        return toCS(new BufferedReader(new InputStreamReader(in)));
+        return toCS(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)));
     }
 
     @SuppressWarnings("ThrowableResultIgnored")
@@ -66,7 +67,6 @@ public class EZTemplates {
             }
             //            m.appendReplacement(sb, Coerce.toString(result));  GAK  appendReplacement mucks with $ in
             //            replacement string redo by hand
-            int start = m.start();
             sb.append(in, prev, m.start()); // text before the match
             sb.append(result);
             prev = m.end();

@@ -17,11 +17,13 @@ import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,6 +55,7 @@ import static com.aws.iot.evergreen.util.Utils.homePath;
 /**
  * Evergreen-kernel
  */
+@SuppressFBWarnings(value = "EQ_DOESNT_OVERRIDE_EQUALS", justification = "We don't need equality")
 public class Kernel extends Configuration /*implements Runnable*/ {
     private static final String done = new String(" missing ".toCharArray()); // unique marker
     private final Map<String, Class> serviceImplementors = new HashMap<>();
@@ -171,7 +174,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     mainServiceName = getArg();
                     break;
                 case "-print":
-                    writeConfig(new OutputStreamWriter(System.out));
+                    writeConfig(new OutputStreamWriter(System.out, StandardCharsets.UTF_8));
                     break;
                 default:
                     System.err.println("Undefined command line argument: " + arg);
@@ -335,7 +338,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
-    public void clearODcache() {
+    public synchronized void clearODcache() {
         cachedOD = null;
     }
 

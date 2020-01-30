@@ -48,14 +48,16 @@ public class CommitableFile extends FileOutputStream implements Commitable {
     }
 
     public static CommitableFile of(Path t, boolean commitOnClose) throws IOException {
-        Path base = t.getFileName();
         Path n = t.resolveSibling(t + "+");
         Path b = t.resolveSibling(t + "~");
         Files.deleteIfExists(n);
         try {
             return new CommitableFile(n, b, t, commitOnClose);
         } catch (IOException ioe) {
-            Files.createDirectories(n.getParent());
+            Path parent = n.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             return new CommitableFile(n, b, t, commitOnClose);
         }
     }

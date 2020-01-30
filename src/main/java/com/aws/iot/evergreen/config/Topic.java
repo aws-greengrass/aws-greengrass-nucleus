@@ -3,12 +3,15 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Consumer;
 
 public class Topic extends Node {
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
+            justification = "No need for modtime to be sync")
     private long modtime;
     private Object value;
 

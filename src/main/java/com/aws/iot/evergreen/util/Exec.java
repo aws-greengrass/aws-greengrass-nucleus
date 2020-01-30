@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.util;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
@@ -11,6 +13,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -330,12 +333,14 @@ public class Exec implements Closeable {
         }
     }
 
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
+            justification = "No need to be sync")
     public boolean isRunning() {
         return !closed;
     }
 
     public synchronized boolean waitClosed(int timeout) {
-        if (!closed) {
+        while (!closed) {
             try {
                 wait(timeout);
             } catch (InterruptedException ie) {
@@ -390,7 +395,7 @@ public class Exec implements Closeable {
 
         @Override
         public void run() {
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(in), 200)) {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
                 StringBuilder sb = new StringBuilder();
                 while (true) {
                     int c;

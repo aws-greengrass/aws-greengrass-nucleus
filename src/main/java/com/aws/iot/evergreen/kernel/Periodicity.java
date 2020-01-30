@@ -154,7 +154,7 @@ public class Periodicity {
         future = ses.scheduleAtFixedRate(r, myT - now, ΔT, TimeUnit.MILLISECONDS);
     }
 
-    public void shutdown() {
+    public synchronized void shutdown() {
         Future f = future;
         if (f != null) {
             f.cancel(true);
