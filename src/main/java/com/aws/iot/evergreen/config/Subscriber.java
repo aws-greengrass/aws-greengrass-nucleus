@@ -3,7 +3,7 @@
 
 package com.aws.iot.evergreen.config;
 
-/** 
+/**
  * A subscriber is told what Topic changed, but must look in the Topic (t.getOnce())
  * to get the new value.  There is no "old value" provided, although the publish framework
  * endeavors to suppress notifying when the new value is the same as the old value.

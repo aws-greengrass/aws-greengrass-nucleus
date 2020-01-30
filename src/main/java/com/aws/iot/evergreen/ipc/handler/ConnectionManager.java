@@ -9,8 +9,8 @@ import com.aws.iot.evergreen.ipc.exceptions.ConnectionIOException;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.util.Log;
 
-import javax.inject.Inject;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.FrameType;
@@ -22,8 +22,8 @@ import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
  * Manages connections from when a connection is created by the server to connection closed
  * Server and connections events mentioned below to connection manager
  * 1. newConnection:
- *    Connection manager authenticates new connection, checks for duplicate client connection
- *    and add the connection to the list of connected clients.
+ * Connection manager authenticates new connection, checks for duplicate client connection
+ * and add the connection to the list of connected clients.
  * 2. clientClosedConnection: close the connection and update the connected clients list
  * 3. connectionError: close the connection and update the connected clients list
  */
@@ -41,11 +41,11 @@ public class ConnectionManager {
     MessageDispatcher messageDispatcher;
 
     /**
-     *
      * Server passes new connections to connection manager for processing. A new thread is spun-off as the
      * connection manager will have to wait for the first frame with the authentication info. The same thread is
      * used for doing blocking read operation from the connection once the connection is authenticated and added to
      * the list of connected clients.
+     *
      * @param connection
      */
 
@@ -67,9 +67,11 @@ public class ConnectionManager {
             }
             try {
                 context = authHandler.doAuth(authReq);
-                connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, new FrameReader.Message(new byte[0]), FrameType.RESPONSE));
+                connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE,
+                        new FrameReader.Message(new byte[0]), FrameType.RESPONSE));
             } catch (IPCClientNotAuthorizedException e) {
-                connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, errorMessage(e.getMessage()), FrameType.RESPONSE));
+                connection.write(new MessageFrame(authReq.sequenceNumber, AUTH_SERVICE, errorMessage(e.getMessage()),
+                        FrameType.RESPONSE));
                 connection.close();
                 log.note("Unauthorized client");
                 return;

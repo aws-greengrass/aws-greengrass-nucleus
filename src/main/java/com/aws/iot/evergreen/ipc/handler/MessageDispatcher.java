@@ -1,18 +1,22 @@
 package com.aws.iot.evergreen.ipc.handler;
 
-import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.common.ConnectionWriter;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
 
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
-import java.util.concurrent.*;
-import java.util.function.Function;
 
-import static com.aws.iot.evergreen.ipc.common.FrameReader.*;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.FrameType;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import static com.aws.iot.evergreen.ipc.common.FrameReader.Message.errorMessage;
+import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
 /***
  * Interface exposed to components inside the kernel to interact with external processes
@@ -20,16 +24,15 @@ import static com.aws.iot.evergreen.ipc.common.FrameReader.Message.errorMessage;
 
 public class MessageDispatcher {
 
-    @Inject
-    Log log;
-
-    @Inject
-    ConnectionManager connectionManager;
-
     public static final int DEFAULT_EXECUTOR_POOL_SIZE = Runtime.getRuntime().availableProcessors() * 2;
-    private final ConcurrentHashMap<Integer, CompletableFuture<Message>> sequenceNumberFutureMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, CompletableFuture<Message>> sequenceNumberFutureMap =
+            new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
     private final ThreadPoolExecutor threadPoolExecutor;
+    @Inject
+    Log log;
+    @Inject
+    ConnectionManager connectionManager;
 
     public MessageDispatcher() {
         this(new ThreadPoolExecutor(DEFAULT_EXECUTOR_POOL_SIZE, DEFAULT_EXECUTOR_POOL_SIZE, 0, TimeUnit.MILLISECONDS,
@@ -39,10 +42,14 @@ public class MessageDispatcher {
     public MessageDispatcher(ThreadPoolExecutor threadPoolExecutor) {
         this.threadPoolExecutor = threadPoolExecutor;
     }
+
     /**
-     * Registers a call back for a destination, Dispatcher will invoke the function for all message with registered destination
+     * Registers a call back for a destination, Dispatcher will invoke the function for all message with registered
+     * destination
+     *
      * @param destination
-     * @param callBack Function which takes a message and return a message. The function implementation needs to the thread safe
+     * @param callBack    Function which takes a message and return a message. The function implementation needs to
+     *                    the thread safe
      * @throws IPCException if the callback is already registered for a destination
      */
     public void registerServiceCallback(String destination, IPCCallback callBack) throws IPCException {
@@ -53,20 +60,15 @@ public class MessageDispatcher {
         }
     }
 
-    @FunctionalInterface
-    public interface IPCCallback {
-        Message handleMessage(Message m, RequestContext context);
-    }
-
     /**
      * Allows components inside the kernel to send messages to an external process using clientId
      * Send message is non blocking and returns a future. Each send message is associated with a
      * sequence number which will be used to track the response message.
-     *
+     * <p>
      * When message with the same sequence number is received, the future will be updated to done.
      * If the message sending errored out, the future will be marked completeExceptionally
      *
-     * @param msg  payload
+     * @param msg      payload
      * @param clientId clientId of process
      * @return future which will be updated when the external process responds with a message
      */
@@ -85,12 +87,12 @@ public class MessageDispatcher {
 
     /**
      * Looks up connection associated with the client and writes message to the connection.
-     *
+     * <p>
      * This method needs to be thread safe, writing to a connection is synchronized at the connection level.
      *
      * @param clientId clientId of the destination process
      * @param msgFrame
-     * @param future future used to track the response of the
+     * @param future   future used to track the response of the
      */
     public void processOutgoingMessage(String clientId, MessageFrame msgFrame, CompletableFuture<Message> future) {
         ConnectionWriter connection = connectionManager.getConnectionWriter(clientId);
@@ -110,7 +112,7 @@ public class MessageDispatcher {
      * If the message is a new request, new task to process the request is added to a queue
      * Messages that represent a response for a previous outgoing request are passed on to the callee
      * by updating the corresponding future.
-     *
+     * <p>
      * incomingMessage can be invoked concurrently by multiple connections and should be thread safe
      *
      * @param context
@@ -122,8 +124,7 @@ public class MessageDispatcher {
                 try {
                     threadPoolExecutor.submit(() -> processIncomingMessage(context, msgFrame));
                 } catch (RejectedExecutionException e) {
-                    log.error("Unable to process incoming message from client "
-                            + context.clientId + " seq: " + msgFrame.sequenceNumber, e);
+                    log.error("Unable to process incoming message from client " + context.clientId + " seq: " + msgFrame.sequenceNumber, e);
                 }
                 break;
             case RESPONSE:
@@ -137,9 +138,9 @@ public class MessageDispatcher {
 
     /**
      * Process a new message that is a new request as follows
-     *
+     * <p>
      * Looks up the destination callback for the request
-     *  returns error message to the process if callback not found
+     * returns error message to the process if callback not found
      * invokes the callback with the payload,
      * response from callback/ errors from callback is written to the connection
      *
@@ -151,7 +152,8 @@ public class MessageDispatcher {
         final Message msg = msgFrame.message;
         try {
             IPCCallback destinationCallback = destinationCallbackMap.get(msgFrame.destination);
-            response = (destinationCallback == null) ? errorMessage("Invalid destination " + msgFrame.destination) : destinationCallback.handleMessage(msg, context);
+            response = (destinationCallback == null) ? errorMessage("Invalid destination " + msgFrame.destination) :
+                    destinationCallback.handleMessage(msg, context);
         } catch (Exception e) {
             //TODO: do we surface the actual message to client vs a generic server failed to process request exception
             response = errorMessage(e.getMessage());
@@ -164,7 +166,8 @@ public class MessageDispatcher {
             return;
         }
         try {
-            connection.write(new MessageFrame(msgFrame.sequenceNumber, msgFrame.destination, response, FrameType.RESPONSE));
+            connection.write(new MessageFrame(msgFrame.sequenceNumber, msgFrame.destination, response,
+                    FrameType.RESPONSE));
         } catch (Exception e) {
             log.error("Error writing message, dropping message for request :" + msgFrame.sequenceNumber);
         }
@@ -188,6 +191,11 @@ public class MessageDispatcher {
         } catch (InterruptedException e) {
             log.error("Failed to shutdown thread pool cleanly", e);
         }
+    }
+
+    @FunctionalInterface
+    public interface IPCCallback {
+        Message handleMessage(Message m, RequestContext context);
     }
 
 }

@@ -10,9 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class mergeTest {
-//    boolean seenDocker, seenShell;
-//    int seenTickTock = 4;
-//    long lastTickTock = 0;
+    //    boolean seenDocker, seenShell;
+    //    int seenTickTock = 4;
+    //    long lastTickTock = 0;
     @Test
     public void testSomeMethod() {
         try {

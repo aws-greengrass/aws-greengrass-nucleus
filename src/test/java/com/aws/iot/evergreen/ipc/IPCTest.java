@@ -46,10 +46,7 @@ public class IPCTest {
             }
         });
 
-        kernel.parseArgs("-r", tdir,
-                "-log", "stdout",
-                "-i", IPCTest.class.getResource("ipc.yaml").toString()
-        );
+        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCTest.class.getResource("ipc.yaml").toString());
         kernel.launch();
         OK.await(10, TimeUnit.SECONDS);
         Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
@@ -65,38 +62,35 @@ public class IPCTest {
 
     @Test
     public void duplicateClientId() throws Exception {
-//        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port).token("duplicateClientId").build();
-//        IPCClient client1 = new IPCClientImpl(config);
-//        IPCClient client2 = new IPCClientImpl(config);
-//
-//        client1.connect();
-//        client2.connect();
+        //        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+        //        .token("duplicateClientId").build();
+        //        IPCClient client1 = new IPCClientImpl(config);
+        //        IPCClient client2 = new IPCClientImpl(config);
+        //
+        //        client1.connect();
+        //        client2.connect();
     }
 
     @Test
     public void registerResourceTest() throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("mqtt", "_UID").getOnce()).build();
+        KernelIPCClientConfig config =
+                KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find("mqtt",
+                        "_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         client.connect();
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
-        KernelIPCClientConfig config2 = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("ServiceName", "_UID").getOnce()).build();
+        KernelIPCClientConfig config2 =
+                KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
+                        "ServiceName", "_UID").getOnce()).build();
         IPCClient client2 = new IPCClientImpl(config2);
         client2.connect();
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
 
-        Resource resource = Resource.builder()
-                .name("evergreen_1")
-                .serviceType("_mqtt")
-                .domain("local").build();
-        RegisterResourceRequest req = RegisterResourceRequest.builder()
-                .resource(resource)
-                .build();
+        Resource resource = Resource.builder().name("evergreen_1").serviceType("_mqtt").domain("local").build();
+        RegisterResourceRequest req = RegisterResourceRequest.builder().resource(resource).build();
 
-        LookupResourceRequest lookup = LookupResourceRequest.builder()
-                .resource(resource).build();
+        LookupResourceRequest lookup = LookupResourceRequest.builder().resource(resource).build();
 
         // Register, then lookup
         assertEquals(resource, c.registerResource(req));
@@ -106,15 +100,15 @@ public class IPCTest {
 
         // Perform a fuzzy lookup by setting the name to null, so that
         // we're looking it up based on service type only
-        LookupResourceRequest fuzzyLookup = LookupResourceRequest.builder()
-                .resource(resource.toBuilder().name(null).build()).build();
+        LookupResourceRequest fuzzyLookup =
+                LookupResourceRequest.builder().resource(resource.toBuilder().name(null).build()).build();
         lookupResults = c.lookupResources(lookup);
         assertEquals(1, lookupResults.size());
         assertEquals(resource, lookupResults.get(0));
 
         // Try updating the resource
-        UpdateResourceRequest updateRequest = UpdateResourceRequest.builder()
-                .resource(resource.toBuilder().uri(new URI("file://ABC.txt")).build()).build();
+        UpdateResourceRequest updateRequest =
+                UpdateResourceRequest.builder().resource(resource.toBuilder().uri(new URI("file://ABC.txt")).build()).build();
         c.updateResource(updateRequest);
         assertEquals(updateRequest.getResource().getUri(), c.lookupResources(lookup).get(0).getUri());
 
@@ -122,13 +116,12 @@ public class IPCTest {
         assertThrows(ResourceNotOwnedException.class, () -> c2.updateResource(updateRequest));
 
         // Try removing it (as a different service which isn't allowed)
-        RemoveResourceRequest removeRequest = RemoveResourceRequest.builder()
-                .resource(resource).build();
+        RemoveResourceRequest removeRequest = RemoveResourceRequest.builder().resource(resource).build();
         assertThrows(ResourceNotOwnedException.class, () -> c2.removeResource(removeRequest));
 
         // Try removing a service that doesn't exist
-        RemoveResourceRequest removeRequest2 = RemoveResourceRequest.builder()
-                .resource(Resource.builder().name("ABC").build()).build();
+        RemoveResourceRequest removeRequest2 =
+                RemoveResourceRequest.builder().resource(Resource.builder().name("ABC").build()).build();
         assertThrows(ResourceNotFoundException.class, () -> c.removeResource(removeRequest2));
 
         // Now remove the service properly and check that it is gone
@@ -141,17 +134,16 @@ public class IPCTest {
 
     @Test
     public void registerResourcePermissionTest() throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("ServiceName", "_UID").getOnce()).build();
+        KernelIPCClientConfig config =
+                KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
+                        "ServiceName", "_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         client.connect();
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
-        RegisterResourceRequest req = RegisterResourceRequest.builder()
-                .resource(Resource.builder()
-                        .name("evergreen_1._mqtt") // Claimed by mqtt (which our client is not)
-                        .build())
-                .build();
+        RegisterResourceRequest req = RegisterResourceRequest.builder().resource(Resource.builder().name("evergreen_1" +
+                "._mqtt") // Claimed by mqtt (which our client is not)
+                .build()).build();
 
         assertThrows(ResourceNotOwnedException.class, () -> c.registerResource(req));
         client.disconnect();

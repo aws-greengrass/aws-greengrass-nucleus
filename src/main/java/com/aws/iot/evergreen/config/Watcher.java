@@ -3,4 +3,5 @@
 
 package com.aws.iot.evergreen.config;
 
-public interface Watcher {}
+public interface Watcher {
+}

@@ -23,8 +23,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
-import javax.inject.Inject;
 import java.io.IOException;
+import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscovery.SERVICE_DISCOVERY_NAME;
 import static com.aws.iot.evergreen.util.Log.Level;
@@ -33,15 +33,12 @@ import static com.aws.iot.evergreen.util.Log.Level;
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "servicediscovery", autostart = true)
 public class ServiceDiscoveryService extends EvergreenService {
+    @Inject
+    Log log;
     private ObjectMapper mapper = new CBORMapper();
-
     //TODO: figure out how to inject the interface than the impl
     @Inject
     private MessageDispatcher messageDispatcher;
-
-    @Inject
-    Log log;
-
     @Inject
     private ServiceDiscoveryAgent agent;
 
@@ -54,13 +51,15 @@ public class ServiceDiscoveryService extends EvergreenService {
         try {
             messageDispatcher.registerServiceCallback(SERVICE_DISCOVERY_NAME, this::handleMessage);
         } catch (IPCException e) {
-            log.log(Level.Error,"Error registering callback for service "+ SERVICE_DISCOVERY_NAME);
+            log.log(Level.Error, "Error registering callback for service " + SERVICE_DISCOVERY_NAME);
         }
     }
 
     public Message handleMessage(Message request, RequestContext context) {
         try {
-            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj = SendAndReceiveIPCUtil.decode(request, new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {});
+            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj = SendAndReceiveIPCUtil.decode(request,
+                    new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {
+            });
 
             GeneralResponse<?, ServiceDiscoveryResponseStatus> genResp = new GeneralResponse<>();
             switch (obj.getType()) {
@@ -80,7 +79,8 @@ public class ServiceDiscoveryService extends EvergreenService {
                     genResp = agent.updateResource(update, context.serviceName);
                     break;
                 case register:
-                    RegisterResourceRequest register = mapper.convertValue(obj.getRequest(), RegisterResourceRequest.class);
+                    RegisterResourceRequest register = mapper.convertValue(obj.getRequest(),
+                            RegisterResourceRequest.class);
                     // Do register
                     genResp = agent.registerResource(register, context.serviceName);
                     break;
@@ -94,10 +94,8 @@ public class ServiceDiscoveryService extends EvergreenService {
         } catch (Throwable e) {
             log.log(Level.Error, "Failed to respond to handleMessage", e);
 
-            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse =
-                    GeneralResponse.<Void, ServiceDiscoveryResponseStatus>builder()
-                            .error(ServiceDiscoveryResponseStatus.Unknown)
-                            .errorMessage(e.getMessage()).build();
+            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse = GeneralResponse.<Void,
+                    ServiceDiscoveryResponseStatus>builder().error(ServiceDiscoveryResponseStatus.Unknown).errorMessage(e.getMessage()).build();
 
             try {
                 return new Message(SendAndReceiveIPCUtil.encode(errorResponse));

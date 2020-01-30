@@ -4,9 +4,12 @@
 
 package com.aws.iot.evergreen.util;
 
-import java.io.*;
-import java.nio.file.*;
-import static java.nio.file.StandardCopyOption.*;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 /**
  * Equivalent to FileOutputStream except that it has to be committed in order to be
@@ -20,7 +23,9 @@ public class CommitableFile extends FileOutputStream implements Commitable {
     private final boolean commitOnClose;
     private boolean closed;
 
-    /** Creates a new instance of SafeFileOutputStream */
+    /**
+     * Creates a new instance of SafeFileOutputStream
+     */
     private CommitableFile(Path n, Path b, Path t, boolean commitOnClose) throws IOException {
         super(n.toFile());
         newVersion = n;
@@ -28,65 +33,86 @@ public class CommitableFile extends FileOutputStream implements Commitable {
         backup = b;
         this.commitOnClose = commitOnClose;
     }
-    /** Strangely enough, abandonOnClose is usually the best choice: it interacts
-     *  well with the implicit close() that happens in a try-with-resources where
-     *  files are closed if an exception is tossed */
+
+    /**
+     * Strangely enough, abandonOnClose is usually the best choice: it interacts
+     * well with the implicit close() that happens in a try-with-resources where
+     * files are closed if an exception is tossed
+     */
     public static CommitableFile abandonOnClose(Path t) throws IOException {
         return of(t, false);
     }
+
     public static CommitableFile commitOnClose(Path t) throws IOException {
         return of(t, true);
     }
+
     public static CommitableFile of(Path t, boolean commitOnClose) throws IOException {
         Path base = t.getFileName();
-        Path n = t.resolveSibling(t+"+");
-        Path b = t.resolveSibling(t+"~");
+        Path n = t.resolveSibling(t + "+");
+        Path b = t.resolveSibling(t + "~");
         Files.deleteIfExists(n);
         try {
             return new CommitableFile(n, b, t, commitOnClose);
-        } catch(IOException ioe) {
+        } catch (IOException ioe) {
             Files.createDirectories(n.getParent());
             return new CommitableFile(n, b, t, commitOnClose);
         }
     }
+
     @Override
     public void close() {
-        if(!closed)
-            if(commitOnClose) commit();
-            else abandon();
-    }
-    /** Close and discard the file.  The original file remains untouched. */
-    @Override
-    public void abandon() {
-        if(!closed) {
-            try {
-                super.close();
-            } catch (IOException ex) { }
-            try {
-                Files.deleteIfExists(newVersion);
-            } catch (IOException ex) { }
-            closed = true;
+        if (!closed) {
+            if (commitOnClose) {
+                commit();
+            } else {
+                abandon();
+            }
         }
     }
-    /** Close the file and commit the new version.  The old version becomes a backup */
-    @SuppressWarnings("ConvertToTryWithResources")
+
+    /**
+     * Close and discard the file.  The original file remains untouched.
+     */
     @Override
-    public void commit() {
-        if(!closed) {
+    public void abandon() {
+        if (!closed) {
             try {
                 super.close();
-            } catch (IOException ex) {}
-            if(Files.exists(newVersion)) {
-                move(target,backup);
-                move(newVersion,target);
+            } catch (IOException ex) {
+            }
+            try {
+                Files.deleteIfExists(newVersion);
+            } catch (IOException ex) {
             }
             closed = true;
         }
     }
+
+    /**
+     * Close the file and commit the new version.  The old version becomes a backup
+     */
+    @SuppressWarnings("ConvertToTryWithResources")
+    @Override
+    public void commit() {
+        if (!closed) {
+            try {
+                super.close();
+            } catch (IOException ex) {
+            }
+            if (Files.exists(newVersion)) {
+                move(target, backup);
+                move(newVersion, target);
+            }
+            closed = true;
+        }
+    }
+
     private void move(Path from, Path to) {
         try {
-            if(Files.exists(from))
-                Files.move(from,to,ATOMIC_MOVE);
+            if (Files.exists(from)) {
+                Files.move(from, to, ATOMIC_MOVE);
+            }
         } catch (IOException ex) {
             ex.printStackTrace(System.out);
         }
