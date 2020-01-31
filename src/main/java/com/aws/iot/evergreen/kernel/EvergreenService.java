@@ -126,7 +126,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return o.getState();
     }
 
-    static final void setState(Object o, State st) {
+    static void setState(Object o, State st) {
         if (o instanceof EvergreenService) {
             ((EvergreenService) o).setState(st);
         }
@@ -206,9 +206,8 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
         try {
             context.getLog().error("Error locating service", name, message, ex);
-            EvergreenService service = new GenericExternalService(Topics.errorNode(context, name,
+            return new GenericExternalService(Topics.errorNode(context, name,
                     "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
-            return service;
         } catch (Throwable ex1) {
             context.getLog().error(name, message, ex);
             return null;
@@ -223,7 +222,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public static Node pickByOS(Topics n) {
         Node bestn = null;
         int bestrank = -1;
-        for (Map.Entry<String, Node> me : ((Topics) n).children.entrySet()) {
+        for (Map.Entry<String, Node> me : n.children.entrySet()) {
             int g = rank(me.getKey());
             if (g > bestrank) {
                 bestrank = g;
@@ -563,7 +562,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         if (dependencies == null) {
             return true;
         }
-        return dependencies.keySet().stream().allMatch(ls -> dependencyReady(ls));
+        return dependencies.keySet().stream().allMatch(this::dependencyReady);
     }
 
     private boolean dependencyReady(EvergreenService v) {
@@ -695,7 +694,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     }
 
     public boolean satisfiedBy(HashSet<EvergreenService> ready) {
-        return dependencies == null || dependencies.keySet().stream().allMatch(l -> ready.contains(l));
+        return dependencies == null || ready.containsAll(dependencies.keySet());
     }
 
     public enum RunStatus {

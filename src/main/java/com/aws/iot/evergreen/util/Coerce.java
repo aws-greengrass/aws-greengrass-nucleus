@@ -26,8 +26,8 @@ public class Coerce {
             Double.NEGATIVE_INFINITY, "Nan", Double.NaN, "NaN", Double.NaN, "inf", Double.POSITIVE_INFINITY, "+inf",
             Double.POSITIVE_INFINITY, "-inf", Double.NEGATIVE_INFINITY, "nan", Double.NaN);
     private static final char[] hex = "0123456789ABCDEF".toCharArray();
-    private static Pattern seperators = Pattern.compile(" *, *");
-    private static Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
+    private static final Pattern seperators = Pattern.compile(" *, *");
+    private static final Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
 
     private Coerce() {
     }
@@ -180,7 +180,7 @@ public class Coerce {
             int limit = s.length();
             for (int i = 0; i < limit; i++) {
                 char c = s.charAt(i);
-                if (c < ' ' || c >= 0377 || c == 0177 || c == '"') {
+                if (c < ' ' || c >= 255 || c == 127 || c == '"') {
                     switch (c) {
                         case '\n':
                             out.append("\\n");

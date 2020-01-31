@@ -89,7 +89,7 @@ public class EZPlugins {
         loadPlugins(true, this.getClass().getClassLoader());
         if (!trustedFiles.isEmpty()) {
             AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
-                URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[trustedFiles.size()]), root);
+                URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[0]), root);
                 root = trusted;
                 loadPlugins(true, trusted);
                 return null;
@@ -124,7 +124,7 @@ public class EZPlugins {
         } catch (IOException ex) {
             s.add(ex.toString());
         }
-        return s.toArray(new String[s.size()]);
+        return s.toArray(new String[0]);
     }
 
     public EZPlugins clearCache() throws IOException {

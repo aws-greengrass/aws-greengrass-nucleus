@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class JsonUtilTest {
 
-    Map m = new HashMap();
+    final Map m = new HashMap();
 
     {
         m.put("a", "hello");

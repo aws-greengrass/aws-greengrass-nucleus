@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -91,12 +92,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                shutdown();
-            }
-        });
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown()));
 
     }
 
@@ -131,7 +127,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 ensureCreated(workPath);
             }
         });
-        while (getArg() != (Object) done) {
+        while (!Objects.equals(getArg(), done)) {
             switch (arg) {
                 case "-dryrun":
                     forReal = false;
@@ -318,7 +314,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public EvergreenService getMain() throws Throwable {
         EvergreenService m = mainService;
         if (m == null) {
-            m = mainService = (EvergreenService) EvergreenService.locate(context, mainServiceName);
+            m = mainService = EvergreenService.locate(context, mainServiceName);
         }
         return m;
     }
@@ -415,9 +411,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public void writeConfig(Writer w) {
         Map<String, Object> h = new LinkedHashMap<>();
         orderedDependencies().forEach(l -> {
-            if (l instanceof EvergreenService) {
-                EvergreenService s = (EvergreenService) l;
-                h.put(s.getName(), s.config.toPOJO());
+            if (l != null) {
+                h.put(l.getName(), l.config.toPOJO());
             }
         });
         try {

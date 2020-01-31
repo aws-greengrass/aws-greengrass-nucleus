@@ -14,7 +14,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -67,10 +67,9 @@ public class Configuration {
      * config file. Never returns null.
      */
     public Topics lookupTopics(String... path) {
-        int limit = path.length;
         Topics n = root;
-        for (int i = 0; i < limit; i++) {
-            n = n.createInteriorChild(path[i]);
+        for (String s : path) {
+            n = n.createInteriorChild(s);
         }
         return n;
     }
@@ -177,7 +176,7 @@ public class Configuration {
     }
 
     public Configuration read(InputStream in, String extension, long timestamp) throws IOException {
-        return read(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))), extension, timestamp);
+        return read(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)), extension, timestamp);
     }
 
     public Configuration copyFrom(Configuration other) {

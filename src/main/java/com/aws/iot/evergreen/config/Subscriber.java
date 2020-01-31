@@ -12,5 +12,5 @@ package com.aws.iot.evergreen.config;
  * happens when a compound change occurs.
  */
 public interface Subscriber extends Watcher {
-    public void published(WhatHappened what, Topic t);
+    void published(WhatHappened what, Topic t);
 }

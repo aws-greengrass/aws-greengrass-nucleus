@@ -345,7 +345,7 @@ public class Utils {
     }
 
     public static long parseLong(CharBuffer str) {
-        long ret = 0;
+        long ret;
         boolean neg = false;
         int radix = 10;
         char c;

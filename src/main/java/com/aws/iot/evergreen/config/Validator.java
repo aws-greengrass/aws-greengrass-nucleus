@@ -9,5 +9,5 @@ package com.aws.iot.evergreen.config;
  * and have no chance of being recursive.  To reject a change, return <tt>oldValue</tt>
  */
 public interface Validator extends Watcher {
-    public Object validate(Object newValue, Object oldValue);
+    Object validate(Object newValue, Object oldValue);
 }

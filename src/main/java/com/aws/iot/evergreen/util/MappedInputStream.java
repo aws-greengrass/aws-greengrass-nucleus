@@ -11,6 +11,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import javax.annotation.Nonnull;
 
 /**
  * Just like FileInputStream, except that it mmaps the file into the address space,
@@ -40,7 +41,7 @@ public class MappedInputStream extends InputStream {
     }
 
     @Override
-    public int read(byte[] buf, int off, int len) {
+    public int read(@Nonnull byte[] buf, int off, int len) {
         if (mb.remaining() < len) {
             len = mb.remaining();
             if (len <= 0) {

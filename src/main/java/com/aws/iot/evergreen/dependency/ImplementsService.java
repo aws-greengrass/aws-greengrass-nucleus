@@ -5,11 +5,12 @@ package com.aws.iot.evergreen.dependency;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import javax.annotation.Nonnull;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface ImplementsService {
-    String name();  // the name of the service
+    @Nonnull String name();  // the name of the service
 
     boolean autostart() default false;
 }

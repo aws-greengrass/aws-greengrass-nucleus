@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.util;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import javax.annotation.Nonnull;
 
 public class UnsyncBufferedOutputStream extends FilterOutputStream {
     private byte[] buffer;
@@ -35,7 +36,7 @@ public class UnsyncBufferedOutputStream extends FilterOutputStream {
     }
 
     @Override
-    public void write(byte[] b, int off, int len) throws IOException {
+    public void write(@Nonnull byte[] b, int off, int len) throws IOException {
         byte[] f = buffer;
         if (pos + len <= f.length) {
             System.arraycopy(b, off, f, pos, len);

@@ -64,7 +64,7 @@ public enum State {
     private final boolean running;
     private final boolean functioningProperly;
 
-    private State(boolean h, boolean r, boolean p) {
+    State(boolean h, boolean r, boolean p) {
         happy = h;
         running = r;
         functioningProperly = p;

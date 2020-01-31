@@ -70,9 +70,9 @@ public class LifecycleTest {
     }
 
     public interface Foo {
-        public int what();
+        int what();
 
-        public static class Default implements Foo {
+        class Default implements Foo {
             @Override
             public int what() {
                 return 42;

@@ -116,7 +116,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
         super.run();
     }
 
-    public static interface DisruptableCheck {
+    public interface DisruptableCheck {
         /**
          * Inform a listener that a disruption is pending to find out when a disruption
          * is acceptable.
@@ -127,12 +127,12 @@ public class UpdateSystemSafelyService extends EvergreenService {
          * is granting permission to be disrupted.  Otherwise, it will be asked again
          * sometime later.
          */
-        public long whenIsDisruptionOK();
+        long whenIsDisruptionOK();
 
         /**
          * After a disruption, this is called to signal to the handler that the
          * disruption is over and it's OK to start activity
          */
-        public void disruptionCompleted();
+        void disruptionCompleted();
     }
 }

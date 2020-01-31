@@ -63,17 +63,6 @@ public class IPCTest {
     }
 
     @Test
-    public void duplicateClientId() throws Exception {
-        //        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-        //        .token("duplicateClientId").build();
-        //        IPCClient client1 = new IPCClientImpl(config);
-        //        IPCClient client2 = new IPCClientImpl(config);
-        //
-        //        client1.connect();
-        //        client2.connect();
-    }
-
-    @Test
     public void registerResourceTest() throws Exception {
         KernelIPCClientConfig config =
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find("mqtt",
