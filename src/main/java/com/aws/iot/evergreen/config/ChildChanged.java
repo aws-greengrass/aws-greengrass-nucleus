@@ -5,5 +5,5 @@ package com.aws.iot.evergreen.config;
 
 
 public interface ChildChanged extends Watcher {
-    public void childChanged(WhatHappened what, Node child);
+    void childChanged(WhatHappened what, Node child);
 }

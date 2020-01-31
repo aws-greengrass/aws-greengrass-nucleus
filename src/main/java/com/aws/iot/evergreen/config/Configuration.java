@@ -14,7 +14,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -177,7 +177,7 @@ public class Configuration {
     }
 
     public Configuration read(InputStream in, String extension, long timestamp) throws IOException {
-        return read(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))), extension, timestamp);
+        return read(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)), extension, timestamp);
     }
 
     public Configuration copyFrom(Configuration other) {

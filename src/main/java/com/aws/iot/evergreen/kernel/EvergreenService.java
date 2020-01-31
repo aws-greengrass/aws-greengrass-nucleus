@@ -223,7 +223,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public static Node pickByOS(Topics n) {
         Node bestn = null;
         int bestrank = -1;
-        for (Map.Entry<String, Node> me : ((Topics) n).children.entrySet()) {
+        for (Map.Entry<String, Node> me : n.children.entrySet()) {
             int g = rank(me.getKey());
             if (g > bestrank) {
                 bestrank = g;

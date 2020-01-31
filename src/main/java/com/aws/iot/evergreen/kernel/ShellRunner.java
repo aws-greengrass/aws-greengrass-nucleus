@@ -15,14 +15,14 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {
-    public static final Exec OK = new Exec();
-    public static final Exec Failed = new Exec();
+    Exec OK = new Exec();
+    Exec Failed = new Exec();
 
-    public abstract Exec setup(String note, String command, EvergreenService onBehalfOf);
+    Exec setup(String note, String command, EvergreenService onBehalfOf);
 
-    public abstract boolean successful(Exec e, String command, IntConsumer background);
+    boolean successful(Exec e, String command, IntConsumer background);
 
-    public static class Default implements ShellRunner {
+    class Default implements ShellRunner {
         @Inject
         Log log;
         @Inject
@@ -77,7 +77,7 @@ public interface ShellRunner {
         }
     }
 
-    public static class Dryrun implements ShellRunner {
+    class Dryrun implements ShellRunner {
         @Inject
         Log log;
 

@@ -7,5 +7,5 @@ package com.aws.iot.evergreen.dependency;
  * the caller is prepared to take corrective action if badness ensues.
  */
 public interface Crashable {
-    public void run() throws Throwable;
+    void run() throws Throwable;
 }

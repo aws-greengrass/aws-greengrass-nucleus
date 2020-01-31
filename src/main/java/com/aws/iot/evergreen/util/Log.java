@@ -132,11 +132,11 @@ public class Log implements Closeable {
     }
 
     public void logTo(OutputStream dest) {
-        logTo(new BufferedWriter(new OutputStreamWriter(dest, Charset.forName("UTF-8")), 200), dest != System.out);
+        logTo(new BufferedWriter(new OutputStreamWriter(dest, StandardCharsets.UTF_8), 200), dest != System.out);
     }
 
     public void logTo(Path dest) throws IOException {
-        logTo((Appendable) Files.newBufferedWriter(dest, StandardOpenOption.CREATE), true);
+        logTo(Files.newBufferedWriter(dest, StandardOpenOption.CREATE), true);
     }
 
     public void logTo(Appendable out, boolean doClose) {

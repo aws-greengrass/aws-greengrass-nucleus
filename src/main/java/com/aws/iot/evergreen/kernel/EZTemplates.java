@@ -122,6 +122,6 @@ public class EZTemplates {
     }
 
     public interface Evaluator {
-        public Object evaluate(String expr);
+        Object evaluate(String expr);
     }
 }

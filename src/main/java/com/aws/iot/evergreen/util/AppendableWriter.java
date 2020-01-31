@@ -34,7 +34,7 @@ public class AppendableWriter extends Writer {
 
     @Override
     public Writer append(char i) throws IOException {
-        a.append((char) i);
+        a.append(i);
         return this;
     }
 

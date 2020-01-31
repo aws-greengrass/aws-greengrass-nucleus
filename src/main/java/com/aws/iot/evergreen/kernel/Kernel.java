@@ -131,7 +131,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 ensureCreated(workPath);
             }
         });
-        while (getArg() != (Object) done) {
+        while (getArg() != done) {
             switch (arg) {
                 case "-dryrun":
                     forReal = false;
@@ -318,7 +318,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public EvergreenService getMain() throws Throwable {
         EvergreenService m = mainService;
         if (m == null) {
-            m = mainService = (EvergreenService) EvergreenService.locate(context, mainServiceName);
+            m = mainService = EvergreenService.locate(context, mainServiceName);
         }
         return m;
     }
@@ -416,7 +416,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Map<String, Object> h = new LinkedHashMap<>();
         orderedDependencies().forEach(l -> {
             if (l instanceof EvergreenService) {
-                EvergreenService s = (EvergreenService) l;
+                EvergreenService s = l;
                 h.put(s.getName(), s.config.toPOJO());
             }
         });

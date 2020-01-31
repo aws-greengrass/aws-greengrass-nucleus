@@ -43,7 +43,7 @@ public class EZPluginsTest {
     }
 
     private interface Foo {
-        public void p(String s);
+        void p(String s);
     }
 
     public static class A implements Foo {
