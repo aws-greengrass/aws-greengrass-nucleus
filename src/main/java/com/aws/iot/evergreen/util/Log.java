@@ -4,12 +4,13 @@ package com.aws.iot.evergreen.util;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -172,7 +173,7 @@ public class Log implements Closeable {
             logTo(System.err);
         } else {
             try {
-                logTo(new FileWriter(dest), true);
+                logTo(new OutputStreamWriter(new FileOutputStream(dest, true), StandardCharsets.UTF_8), true);
             } catch (IOException ex) {
                 logTo(System.out);
                 error("Couldn't write to log file", ex);

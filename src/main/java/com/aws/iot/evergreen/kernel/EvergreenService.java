@@ -16,6 +16,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Log;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -40,7 +41,7 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-
+@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME", justification = "Need hardcoded paths to find what OS we're on")
 public class EvergreenService implements InjectionActions, Subscriber, Closeable {
     public static final String stateTopicName = "_State";
     private static final Pattern depParse = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
@@ -626,19 +627,17 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             startWhen = State.Running.toString();
         }
         State x = null;
-        if (startWhen != null) {
-            int len = startWhen.length();
-            if (len > 0) {
-                // do "friendly" match
-                for (State s : State.values()) {
-                    if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
-                        x = s;
-                        break;
-                    }
+        int len = startWhen.length();
+        if (len > 0) {
+            // do "friendly" match
+            for (State s : State.values()) {
+                if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
+                    x = s;
+                    break;
                 }
-                if (x == null) {
-                    errored(startWhen + " does not match any EvergreenService state name", name);
-                }
+            }
+            if (x == null) {
+                errored(startWhen + " does not match any EvergreenService state name", name);
             }
         }
         addDependency(name, x == null ? State.Running : x);

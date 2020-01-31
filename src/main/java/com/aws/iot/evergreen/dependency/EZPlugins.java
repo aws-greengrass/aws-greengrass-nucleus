@@ -7,7 +7,6 @@ import com.aws.iot.evergreen.util.Utils;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
-import io.github.lukehutch.fastclasspathscanner.scanner.ScanResult;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -17,6 +16,8 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -58,7 +59,7 @@ public class EZPlugins {
         FastClasspathScanner sc = new FastClasspathScanner();
         sc.addClassLoader(cls);
         matchers.forEach(m -> m.accept(sc));
-        ScanResult sr = sc.scan();
+        sc.scan();
         if (trusted) {
             root = cls;
         }
@@ -87,9 +88,12 @@ public class EZPlugins {
         });
         loadPlugins(true, this.getClass().getClassLoader());
         if (!trustedFiles.isEmpty()) {
-            URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[trustedFiles.size()]), root);
-            root = trusted;
-            loadPlugins(true, trusted);
+            AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+                URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[trustedFiles.size()]), root);
+                root = trusted;
+                loadPlugins(true, trusted);
+                return null;
+            });
         }
         walk(untrustedCacheDirectory, p -> {
             if (p.toString().endsWith(".jar")) {
@@ -148,7 +152,11 @@ public class EZPlugins {
     }
 
     public EZPlugins moveToCache(boolean trusted, Path u) throws IOException {
-        String nm = u.getFileName().toString();
+        Path p = u.getFileName();
+        if (p == null) {
+            throw new IOException("Filename was null");
+        }
+        String nm = p.toString();
         if (!nm.endsWith(".jar")) {
             throw new IOException("Only .jar files can be cached: " + u);
         }

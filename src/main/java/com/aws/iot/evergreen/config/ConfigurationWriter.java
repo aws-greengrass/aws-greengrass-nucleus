@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Commitable;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -21,6 +22,8 @@ import static com.aws.iot.evergreen.util.Utils.flush;
 public class ConfigurationWriter implements Closeable, Subscriber {
     private final Writer out;
     private final Configuration conf;
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
+            justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
 
     @SuppressWarnings("LeakingThisInConstructor")

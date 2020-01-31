@@ -8,6 +8,7 @@ import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 public class CommitableWriter extends BufferedWriter implements Commitable {
@@ -15,9 +16,8 @@ public class CommitableWriter extends BufferedWriter implements Commitable {
     private boolean open = true;
 
     private CommitableWriter(CommitableFile f) {
-        super(new OutputStreamWriter(new BufferedOutputStream(f)));
+        super(new OutputStreamWriter(new BufferedOutputStream(f), StandardCharsets.UTF_8));
         out = f;
-
     }
 
     /**

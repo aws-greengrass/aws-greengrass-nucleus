@@ -58,7 +58,11 @@ public class Server {
         while (!isShutdown.get()) {
             Socket soc;
             try {
-                soc = serverSocket.accept();
+                if (serverSocket != null) {
+                    soc = serverSocket.accept();
+                } else {
+                    throw new IOException("Unable to start, server socket was null!");
+                }
             } catch (IOException e) {
                 if (!isShutdown.get()) {
                     throw new IPCException("Server socket accept() errored ", e);
@@ -81,7 +85,9 @@ public class Server {
     public void shutdown() {
         isShutdown.set(true);
         try {
-            serverSocket.close();
+            if (serverSocket != null) {
+                serverSocket.close();
+            }
         } catch (Exception e) {
             log.log(Log.Level.Error, "Error closing server socket", e);
         }
