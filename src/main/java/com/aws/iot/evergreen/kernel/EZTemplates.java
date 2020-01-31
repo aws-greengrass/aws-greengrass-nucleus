@@ -25,7 +25,7 @@ import static com.aws.iot.evergreen.util.Utils.close;
  * grand, it may make more sense to just switch to Velocity
  */
 public class EZTemplates {
-    private static final Pattern scriptVar = Pattern.compile("\\$\\[([^\\[\\]\\n]+)\\]");
+    private static final Pattern scriptVar = Pattern.compile("\\$\\[([^\\[\\]\\n]+)]");
     private final CopyOnWriteArraySet<Evaluator> evaluators = new CopyOnWriteArraySet<>();
 
     public static CharSequence toCS(URL in) throws IOException {

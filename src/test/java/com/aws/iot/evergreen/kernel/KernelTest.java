@@ -174,9 +174,9 @@ public class KernelTest {
     }
 
     private class ExpectedStateTransition {
-        String serviceName;
-        State was;
-        State current;
+        final String serviceName;
+        final State was;
+        final State current;
 
         public ExpectedStateTransition(String name, State was, State current) {
             this.serviceName = name;

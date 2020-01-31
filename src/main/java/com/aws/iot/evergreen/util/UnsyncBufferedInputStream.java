@@ -10,6 +10,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import javax.annotation.Nonnull;
 
 public class UnsyncBufferedInputStream extends FilterInputStream {
     private static final int bufferSize = 1 << 14;
@@ -29,7 +30,7 @@ public class UnsyncBufferedInputStream extends FilterInputStream {
         return new MappedInputStream(f);
     }
 
-    public static InputStream of(InputStream f) throws IOException {
+    public static InputStream of(InputStream f) {
         return f instanceof UnsyncBufferedInputStream || f instanceof MappedInputStream ? f :
                 new BufferedInputStream(f);
     }
@@ -77,7 +78,7 @@ public class UnsyncBufferedInputStream extends FilterInputStream {
     }
 
     @Override
-    public int read(byte[] b, int off, int len) throws IOException {
+    public int read(@Nonnull byte[] b, int off, int len) throws IOException {
         if (!fill()) {
             return -1;
         }

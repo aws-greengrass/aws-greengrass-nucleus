@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class ConfigurationTest {
-    Configuration config = new Configuration(new Context());
+    final Configuration config = new Configuration(new Context());
     int prev = 0;
 
     //    @Test
@@ -139,6 +139,6 @@ public class ConfigurationTest {
 
     void dump(Configuration c, String title) {
         System.out.println("______________\n" + title);
-        c.deepForEachTopic(t -> System.out.println(t));
+        c.deepForEachTopic(System.out::println);
     }
 }

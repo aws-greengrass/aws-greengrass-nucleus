@@ -35,7 +35,7 @@ import static com.aws.iot.evergreen.util.Log.Level;
 public class ServiceDiscoveryService extends EvergreenService {
     @Inject
     Log log;
-    private ObjectMapper mapper = new CBORMapper();
+    private final ObjectMapper mapper = new CBORMapper();
     //TODO: figure out how to inject the interface than the impl
     @Inject
     private MessageDispatcher messageDispatcher;

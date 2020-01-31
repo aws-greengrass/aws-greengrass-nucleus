@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -151,7 +150,7 @@ public class Log implements Closeable {
             }
 
             @Override
-            public void close() throws IOException {
+            public void close() {
                 if (doClose) {
                     Utils.close(out);
                 }
@@ -245,7 +244,7 @@ public class Log implements Closeable {
         }
     }
 
-    public abstract class Drainer implements Closeable {
+    public abstract static class Drainer implements Closeable {
         public abstract void drain(Entry e);
     }
 }

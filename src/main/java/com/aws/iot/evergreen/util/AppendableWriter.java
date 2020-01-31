@@ -4,6 +4,7 @@ package com.aws.iot.evergreen.util;
 
 import java.io.IOException;
 import java.io.Writer;
+import javax.annotation.Nonnull;
 
 /**
  * For writing to an Appendable
@@ -16,7 +17,7 @@ public class AppendableWriter extends Writer {
     }
 
     @Override
-    public void write(char[] buf, int offset, int len) throws IOException {
+    public void write(@Nonnull char[] buf, int offset, int len) throws IOException {
         while (--len >= 0) {
             a.append(buf[offset++]);
         }
@@ -28,7 +29,7 @@ public class AppendableWriter extends Writer {
     }
 
     @Override
-    public void write(String str, int offset, int len) throws IOException {
+    public void write(@Nonnull String str, int offset, int len) throws IOException {
         a.append(str, offset, offset + len);
     }
 

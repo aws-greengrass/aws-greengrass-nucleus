@@ -12,9 +12,6 @@ import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.inject.Provider;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
@@ -32,6 +29,9 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Provider;
 
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 import static com.aws.iot.evergreen.util.Utils.nullEmpty;
@@ -246,9 +246,7 @@ public class Context implements Closeable {
     }
 
     public void queuePublish(Topic t) {
-        runOnPublishQueue(() -> {
-            t.fire(WhatHappened.changed);
-        });
+        runOnPublishQueue(() -> t.fire(WhatHappened.changed));
     }
 
     private boolean onPublishThread() {
@@ -319,10 +317,8 @@ public class Context implements Closeable {
                         ImplementsService svc = ccl.getAnnotation(ImplementsService.class);
                         if (svc != null) {
                             String nm = svc.name();
-                            if (nm != null) {
-                                args[i] = Context.this.get(Configuration.class).lookupTopics(nm);
-                                continue;
-                            }
+                            args[i] = Context.this.get(Configuration.class).lookupTopics(nm);
+                            continue;
                         }
                         args[i] = Topics.errorNode(Context.this, "message", "Synthetic args");
                     } else {

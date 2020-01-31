@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class UnsyncBufferedOutputStreamTest {
     OutputStream out;
     CommitableFile cf;
-    Path t = Paths.get("/tmp/UBOS.tmp");
+    final Path t = Paths.get("/tmp/UBOS.tmp");
     int v = 0;
 
     @Test

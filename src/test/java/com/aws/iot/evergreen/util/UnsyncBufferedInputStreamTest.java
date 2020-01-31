@@ -71,7 +71,7 @@ public class UnsyncBufferedInputStreamTest {
         }
 
         @Override
-        public int read() throws IOException {
+        public int read() {
             return pos >= len ? -1 : pos++ & 0xFF;
         }
     }

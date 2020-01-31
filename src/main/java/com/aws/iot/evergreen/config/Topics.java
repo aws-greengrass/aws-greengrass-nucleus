@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import javax.annotation.Nonnull;
 
 public class Topics extends Node implements Iterable<Node> {
     public final ConcurrentHashMap<String, Node> children = new ConcurrentHashMap<>();
@@ -144,6 +145,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     @Override
+    @Nonnull
     public Iterator<Node> iterator() {
         return children.values().iterator();
     }

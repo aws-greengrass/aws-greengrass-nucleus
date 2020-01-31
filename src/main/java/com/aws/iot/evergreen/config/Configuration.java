@@ -67,10 +67,9 @@ public class Configuration {
      * config file. Never returns null.
      */
     public Topics lookupTopics(String... path) {
-        int limit = path.length;
         Topics n = root;
-        for (int i = 0; i < limit; i++) {
-            n = n.createInteriorChild(path[i]);
+        for (String s : path) {
+            n = n.createInteriorChild(s);
         }
         return n;
     }

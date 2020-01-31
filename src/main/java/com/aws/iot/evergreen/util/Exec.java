@@ -63,19 +63,16 @@ public class Exec implements Closeable {
             Process hack = Runtime.getRuntime().exec(
                     new String[]{"bash", "-c", "echo 'echo $PATH'|bash --login|egrep':[^ ]'"});
             StringBuilder path = new StringBuilder();
-            Thread bg = new Thread() {
-                @Override
-                public void run() {
-                    try (InputStream in = hack.getInputStream()) {
-                        int c;
-                        while ((c = in.read()) >= 0) {
-                            path.append((char) c);
-                        }
-                    } catch (Throwable t) {
+            Thread bg = new Thread(() -> {
+                try (InputStream in = hack.getInputStream()) {
+                    int c;
+                    while ((c = in.read()) >= 0) {
+                        path.append((char) c);
                     }
-                    //                    System.out.println("Read from process: "+path);
+                } catch (Throwable t) {
                 }
-            };
+                //                    System.out.println("Read from process: "+path);
+            });
             bg.start();
             // TODO: configurable timeout?
             bg.join(2000);
@@ -302,7 +299,7 @@ public class Exec implements Closeable {
 
     public String asString() {
         StringBuilder sb = new StringBuilder();
-        Consumer<CharSequence> f = s -> sb.append(s);
+        Consumer<CharSequence> f = sb::append;
         withOut(f).withErr(f).exec();
         return sb.toString().trim();
     }
