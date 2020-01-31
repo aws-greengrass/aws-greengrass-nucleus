@@ -48,6 +48,12 @@ Plugins like the internalhttp server can be installed simply by placing the jar 
 root dir/plugins/trusted. The plugin will be injected immediately when the kernel starts up.
 
 
+## Testing
+JUnit 5 is used for both unit and integration testing.
+
+`mvn test` will only run the unit tests.
+Use `mvn verify` to run both, or use `mvn surefire:test@integration-tests` to run only the integration tests.
+
 ## PR/CR
 Since development is on GitHub and not GitFarm we can't use `cr` to create a code review. Instead you must
 push to a remote branch. Pushing to a remote branch will give you a URL to open a pull request against `master`.

@@ -3,6 +3,7 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -13,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+@Tag("Integration")
 public class KernelTest {
     static final int[] gc = new int[10];
     static final CountDownLatch[] OK = new CountDownLatch[10];
@@ -46,17 +48,17 @@ public class KernelTest {
                                 State.Installing), new ExpectedStateTransition("installErrorRetry", State.Installing,
                                 State.AwaitingStartup),
 
-                // main service doesn't start until dependency ready
-                new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
+                        // main service doesn't start until dependency ready
+                        new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
                         new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting),
                         new ExpectedStateTransition("main", State.Starting, State.Running),
 
-                // runErrorRetry restart on error
-                new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
+                        // runErrorRetry restart on error
+                        new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
                         new ExpectedStateTransition("runErrorRetry", State.Errored, State.AwaitingStartup),
 
-                // main service restart on dependency error
-                new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
+                        // main service restart on dependency error
+                        new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
                         new ExpectedStateTransition("main", State.Running, State.AwaitingStartup),
                         new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
                         new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting)));

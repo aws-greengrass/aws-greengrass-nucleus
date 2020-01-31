@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Tag("Integration")
 public class IPCTest {
 
     public static int port;

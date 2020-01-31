@@ -4,6 +4,7 @@
 
 package com.aws.iot.evergreen.util;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 
+@Tag("Integration")
 public class ExecTest {
     @Test
     public void test() {
