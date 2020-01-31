@@ -27,6 +27,8 @@ public class GenericExternalService extends EvergreenService {
     private boolean inShutdown;
     private Exec currentScript;
 
+    private Node runNode;
+
     public GenericExternalService(Topics c) {
         super(c);
         c.subscribe((what, child) -> {
@@ -36,6 +38,7 @@ public class GenericExternalService extends EvergreenService {
             }
         });
 
+        runNode = config.getChild("run");
         AuthHandler.registerAuthToken(this);
     }
 
@@ -46,15 +49,19 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void install() {
-        if (run("install", null) == RunStatus.Errored) {
+        Node installNode = pickByOS(config.getChild("install"));
+        if (installNode != null && run(installNode, null) == RunStatus.Errored) {
             setState(State.Errored);
+            return;
         }
         super.install();
     }
 
     @Override
     public void awaitingStartup() {
-        run("awaitingStartup", null);
+        if (runNode == null) {
+            setState(State.Finished);
+        }
         super.awaitingStartup();
     }
 
@@ -68,7 +75,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void run() {
-        if (run("run", exit -> {
+        if (run(exit -> {
             currentScript = null;
             if (!inShutdown) {
                 if (exit == 0) {
@@ -81,14 +88,13 @@ public class GenericExternalService extends EvergreenService {
             }
         }) == RunStatus.NothingDone) {
             context.getLog().significant(getName(), "run: NothingDone");
-            setState(State.Finished);
         }
     }
 
     @Override
     public void shutdown() {
         inShutdown = true;
-        run("shutdown", null);
+        RunStatus shutdownResult = run("shutdown", null) ;
         Exec e = currentScript;
         if (e != null && e.isRunning()) {
             try {
@@ -100,10 +106,22 @@ public class GenericExternalService extends EvergreenService {
             }
         }
         inShutdown = false;
+        if (shutdownResult == RunStatus.Errored) {
+            setState(State.Errored);
+        }
     }
 
     protected RunStatus run(String name, IntConsumer background) {
-        Node n = pickByOS(name);
+        if (runNode instanceof Topics) {
+            Node n = pickByOS(((Topics) runNode).getChild(name));
+            return n == null ? RunStatus.NothingDone : run(n, background);
+        } else {
+            return RunStatus.NothingDone;
+        }
+    }
+
+    protected RunStatus run(IntConsumer background) {
+        Node n = pickByOS(runNode);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 
@@ -177,8 +195,8 @@ public class GenericExternalService extends EvergreenService {
             if (script instanceof Topic) {
                 return run((Topic) script, background, t);
             } else {
-                errored("Missing script: for ", t.getFullName());
-                return RunStatus.Errored;
+                context.getLog().note("Missing script: for ", t.getFullName());
+                return RunStatus.NothingDone;
             }
         } else {
             context.getLog().significant("Skipping", t.getFullName());

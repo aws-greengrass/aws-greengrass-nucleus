@@ -220,6 +220,15 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return i == null ? -1 : i;
     }
 
+    public static Node pickByOS(Node n) {
+        if (n == null) {
+            return n;
+        }
+        if (n instanceof Topics) {
+            return pickByOS((Topics) n);
+        }
+        return n;
+    }
     public static Node pickByOS(Topics n) {
         Node bestn = null;
         int bestrank = -1;
@@ -675,13 +684,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return sb.toString();
     }
 
-    Node pickByOS(String name) {
-        Node n = config.getChild(name);
-        if (n instanceof Topics) {
-            n = pickByOS((Topics) n);
-        }
-        return n;
-    }
+
 
     protected void addDependencies(HashSet<EvergreenService> deps) {
         deps.add(this);
