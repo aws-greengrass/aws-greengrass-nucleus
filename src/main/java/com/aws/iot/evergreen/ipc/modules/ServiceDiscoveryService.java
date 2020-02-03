@@ -4,10 +4,10 @@ package com.aws.iot.evergreen.ipc.modules;
 import com.aws.iot.evergreen.builtin.services.servicediscovery.ServiceDiscoveryAgent;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.ipc.handler.MessageDispatcher;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
 import com.aws.iot.evergreen.ipc.services.common.SendAndReceiveIPCUtil;
@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscovery.SERVICE_DISCOVERY_NAME;
@@ -36,11 +38,12 @@ public class ServiceDiscoveryService extends EvergreenService {
     @Inject
     Log log;
     private final ObjectMapper mapper = new CBORMapper();
-    //TODO: figure out how to inject the interface than the impl
-    @Inject
-    private MessageDispatcher messageDispatcher;
+
     @Inject
     private ServiceDiscoveryAgent agent;
+
+    @Inject
+    private IPCRouter router;
 
     public ServiceDiscoveryService(Topics c) {
         super(c);
@@ -49,17 +52,17 @@ public class ServiceDiscoveryService extends EvergreenService {
     @Override
     public void postInject() {
         try {
-            messageDispatcher.registerServiceCallback(SERVICE_DISCOVERY_NAME, this::handleMessage);
+            router.registerServiceCallback(SERVICE_DISCOVERY_NAME, (request, ctx, channel) -> handleMessage(request, ctx));
         } catch (IPCException e) {
             log.log(Level.Error, "Error registering callback for service " + SERVICE_DISCOVERY_NAME);
         }
     }
 
-    public Message handleMessage(Message request, RequestContext context) {
+    public Future<Message> handleMessage(Message request, RequestContext context) {
+        CompletableFuture<Message> fut = new CompletableFuture<>();
         try {
             GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj = SendAndReceiveIPCUtil.decode(request,
-                    new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {
-            });
+                    new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {});
 
             GeneralResponse<?, ServiceDiscoveryResponseStatus> genResp = new GeneralResponse<>();
             switch (obj.getType()) {
@@ -89,8 +92,7 @@ public class ServiceDiscoveryService extends EvergreenService {
                     genResp.setErrorMessage("Unknown request type " + obj.getType());
                     break;
             }
-            return new Message(SendAndReceiveIPCUtil.encode(genResp));
-
+            fut.complete(new Message(SendAndReceiveIPCUtil.encode(genResp)));
         } catch (Throwable e) {
             log.log(Level.Error, "Failed to respond to handleMessage", e);
 
@@ -98,11 +100,12 @@ public class ServiceDiscoveryService extends EvergreenService {
                     ServiceDiscoveryResponseStatus>builder().error(ServiceDiscoveryResponseStatus.Unknown).errorMessage(e.getMessage()).build();
 
             try {
-                return new Message(SendAndReceiveIPCUtil.encode(errorResponse));
+                fut.complete(new Message(SendAndReceiveIPCUtil.encode(errorResponse)));
             } catch (IOException ex) {
                 log.log(Level.Error, "Couldn't even send them the error back", e);
             }
         }
-        return null;
+        fut.complete(new Message(new byte[0]));
+        return fut;
     }
 }

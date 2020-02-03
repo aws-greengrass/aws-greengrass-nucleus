@@ -2,13 +2,23 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.ipc.common.Server;
-import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.ipc.handler.ConnectionManager;
+import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
+import com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder;
+import com.aws.iot.evergreen.ipc.handler.MessageRouter;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.util.Log.Level;
@@ -17,65 +27,36 @@ import static com.aws.iot.evergreen.util.Log.Level;
 /**
  * Entry point to the kernel service IPC mechanism. IPC service manages the lifecycle of all IPC components
  * <p>
- * Server:
- * Listens for new connections and passes new connections to connection manager
- * <p>
- * Connection Manager:
- * Manages connections created by Server, connection manager is responsible for
- * - Authenticating a new connection
- * - Creating readers and writers for a connection
- * - Closes connection when read or write message has IOErrors
- * - Closes connection during shutdown
- * <p>
- * ConnectionReader:
- * - Reads messages from the connection input stream and forwards them to message dispatcher
- * - Forwards IOErrors to connection manager
- * <p>
- * ConnectionWriter:
- * - Writes messages to the connection output stream
- * - Forwards IOErrors to connection manager
- * <p>
- * Message Dispatcher:
- * - Handles incoming messages from connections
- * - Acts as an interface for modules inside the kernel to
- * - Register call backs for a destination
- * - Send messages to an outside process
- * - Manages the thread pool which process all incoming and outgoing messages
- * <p>
  * IPCService relies on the kernel to synchronize between startup() and run() calls.
  * <p>
  * How messages flow:
  * <p>
  * New connection:
- * Server listens for new connections, new connections are forwarded to connection manager.
- * Connection manager authorizes connection and creates connection reader and writer
- * <p>
- * Incoming message from an external process
- * Connection reader is run on a separate thread which does the blocking read on connection input stream,
- * Message read by connection reader is forwarded to connection dispatcher, if the message is a new request,
- * dispatcher looks up the call back based on the request destination and invokes the callback. The result of the
- * callback is sent out via the same connection.
- * If the message is a response to a previous request, dispatcher looks up the future object associated with the
- * request using the sequence number and updates the future.
+ * Server listens for new connections, new connections are forwarded to MessageRouter using the Netty pipeline.
+ * MessageRouter authorizes connection and will then allow further queries to be routed.
  * <p>
  * Outgoing messages:
- * Modules in the kernel that need to send messages to an external process would inject into itself a
- * reference of the message dispatcher. Module can send message using client Id of the process via
- * dispatcher. Dispatcher will look up the connection associated with the clientId using connection manager
- * and write the message to the connection. Dispatcher will return a future object to the module which
- * will be marked as complete when connection responds to the message.
+ * The client must first send a request to setup a "listener" on the server. As part of handling that request,
+ * the service will receive a pointer to the channel that they will then be able to use to push messages
+ * to the client at any time in the future.
  */
 
 @ImplementsService(name = "IPCService", autostart = true)
 public class IPCService extends EvergreenService {
+    private static final int MAX_SO_BACKLOG = 128;
+
+    public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
+    private static final String LOCAL_IP = "127.0.0.1";
 
     @Inject
     Log log;
-    //TODO: figure out how to inject the interface ConnectionManager
+
+    private final EventLoopGroup bossGroup = new NioEventLoopGroup();
+    private final EventLoopGroup workerGroup = new NioEventLoopGroup();
+    private int port;
+
     @Inject
-    private ConnectionManager connectionManager;
-    @Inject
-    private Server server;
+    private MessageRouter messageHandler;
 
     public IPCService(Topics c) {
         super(c);
@@ -89,13 +70,44 @@ public class IPCService extends EvergreenService {
     public void startup() {
         log.log(Level.Note, "Startup called for IPC service");
         try {
-            server.startup();
+            port = listen();
+
+            String serverUri = "tcp://" + LOCAL_IP + ":" + port;
+            log.log(Log.Level.Note, "IPC service URI: ", serverUri);
+            // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
+            // set via environment variables
+            config.parent.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME).setValue(serverUri);
+
             super.startup();
-        } catch (IPCException e) {
-            log.error("Error starting IPC service", e);
-            //            setState(State.Unstable);
-            recover();
+        } catch (InterruptedException e) {
+            log.warn("Failed IPC server startup");
         }
+    }
+
+    private int listen() throws InterruptedException {
+        ServerBootstrap b = new ServerBootstrap();
+
+        b.group(bossGroup, workerGroup)
+                .channel(NioServerSocketChannel.class)
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    public void initChannel(SocketChannel ch) {
+                        ChannelPipeline p = ch.pipeline();
+
+                        p.addLast(new MessageFrameDecoder());
+                        p.addLast(new MessageFrameEncoder());
+                        p.addLast(messageHandler);
+                    }
+                })
+                .option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG)
+                .childOption(ChannelOption.SO_KEEPALIVE, true);
+
+        // Bind and start to accept incoming connections.
+        ChannelFuture f = b.bind(InetAddress.getLoopbackAddress(), 0).sync();
+        int port = ((InetSocketAddress) f.channel().localAddress()).getPort();
+
+        log.note("IPC ready to accept connections on port", port);
+        return port;
     }
 
     /**
@@ -105,25 +117,6 @@ public class IPCService extends EvergreenService {
     @Override
     public void run() {
         log.log(Level.Note, "Run called for IPC service");
-        try {
-            server.run();
-        } catch (IPCException e) {
-            log.error("IPC service run() errored", e);
-            // TODO: Unstable got deleted, was that the right thing to do?  Needs thinking about
-            //            setState(State.Unstable);
-            recover();
-        }
-    }
-
-    private void recover() {
-        try {
-            //TODO: rebind server to same address:port.
-            //TODO: set state to running if able to recover, is this the best way to do state transitions
-        } catch (Exception e) {
-            //TODO: Failed to rebind server, report status as error to kernel
-            setState(State.Errored);
-            //
-        }
     }
 
     /**
@@ -133,8 +126,8 @@ public class IPCService extends EvergreenService {
     public void shutdown() {
         log.log(Level.Note, "Shutdown called for IPC service");
         //TODO: transition to errored state if shutdown failed ?
-        server.shutdown();
-        connectionManager.shutdown();
+        workerGroup.shutdownGracefully();
+        bossGroup.shutdownGracefully();
     }
 
     /**
