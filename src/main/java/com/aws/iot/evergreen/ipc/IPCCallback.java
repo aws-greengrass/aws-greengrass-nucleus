@@ -6,7 +6,6 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
-import io.netty.channel.Channel;
 
 import java.util.concurrent.Future;
 
@@ -15,5 +14,5 @@ import java.util.concurrent.Future;
  */
 @FunctionalInterface
 public interface IPCCallback {
-    Future<FrameReader.Message> onMessage(FrameReader.Message m, RequestContext ctx, Channel channel) throws Throwable;
+    Future<FrameReader.Message> onMessage(FrameReader.Message m, RequestContext ctx) throws Throwable;
 }

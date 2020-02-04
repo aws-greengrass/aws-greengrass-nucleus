@@ -30,7 +30,9 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
  */
 @ChannelHandler.Sharable
 public class MessageRouter extends ChannelInboundHandlerAdapter {
+    public static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
     public static final AttributeKey<RequestContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
+
     @Inject
     private Log log;
 
@@ -44,12 +46,14 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(null);
         super.channelRegistered(ctx);
+        // TODO: Possibly have timeout to drop connection if it stays unauthenticated.
+        // https://issues.amazon.com/issues/P32808886
     }
 
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         super.channelUnregistered(ctx);
-        // TODO: Handle de-registration of any listeners such as Lifecycle
+        // TODO: Handle de-registration of any listeners such as Lifecycle https://issues.amazon.com/issues/P32808717
     }
 
     @Override
@@ -64,12 +68,12 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
 
         IPCCallback cb = router.getCallbackForDestination(message.destination);
         if (cb == null) {
-            log.warn("Destination not found for packet from client",
+            log.warn(DEST_NOT_FOUND_ERROR,
                     ctx.channel().remoteAddress(), message.destination);
             sendResponse(new FrameReader.Message(
                             SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
                                     .error(GenericErrorCodes.Unknown)
-                                    .errorMessage("Destination handler not found")
+                                    .errorMessage(DEST_NOT_FOUND_ERROR)
                                     .build())),
                     message.sequenceNumber,
                     message.destination, ctx, false);
@@ -79,14 +83,15 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
         try {
             // TODO: Be smart about timeouts? https://issues.amazon.com/issues/86453f7c-c94e-4a3c-b8ff-679767e7443c
             FrameReader.Message responseMessage = cb.onMessage(message.message,
-                    ctx.channel().attr(CONNECTION_CONTEXT_KEY).get(),
-                    ctx.channel())
+                    ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
                     // This .get() blocks forever waiting for the response to the request
                     .get();
             sendResponse(responseMessage,
                     message.sequenceNumber,
                     message.destination, ctx, false);
         } catch (Throwable throwable) {
+            // This is just a catch-all. Any service specific errors should be handled by the service code.
+            // Ideally this never gets executed.
             sendResponse(new FrameReader.Message(
                             SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
                                     .error(GenericErrorCodes.Unknown)

@@ -56,7 +56,7 @@ public class IPCService extends EvergreenService {
     private int port;
 
     @Inject
-    private MessageRouter messageHandler;
+    private MessageRouter messageRouter;
 
     public IPCService(Topics c) {
         super(c);
@@ -80,7 +80,7 @@ public class IPCService extends EvergreenService {
 
             super.startup();
         } catch (InterruptedException e) {
-            log.warn("Failed IPC server startup");
+            log.error("Failed IPC server startup");
         }
     }
 
@@ -96,7 +96,7 @@ public class IPCService extends EvergreenService {
 
                         p.addLast(new MessageFrameDecoder());
                         p.addLast(new MessageFrameEncoder());
-                        p.addLast(messageHandler);
+                        p.addLast(messageRouter);
                     }
                 })
                 .option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG)
@@ -111,8 +111,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     * Blocks indefinitely listening for new connection. If the server socket errors while listening, the exception
-     * is bubbled up and IPCService will transition to Errored state.
+     * Do nothing in "run" since we started up the server in "startup"
      */
     @Override
     public void run() {

@@ -15,12 +15,28 @@ import java.util.List;
 public class MessageFrameDecoder extends ReplayingDecoder<Void> {
     private static final int BYTE_MASK = 0xff;
     private static final int IS_RESPONSE_MASK = 0x01;
+    public static final int SEQ_NUM_AND_PAYLOAD_LENGTH_LENGTH = 6;
+    public static final int VERSION_AND_DEST_LENGTH_LENGTH = 2;
 
+    /**
+     * Decode the input message.
+     * Message format is
+     *
+     * +------------------+----------------------+---------------+---------------+------------------+------------+
+     * | Version + Type   |  Destination Length  |  Destination  |  Seq. Number  |  Payload Length  |  Payload   |
+     * |     1 byte       |         1 byte       |    x bytes    |    4 bytes    |      2 bytes     |  y bytes   |
+     * +------------------+----------------------+---------------+---------------+------------------+------------+
+     *
+     * @param channelHandlerContext
+     * @param byteBuf
+     * @param list
+     * @throws Exception
+     */
     @Override
     protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception {
         byteBuf.markReaderIndex();
 
-        if (actualReadableBytes() < 2) {
+        if (actualReadableBytes() < VERSION_AND_DEST_LENGTH_LENGTH) {
             byteBuf.resetReaderIndex();
             return;
         }
@@ -39,7 +55,7 @@ public class MessageFrameDecoder extends ReplayingDecoder<Void> {
         byte[] destinationNameByte = new byte[destinationNameLength];
         byteBuf.readBytes(destinationNameByte);
 
-        if (actualReadableBytes() < 6) {
+        if (actualReadableBytes() < SEQ_NUM_AND_PAYLOAD_LENGTH_LENGTH) {
             byteBuf.resetReaderIndex();
             return;
         }

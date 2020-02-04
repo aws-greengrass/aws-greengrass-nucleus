@@ -52,7 +52,7 @@ public class ServiceDiscoveryService extends EvergreenService {
     @Override
     public void postInject() {
         try {
-            router.registerServiceCallback(SERVICE_DISCOVERY_NAME, (request, ctx, channel) -> handleMessage(request, ctx));
+            router.registerServiceCallback(SERVICE_DISCOVERY_NAME, this::handleMessage);
         } catch (IPCException e) {
             log.log(Level.Error, "Error registering callback for service " + SERVICE_DISCOVERY_NAME);
         }
@@ -105,7 +105,11 @@ public class ServiceDiscoveryService extends EvergreenService {
                 log.log(Level.Error, "Couldn't even send them the error back", e);
             }
         }
-        fut.complete(new Message(new byte[0]));
+
+        if (!fut.isDone()) {
+            fut.completeExceptionally(new IPCException("Unable to serialize any responses"));
+        }
+
         return fut;
     }
 }
