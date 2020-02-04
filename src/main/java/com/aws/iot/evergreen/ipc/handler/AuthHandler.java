@@ -3,8 +3,8 @@ package com.aws.iot.evergreen.ipc.handler;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
@@ -54,7 +54,7 @@ public class AuthHandler implements InjectionActions {
      * @return RequestContext containing the server name if validated.
      * @throws IPCClientNotAuthorizedException thrown if not authorized, or any other error happens.
      */
-    public RequestContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
+    public ConnectionContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
         GeneralRequest<String, AuthRequestTypes> decodedRequest;
         try {
             decodedRequest = IPCUtil.decode(request, new TypeReference<GeneralRequest<String, AuthRequestTypes>>() {
@@ -72,6 +72,6 @@ public class AuthHandler implements InjectionActions {
             throw new IPCClientNotAuthorizedException("Auth token not found");
         }
 
-        return new RequestContext(serviceName);
+        return new ConnectionContext(serviceName);
     }
 }

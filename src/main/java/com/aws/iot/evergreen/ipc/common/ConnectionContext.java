@@ -7,6 +7,6 @@ import lombok.ToString;
 @AllArgsConstructor
 @Data
 @ToString
-public class RequestContext {
+public class ConnectionContext {
     private String serviceName;
 }

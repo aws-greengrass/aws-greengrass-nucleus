@@ -6,9 +6,9 @@ package com.aws.iot.evergreen.ipc.handler;
 
 import com.aws.iot.evergreen.ipc.IPCCallback;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.util.Log;
@@ -33,8 +33,8 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
 @ChannelHandler.Sharable
 @AllArgsConstructor
 @NoArgsConstructor
-public class MessageRouter extends ChannelInboundHandlerAdapter {
-    public static final AttributeKey<RequestContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
+public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
+    public static final AttributeKey<ConnectionContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
     private static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
 
     @Inject
@@ -57,7 +57,7 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         super.channelUnregistered(ctx);
-        // TODO: Handle de-registration of any listeners such as Lifecycle https://issues.amazon.com/issues/P32808717
+        router.clientDisconnected(ctx.channel().attr(CONNECTION_CONTEXT_KEY).get());
     }
 
     @Override
@@ -67,6 +67,11 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
         // When there isn't context yet, we expect a call to be authorized first
         if (ctx.channel().attr(CONNECTION_CONTEXT_KEY).get() == null) {
             handleAuth(ctx, message);
+            return;
+        }
+
+        if (FrameReader.FrameType.RESPONSE.equals(message.type)) {
+            router.handleResponseMessage(ctx.channel().attr(CONNECTION_CONTEXT_KEY).get(), message);
             return;
         }
 
@@ -99,12 +104,13 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
     private void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
         if (message.destination.equals(AUTH_SERVICE)) {
             try {
-                RequestContext context = auth.doAuth(message.message);
+                ConnectionContext context = auth.doAuth(message.message);
                 ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(context);
                 log.note("Successfully authenticated client", ctx.channel().remoteAddress(), context);
                 sendResponse(new FrameReader.Message(IPCUtil.encode(
                         GeneralResponse.builder().response(context.getServiceName()).error(GenericErrorCodes.Success)
                                 .build())), message.sequenceNumber, message.destination, ctx, false);
+                router.clientConnected(context, ctx.channel());
             } catch (Throwable t) {
                 log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
                 sendResponse(new FrameReader.Message(IPCUtil.encode(

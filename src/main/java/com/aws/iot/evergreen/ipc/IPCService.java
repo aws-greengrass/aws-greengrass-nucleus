@@ -4,7 +4,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder;
-import com.aws.iot.evergreen.ipc.handler.MessageRouter;
+import com.aws.iot.evergreen.ipc.handler.IPCChannelHandler;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
 import io.netty.bootstrap.ServerBootstrap;
@@ -52,7 +52,7 @@ public class IPCService extends EvergreenService {
     private int port;
 
     @Inject
-    private MessageRouter messageRouter;
+    private IPCChannelHandler ipcChannelHandler;
 
     public IPCService(Topics c) {
         super(c);
@@ -91,7 +91,7 @@ public class IPCService extends EvergreenService {
 
                         p.addLast(new MessageFrameDecoder());
                         p.addLast(new MessageFrameEncoder());
-                        p.addLast(messageRouter);
+                        p.addLast(ipcChannelHandler);
                     }
                 }).option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG).childOption(ChannelOption.SO_KEEPALIVE, true);
 

@@ -3,7 +3,7 @@ package com.aws.iot.evergreen.ipc.handler;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
@@ -30,7 +30,7 @@ class AuthHandlerTest {
         assertEquals(SERVICE_NAME, config.find(AUTH_TOKEN_LOOKUP_KEY, (String) authToken).getOnce());
 
         AuthHandler auth = new AuthHandler(config);
-        RequestContext authContext = auth.doAuth(new FrameReader.Message(IPCUtil
+        ConnectionContext authContext = auth.doAuth(new FrameReader.Message(IPCUtil
                 .encode(GeneralRequest.builder().type(AuthRequestTypes.Auth).request(authToken).build())));
 
         assertNotNull(authContext);
