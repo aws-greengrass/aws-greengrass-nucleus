@@ -16,6 +16,8 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.AttributeKey;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import javax.inject.Inject;
@@ -29,9 +31,11 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
  * routes the message to the correct handler.
  */
 @ChannelHandler.Sharable
+@AllArgsConstructor
+@NoArgsConstructor
 public class MessageRouter extends ChannelInboundHandlerAdapter {
-    public static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
     public static final AttributeKey<RequestContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
+    private static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
 
     @Inject
     private Log log;
