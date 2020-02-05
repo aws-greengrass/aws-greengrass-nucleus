@@ -48,8 +48,8 @@ public class CommitableFile extends FileOutputStream implements Commitable {
     }
 
     public static CommitableFile of(Path t, boolean commitOnClose) throws IOException {
-        Path n = t.resolveSibling(t + "+");
-        Path b = t.resolveSibling(t + "~");
+        Path n = t.resolveSibling(t.getFileName() + "+");
+        Path b = t.resolveSibling(t.getFileName() + "~");
         Files.deleteIfExists(n);
         try {
             return new CommitableFile(n, b, t, commitOnClose);
