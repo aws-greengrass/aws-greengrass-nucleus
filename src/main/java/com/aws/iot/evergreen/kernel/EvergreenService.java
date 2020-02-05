@@ -43,22 +43,16 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME", justification = "Need hardcoded paths to find what OS we're on")
 public class EvergreenService implements InjectionActions, Subscriber, Closeable {
-
-    // static variables
     public static final String STATE_TOPIC_NAME = "_State";
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
     private static final Map<String, Integer> RANKS = buildRanks();
 
-    // instance variables
-    // public
     public final Topics config;
     public Context context;
 
-    // protected
     protected final CopyOnWriteArrayList<EvergreenService> explicitDependencies = new CopyOnWriteArrayList<>();
     protected ConcurrentHashMap<EvergreenService, State> dependencies;
 
-    // private
     private final Object dependencyReadyLock = new Object();
     private final Topic state;
 
