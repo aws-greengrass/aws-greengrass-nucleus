@@ -68,14 +68,12 @@ public class IPCTest {
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find("mqtt",
                         "_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
-        client.connect();
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
         KernelIPCClientConfig config2 =
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
                         "ServiceName", "_UID").getOnce()).build();
         IPCClient client2 = new IPCClientImpl(config2);
-        client2.connect();
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
 
         Resource resource = Resource.builder().name("evergreen_1").serviceType("_mqtt").domain("local").build();
@@ -129,7 +127,6 @@ public class IPCTest {
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
                         "ServiceName", "_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
-        client.connect();
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
         RegisterResourceRequest req = RegisterResourceRequest.builder().resource(Resource.builder().name("evergreen_1" +

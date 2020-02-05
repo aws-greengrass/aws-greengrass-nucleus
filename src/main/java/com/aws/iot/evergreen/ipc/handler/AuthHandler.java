@@ -8,7 +8,7 @@ import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
-import com.aws.iot.evergreen.ipc.services.common.SendAndReceiveIPCUtil;
+import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -41,7 +41,7 @@ public class AuthHandler implements InjectionActions {
     public RequestContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
         GeneralRequest<String, AuthRequestTypes> decodedRequest;
         try {
-            decodedRequest = SendAndReceiveIPCUtil.decode(request, new TypeReference<GeneralRequest<String, AuthRequestTypes>>() {
+            decodedRequest = IPCUtil.decode(request, new TypeReference<GeneralRequest<String, AuthRequestTypes>>() {
             });
         } catch (IOException e) {
             throw new IPCClientNotAuthorizedException(e.getMessage());

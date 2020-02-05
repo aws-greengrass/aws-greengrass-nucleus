@@ -10,7 +10,7 @@ import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
-import com.aws.iot.evergreen.ipc.services.common.SendAndReceiveIPCUtil;
+import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.util.Log;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -75,8 +75,8 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
             log.warn(DEST_NOT_FOUND_ERROR,
                     ctx.channel().remoteAddress(), message.destination);
             sendResponse(new FrameReader.Message(
-                            SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
-                                    .error(GenericErrorCodes.Unknown)
+                            IPCUtil.encode(GeneralResponse.builder()
+                                    .error(GenericErrorCodes.InvalidRequest)
                                     .errorMessage(DEST_NOT_FOUND_ERROR)
                                     .build())),
                     message.sequenceNumber,
@@ -97,8 +97,8 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
             // This is just a catch-all. Any service specific errors should be handled by the service code.
             // Ideally this never gets executed.
             sendResponse(new FrameReader.Message(
-                            SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
-                                    .error(GenericErrorCodes.Unknown)
+                            IPCUtil.encode(GeneralResponse.builder()
+                                    .error(GenericErrorCodes.InternalError)
                                     .errorMessage(getUltimateMessage(throwable))
                                     .build())),
                     message.sequenceNumber,
@@ -113,7 +113,7 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
                 ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(context);
                 log.note("Successfully authenticated client", ctx.channel().remoteAddress(), context);
                 sendResponse(new FrameReader.Message(
-                                SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
+                                IPCUtil.encode(GeneralResponse.builder()
                                         .error(GenericErrorCodes.Success)
                                         .build())),
                         message.sequenceNumber,
@@ -121,7 +121,7 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
             } catch (Throwable t) {
                 log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
                 sendResponse(new FrameReader.Message(
-                                SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
+                                IPCUtil.encode(GeneralResponse.builder()
                                         .errorMessage("Error while authenticating client")
                                         .error(GenericErrorCodes.Unauthorized)
                                         .build())),
@@ -131,7 +131,7 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
         } else {
             log.warn("Wrong destination for first packet from client", ctx.channel().remoteAddress());
             sendResponse(new FrameReader.Message(
-                            SendAndReceiveIPCUtil.encode(GeneralResponse.builder()
+                            IPCUtil.encode(GeneralResponse.builder()
                                     .errorMessage("Error while authenticating client")
                                     .error(GenericErrorCodes.Unauthorized)
                                     .build())),

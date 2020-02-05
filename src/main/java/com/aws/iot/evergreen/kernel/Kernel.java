@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -417,7 +416,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             }
         });
         try {
-            JSON.std.with(new YAMLFactory().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)).write(h, w);
+            JSON.std.with(new YAMLFactory()).write(h, w);
         } catch (IOException ex) {
             context.getLog().error("Couldn't write config file", ex);
         }

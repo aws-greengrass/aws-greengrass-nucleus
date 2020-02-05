@@ -10,7 +10,7 @@ import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
-import com.aws.iot.evergreen.ipc.services.common.SendAndReceiveIPCUtil;
+import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
@@ -61,8 +61,9 @@ public class ServiceDiscoveryService extends EvergreenService {
     public Future<Message> handleMessage(Message request, RequestContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
         try {
-            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj = SendAndReceiveIPCUtil.decode(request,
-                    new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {});
+            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj = IPCUtil
+                    .decode(request, new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {
+                    });
 
             GeneralResponse<?, ServiceDiscoveryResponseStatus> genResp = new GeneralResponse<>();
             switch (obj.getType()) {
@@ -82,25 +83,25 @@ public class ServiceDiscoveryService extends EvergreenService {
                     genResp = agent.updateResource(update, context.serviceName);
                     break;
                 case register:
-                    RegisterResourceRequest register = mapper.convertValue(obj.getRequest(),
-                            RegisterResourceRequest.class);
+                    RegisterResourceRequest register = mapper
+                            .convertValue(obj.getRequest(), RegisterResourceRequest.class);
                     // Do register
                     genResp = agent.registerResource(register, context.serviceName);
                     break;
                 default:
-                    genResp.setError(ServiceDiscoveryResponseStatus.Unknown);
+                    genResp.setError(ServiceDiscoveryResponseStatus.InvalidRequest);
                     genResp.setErrorMessage("Unknown request type " + obj.getType());
                     break;
             }
-            fut.complete(new Message(SendAndReceiveIPCUtil.encode(genResp)));
+            fut.complete(new Message(IPCUtil.encode(genResp)));
         } catch (Throwable e) {
             log.log(Level.Error, "Failed to respond to handleMessage", e);
 
-            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse = GeneralResponse.<Void,
-                    ServiceDiscoveryResponseStatus>builder().error(ServiceDiscoveryResponseStatus.Unknown).errorMessage(e.getMessage()).build();
+            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse = GeneralResponse.<Void, ServiceDiscoveryResponseStatus>builder()
+                    .error(ServiceDiscoveryResponseStatus.InternalError).errorMessage(e.getMessage()).build();
 
             try {
-                fut.complete(new Message(SendAndReceiveIPCUtil.encode(errorResponse)));
+                fut.complete(new Message(IPCUtil.encode(errorResponse)));
             } catch (IOException ex) {
                 log.log(Level.Error, "Couldn't even send them the error back", e);
             }

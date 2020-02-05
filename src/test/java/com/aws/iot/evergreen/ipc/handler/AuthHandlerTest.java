@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
-import com.aws.iot.evergreen.ipc.services.common.SendAndReceiveIPCUtil;
+import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +29,7 @@ class AuthHandlerTest {
         assertEquals(SERVICE_NAME, config.find(AUTH_TOKEN_LOOKUP_KEY, (String) authToken).getOnce());
 
         AuthHandler auth = new AuthHandler(config);
-        RequestContext authContext = auth.doAuth(new FrameReader.Message(SendAndReceiveIPCUtil
+        RequestContext authContext = auth.doAuth(new FrameReader.Message(IPCUtil
                 .encode(GeneralRequest.builder().type(AuthRequestTypes.Auth).request(authToken).build())));
 
         assertNotNull(authContext);
@@ -42,7 +42,7 @@ class AuthHandlerTest {
 
         AuthHandler auth = new AuthHandler(config);
         assertThrows(IPCClientNotAuthorizedException.class, () -> auth
-                .doAuth(new FrameReader.Message(SendAndReceiveIPCUtil
+                .doAuth(new FrameReader.Message(IPCUtil
                         .encode(GeneralRequest.builder().type(AuthRequestTypes.Auth).request("Bad Token").build()))));
     }
 }

@@ -207,7 +207,7 @@ public class MessageRouterTest {
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals("Destination", responseFrame.destination);
         assertEquals(requestFrame.sequenceNumber, responseFrame.sequenceNumber);
-        assertThat(new String(responseFrame.message.getPayload()), containsString("Unknown"));
+        assertThat(new String(responseFrame.message.getPayload()), containsString("InternalError"));
         assertThat(new String(responseFrame.message.getPayload()), containsString(ERROR_MESSAGE));
     }
 }
