@@ -49,7 +49,7 @@ class EvergreenServiceTest {
     }
 
     @Test
-    void testConstructor() {
+    void GIVEN_a_config_WHEN_constructor_is_called_THEN_service_is_initialized() {
         // GIVEN
         // provided in the beforeEach
 
@@ -75,7 +75,7 @@ class EvergreenServiceTest {
     }
 
     @Test
-    void getState() {
+    void GIVEN_a_new_state_WHEN_getState_THEN_return_the_new_state() {
         Mockito.when(stateTopic.getOnce()).thenReturn(State.New);
 
         Assertions.assertSame(State.New, evergreenService.getState());
@@ -84,7 +84,7 @@ class EvergreenServiceTest {
     }
 
     @Test
-    void setState() {
+    void GIVEN_a_service_in_new_state_WHEN_setState_to_installing_THEN_installing_state_gets_published() {
         // GIVEN
         State currentState = State.New;
         State newState = State.Installing;
