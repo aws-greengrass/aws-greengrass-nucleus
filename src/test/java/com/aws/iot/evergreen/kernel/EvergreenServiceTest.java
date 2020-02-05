@@ -51,10 +51,10 @@ class EvergreenServiceTest {
     @Test
     void testConstructor() {
         // GIVEN
-        // beforeEach
+        // provided in the beforeEach
 
         // WHEN
-        // beforeEach
+        // provided in the beforeEach
 
         // THEN
         // verify config
@@ -81,12 +81,10 @@ class EvergreenServiceTest {
         Assertions.assertSame(State.New, evergreenService.getState());
 
         Mockito.verify(stateTopic).getOnce();
-
     }
 
     @Test
     void setState() {
-
         // GIVEN
         State currentState = State.New;
         State newState = State.Installing;
