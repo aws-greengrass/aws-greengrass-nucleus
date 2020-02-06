@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -54,6 +55,11 @@ public class MessageRouterTest {
     @Mock
     Attribute<RequestContext> mockAttr;
     RequestContext mockAttrValue = null;
+    @Mock
+    ChannelFuture mockChannelFuture;
+
+    @Captor
+    ArgumentCaptor<FrameReader.MessageFrame> frameCaptor;
 
     private MessageRouter router;
 
@@ -67,24 +73,25 @@ public class MessageRouterTest {
         lenient().when(mockChannel.remoteAddress()).thenReturn(LocalAddress.ANY);
 
         router.channelRegistered(mockCtx);
+
+        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
     }
 
     @Test
     public void GIVEN_unauthenticated_client_WHEN_send_auth_request_THEN_server_validates_token_and_authenticates_client() throws Exception {
-        ArgumentCaptor<FrameReader.MessageFrame> frameCaptor = ArgumentCaptor.forClass(FrameReader.MessageFrame.class);
-        ChannelFuture mockChannelFuture = mock(ChannelFuture.class);
+        // GIVEN
+        // done in setupMocks
 
-        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
-
+        // WHEN
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame(AUTH_SERVICE, new FrameReader.Message("MyAuthToken"
                 .getBytes(StandardCharsets.UTF_8)), FrameReader.FrameType.REQUEST);
 
-        RequestContext requestCtx = new RequestContext();
-        requestCtx.serviceName = "ABC";
+        RequestContext requestCtx = new RequestContext("ABC");
         when(mockAuth.doAuth(any())).thenReturn(requestCtx);
 
         router.channelRead(mockCtx, requestFrame);
 
+        // THEN
         verify(mockChannelFuture, times(0)).addListener(any());
 
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
@@ -96,19 +103,18 @@ public class MessageRouterTest {
 
     @Test
     public void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client() throws Exception {
-        ArgumentCaptor<FrameReader.MessageFrame> frameCaptor = ArgumentCaptor.forClass(FrameReader.MessageFrame.class);
-        ChannelFuture mockChannelFuture = mock(ChannelFuture.class);
-
-        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
-
-        FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame(AUTH_SERVICE, new FrameReader.Message("MyAuthToken"
-                .getBytes(StandardCharsets.UTF_8)), FrameReader.FrameType.REQUEST);
+        // GIVEN
+        // done in setupMocks
 
         when(mockAuth.doAuth(any())).thenThrow(new IPCClientNotAuthorizedException("No Auth!"));
 
+        // WHEN
+        FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame(AUTH_SERVICE, new FrameReader.Message("MyAuthToken"
+                .getBytes(StandardCharsets.UTF_8)), FrameReader.FrameType.REQUEST);
         router.channelRead(mockCtx, requestFrame);
 
-        verify(mockChannelFuture, times(1)).addListener(eq(ChannelFutureListener.CLOSE));
+        // THEN
+        verify(mockChannelFuture).addListener(eq(ChannelFutureListener.CLOSE));
 
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals(AUTH_SERVICE, responseFrame.destination);
@@ -119,15 +125,15 @@ public class MessageRouterTest {
 
     @Test
     public void GIVEN_unauthenticated_client_WHEN_send_any_request_THEN_server_forces_them_to_authenticate_first() throws Exception {
-        ArgumentCaptor<FrameReader.MessageFrame> frameCaptor = ArgumentCaptor.forClass(FrameReader.MessageFrame.class);
-        ChannelFuture mockChannelFuture = mock(ChannelFuture.class);
+        // GIVEN
+        // done in setupMocks
 
-        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
-
+        // WHEN
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame("Destination", new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
         router.channelRead(mockCtx, requestFrame);
 
-        verify(mockChannelFuture, times(1)).addListener(eq(ChannelFutureListener.CLOSE));
+        // THEN
+        verify(mockChannelFuture).addListener(eq(ChannelFutureListener.CLOSE));
 
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals("Destination", responseFrame.destination);
@@ -137,18 +143,19 @@ public class MessageRouterTest {
 
     @Test
     public void GIVEN_authenticated_client_WHEN_request_with_unregistered_destination_THEN_respond_with_error() throws Exception {
-        ArgumentCaptor<FrameReader.MessageFrame> frameCaptor = ArgumentCaptor.forClass(FrameReader.MessageFrame.class);
-        ChannelFuture mockChannelFuture = mock(ChannelFuture.class);
-        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
+        // GIVEN
+        // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new RequestContext());
+        when(mockAttr.get()).thenReturn(new RequestContext("ABC"));
 
+        // WHEN
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame("Destination", new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
         router.channelRead(mockCtx, requestFrame);
 
+        // THEN
         verify(mockChannelFuture, times(0)).addListener(any());
-        verify(ipcRouter, times(1)).getCallbackForDestination(eq("Destination"));
+        verify(ipcRouter).getCallbackForDestination(eq("Destination"));
 
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals("Destination", responseFrame.destination);
@@ -158,12 +165,11 @@ public class MessageRouterTest {
 
     @Test
     public void GIVEN_authenticated_client_WHEN_request_with_normal_return_THEN_respond_with_message() throws Exception {
-        ArgumentCaptor<FrameReader.MessageFrame> frameCaptor = ArgumentCaptor.forClass(FrameReader.MessageFrame.class);
-        ChannelFuture mockChannelFuture = mock(ChannelFuture.class);
-        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
+        // GIVEN
+        // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new RequestContext());
+        when(mockAttr.get()).thenReturn(new RequestContext("ABC"));
         // Setup handler for destination
         when(ipcRouter.getCallbackForDestination(anyString())).thenReturn((message, ctx) -> {
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
@@ -171,11 +177,13 @@ public class MessageRouterTest {
             return fut;
         });
 
+        // WHEN
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame("Destination", new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
         router.channelRead(mockCtx, requestFrame);
 
+        // THEN
         verify(mockChannelFuture, times(0)).addListener(any());
-        verify(ipcRouter, times(1)).getCallbackForDestination(eq("Destination"));
+        verify(ipcRouter).getCallbackForDestination(eq("Destination"));
 
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals("Destination", responseFrame.destination);
@@ -185,12 +193,11 @@ public class MessageRouterTest {
 
     @Test
     public void GIVEN_authenticated_client_WHEN_request_with_exceptional_return_THEN_respond_with_error() throws Exception {
-        ArgumentCaptor<FrameReader.MessageFrame> frameCaptor = ArgumentCaptor.forClass(FrameReader.MessageFrame.class);
-        ChannelFuture mockChannelFuture = mock(ChannelFuture.class);
-        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
+        // GIVEN
+        // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new RequestContext());
+        when(mockAttr.get()).thenReturn(new RequestContext("ABC"));
         // Setup handler for destination
         when(ipcRouter.getCallbackForDestination(anyString())).thenReturn((message, ctx) -> {
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
@@ -198,11 +205,13 @@ public class MessageRouterTest {
             return fut;
         });
 
+        // WHEN
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame("Destination", new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
         router.channelRead(mockCtx, requestFrame);
 
+        // THEN
         verify(mockChannelFuture, times(0)).addListener(any());
-        verify(ipcRouter, times(1)).getCallbackForDestination(eq("Destination"));
+        verify(ipcRouter).getCallbackForDestination(eq("Destination"));
 
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals("Destination", responseFrame.destination);

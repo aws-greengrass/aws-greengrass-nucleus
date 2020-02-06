@@ -70,23 +70,23 @@ public class ServiceDiscoveryService extends EvergreenService {
                 case lookup:
                     LookupResourceRequest lookup = mapper.convertValue(obj.getRequest(), LookupResourceRequest.class);
                     // Do lookup
-                    genResp = agent.lookupResources(lookup, context.serviceName);
+                    genResp = agent.lookupResources(lookup, context.getServiceName());
                     break;
                 case remove:
                     RemoveResourceRequest remove = mapper.convertValue(obj.getRequest(), RemoveResourceRequest.class);
                     // Do remove
-                    genResp = agent.removeResource(remove, context.serviceName);
+                    genResp = agent.removeResource(remove, context.getServiceName());
                     break;
                 case update:
                     UpdateResourceRequest update = mapper.convertValue(obj.getRequest(), UpdateResourceRequest.class);
                     // Do update
-                    genResp = agent.updateResource(update, context.serviceName);
+                    genResp = agent.updateResource(update, context.getServiceName());
                     break;
                 case register:
                     RegisterResourceRequest register = mapper
                             .convertValue(obj.getRequest(), RegisterResourceRequest.class);
                     // Do register
-                    genResp = agent.registerResource(register, context.serviceName);
+                    genResp = agent.registerResource(register, context.getServiceName());
                     break;
                 default:
                     genResp.setError(ServiceDiscoveryResponseStatus.InvalidRequest);

@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import org.junit.jupiter.api.Test;
 
 import static com.aws.iot.evergreen.ipc.handler.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
+import static com.aws.iot.evergreen.ipc.handler.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,7 +24,7 @@ class AuthHandlerTest {
     public void GIVEN_service_WHEN_register_auth_token_THEN_client_can_be_authenticated_with_token() throws Exception {
         Configuration config = new Configuration(new Context());
         AuthHandler.registerAuthToken(new EvergreenService(config.lookupTopics(SERVICE_NAME)));
-        Object authToken = config.find(SERVICE_NAME, "_UID").getOnce();
+        Object authToken = config.find(SERVICE_NAME, SERVICE_UNIQUE_ID_KEY).getOnce();
 
         assertNotNull(authToken);
         assertEquals(SERVICE_NAME, config.find(AUTH_TOKEN_LOOKUP_KEY, (String) authToken).getOnce());
@@ -33,7 +34,7 @@ class AuthHandlerTest {
                 .encode(GeneralRequest.builder().type(AuthRequestTypes.Auth).request(authToken).build())));
 
         assertNotNull(authContext);
-        assertEquals(SERVICE_NAME, authContext.serviceName);
+        assertEquals(SERVICE_NAME, authContext.getServiceName());
     }
 
     @Test

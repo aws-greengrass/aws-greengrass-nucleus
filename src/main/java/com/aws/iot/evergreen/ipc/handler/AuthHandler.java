@@ -22,15 +22,24 @@ import javax.inject.Inject;
 @NoArgsConstructor
 public class AuthHandler implements InjectionActions {
     public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
+    public static final String SERVICE_UNIQUE_ID_KEY = "_UID";
 
     @Inject
     private Configuration config;
 
     public static void registerAuthToken(EvergreenService s) {
-        Topic uid = s.config.createLeafChild("_UID").setParentNeedsToKnow(false);
+        Topic uid = s.config.createLeafChild(SERVICE_UNIQUE_ID_KEY).setParentNeedsToKnow(false);
         String authToken = Utils.generateRandomString(16).toUpperCase();
         uid.setValue(authToken);
-        s.config.parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).setValue(s.getName());
+        Topic tokenTopic = s.config.parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken);
+
+        // If the auth token was already registered, that's an issue, so we will retry
+        // generating a new token in that case
+        if (tokenTopic.getOnce() == null) {
+            tokenTopic.setValue(s.getName());
+        } else {
+            registerAuthToken(s);
+        }
     }
 
     /**
@@ -56,8 +65,6 @@ public class AuthHandler implements InjectionActions {
             throw new IPCClientNotAuthorizedException("Auth token not found");
         }
 
-        RequestContext context = new RequestContext();
-        context.serviceName = serviceName;
-        return context;
+        return new RequestContext(serviceName);
     }
 }
