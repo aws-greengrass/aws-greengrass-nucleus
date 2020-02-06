@@ -6,6 +6,8 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
@@ -14,6 +16,8 @@ import javax.inject.Inject;
 /**
  * Class for storing routing between IPC destination names and their handlers
  */
+@AllArgsConstructor
+@NoArgsConstructor
 public class IPCRouter {
     @Inject
     Log log;

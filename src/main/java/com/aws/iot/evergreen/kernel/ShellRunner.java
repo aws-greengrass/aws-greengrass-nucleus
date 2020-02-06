@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.ipc.handler.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {
@@ -60,7 +61,7 @@ public interface ShellRunner {
                     log.warn(note, ss);
                     onBehalfOf.setStatus(ss);
                 }).withTimeout(timeout, TimeUnit.SECONDS).setenv("SVCUID",
-                        String.valueOf(onBehalfOf.config.findLeafChild("_UID").getOnce())).cd(config.workPath.toFile());
+                        String.valueOf(onBehalfOf.config.findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())).cd(config.workPath.toFile());
             }
             return null;
         }

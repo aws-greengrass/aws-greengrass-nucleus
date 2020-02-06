@@ -23,12 +23,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
+import static com.aws.iot.evergreen.ipc.handler.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("Integration")
-public class IPCTest {
+public class IPCServicesTest {
 
     public static int port;
     public static String address;
@@ -48,7 +49,7 @@ public class IPCTest {
             }
         });
 
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCTest.class.getResource("ipc.yaml").toString());
+        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
         kernel.launch();
         OK.await(10, TimeUnit.SECONDS);
         Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
@@ -66,16 +67,14 @@ public class IPCTest {
     public void registerResourceTest() throws Exception {
         KernelIPCClientConfig config =
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find("mqtt",
-                        "_UID").getOnce()).build();
+                        SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
-        client.connect();
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
         KernelIPCClientConfig config2 =
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
-                        "ServiceName", "_UID").getOnce()).build();
+                        "ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client2 = new IPCClientImpl(config2);
-        client2.connect();
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
 
         Resource resource = Resource.builder().name("evergreen_1").serviceType("_mqtt").domain("local").build();
@@ -127,9 +126,8 @@ public class IPCTest {
     public void registerResourcePermissionTest() throws Exception {
         KernelIPCClientConfig config =
                 KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
-                        "ServiceName", "_UID").getOnce()).build();
+                        "ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
-        client.connect();
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
         RegisterResourceRequest req = RegisterResourceRequest.builder().resource(Resource.builder().name("evergreen_1" +
