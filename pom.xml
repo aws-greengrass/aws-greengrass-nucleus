@@ -75,14 +75,9 @@
             <version>1</version>
         </dependency>
         <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-codec-http</artifactId>
-            <version>4.1.37.Final</version>
-        </dependency>
-        <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>gg2-core-ipc</artifactId>
-            <version>0.0.0-initial_commit-SNAPSHOT</version>
+            <version>0.0.0-netty-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -95,6 +90,11 @@
             <artifactId>annotations</artifactId>
             <version>3.0.1u2</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.44.Final</version>
         </dependency>
     </dependencies>
     <pluginRepositories>

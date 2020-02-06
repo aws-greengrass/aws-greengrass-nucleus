@@ -2,18 +2,19 @@ package com.aws.iot.evergreen.ipc.handler;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
+import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
+import com.aws.iot.evergreen.ipc.services.common.SendAndReceiveIPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Utils;
+import com.fasterxml.jackson.core.type.TypeReference;
 
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
+import java.io.IOException;
 import javax.inject.Inject;
-
-import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
-import static com.aws.iot.evergreen.ipc.common.FrameReader.MessageFrame;
 
 public class AuthHandler implements InjectionActions {
     public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
@@ -31,25 +32,27 @@ public class AuthHandler implements InjectionActions {
     /**
      * @param request
      * @return
-     * @throws Exception
+     * @throws IPCClientNotAuthorizedException
      */
-    public RequestContext doAuth(MessageFrame request) throws IPCClientNotAuthorizedException {
-        // First frame should be the auth request
-        if (!request.destination.equals(AUTH_SERVICE)) {
-            throw new IPCClientNotAuthorizedException("Invalid Auth request");
+    public RequestContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
+        GeneralRequest<String, AuthRequestTypes> decodedRequest;
+        try {
+            decodedRequest = SendAndReceiveIPCUtil.decode(request, new TypeReference<GeneralRequest<String, AuthRequestTypes>>() {
+            });
+        } catch (IOException e) {
+            throw new IPCClientNotAuthorizedException(e.getMessage());
         }
 
-        String authToken = new String(request.message.getPayload(), StandardCharsets.UTF_8);
-        String clientId = UUID.randomUUID().toString();
+        String authToken = decodedRequest.getRequest();
 
         // Lookup the provided auth token to associate it with a service (or reject it)
         String serviceName = (String) kernel.getRoot().lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
 
         if (serviceName == null) {
-            throw new IPCClientNotAuthorizedException("Invalid Auth request");
+            throw new IPCClientNotAuthorizedException("Auth token not found");
         }
+
         RequestContext context = new RequestContext();
-        context.clientId = clientId;
         context.serviceName = serviceName;
         return context;
     }
