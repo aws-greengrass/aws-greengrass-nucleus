@@ -22,8 +22,7 @@ import static com.aws.iot.evergreen.util.Utils.flush;
 public class ConfigurationWriter implements Closeable, Subscriber {
     private final Writer out;
     private final Configuration conf;
-    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
-            justification = "No need for flush immediately to be sync")
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
 
     @SuppressWarnings("LeakingThisInConstructor")
@@ -46,8 +45,9 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     }
 
     public static ConfigurationWriter logTransactionsTo(Configuration c, Path p) throws IOException {
-        return new ConfigurationWriter(c, Files.newBufferedWriter(p, StandardOpenOption.WRITE,
-                StandardOpenOption.APPEND, StandardOpenOption.DSYNC, StandardOpenOption.CREATE));
+        return new ConfigurationWriter(c,
+                Files.newBufferedWriter(p, StandardOpenOption.WRITE, StandardOpenOption.APPEND,
+                        StandardOpenOption.DSYNC, StandardOpenOption.CREATE));
     }
 
     @Override

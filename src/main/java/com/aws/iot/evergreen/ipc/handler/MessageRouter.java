@@ -72,36 +72,26 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
 
         IPCCallback cb = router.getCallbackForDestination(message.destination);
         if (cb == null) {
-            log.warn(DEST_NOT_FOUND_ERROR,
-                    ctx.channel().remoteAddress(), message.destination);
-            sendResponse(new FrameReader.Message(
-                            IPCUtil.encode(GeneralResponse.builder()
-                                    .error(GenericErrorCodes.InvalidRequest)
-                                    .errorMessage(DEST_NOT_FOUND_ERROR)
-                                    .build())),
-                    message.sequenceNumber,
-                    message.destination, ctx, false);
+            log.warn(DEST_NOT_FOUND_ERROR, ctx.channel().remoteAddress(), message.destination);
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().error(GenericErrorCodes.InvalidRequest).errorMessage(DEST_NOT_FOUND_ERROR)
+                            .build())), message.sequenceNumber, message.destination, ctx, false);
             return;
         }
 
         try {
             // TODO: Be smart about timeouts? https://issues.amazon.com/issues/86453f7c-c94e-4a3c-b8ff-679767e7443c
-            FrameReader.Message responseMessage = cb.onMessage(message.message,
-                    ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
-                    // This .get() blocks forever waiting for the response to the request
-                    .get();
-            sendResponse(responseMessage,
-                    message.sequenceNumber,
-                    message.destination, ctx, false);
+            FrameReader.Message responseMessage =
+                    cb.onMessage(message.message, ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
+                            // This .get() blocks forever waiting for the response to the request
+                            .get();
+            sendResponse(responseMessage, message.sequenceNumber, message.destination, ctx, false);
         } catch (Throwable throwable) {
             // This is just a catch-all. Any service specific errors should be handled by the service code.
             // Ideally this never gets executed.
-            sendResponse(new FrameReader.Message(
-                            IPCUtil.encode(GeneralResponse.builder()
-                                    .error(GenericErrorCodes.InternalError)
-                                    .errorMessage(getUltimateMessage(throwable))
-                                    .build())),
-                    message.sequenceNumber,
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().error(GenericErrorCodes.InternalError)
+                            .errorMessage(getUltimateMessage(throwable)).build())), message.sequenceNumber,
                     message.destination, ctx, false);
         }
     }
@@ -113,29 +103,20 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
                 ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(context);
                 log.note("Successfully authenticated client", ctx.channel().remoteAddress(), context);
                 sendResponse(new FrameReader.Message(
-                                IPCUtil.encode(GeneralResponse.builder()
-                                        .error(GenericErrorCodes.Success)
-                                        .build())),
-                        message.sequenceNumber,
-                        message.destination, ctx, false);
+                                IPCUtil.encode(GeneralResponse.builder().error(GenericErrorCodes.Success).build())),
+                        message.sequenceNumber, message.destination, ctx, false);
             } catch (Throwable t) {
                 log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
-                sendResponse(new FrameReader.Message(
-                                IPCUtil.encode(GeneralResponse.builder()
-                                        .errorMessage("Error while authenticating client")
-                                        .error(GenericErrorCodes.Unauthorized)
-                                        .build())),
-                        message.sequenceNumber,
+                sendResponse(new FrameReader.Message(IPCUtil.encode(
+                        GeneralResponse.builder().errorMessage("Error while authenticating client")
+                                .error(GenericErrorCodes.Unauthorized).build())), message.sequenceNumber,
                         message.destination, ctx, true);
             }
         } else {
             log.warn("Wrong destination for first packet from client", ctx.channel().remoteAddress());
-            sendResponse(new FrameReader.Message(
-                            IPCUtil.encode(GeneralResponse.builder()
-                                    .errorMessage("Error while authenticating client")
-                                    .error(GenericErrorCodes.Unauthorized)
-                                    .build())),
-                    message.sequenceNumber,
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().errorMessage("Error while authenticating client")
+                            .error(GenericErrorCodes.Unauthorized).build())), message.sequenceNumber,
                     message.destination, ctx, true);
         }
     }

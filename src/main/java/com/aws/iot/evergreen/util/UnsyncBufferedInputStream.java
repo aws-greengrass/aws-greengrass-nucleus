@@ -1,7 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-
 package com.aws.iot.evergreen.util;
 
 import java.io.BufferedInputStream;
@@ -15,7 +14,8 @@ import javax.annotation.Nonnull;
 public class UnsyncBufferedInputStream extends FilterInputStream {
     private static final int bufferSize = 1 << 14;
     private byte[] buf = new byte[bufferSize];
-    private int pos, size;
+    private int pos;
+    private int size;
     private int markPos = -1;
 
     private UnsyncBufferedInputStream(InputStream in) {
@@ -31,8 +31,8 @@ public class UnsyncBufferedInputStream extends FilterInputStream {
     }
 
     public static InputStream of(InputStream f) {
-        return f instanceof UnsyncBufferedInputStream || f instanceof MappedInputStream ? f :
-                new BufferedInputStream(f);
+        return f instanceof UnsyncBufferedInputStream || f instanceof MappedInputStream ? f
+                : new BufferedInputStream(f);
     }
 
     private boolean fill() throws IOException {
@@ -62,6 +62,20 @@ public class UnsyncBufferedInputStream extends FilterInputStream {
     }
 
     @Override
+    public int read(@Nonnull byte[] b, int off, int len) throws IOException {
+        if (!fill()) {
+            return -1;
+        }
+        int available = size - pos;
+        if (available < len) {
+            len = available;
+        }
+        System.arraycopy(buf, pos, b, off, len);
+        pos += len;
+        return len;
+    }
+
+    @Override
     public long skip(long n) throws IOException {
         long remaining = size - pos - n;
         if (remaining >= 0) {
@@ -75,20 +89,6 @@ public class UnsyncBufferedInputStream extends FilterInputStream {
     @Override
     public int available() {
         return size - pos;
-    }
-
-    @Override
-    public int read(@Nonnull byte[] b, int off, int len) throws IOException {
-        if (!fill()) {
-            return -1;
-        }
-        int available = size - pos;
-        if (available < len) {
-            len = available;
-        }
-        System.arraycopy(buf, pos, b, off, len);
-        pos += len;
-        return len;
     }
 
     @Override

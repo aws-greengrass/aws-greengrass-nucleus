@@ -11,15 +11,12 @@ import io.netty.channel.ChannelHandlerContext;
 import java.io.IOException;
 
 public class ResponseHelper {
-    public static boolean sendResponse(FrameReader.Message msg,
-                                       int sequenceNumber,
-                                       String destination,
-                                       ChannelHandlerContext ctx,
-                                       boolean closeWhenDone) throws IOException {
+    public static boolean sendResponse(FrameReader.Message msg, int sequenceNumber, String destination,
+                                       ChannelHandlerContext ctx, boolean closeWhenDone) throws IOException {
         // TODO: Validate frame data length
 
-        FrameReader.MessageFrame response = new FrameReader.MessageFrame(sequenceNumber, destination,
-                msg, FrameReader.FrameType.RESPONSE);
+        FrameReader.MessageFrame response =
+                new FrameReader.MessageFrame(sequenceNumber, destination, msg, FrameReader.FrameType.RESPONSE);
         ChannelFuture future = ctx.writeAndFlush(response);
         if (closeWhenDone) {
             future.addListener(ChannelFutureListener.CLOSE);

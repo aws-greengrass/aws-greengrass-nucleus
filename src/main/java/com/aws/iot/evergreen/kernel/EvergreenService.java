@@ -41,21 +41,19 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME", justification = "Need hardcoded paths to find what OS we're on")
+@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
+        justification = "Need hardcoded paths to find what OS we're on")
 public class EvergreenService implements InjectionActions, Subscriber, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
     private static final Map<String, Integer> RANKS = buildRanks();
 
     public final Topics config;
-    public Context context;
-
     protected final CopyOnWriteArrayList<EvergreenService> explicitDependencies = new CopyOnWriteArrayList<>();
-    protected ConcurrentHashMap<EvergreenService, State> dependencies;
-
     private final Object dependencyReadyLock = new Object();
     private final Topic state;
-
+    public Context context;
+    protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private CountDownLatch shutdownLatch = new CountDownLatch(0);
     private Throwable error;
     private Future backingTask;
@@ -67,18 +65,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public EvergreenService(Topics topics) {
         this.config = topics;
         this.state = initStateTopic(topics);
-    }
-
-    private Topic initStateTopic(final Topics topics) {
-        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
-        state.setParentNeedsToKnow(false);
-        state.setValue(Long.MAX_VALUE, State.New);
-        state.validate((newStateObj, oldStateObj) -> {
-            State newState = Coerce.toEnum(State.class, newStateObj);
-            return newState == null ? oldStateObj : newStateObj;
-        });
-        state.subscribe(this);
-        return state;
     }
 
     public static State getState(EvergreenService evergreenService) {
@@ -107,8 +93,8 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             // TODO: allow the file to be a zip package?
                             URL u = new URL(s + name + ".evg");
                             k.read(u, false);
-                            context.getLog()
-                                    .log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name, "Found external " + "definition", s);
+                            context.getLog().log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name,
+                                    "Found external " + "definition", s);
                         } catch (IOException ex) {
                         }
                     } else {
@@ -165,8 +151,8 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
         try {
             context.getLog().error("Error locating service", name, message, ex);
-            return new GenericExternalService(Topics
-                    .errorNode(context, name, "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
+            return new GenericExternalService(Topics.errorNode(context, name,
+                    "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
         } catch (Throwable ex1) {
             context.getLog().error(name, message, ex);
             return null;
@@ -189,6 +175,71 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
             }
         }
         return bestn;
+    }
+
+    private static Map<String, Integer> buildRanks() {
+        Map<String, Integer> ranks = new HashMap<>();
+        // figure out what OS we're running and add applicable tags
+        // The more specific a tag is, the higher its rank should be
+        // TODO: a loopy set of hacks
+        ranks.put("all", 0);
+        ranks.put("any", 0);
+        if (Files.exists(Paths.get("/bin/bash")) || Files.exists(Paths.get("/usr/bin/bash"))) {
+            ranks.put("unix", 3);
+            ranks.put("posix", 3);
+        }
+        if (Files.exists(Paths.get("/proc"))) {
+            ranks.put("linux", 10);
+        }
+        if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
+            ranks.put("debian", 11);
+        }
+        if (Exec.isWindows) {
+            ranks.put("windows", 5);
+        }
+        if (Files.exists(Paths.get("/usr/bin/yum"))) {
+            ranks.put("fedora", 11);
+        }
+        String sysver = Exec.sh("uname -a").toLowerCase();
+        if (sysver.contains("ubuntu")) {
+            ranks.put("ubuntu", 20);
+        }
+        if (sysver.contains("darwin")) {
+            ranks.put("macos", 20);
+        }
+        if (sysver.contains("raspbian")) {
+            ranks.put("raspbian", 22);
+        }
+        if (sysver.contains("qnx")) {
+            ranks.put("qnx", 22);
+        }
+        if (sysver.contains("cygwin")) {
+            ranks.put("cygwin", 22);
+        }
+        if (sysver.contains("freebsd")) {
+            ranks.put("freebsd", 22);
+        }
+        if (sysver.contains("solaris") || sysver.contains("sunos")) {
+            ranks.put("solaris", 22);
+        }
+        try {
+            ranks.put(InetAddress.getLocalHost().getHostName(), 99);
+        } catch (UnknownHostException ex) {
+        }
+
+        return ranks;
+    }
+
+    private Topic initStateTopic(final Topics topics) {
+        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
+        state.setParentNeedsToKnow(false);
+        state.setValue(Long.MAX_VALUE, State.New);
+        state.validate((newStateObj, oldStateObj) -> {
+            State newState = Coerce.toEnum(State.class, newStateObj);
+            return newState == null ? oldStateObj : newStateObj;
+        });
+        state.subscribe(this);
+        return state;
     }
 
     public State getState() {
@@ -469,7 +520,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 
     /**
      * Called when the object's state leaves Running.
-     * To shutdown a service, use <tt>setState(Finished)</dd>
+     * To shutdown a service, use <tt>setState(Finished)</tt>
      */
     public void shutdown() {
         Periodicity t = periodicityInformation;
@@ -661,59 +712,6 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 
     public interface GlobalStateChangeListener {
         void globalServiceStateChanged(EvergreenService l, State was);
-    }
-
-    private static Map<String, Integer> buildRanks() {
-        Map<String, Integer> ranks = new HashMap<>();
-        // figure out what OS we're running and add applicable tags
-        // The more specific a tag is, the higher its rank should be
-        // TODO: a loopy set of hacks
-        ranks.put("all", 0);
-        ranks.put("any", 0);
-        if (Files.exists(Paths.get("/bin/bash")) || Files.exists(Paths.get("/usr/bin/bash"))) {
-            ranks.put("unix", 3);
-            ranks.put("posix", 3);
-        }
-        if (Files.exists(Paths.get("/proc"))) {
-            ranks.put("linux", 10);
-        }
-        if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
-            ranks.put("debian", 11);
-        }
-        if (Exec.isWindows) {
-            ranks.put("windows", 5);
-        }
-        if (Files.exists(Paths.get("/usr/bin/yum"))) {
-            ranks.put("fedora", 11);
-        }
-        String sysver = Exec.sh("uname -a").toLowerCase();
-        if (sysver.contains("ubuntu")) {
-            ranks.put("ubuntu", 20);
-        }
-        if (sysver.contains("darwin")) {
-            ranks.put("macos", 20);
-        }
-        if (sysver.contains("raspbian")) {
-            ranks.put("raspbian", 22);
-        }
-        if (sysver.contains("qnx")) {
-            ranks.put("qnx", 22);
-        }
-        if (sysver.contains("cygwin")) {
-            ranks.put("cygwin", 22);
-        }
-        if (sysver.contains("freebsd")) {
-            ranks.put("freebsd", 22);
-        }
-        if (sysver.contains("solaris") || sysver.contains("sunos")) {
-            ranks.put("solaris", 22);
-        }
-        try {
-            ranks.put(InetAddress.getLocalHost().getHostName(), 99);
-        } catch (UnknownHostException ex) {
-        }
-
-        return ranks;
     }
 
 }

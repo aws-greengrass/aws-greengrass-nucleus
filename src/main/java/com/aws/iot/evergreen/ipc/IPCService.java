@@ -43,16 +43,13 @@ import static com.aws.iot.evergreen.util.Log.Level;
 
 @ImplementsService(name = "IPCService", autostart = true)
 public class IPCService extends EvergreenService {
-    private static final int MAX_SO_BACKLOG = 128;
-
     public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
+    private static final int MAX_SO_BACKLOG = 128;
     private static final String LOCAL_IP = "127.0.0.1";
-
-    @Inject
-    Log log;
-
     private final EventLoopGroup bossGroup = new NioEventLoopGroup();
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
+    @Inject
+    Log log;
     private int port;
 
     @Inject
@@ -87,8 +84,7 @@ public class IPCService extends EvergreenService {
     private int listen() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
 
-        b.group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
+        b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     public void initChannel(SocketChannel ch) {
@@ -98,9 +94,7 @@ public class IPCService extends EvergreenService {
                         p.addLast(new MessageFrameEncoder());
                         p.addLast(messageRouter);
                     }
-                })
-                .option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG)
-                .childOption(ChannelOption.SO_KEEPALIVE, true);
+                }).option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG).childOption(ChannelOption.SO_KEEPALIVE, true);
 
         // Bind and start to accept incoming connections.
         ChannelFuture f = b.bind(InetAddress.getLoopbackAddress(), 0).sync();

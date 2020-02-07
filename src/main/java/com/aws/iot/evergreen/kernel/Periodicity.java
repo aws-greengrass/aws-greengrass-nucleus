@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Node;
@@ -61,7 +62,8 @@ public class Periodicity {
                 t.subscribe((a, b) -> ret.start(ses, action));
             } else if (n instanceof Topics) {
                 Topics params = (Topics) n;
-                ret = new Periodicity(params.findLeafChild("interval"), params.findLeafChild("fuzz"), params.findLeafChild("phase"), s);
+                ret = new Periodicity(params.findLeafChild("interval"), params.findLeafChild("fuzz"),
+                        params.findLeafChild("phase"), s);
                 params.subscribe((what, child) -> ret.start(ses, action));
             } else {
                 return null;
@@ -114,8 +116,8 @@ public class Periodicity {
             case "week":
                 tu = 1000 * 60 * 60 * 24 * 7;
                 break;
-                // Should do months
         }
+        // TODO: Should do months
         return n * tu;
     }
 

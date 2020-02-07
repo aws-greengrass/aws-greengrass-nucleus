@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
@@ -10,8 +11,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public class Topic extends Node {
-    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
-            justification = "No need for modtime to be sync")
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for modtime to be sync")
     private long modtime;
     private Object value;
 
@@ -129,8 +129,8 @@ public class Topic extends Node {
         if (n instanceof Topic) {
             setValue(((Topic) n).modtime, ((Topic) n).value);
         } else {
-            throw new IllegalArgumentException("copyFrom: " + (n == null ? "NULL"
-                    : n.getFullName()) + " is already a container, not a leaf");
+            throw new IllegalArgumentException(
+                    "copyFrom: " + (n == null ? "NULL" : n.getFullName()) + " is already a container, not a leaf");
         }
     }
 

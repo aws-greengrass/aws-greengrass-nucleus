@@ -45,11 +45,6 @@
             <version>2.21</version>
         </dependency>
         <dependency>
-            <groupId>software.amazon.ion</groupId>
-            <artifactId>ion-java</artifactId>
-            <version>1.2.0</version>
-        </dependency>
-        <dependency>
             <groupId>com.fasterxml.jackson.jr</groupId>
             <artifactId>jackson-jr-objects</artifactId>
             <version>2.10.1</version>
@@ -188,9 +183,9 @@
                     <logViolationsToConsole>true</logViolationsToConsole>
                     <configLocation>checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
-                    <!-- 394 is the total number of warning at this moment. Set it as the max allowed so that
+                    <!-- 200 is the total number of warning at this moment. Set it as the max allowed so that
                     we don't introduce more violations in new code. -->
-                    <maxAllowedViolations>394</maxAllowedViolations>
+                    <maxAllowedViolations>200</maxAllowedViolations>
                 </configuration>
                 <executions>
                     <execution>

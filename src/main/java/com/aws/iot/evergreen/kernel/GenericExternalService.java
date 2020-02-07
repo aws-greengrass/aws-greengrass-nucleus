@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Node;
@@ -19,10 +20,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GenericExternalService extends EvergreenService {
-    static final String[] sigCodes = {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE",
-            "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD",
-            "SIGCONT", "SIGSTOP", "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM",
-            "SIGPROF", "SIGWINCH", "SIGIO", "SIGPWR", "SIGSYS",};
+    static final String[] sigCodes =
+            {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
+                    "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
+                    "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH",
+                    "SIGIO", "SIGPWR", "SIGSYS",};
     private static final Pattern skipcmd = Pattern.compile("(exists|onpath) +(.+)");
     private boolean inShutdown;
     private Exec currentScript;
@@ -40,8 +42,8 @@ public class GenericExternalService extends EvergreenService {
     }
 
     public static String exit2String(int exitCode) {
-        return exitCode > 128 && exitCode < 129 + sigCodes.length ? sigCodes[exitCode - 129] :
-                "exit(" + ((exitCode << 24) >> 24) + ")";
+        return exitCode > 128 && exitCode < 129 + sigCodes.length ? sigCodes[exitCode - 129]
+                : "exit(" + ((exitCode << 24) >> 24) + ")";
     }
 
     @Override
@@ -108,8 +110,8 @@ public class GenericExternalService extends EvergreenService {
     }
 
     protected RunStatus run(Node n, IntConsumer background) {
-        return n instanceof Topic ? run((Topic) n, background, null) : n instanceof Topics ? run((Topics) n,
-                background) : RunStatus.Errored;
+        return n instanceof Topic ? run((Topic) n, background, null)
+                : n instanceof Topics ? run((Topics) n, background) : RunStatus.Errored;
     }
 
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
