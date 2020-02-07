@@ -23,9 +23,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import javax.annotation.Nullable;
 
 /**
- * Vaguely like ProcessBuilder, but more flexible and lambda-friendly:
+ * Vaguely like ProcessBuilder, but more flexible and lambda-friendly.
  * <pre>
  * // set wd to current working directory
  * String wd = Exec.sh("pwd");
@@ -60,16 +61,17 @@ public class Exec implements Closeable {
             // after the .profile script is executed.  Fire up a login shell, then grab it's
             // path variable, but without using Exec shorthands to avoid initialization
             // order paradoxes.
-            Process hack = Runtime.getRuntime().exec(
-                    new String[]{"bash", "-c", "echo 'echo $PATH'|bash --login|egrep':[^ ]'"});
+            Process hack = Runtime.getRuntime()
+                    .exec(new String[]{"bash", "-c", "echo 'echo $PATH'|bash --login|egrep':[^ ]'"});
             StringBuilder path = new StringBuilder();
+
             Thread bg = new Thread(() -> {
                 try (InputStream in = hack.getInputStream()) {
                     int c;
                     while ((c = in.read()) >= 0) {
                         path.append((char) c);
                     }
-                } catch (Throwable t) {
+                } catch (Throwable ignored) {
                 }
                 //                    System.out.println("Read from process: "+path);
             });
@@ -94,7 +96,8 @@ public class Exec implements Closeable {
     private IntConsumer whenDone;
     private Consumer<CharSequence> stdout = NOP;
     private Consumer<CharSequence> stderr = NOP;
-    private Copier stderrc, stdoutc;
+    private Copier stderrc;
+    private Copier stdoutc;
     private boolean closed = false;
     private AtomicInteger numberOfCopiers;
 
@@ -148,6 +151,13 @@ public class Exec implements Closeable {
         return new Exec().withShell(command).successful(ignoreStderr);
     }
 
+    /**
+     * Find the path of a given command.
+     *
+     * @param fn command to lookup.
+     * @return the Path of the command, or null if not found.
+     */
+    @Nullable
     public static Path which(String fn) {  // mirrors shell command
         fn = deTilde(fn);
         if (fn.startsWith("/")) {
@@ -203,12 +213,22 @@ public class Exec implements Closeable {
         setDefaultEnv("PATH", sb.toString());
     }
 
+    /**
+     * Remove the path from our representation of PATH.
+     *
+     * @param p path to remove.
+     */
     public static void removePath(Path p) {
         if (p != null && paths.remove(p)) {
             computePathString();
         }
     }
 
+    /**
+     * Add path to PATH at the head.
+     *
+     * @param p path to be added.
+     */
     public static void addFirstPath(Path p) {
         if (p == null || paths.contains(p)) {
             return;
@@ -217,6 +237,22 @@ public class Exec implements Closeable {
         computePathString();
     }
 
+    public Exec setenv(String key, CharSequence value) {
+        environment = setenv(environment, key, value, environment == defaultEnvironment);
+        return this;
+    }
+
+    public boolean successful(boolean ignoreStderr) {
+        exec();
+        return (ignoreStderr || stderrc.nlines == 0) && process.exitValue() == 0;
+    }
+
+    /**
+     * Set working directory to the given file.
+     *
+     * @param f directory to switch into.
+     * @return this.
+     */
     public Exec cd(File f) {
         if (f != null) {
             dir = f;
@@ -232,11 +268,6 @@ public class Exec implements Closeable {
         return cd(homedir);
     }
 
-    public Exec setenv(String key, CharSequence value) {
-        environment = setenv(environment, key, value, environment == defaultEnvironment);
-        return this;
-    }
-
     public Exec withExec(String... c) {
         cmds = c;
         return this;
@@ -246,6 +277,13 @@ public class Exec implements Closeable {
         return withExec("sh", "-c", s);
     }
 
+    /**
+     * Set the command to run with a given timeout.
+     *
+     * @param t timeout.
+     * @param u units.
+     * @return this.
+     */
     public Exec withTimeout(long t, TimeUnit u) {
         timeout = t;
         timeunit = u;
@@ -297,16 +335,16 @@ public class Exec implements Closeable {
         }
     }
 
+    /**
+     * Get the stdout and stderr output as a string.
+     *
+     * @return String of output.
+     */
     public String asString() {
         StringBuilder sb = new StringBuilder();
         Consumer<CharSequence> f = sb::append;
         withOut(f).withErr(f).exec();
         return sb.toString().trim();
-    }
-
-    public boolean successful(boolean ignoreStderr) {
-        exec();
-        return (ignoreStderr || stderrc.nlines == 0) && process.exitValue() == 0;
     }
 
     public void background(IntConsumer cb) {
@@ -316,8 +354,8 @@ public class Exec implements Closeable {
 
     synchronized void setClosed() {
         if (!closed) {
-            IntConsumer wd = whenDone;
-            int exit = process != null ? process.exitValue() : -1;
+            final IntConsumer wd = whenDone;
+            final int exit = process != null ? process.exitValue() : -1;
             closed = true;
             process = null;
             stderrc = null;
@@ -330,17 +368,23 @@ public class Exec implements Closeable {
         }
     }
 
-    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
-            justification = "No need to be sync")
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
     public boolean isRunning() {
         return !closed;
     }
 
+    /**
+     * Wait until the execution has closed.
+     *
+     * @param timeout wait up to this many milliseconds.
+     * @return true if closed successfully
+     */
+    @SuppressWarnings("checkstyle:emptycatchblock")
     public synchronized boolean waitClosed(int timeout) {
         while (!closed) {
             try {
                 wait(timeout);
-            } catch (InterruptedException ie) {
+            } catch (InterruptedException ignored) {
             }
         }
         return closed;
@@ -369,7 +413,7 @@ public class Exec implements Closeable {
     }
 
     /**
-     * Sends the lines of an InputStream to a consumer in the background
+     * Sends the lines of an InputStream to a consumer in the background.
      */
     private class Copier extends Thread {
         private final Consumer<CharSequence> out;

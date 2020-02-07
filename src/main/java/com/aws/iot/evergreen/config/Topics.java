@@ -55,8 +55,8 @@ public class Topics extends Node implements Iterable<Node> {
                 }
             });
         } else {
-            throw new IllegalArgumentException("copyFrom: " + from.getFullName()
-                    + " is already a leaf, not a container");
+            throw new IllegalArgumentException(
+                    "copyFrom: " + from.getFullName() + " is already a leaf, not a container");
         }
     }
 

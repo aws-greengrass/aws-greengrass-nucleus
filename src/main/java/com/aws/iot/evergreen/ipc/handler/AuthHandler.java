@@ -43,9 +43,11 @@ public class AuthHandler implements InjectionActions {
     }
 
     /**
-     * @param request
-     * @return
-     * @throws IPCClientNotAuthorizedException
+     * Authenticate the incoming request and return a RequestContext if successful.
+     *
+     * @param request incoming request frame to be validated.
+     * @return RequestContext containing the server name if validated.
+     * @throws IPCClientNotAuthorizedException thrown if not authorized, or any other error happens.
      */
     public RequestContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
         GeneralRequest<String, AuthRequestTypes> decodedRequest;

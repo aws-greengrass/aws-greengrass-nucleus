@@ -22,8 +22,8 @@ public class UnsyncBufferedOutputStream extends FilterOutputStream {
     }
 
     public static OutputStream of(OutputStream outputStream, int sz) {
-        return outputStream instanceof UnsyncBufferedOutputStream ? outputStream :
-                new UnsyncBufferedOutputStream(outputStream, sz);
+        return outputStream instanceof UnsyncBufferedOutputStream ? outputStream
+                : new UnsyncBufferedOutputStream(outputStream, sz);
     }
 
     @Override

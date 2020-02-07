@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Configuration;
@@ -262,8 +263,7 @@ public class Context implements Closeable {
     public class Value<T> implements Provider<T> {
         final Class<T> targetClass;
         public volatile T value;
-        @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
-                justification = "No need to be sync")
+        @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;
 
         Value(Class<T> c, T v) {
@@ -286,9 +286,8 @@ public class Context implements Closeable {
                 return v;
             }
             try {
-                Class<T> ccl = targetClass.isInterface()
-                        ? (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default")
-                        : targetClass;
+                Class<T> ccl = targetClass.isInterface() ? (Class<T>) targetClass.getClassLoader()
+                        .loadClass(targetClass.getName() + "$Default") : targetClass;
                 //                System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
                 Constructor<T> cons = null;
                 for (Constructor<T> c : (Constructor<T>[]) ccl.getConstructors()) {
@@ -401,7 +400,8 @@ public class Context implements Closeable {
                                 //                                Class scl = (Class) ((ParameterizedType) f
                                 //                                .getGenericType()).getActualTypeArguments()[0];
                                 //                                System.out.println("\tprovides " + scl);
-                                v = getv((Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0], name);
+                                v = getv((Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
+                                        name);
                             } else {
                                 v = Context.this.get(t, name);
                             }
@@ -412,8 +412,8 @@ public class Context implements Closeable {
                             //                            .getName()
                             //                            + " = " + v);
                             if (asService != null && v instanceof EvergreenService) {
-                                asService.addDependency((EvergreenService) v, startWhen == null ? State.Running :
-                                        startWhen.value());
+                                asService.addDependency((EvergreenService) v,
+                                        startWhen == null ? State.Running : startWhen.value());
                             }
                         } catch (Throwable ex) {
                             if (asService != null) {

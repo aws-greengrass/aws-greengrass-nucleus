@@ -24,7 +24,7 @@ public class CommitableFile extends FileOutputStream implements Commitable {
     private boolean closed;
 
     /**
-     * Creates a new instance of SafeFileOutputStream
+     * Creates a new instance of SafeFileOutputStream.
      */
     private CommitableFile(Path n, Path b, Path t, boolean commitOnClose) throws IOException {
         super(n.toFile());
@@ -37,7 +37,7 @@ public class CommitableFile extends FileOutputStream implements Commitable {
     /**
      * Strangely enough, abandonOnClose is usually the best choice: it interacts
      * well with the implicit close() that happens in a try-with-resources where
-     * files are closed if an exception is tossed
+     * files are closed if an exception is tossed.
      */
     public static CommitableFile abandonOnClose(Path t) throws IOException {
         return of(t, false);
@@ -47,18 +47,26 @@ public class CommitableFile extends FileOutputStream implements Commitable {
         return of(t, true);
     }
 
-    public static CommitableFile of(Path t, boolean commitOnClose) throws IOException {
-        Path n = t.resolveSibling(t.getFileName() + "+");
-        Path b = t.resolveSibling(t.getFileName() + "~");
+    /**
+     * Get a CommitableFile for the given path.
+     *
+     * @param path          path of the new file.
+     * @param commitOnClose true if the file should be automatically committed when closed.
+     * @return CommitableFile.
+     * @throws IOException if unable to create/delete the files.
+     */
+    public static CommitableFile of(Path path, boolean commitOnClose) throws IOException {
+        Path n = path.resolveSibling(path.getFileName() + "+");
+        Path b = path.resolveSibling(path.getFileName() + "~");
         Files.deleteIfExists(n);
         try {
-            return new CommitableFile(n, b, t, commitOnClose);
+            return new CommitableFile(n, b, path, commitOnClose);
         } catch (IOException ioe) {
             Path parent = n.getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            return new CommitableFile(n, b, t, commitOnClose);
+            return new CommitableFile(n, b, path, commitOnClose);
         }
     }
 
@@ -77,15 +85,16 @@ public class CommitableFile extends FileOutputStream implements Commitable {
      * Close and discard the file.  The original file remains untouched.
      */
     @Override
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public void abandon() {
         if (!closed) {
             try {
                 super.close();
-            } catch (IOException ex) {
+            } catch (IOException ignored) {
             }
             try {
                 Files.deleteIfExists(newVersion);
-            } catch (IOException ex) {
+            } catch (IOException ignored) {
             }
             closed = true;
         }
@@ -94,13 +103,13 @@ public class CommitableFile extends FileOutputStream implements Commitable {
     /**
      * Close the file and commit the new version.  The old version becomes a backup
      */
-    @SuppressWarnings("ConvertToTryWithResources")
+    @SuppressWarnings({"checkstyle:emptycatchblock", "ConvertToTryWithResources"})
     @Override
     public void commit() {
         if (!closed) {
             try {
                 super.close();
-            } catch (IOException ex) {
+            } catch (IOException ignored) {
             }
             if (Files.exists(newVersion)) {
                 move(target, backup);

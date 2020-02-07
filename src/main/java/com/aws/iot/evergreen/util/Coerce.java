@@ -21,10 +21,11 @@ public class Coerce {
             return "removed";
         }
     };
-    private static final Map<String, Object> specials = Utils.immutableMap("true", true, "false", false, "removed",
-            removed, "Inf", Double.POSITIVE_INFINITY, "+Inf", Double.POSITIVE_INFINITY, "-Inf",
-            Double.NEGATIVE_INFINITY, "Nan", Double.NaN, "NaN", Double.NaN, "inf", Double.POSITIVE_INFINITY, "+inf",
-            Double.POSITIVE_INFINITY, "-inf", Double.NEGATIVE_INFINITY, "nan", Double.NaN);
+    private static final Map<String, Object> specials =
+            Utils.immutableMap("true", true, "false", false, "removed", removed, "Inf", Double.POSITIVE_INFINITY,
+                    "+Inf", Double.POSITIVE_INFINITY, "-Inf", Double.NEGATIVE_INFINITY, "Nan", Double.NaN, "NaN",
+                    Double.NaN, "inf", Double.POSITIVE_INFINITY, "+inf", Double.POSITIVE_INFINITY, "-inf",
+                    Double.NEGATIVE_INFINITY, "nan", Double.NaN);
     private static final char[] hex = "0123456789ABCDEF".toCharArray();
     private static final Pattern seperators = Pattern.compile(" *, *");
     private static final Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
@@ -32,6 +33,12 @@ public class Coerce {
     private Coerce() {
     }
 
+    /**
+     * Convert the object into a boolean value.
+     *
+     * @param o object
+     * @return result.
+     */
     public static boolean toBoolean(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();

@@ -19,10 +19,9 @@ import javax.inject.Inject;
 @AllArgsConstructor
 @NoArgsConstructor
 public class IPCRouter {
+    private final ConcurrentHashMap<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
     @Inject
     Log log;
-
-    private final ConcurrentHashMap<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
 
     /**
      * Registers a callback for a destination, Dispatcher will invoke the function for all message with registered

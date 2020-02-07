@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
@@ -112,22 +113,22 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Kernel parseArgs(String... args) {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
-        Topic root = lookup("system", "rootpath").dflt(deTilde(prefs.get("rootpath", "~/.evergreen"))).subscribe((w,
-                                                                                                                  n) -> {
-            rootPath = Paths.get(Coerce.toString(n));
-            configPath = Paths.get(deTilde(configPathName));
-            Exec.removePath(clitoolPath);
-            clitoolPath = Paths.get(deTilde(clitoolPathName));
-            Exec.addFirstPath(clitoolPath);
-            workPath = Paths.get(deTilde(workPathName));
-            Exec.setDefaultEnv("HOME", workPath.toString());
-            if (w != WhatHappened.initialized) {
-                ensureCreated(configPath);
-                ensureCreated(clitoolPath);
-                ensureCreated(rootPath);
-                ensureCreated(workPath);
-            }
-        });
+        Topic root =
+                lookup("system", "rootpath").dflt(deTilde(prefs.get("rootpath", "~/.evergreen"))).subscribe((w, n) -> {
+                    rootPath = Paths.get(Coerce.toString(n));
+                    configPath = Paths.get(deTilde(configPathName));
+                    Exec.removePath(clitoolPath);
+                    clitoolPath = Paths.get(deTilde(clitoolPathName));
+                    Exec.addFirstPath(clitoolPath);
+                    workPath = Paths.get(deTilde(workPathName));
+                    Exec.setDefaultEnv("HOME", workPath.toString());
+                    if (w != WhatHappened.initialized) {
+                        ensureCreated(configPath);
+                        ensureCreated(clitoolPath);
+                        ensureCreated(rootPath);
+                        ensureCreated(workPath);
+                    }
+                });
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
                 case "-dryrun":
@@ -208,7 +209,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
         installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
         Queue<String> autostart = new LinkedList<>();
-        if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath) || !ensureCreated(clitoolPath)) {
+        if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath) || !ensureCreated(
+                clitoolPath)) {
             broken = true;
         }
         Exec.setDefaultEnv("EVERGREEN_HOME", rootPath.toString());
@@ -217,7 +219,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             pim.setCacheDirectory(rootPath.resolve("plugins"));
             pim.annotated(ImplementsService.class, cl -> {
                 if (!EvergreenService.class.isAssignableFrom(cl)) {
-                    System.err.println(cl + " needs to be a subclass of EvergreenService in order to use ImplementsService");
+                    System.err.println(
+                            cl + " needs to be a subclass of EvergreenService in order to use ImplementsService");
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
@@ -268,9 +271,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         final Log log = context.getLog();
         if (!log.isDraining()) {
             //lookup("system","logfile").
-            lookup("log", "file").dflt("stdout").subscribe((w, nv) -> log.logTo(deTilde(Coerce.toString(nv.getOnce()))));
-            lookup("log", "level").dflt(Log.Level.Note).validate((nv, ov) -> Coerce.toEnum(Log.Level.class, nv,
-                    Log.Level.Note)).subscribe((w, nv) -> log.setLogLevel((Log.Level) nv.getOnce()));
+            lookup("log", "file").dflt("stdout")
+                    .subscribe((w, nv) -> log.logTo(deTilde(Coerce.toString(nv.getOnce()))));
+            lookup("log", "level").dflt(Log.Level.Note)
+                    .validate((nv, ov) -> Coerce.toEnum(Log.Level.class, nv, Log.Level.Note))
+                    .subscribe((w, nv) -> log.setLogLevel((Log.Level) nv.getOnce()));
         }
         log.addWatcher(logWatcher);
         if (!forReal) {
@@ -303,8 +308,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
     private boolean ensureCreated(Path p) {
         try {
-            Files.createDirectories(p, PosixFilePermissions.asFileAttribute(
-                    PosixFilePermissions.fromString("rwx------")));
+            Files.createDirectories(p,
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             return true;
         } catch (IOException ex) {
             context.getLog().error("Could not create", p, ex);

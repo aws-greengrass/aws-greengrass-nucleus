@@ -166,8 +166,8 @@ public class Configuration {
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         context.getLog().significant("Reading URL", url);
         URLConnection u = url.openConnection();
-        return read(u.getInputStream(), extension(url.getPath()), useSourceTimestamp ? u.getLastModified() :
-                System.currentTimeMillis());
+        return read(u.getInputStream(), extension(url.getPath()),
+                useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
     }
 
     public Configuration read(Path s) throws IOException {
@@ -193,14 +193,15 @@ public class Configuration {
                 case "evg":  // evergreen
                 case "yaml":
                     mergeMap(timestamp,
-                            (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
+                            (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                                    .anyFrom(in));
                     break;
                 case "tlog":
                     ConfigurationReader.mergeTLogInto(this, in);
                     break;
                 default:
-                    throw new IllegalArgumentException("File format '" + extension
-                            + "' is not supported.  Use one of: yaml, json or tlog");
+                    throw new IllegalArgumentException(
+                            "File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
             }
         } finally {
             close(in);

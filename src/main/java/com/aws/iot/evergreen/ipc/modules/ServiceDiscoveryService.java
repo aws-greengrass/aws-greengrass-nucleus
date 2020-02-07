@@ -35,10 +35,9 @@ import static com.aws.iot.evergreen.util.Log.Level;
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "servicediscovery", autostart = true)
 public class ServiceDiscoveryService extends EvergreenService {
+    private final ObjectMapper mapper = new CBORMapper();
     @Inject
     Log log;
-    private final ObjectMapper mapper = new CBORMapper();
-
     @Inject
     private ServiceDiscoveryAgent agent;
 
@@ -61,8 +60,8 @@ public class ServiceDiscoveryService extends EvergreenService {
     public Future<Message> handleMessage(Message request, RequestContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
         try {
-            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj = IPCUtil
-                    .decode(request, new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {
+            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj =
+                    IPCUtil.decode(request, new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {
                     });
 
             GeneralResponse<?, ServiceDiscoveryResponseStatus> genResp = new GeneralResponse<>();
@@ -83,8 +82,8 @@ public class ServiceDiscoveryService extends EvergreenService {
                     genResp = agent.updateResource(update, context.getServiceName());
                     break;
                 case register:
-                    RegisterResourceRequest register = mapper
-                            .convertValue(obj.getRequest(), RegisterResourceRequest.class);
+                    RegisterResourceRequest register =
+                            mapper.convertValue(obj.getRequest(), RegisterResourceRequest.class);
                     // Do register
                     genResp = agent.registerResource(register, context.getServiceName());
                     break;
@@ -97,8 +96,9 @@ public class ServiceDiscoveryService extends EvergreenService {
         } catch (Throwable e) {
             log.log(Level.Error, "Failed to respond to handleMessage", e);
 
-            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse = GeneralResponse.<Void, ServiceDiscoveryResponseStatus>builder()
-                    .error(ServiceDiscoveryResponseStatus.InternalError).errorMessage(e.getMessage()).build();
+            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse =
+                    GeneralResponse.<Void, ServiceDiscoveryResponseStatus>builder()
+                            .error(ServiceDiscoveryResponseStatus.InternalError).errorMessage(e.getMessage()).build();
 
             try {
                 fut.complete(new Message(IPCUtil.encode(errorResponse)));
