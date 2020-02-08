@@ -19,6 +19,13 @@ public class ConfigurationReader {
             java.util.regex.Pattern.compile("([0-9]+),([^,]*),([^\n]*)\n*");
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
 
+    /**
+     * Merge the given transaction log into the given configuration.
+     *
+     * @param c configuration to merge into
+     * @param r0 reader of the transaction log to read from
+     * @throws IOException if reading fails
+     */
     public static void mergeTLogInto(Configuration c, Reader r0) throws IOException {
         try (BufferedReader in = r0 instanceof BufferedReader ? (BufferedReader) r0 : new BufferedReader(r0)) {
             String l;
@@ -35,6 +42,14 @@ public class ConfigurationReader {
         ConfigurationReader.mergeTLogInto(c, Files.newBufferedReader(p));
     }
 
+    /**
+     * Create a Configuration based on a transaction log's path.
+     *
+     * @param context root context for the configuration
+     * @param p path to the transaction log
+     * @return Configuration from the transaction log
+     * @throws IOException if reading the transaction log fails
+     */
     public static Configuration createFromTLog(Context context, Path p) throws IOException {
         Configuration c = new Configuration(context);
         ConfigurationReader.mergeTLogInto(c, p);

@@ -30,7 +30,7 @@ public class Topic extends Node {
      * This way, every change to the config file will get forwarded to the
      * object.
      *
-     * @param s
+     * @param s subscriber
      */
     public Topic subscribe(Subscriber s) {
         if (listen(s)) {
@@ -43,11 +43,17 @@ public class Topic extends Node {
         return this;
     }
 
-    public Topic validate(Validator s) {
-        if (listen(s)) {
+    /**
+     * Add a validator to the topic and immediately validate the current value.
+     *
+     * @param validator validator
+     * @return this
+     */
+    public Topic validate(Validator validator) {
+        if (listen(validator)) {
             try {
                 if (value != null) {
-                    value = s.validate(value, null);
+                    value = validator.validate(value, null);
                 }
             } catch (Throwable ex) {
                 //TODO: do something less stupid
@@ -83,6 +89,13 @@ public class Topic extends Node {
         return setValue(System.currentTimeMillis(), nv);
     }
 
+    /**
+     * Set the value of this topic to a new value.
+     *
+     * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value.
+     * @param proposed new value.
+     * @return this.
+     */
     public synchronized Topic setValue(long proposedModtime, final Object proposed) {
         //        context.getLog().note("proposing change to "+getFullName()+": "+value+" => "+proposed);
         //        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
@@ -134,9 +147,15 @@ public class Topic extends Node {
         }
     }
 
-    public synchronized Topic dflt(Object v) {
+    /**
+     * Set a default value for the topic.
+     *
+     * @param dflt the default value
+     * @return this
+     */
+    public synchronized Topic dflt(Object dflt) {
         if (value == null) {
-            setValue(1, v); // defaults come from the dawn of time
+            setValue(1, dflt); // defaults come from the dawn of time
         }
         return this;
     }

@@ -36,6 +36,13 @@ public class EZTemplates {
         return toCS(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)));
     }
 
+    /**
+     * Convert reader into a string.
+     *
+     * @param in reader to read from, closes it when completed.
+     * @return string from reader.
+     * @throws IOException if reading or appending fails.
+     */
     @SuppressWarnings("ThrowableResultIgnored")
     public static CharSequence toCS(Reader in) throws IOException {
         StringBuilder sb = new StringBuilder();
@@ -47,12 +54,25 @@ public class EZTemplates {
         return sb;
     }
 
+    /**
+     * Write a string to a path.
+     *
+     * @param cs string to write.
+     * @param dest path to write to.
+     * @throws IOException if writing fails.
+     */
     public static void writeTo(CharSequence cs, Path dest) throws IOException {
         CommitableWriter cw = CommitableWriter.abandonOnClose(dest);
         cw.append(cs);
         cw.commit();
     }
 
+    /**
+     * Replace template parameters from the input string.
+     *
+     * @param in input string with templates to be replaced.
+     * @return output string with all templates replaced.
+     */
     public CharSequence rewrite(CharSequence in) {
         Matcher m = scriptVar.matcher(in);
         StringBuffer sb = null;
@@ -110,7 +130,7 @@ public class EZTemplates {
         evaluators.remove(e);
     }
 
-    public Object eval(String expr) {
+    private Object eval(String expr) {
         Object result;
         for (Evaluator e : evaluators) {
             if ((result = e.evaluate(expr)) != null) {

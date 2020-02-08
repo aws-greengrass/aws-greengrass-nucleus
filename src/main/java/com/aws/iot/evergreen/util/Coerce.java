@@ -57,11 +57,20 @@ public class Coerce {
                 case "t":
                 case "y":
                     return true;
+                default:
+                    return false;
             }
         }
         return false;
     }
 
+    /**
+     * Get an object as an integer.
+     *
+     * @param o object to convert.
+     * @return resulting int.
+     */
+    @SuppressWarnings("checkstyle:emptycatchblock")
     public static int toInt(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -76,12 +85,19 @@ public class Coerce {
             try {
                 CharSequence cs = o instanceof CharSequence ? (CharSequence) o : o.toString();
                 return (int) Utils.parseLong(cs);
-            } catch (NumberFormatException nfe) {
+            } catch (NumberFormatException ignored) {
             }
         }
         return 0;
     }
 
+    /**
+     * Convert object to double.
+     *
+     * @param o object to convert.
+     * @return the resulting double value.
+     */
+    @SuppressWarnings("checkstyle:emptycatchblock")
     public static double toDouble(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -95,12 +111,18 @@ public class Coerce {
         if (o != null) {
             try {
                 return Double.parseDouble(o.toString());
-            } catch (NumberFormatException nfe) {
+            } catch (NumberFormatException ignored) {
             }
         }
         return 0;
     }
 
+    /**
+     * Convert an object to string or null if it is null.
+     *
+     * @param o object to convert.
+     * @return resulting string.
+     */
     public static String toString(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -108,6 +130,12 @@ public class Coerce {
         return o == null ? null : o.toString();
     }
 
+    /**
+     * Convert object to an array of strings.
+     *
+     * @param o object to convert.
+     * @return resulting string array.
+     */
     public static String[] toStringArray(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -139,15 +167,24 @@ public class Coerce {
         return seperators.split(body);
     }
 
-    public static <T extends Enum> T toEnum(Class<T> cl, Object o) {
+    public static <T extends Enum<?>> T toEnum(Class<T> cl, Object o) {
         return toEnum(cl, o, null);
     }
 
-    public static <T extends Enum> T toEnum(Class<T> cl, Object o, T dflt) {
-        if (cl.isAssignableFrom(o.getClass())) {
+    /**
+     * Convert an object to an enum of class clazz with a default value of
+     * dflt.
+     *
+     * @param clazz enum class to convert into.
+     * @param o object to be converted.
+     * @param dflt default value if the conversion fails.
+     * @return enum value or default.
+     */
+    public static <T extends Enum<?>> T toEnum(Class<T> clazz, Object o, T dflt) {
+        if (clazz.isAssignableFrom(o.getClass())) {
             return (T) o;
         }
-        T[] values = cl.getEnumConstants();
+        T[] values = clazz.getEnumConstants();
         if (o instanceof Number) {
             return values[Math.max(0, Math.min(values.length - 1, ((Number) o).intValue()))];
         }
@@ -165,6 +202,13 @@ public class Coerce {
         return dflt;
     }
 
+    /**
+     * Convert object into a JSON encoded string.
+     *
+     * @param o object to convert.
+     * @return resulting string.
+     */
+    @SuppressWarnings("checkstyle:emptycatchblock")
     public static String toQuotedString(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -172,11 +216,18 @@ public class Coerce {
         StringBuilder sb = new StringBuilder();
         try {
             toQuotedString(o, sb);
-        } catch (IOException ex) {
+        } catch (IOException ignored) {
         }
         return sb.toString();
     }
 
+    /**
+     * Convert object to a JSON encoded string, writing output to the appendable.
+     *
+     * @param o object to convert.
+     * @param out appendable to append to.
+     * @throws IOException if the append fails.
+     */
     public static void toQuotedString(Object o, Appendable out) throws IOException {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -210,6 +261,13 @@ public class Coerce {
         out.append('"');
     }
 
+    /**
+     * Convert object to JSON encoded string and write output to the appendable.
+     *
+     * @param o object to convert.
+     * @param out appendable to write to.
+     * @throws IOException if the append fails.
+     */
     public static void toParseableString(Object o, Appendable out) throws IOException {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -223,6 +281,13 @@ public class Coerce {
         }
     }
 
+    /**
+     * Convert a string to the appropriate Java object.
+     *
+     * @param s string to convert
+     * @return resulting object or empty string if the input was null.
+     */
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     @SuppressFBWarnings(value = "FE_FLOATING_POINT_EQUALITY",
             justification = "We're checking that the double is really an int/long, so no worries here about equality")
     public static Object toObject(String s) {
@@ -253,7 +318,7 @@ public class Coerce {
                 return li;
             }
             return d;
-        } catch (Throwable t) {
+        } catch (Throwable ignored) {
         }
         if ("null".equals(s)) {
             return null;

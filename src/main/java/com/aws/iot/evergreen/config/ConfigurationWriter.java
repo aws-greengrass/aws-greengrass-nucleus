@@ -36,6 +36,12 @@ public class ConfigurationWriter implements Closeable, Subscriber {
         this(c, CommitableWriter.abandonOnClose(p));
     }
 
+    /**
+     * Dump the configuration into a file given by the path.
+     *
+     * @param c configuration to write out
+     * @param file path to write to
+     */
     public static void dump(Configuration c, Path file) {
         try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
             cs.writeAll();
@@ -44,24 +50,39 @@ public class ConfigurationWriter implements Closeable, Subscriber {
         }
     }
 
+    /**
+     * Create a ConfigurationWriter from a given configuration and file path.
+     *
+     * @param c initial configuration
+     * @param p path to save the configuration
+     * @return ConfigurationWriter
+     * @throws IOException if creating the configuration file fails
+     */
     public static ConfigurationWriter logTransactionsTo(Configuration c, Path p) throws IOException {
         return new ConfigurationWriter(c,
                 Files.newBufferedWriter(p, StandardOpenOption.WRITE, StandardOpenOption.APPEND,
                         StandardOpenOption.DSYNC, StandardOpenOption.CREATE));
     }
 
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     @Override
-    public void close() throws IOException {
+    public void close() {
         try {
             conf.getRoot().remove(this);
             if (out instanceof Commitable) {
                 ((Commitable) out).commit();
             }
-        } catch (Throwable ioe) {
+        } catch (Throwable ignored) {
         }
         Utils.close(out);
     }
 
+    /**
+     * Set ConfigurationWriter to flush immediately.
+     *
+     * @param fl true if the writer should flush immediately
+     * @return this
+     */
     public ConfigurationWriter flushImmediately(boolean fl) {
         flushImmediately = fl;
         if (fl) {

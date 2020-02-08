@@ -57,6 +57,13 @@ public class ServiceDiscoveryService extends EvergreenService {
         }
     }
 
+    /**
+     * Handle the incoming message from the client.
+     *
+     * @param request the incoming request
+     * @param context client request context
+     * @return future containing response message
+     */
     public Future<Message> handleMessage(Message request, RequestContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
         try {

@@ -21,6 +21,14 @@ public class Topics extends Node implements Iterable<Node> {
         super(c, n, p);
     }
 
+    /**
+     * Create an errorNode with a given message.
+     *
+     * @param context context
+     * @param name name of the topics node
+     * @param message error message
+     * @return node
+     */
     public static Topics errorNode(Context context, String name, String message) {
         Topics t = new Topics(context, name, null);
         t.createLeafChild("error").setValue(0, message);
@@ -64,6 +72,13 @@ public class Topics extends Node implements Iterable<Node> {
         return children.get(name);
     }
 
+    /**
+     * Create a leaf Topic under this Topics with the given name.
+     * Returns the leaf topic if it already existed.
+     *
+     * @param name name of the leaf node
+     * @return the node
+     */
     public Topic createLeafChild(String name) {
         Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, Topics.this));
         if (n instanceof Topic) {
@@ -73,6 +88,13 @@ public class Topics extends Node implements Iterable<Node> {
         }
     }
 
+    /**
+     * Create an interior Topics node with the provided name.
+     * Returns the new node or the existing node if it already existed.
+     *
+     * @param name name for the new node
+     * @return the node
+     */
     public Topics createInteriorChild(String name) {
         Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, Topics.this));
         if (n instanceof Topics) {
@@ -109,13 +131,19 @@ public class Topics extends Node implements Iterable<Node> {
         childChanged(WhatHappened.childChanged, t);
     }
 
-    public void mergeMap(long t, Map<Object, Object> map) {
+    /**
+     * Add the given map to this Topics tree.
+     *
+     * @param lastModified last modified time
+     * @param map map to merge in
+     */
+    public void mergeMap(long lastModified, Map<Object, Object> map) {
         map.forEach((okey, value) -> {
             String key = okey.toString();
             if (value instanceof Map) {
-                createInteriorChild(key).mergeMap(t, (Map) value);
+                createInteriorChild(key).mergeMap(lastModified, (Map) value);
             } else {
-                createLeafChild(key).setValue(t, value);
+                createLeafChild(key).setValue(lastModified, value);
             }
         });
     }
@@ -155,14 +183,11 @@ public class Topics extends Node implements Iterable<Node> {
         children.values().forEach((t) -> t.deepForEachTopic(f));
     }
 
-    public void forEachTopicSet(Consumer<Topics> f) {
-        children.values().forEach((t) -> {
-            if (t instanceof Topics) {
-                f.accept((Topics) t);
-            }
-        });
-    }
-
+    /**
+     * Remove a node from this node's children.
+     *
+     * @param n node to remove
+     */
     public void remove(Node n) {
         if (!children.remove(n.name, n)) {
             System.err.println("remove: Missing node " + n.name + " from " + toString());
@@ -195,6 +220,12 @@ public class Topics extends Node implements Iterable<Node> {
         childChanged(what, null);
     }
 
+    /**
+     * Subscribe to receive updates from this node and its children.
+     *
+     * @param cc listener
+     * @return this
+     */
     public Topics subscribe(ChildChanged cc) {
         if (listen(cc)) {
             try {

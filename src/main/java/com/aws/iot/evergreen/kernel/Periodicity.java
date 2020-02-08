@@ -16,19 +16,22 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
 import static com.aws.iot.evergreen.util.Utils.parseLong;
 //import java.util.concurrent.TimeUnit; not flexible enough :-(
 
 /**
- * Support for services that are periodic. For now, it's very simplistic
+ * Support for services that are periodic. For now, it's very simplistic.
  */
 public class Periodicity {
     /**
      * Just using raw milliseconds: finer precision isn't realistic at this
-     * point
+     * point.
      */
-    private final Topic interval, phase, fuzz;
+    private final Topic interval;
+    private final Topic phase;
+    private final Topic fuzz;
     private final EvergreenService service;
     private ScheduledFuture future;
 
@@ -42,6 +45,13 @@ public class Periodicity {
         service = s;
     }
 
+    /**
+     * Get Periodicity for an EvergreenService based on its config.
+     *
+     * @param s service to get periodicity of
+     * @return the periodicity (or null)
+     */
+    @Nullable
     public static Periodicity of(EvergreenService s) {
         Node n = s.config.getChild("periodic");
         if (n == null) {
@@ -77,7 +87,7 @@ public class Periodicity {
 
     // TODO: use of parseInterval to parse the phase offset is wholly inadequate: it should
     // allow for all sorts of complexity, like being relative to local time (eg. 2am)
-    public static long parseInterval(String v) {
+    static long parseInterval(String v) {
         CharBuffer p = CharBuffer.wrap(v);
         long n = parseLong(p);
         String u = p.toString().trim().toLowerCase();
@@ -125,37 +135,42 @@ public class Periodicity {
         return 100 + System.currentTimeMillis();  // TODO: replace this total hack
     }
 
-    public synchronized void start(ScheduledExecutorService ses, Runnable r) {
+    private synchronized void start(ScheduledExecutorService ses, Runnable r) {
         Future f = future;
         if (f != null) {
             f.cancel(false);
         }
         long now = System.currentTimeMillis();
-        long ΔT = parseInterval(Coerce.toString(interval)), ϕ = parseInterval(Coerce.toString(phase));
-        float ε;  // The fraction of the interval to "fuzz" the start time
+        long timeIntervalMillis = parseInterval(Coerce.toString(interval));
+        long phase = parseInterval(Coerce.toString(this.phase));
+        float fuzzFactor;  // The fraction of the interval to "fuzz" the start time
         try {
-            ε = Float.parseFloat(Coerce.toString(fuzz));
-            if (ε < 0) {
-                ε = 0;
+            fuzzFactor = Float.parseFloat(Coerce.toString(fuzz));
+            if (fuzzFactor < 0) {
+                fuzzFactor = 0;
             }
-            if (ε > 1) {
-                ε = 1;
+            if (fuzzFactor > 1) {
+                fuzzFactor = 1;
             }
         } catch (Throwable t) {
             service.context.getLog().warn("Error parsing fuzz factor: " + Coerce.toString(fuzz), t);
-            ε = 0.5f;
+            fuzzFactor = 0.5f;
         }
-        long myT = now / ΔT * ΔT + ϕ + TimeZone.getDefault().getOffset(now);  // make cycle phase be relative to the
-        // local time zone
-        if (ε > 0) {
-            myT += (long) (ε * Math.random() * ΔT);
+
+        // make cycle phase be relative to the local time zone
+        long myT = now / timeIntervalMillis * timeIntervalMillis + phase + TimeZone.getDefault().getOffset(now);
+        if (fuzzFactor > 0) {
+            myT += (long) (fuzzFactor * Math.random() * timeIntervalMillis);
         }
         while (myT <= now + 1) {
-            myT += ΔT;
+            myT += timeIntervalMillis;
         }
-        future = ses.scheduleAtFixedRate(r, myT - now, ΔT, TimeUnit.MILLISECONDS);
+        future = ses.scheduleAtFixedRate(r, myT - now, timeIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Shutdown the periodic task.
+     */
     public synchronized void shutdown() {
         Future f = future;
         if (f != null) {
