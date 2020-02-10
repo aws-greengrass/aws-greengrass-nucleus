@@ -41,6 +41,7 @@ import javax.annotation.Nullable;
  * .background(exc -> System.out.println("exit "+exc));
  * </pre>
  */
+@SuppressWarnings({"checkstyle:emptycatchblock"})
 public class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
@@ -123,6 +124,11 @@ public class Exec implements Closeable {
         return ne;
     }
 
+    public Exec setenv(String key, CharSequence value) {
+        environment = setenv(environment, key, value, environment == defaultEnvironment);
+        return this;
+    }
+
     private static void appendStackTrace(Throwable ex, Consumer<CharSequence> a) {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
@@ -149,6 +155,11 @@ public class Exec implements Closeable {
 
     public static boolean successful(boolean ignoreStderr, String command) {
         return new Exec().withShell(command).successful(ignoreStderr);
+    }
+
+    public boolean successful(boolean ignoreStderr) {
+        exec();
+        return (ignoreStderr || stderrc.nlines == 0) && process.exitValue() == 0;
     }
 
     /**
@@ -235,16 +246,6 @@ public class Exec implements Closeable {
         }
         paths.addFirst(p);
         computePathString();
-    }
-
-    public Exec setenv(String key, CharSequence value) {
-        environment = setenv(environment, key, value, environment == defaultEnvironment);
-        return this;
-    }
-
-    public boolean successful(boolean ignoreStderr) {
-        exec();
-        return (ignoreStderr || stderrc.nlines == 0) && process.exitValue() == 0;
     }
 
     /**

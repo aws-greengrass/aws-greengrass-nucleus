@@ -14,7 +14,7 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 /**
- * Class for storing routing between IPC destination names and their handlers
+ * Class for storing routing between IPC destination names and their handlers.
  */
 @AllArgsConstructor
 @NoArgsConstructor
@@ -25,9 +25,9 @@ public class IPCRouter {
 
     /**
      * Registers a callback for a destination, Dispatcher will invoke the function for all message with registered
-     * destination
+     * destination.
      *
-     * @param destination
+     * @param destination destination name to register
      * @param callback    Function which takes a message and return a message. The function implementation needs to
      *                    the thread safe
      * @throws IPCException if the callback is already registered for a destination
@@ -43,7 +43,7 @@ public class IPCRouter {
     /**
      * Looks up the callback for a given destination.
      *
-     * @param destination
+     * @param destination destination to lookup
      * @return destination callback (may be null)
      */
     @Nullable

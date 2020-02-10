@@ -144,8 +144,8 @@ public class Configuration {
      * parser, which is JSON. You can replace <code>new YAMLFactory()</code>
      * with any other supported parser.
      *
-     * @param timestamp
-     * @param map
+     * @param timestamp last modified time for the configuration values
+     * @param map map to merge
      */
     public void mergeMap(long timestamp, Map<Object, Object> map) {
         root.mergeMap(timestamp, map);
@@ -163,6 +163,14 @@ public class Configuration {
         return s.contains(":/") ? read(new URL(s), false) : read(Paths.get(s));
     }
 
+    /**
+     * Read and merge configuration from a URL.
+     *
+     * @param url configuration source URL
+     * @param useSourceTimestamp true if the modified time should be set based on the value from the server (if any)
+     * @return this with the new configuration merged in
+     * @throws IOException if the reading fails
+     */
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         context.getLog().significant("Reading URL", url);
         URLConnection u = url.openConnection();
@@ -179,11 +187,15 @@ public class Configuration {
         return read(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)), extension, timestamp);
     }
 
-    public Configuration copyFrom(Configuration other) {
-        getRoot().copyFrom(other.getRoot());
-        return this;
-    }
-
+    /**
+     * Read in a configuration from a Reader and merge it with the current configuration.
+     *
+     * @param in reader to read new configuration from
+     * @param extension extension of the file we're reading in (changes how we deserialize the input data)
+     * @param timestamp timestamp to use as the last modified time
+     * @return this with the merged in configuration
+     * @throws IOException if reading fails
+     */
     public Configuration read(Reader in, String extension, long timestamp) throws IOException {
         try {
             switch (extension) {
@@ -209,6 +221,13 @@ public class Configuration {
         return this;
     }
 
+    /**
+     * Read in a new configuration from a URL and merge it into the current config.
+     *
+     * @param u URL to read in the configuration from
+     * @param sourceTimestamp true if the URL source timestamp should be used as the last modified time
+     * @return any throwable that occurs from the merge or read
+     */
     public Throwable readMerge(URL u, boolean sourceTimestamp) {
         // TODO: Does not handle dependencies properly yet
         // TODO: Nor are environment variables accounted for properly
@@ -220,6 +239,11 @@ public class Configuration {
             read(u, sourceTimestamp);
             context.getLog().note("Finished " + u);
         });
+    }
+
+    public Configuration copyFrom(Configuration other) {
+        getRoot().copyFrom(other.getRoot());
+        return this;
     }
 
     @Override

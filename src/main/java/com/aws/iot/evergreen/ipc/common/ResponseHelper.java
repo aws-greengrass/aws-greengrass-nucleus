@@ -11,7 +11,17 @@ import io.netty.channel.ChannelHandlerContext;
 import java.io.IOException;
 
 public class ResponseHelper {
-    public static boolean sendResponse(FrameReader.Message msg, int sequenceNumber, String destination,
+    /**
+     * Send a message in response over the channel.
+     *
+     * @param msg message to be sent
+     * @param sequenceNumber sequence number to respond with
+     * @param destination destination of the response
+     * @param ctx netty channel context used to send the response
+     * @param closeWhenDone true if the channel should be shutdown
+     * @throws IOException if anything goes wrong
+     */
+    public static void sendResponse(FrameReader.Message msg, int sequenceNumber, String destination,
                                        ChannelHandlerContext ctx, boolean closeWhenDone) throws IOException {
         // TODO: Validate frame data length
 
@@ -21,6 +31,5 @@ public class ResponseHelper {
         if (closeWhenDone) {
             future.addListener(ChannelFutureListener.CLOSE);
         }
-        return true;
     }
 }

@@ -26,21 +26,20 @@ import static com.aws.iot.evergreen.util.Log.Level;
 
 /**
  * Entry point to the kernel service IPC mechanism. IPC service manages the lifecycle of all IPC components
- * <p>
- * IPCService relies on the kernel to synchronize between startup() and run() calls.
- * <p>
- * How messages flow:
- * <p>
- * New connection:
+ *
+ * <p>IPCService relies on the kernel to synchronize between startup() and run() calls.
+ *
+ * <p>How messages flow:
+ *
+ * <p>New connection:
  * Server listens for new connections, new connections are forwarded to MessageRouter using the Netty pipeline.
  * MessageRouter authorizes connection and will then allow further queries to be routed.
- * <p>
- * Outgoing messages:
+ *
+ * <p>Outgoing messages:
  * The client must first send a request to setup a "listener" on the server. As part of handling that request,
  * the service will receive a pointer to the channel that they will then be able to use to push messages
  * to the client at any time in the future.
  */
-
 @ImplementsService(name = "IPCService", autostart = true)
 public class IPCService extends EvergreenService {
     public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
@@ -105,7 +104,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     * Do nothing in "run" since we started up the server in "startup"
+     * Do nothing in "run" since we started up the server in "startup".
      */
     @Override
     public void run() {
@@ -113,7 +112,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     *
+     * Shutdown the IPC server.
      */
     @Override
     public void shutdown() {
@@ -124,7 +123,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     * IPCService will only transition to errored state if the server socket is not able to bind or accept connections
+     * IPCService will only transition to errored state if the server socket is not able to bind or accept connections.
      */
     @Override
     public void handleError() {

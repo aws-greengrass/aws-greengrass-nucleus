@@ -4,17 +4,17 @@
 package com.aws.iot.evergreen.dependency;
 
 /**
- * The states in the lifecycle of a service
+ * The states in the lifecycle of a service.
  */
 public enum State {
     // TODO Not sure I trust this list yet
 
     /**
-     * Object does not have a state (not a Lifecycle)
+     * Object does not have a state (not a Lifecycle).
      */
     Stateless(true, false, false),
     /**
-     * Freshly created, probably being injected
+     * Freshly created, probably being injected.
      */
     New(true, false, false),
     /**
@@ -24,7 +24,7 @@ public enum State {
      */
     Installing(true, false, false),
     /**
-     * Waiting for some dependency to start Running
+     * Waiting for some dependency to start Running.
      */
     AwaitingStartup(true, false, false),
     /**
@@ -72,21 +72,21 @@ public enum State {
     }
 
     /**
-     * Nothing is going wrong, but it may not be fully "up"
+     * Nothing is going wrong, but it may not be fully "up".
      */
     public boolean isHappy() {
         return happy;
     }
 
     /**
-     * Fully up and running with associated service code executing (may be Unstable)
+     * Fully up and running with associated service code executing (may be Unstable).
      */
     public boolean isRunning() {
         return running;
     }
 
     /**
-     * Fully up and running, all is good
+     * Fully up and running, all is good.
      */
     public boolean isFunctioningProperly() {
         return functioningProperly;

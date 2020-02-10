@@ -27,6 +27,11 @@ public class AuthHandler implements InjectionActions {
     @Inject
     private Configuration config;
 
+    /**
+     * Register an auth token for the given service.
+     *
+     * @param s service to generate an auth token for
+     */
     public static void registerAuthToken(EvergreenService s) {
         Topic uid = s.config.createLeafChild(SERVICE_UNIQUE_ID_KEY).setParentNeedsToKnow(false);
         String authToken = Utils.generateRandomString(16).toUpperCase();

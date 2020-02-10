@@ -79,8 +79,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     /**
      * Register a resource with Service Discovery. Will throw if the resource is already registered.
      *
-     * @param request
-     * @param serviceName
+     * @param request incoming request
+     * @param serviceName name of the calling service
      * @return
      */
     public GeneralResponse<Resource, ServiceDiscoveryResponseStatus> registerResource(RegisterResourceRequest request,
@@ -135,9 +135,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * Update an already existing resource. The update will only update the URI, TXT Records, and whether
      * it is published to DNS-SD or not.
      *
-     * @param request
-     * @param serviceName
-     * @return
+     * @param request incoming request
+     * @param serviceName calling service name
      */
     public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request,
                                                                                 String serviceName) {
@@ -174,9 +173,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     /**
      * Remove an existing resource.
      *
-     * @param request
-     * @param serviceName
-     * @return
+     * @param request incoming request
+     * @param serviceName calling service name
      */
     public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request,
                                                                                 String serviceName) {
@@ -210,9 +208,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * Lookup resources. Returns a list of matching resources. Any null field in the input request
      * will be treated as a wildcard, so any value will match it.
      *
-     * @param request
-     * @param serviceName
-     * @return
+     * @param request incoming request
+     * @param serviceName calling service name
      */
     public GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> lookupResources(
             LookupResourceRequest request, String serviceName) {

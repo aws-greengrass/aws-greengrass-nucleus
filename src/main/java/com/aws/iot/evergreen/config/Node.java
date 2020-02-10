@@ -26,6 +26,13 @@ public abstract class Node {
         fnc = calcFnc();
     }
 
+    /**
+     * Append node's name to the appendable.
+     *
+     * @param a appendable to write the name into
+     * @return false if name is null, true otherwise
+     * @throws IOException if the append fails
+     */
     public boolean appendNameTo(Appendable a) throws IOException {
         if (name == null) {
             return false;
@@ -62,12 +69,13 @@ public abstract class Node {
         return (T) this;
     }
 
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         try {
             appendTo(sb);
-        } catch (IOException ex) {
+        } catch (IOException ignored) {
         }
         return sb.toString();
     }
@@ -85,9 +93,23 @@ public abstract class Node {
         return false;
     }
 
+    /**
+     * Remove a subscriber to stop being called for updates.
+     *
+     * @param s subscriber to remove
+     */
     public void remove(Subscriber s) {
         if (watchers != null) {
             watchers.remove(s);
+        }
+    }
+
+    /**
+     * Remove this node from its parent.
+     */
+    public void remove() {
+        if (parent != null) {
+            parent.remove(this);
         }
     }
 
@@ -113,19 +135,21 @@ public abstract class Node {
 
     public abstract void deepForEachTopic(Consumer<Topic> f);
 
-    public void remove() {
-        if (parent != null) {
-            parent.remove(this);
-        }
-    }
-
+    /**
+     * Check if this node is a child of a node with the given name.
+     *
+     * @param n name to check for
+     * @return true if this node is a child of a node named n
+     */
     public boolean childOf(String n) {
         return n.equals(name) || parent != null && parent.childOf(n);
     }
 
     /**
+     * Get if parents will be notified for changes.
+     *
      * @return false iff changes to this node should be ignored by it's parent
-     * (ie. it's completely handled locally)
+     *     (ie. it's completely handled locally)
      */
     public boolean parentNeedsToKnow() {
         return parentNeedsToKnow;

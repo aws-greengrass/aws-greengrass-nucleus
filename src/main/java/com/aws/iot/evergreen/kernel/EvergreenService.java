@@ -77,6 +77,15 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         }
     }
 
+    /**
+     * Locate an EvergreenService by name from the provided context.
+     *
+     * @param context context to lookup the name in
+     * @param name name of the service to find
+     * @return found service or null
+     * @throws Throwable maybe throws?
+     */
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public static EvergreenService locate(Context context, String name) throws Throwable {
         return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
             Configuration c = context.get(Configuration.class);
@@ -95,7 +104,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
                             k.read(u, false);
                             context.getLog().log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name,
                                     "Found external " + "definition", s);
-                        } catch (IOException ex) {
+                        } catch (IOException ignored) {
                         }
                     } else {
                         break;
