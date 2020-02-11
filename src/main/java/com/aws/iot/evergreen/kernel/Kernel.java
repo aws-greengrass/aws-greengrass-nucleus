@@ -278,7 +278,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         try {
             EvergreenService main = getMain(); // Trigger boot  (!?!?)
-            autostart.forEach(s -> main.addDependency(s, State.AwaitingStartup));
+            autostart.forEach(s -> main.addDependency(s, State.RUNNING));
         } catch (Throwable ex) {
             log.error("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ", ex);
             mainServiceName = "fallbackMain";
@@ -393,18 +393,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return;
         }
         Log log = context.getLog();
-        log.significant("Installing software", getMain());
+        log.significant("Kernel is starting the software", getMain());
         orderedDependencies().forEach(l -> {
-            log.significant("Starting to install", l);
-            l.setState(State.Installing);
+            log.significant("Kernel is starting", l);
+            l.addDesiredState(State.RUNNING);
         });
     }
 
     public void dump() {
         orderedDependencies().forEach(l -> {
-            System.out.println(l.getName() + ": " + l.getState());
-            if (l.getState().preceeds(State.Running)) {
-                l.forAllDependencies(d -> System.out.println("    " + d.getName() + ": " + d.getState()));
+            System.out.println(l.getName() + ": " + l.getActiveState());
+            if (l.getActiveState().preceeds(State.RUNNING)) {
+                l.forAllDependencies(d -> System.out.println("    " + d.getName() + ": " + d.getActiveState()));
             }
         });
     }

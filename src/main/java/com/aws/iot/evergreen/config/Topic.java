@@ -86,8 +86,8 @@ public class Topic extends Node {
     public synchronized Topic setValue(long proposedModtime, final Object proposed) {
         //        context.getLog().note("proposing change to "+getFullName()+": "+value+" => "+proposed);
         //        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
-        //        if(proposed==Errored)
-        //            new Exception("setValue to Errored").printStackTrace();
+        //        if(proposed==ERRORED)
+        //            new Exception("setValue to ERRORED").printStackTrace();
         final Object currentValue = value;
         final long currentModtime = modtime;
         if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime) {

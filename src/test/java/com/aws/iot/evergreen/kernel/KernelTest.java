@@ -18,13 +18,15 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class KernelTest {
     static final int[] gc = new int[10];
     static final CountDownLatch[] OK = new CountDownLatch[10];
-    private static final Expected[] expectations = {new Expected(0, "RUNNING", "Main service"),
+    private static final Expected[] expectations = {new Expected(0, "MAIN RUNNING", "Main service"),
             //new Expected("docs.docker.com/", "docker hello world"),
-            new Expected(0, "tick-tock", "periodic", 3), new Expected(0, "ANSWER=42", "global setenv"),
-            new Expected(0, "EVERGREEN_UID=", "generated unique token"), new Expected(0, "mqtt.moquette.run",
-            "moquette mqtt server"), new Expected(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
-            new Expected(1, "NEWMAIN", "Assignment to 'run' script'"), new Expected(2, "JUSTME=fancy a spot of " +
-            "coffee?", "merge yaml"),};
+            new Expected(0, "tick-tock", "periodic", 3),
+            new Expected(0, "ANSWER=42", "global setenv"),
+            new Expected(0, "EVERGREEN_UID=", "generated unique token"),
+            new Expected(0, "mqtt.moquette.run", "moquette mqtt server"),
+            new Expected(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
+            new Expected(1, "NEWMAIN", "Assignment to 'run' script'"),
+            new Expected(2, "JUSTME=fancy a spot of " + "coffee?", "merge yaml"),};
 
     static {
         for (int i = gc.length; --i >= 0; ) {
@@ -42,43 +44,46 @@ public class KernelTest {
         kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", Kernel.class.getResource("config_broken.yaml").toString());
 
         LinkedList<ExpectedStateTransition> expectedStateTransitionList =
-                new LinkedList<>(Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.New,
-                                State.Installing), new ExpectedStateTransition("installErrorRetry", State.Installing,
-                                State.Errored), new ExpectedStateTransition("installErrorRetry", State.Errored,
-                                State.Installing), new ExpectedStateTransition("installErrorRetry", State.Installing,
-                                State.AwaitingStartup),
+                new LinkedList<>(Arrays.asList(
+                        // installErrorRetry should fail first time and succeeded after re-trial
+                        new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
+                        new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.INSTALLED),
+                        new ExpectedStateTransition("installErrorRetry", State.INSTALLED, State.RUNNING),
 
                         // main service doesn't start until dependency ready
-                        new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
-                        new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting),
-                        new ExpectedStateTransition("main", State.Starting, State.Running),
+                        new ExpectedStateTransition("runErrorRetry", State.INSTALLED, State.RUNNING),
+                        new ExpectedStateTransition("main", State.INSTALLED, State.RUNNING),
 
                         // runErrorRetry restart on error
-                        new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
-                        new ExpectedStateTransition("runErrorRetry", State.Errored, State.AwaitingStartup),
-
                         // main service restart on dependency error
-                        new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
-                        new ExpectedStateTransition("main", State.Running, State.AwaitingStartup),
-                        new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
-                        new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting)));
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),
+                        new ExpectedStateTransition("runErrorRetry", State.ERRORED, State.FINISHED),
+
+                        new ExpectedStateTransition("main", State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition("main", State.STOPPING, State.FINISHED),
+
+                        new ExpectedStateTransition("runErrorRetry", State.FINISHED, State.INSTALLED),
+                        new ExpectedStateTransition("main", State.FINISHED, State.INSTALLED),
+
+                        new ExpectedStateTransition("runErrorRetry", State.INSTALLED, State.RUNNING),
+                        new ExpectedStateTransition("main", State.INSTALLED, State.RUNNING)));
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State prevState, State activeState) -> {
             if (expectedStateTransitionList.size() == 0) {
                 return;
             }
 
             ExpectedStateTransition expected = expectedStateTransitionList.peek();
 
-            if (service.getName().equals(expected.serviceName) && was.equals(expected.was) && service.getState().equals(expected.current)) {
-                System.out.println(String.format("Just saw state event for service %s: %s=> %s", expected.serviceName
+            if (service.getName().equals(expected.serviceName) && prevState.equals(expected.was) && activeState.equals(expected.current)) {
+                System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName
                         , expected.was, expected.current));
 
                 expectedStateTransitionList.pollFirst();
                 if (expectedStateTransitionList.size() == 0) {
-                    // all assersion done.
+                    // all assertion done.
                     assertionLatch.countDown();
                 }
             }
@@ -90,7 +95,7 @@ public class KernelTest {
         kernel.shutdown();
         if (expectedStateTransitionList.size() != 0 || !ok) {
             for (ExpectedStateTransition e : expectedStateTransitionList) {
-                System.err.println(String.format("Fail to see state event for service %s: %s=> %s", e.serviceName,
+                System.err.println(String.format("Fail to see state event for service %s: %s => %s", e.serviceName,
                         e.was, e.current));
             }
             fail("Not seen all expected state transitions");

@@ -63,46 +63,39 @@ class EvergreenServiceTest {
 
         // verify stateTopic
         Mockito.verify(stateTopic).setParentNeedsToKnow(false);
-        Mockito.verify(stateTopic).setValue(Long.MAX_VALUE, State.New);
+        Mockito.verify(stateTopic).setValue(Long.MAX_VALUE, State.NEW);
         Mockito.verify(stateTopic).validate(validatorArgumentCaptor.capture());
-        Mockito.verify(stateTopic).subscribe(evergreenService);
+//        Mockito.verify(stateTopic).subscribe(evergreenService);
         Mockito.verifyNoMoreInteractions(stateTopic);
 
         // verify validator
         Validator validator = validatorArgumentCaptor.getValue();
-        State returnedState = (State) validator.validate(State.New, null);
-        Assertions.assertSame(State.New, returnedState);
+        State returnedState = (State) validator.validate(State.NEW, null);
+        Assertions.assertSame(State.NEW, returnedState);
+
+        Assertions.assertSame(State.NEW, evergreenService.getActiveState());
+
     }
 
     @Test
-    void GIVEN_a_new_state_WHEN_getState_THEN_return_the_new_state() {
-        Mockito.when(stateTopic.getOnce()).thenReturn(State.New);
-
-        Assertions.assertSame(State.New, evergreenService.getState());
-
-        Mockito.verify(stateTopic).getOnce();
-    }
-
-    @Test
-    void GIVEN_a_service_in_new_state_WHEN_setState_to_installing_THEN_installing_state_gets_published() {
+    void GIVEN_a_service_in_new_state_WHEN_broadcastStateChange_to_installed_THEN_installed_state_gets_published() {
         // GIVEN
-        State currentState = State.New;
-        State newState = State.Installing;
+        State currentState = State.NEW;
+        State newState = State.INSTALLED;
 
         Mockito.when(stateTopic.getOnce()).thenReturn(currentState);
         Mockito.when(context.getLog()).thenReturn(log);
         Mockito.when(config.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
 
         // WHEN
-        evergreenService.setState(newState);
+        evergreenService.broadcastStateChange(newState);
 
         // THEN
         InOrder inOrder = Mockito.inOrder(stateTopic, context, log);
         inOrder.verify(stateTopic).getOnce();
         inOrder.verify(context).getLog();
-        inOrder.verify(log).note(EVERGREEN_SERVICE_FULL_NAME, currentState, "=>", newState);
         inOrder.verify(stateTopic).setValue(Long.MAX_VALUE, newState);
-        inOrder.verify(context).globalNotifyStateChanged(evergreenService, currentState);
+        inOrder.verify(context).globalNotifyStateChanged(evergreenService, currentState, newState);
 
 
     }

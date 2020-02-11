@@ -15,7 +15,7 @@ public interface InjectionActions {
 
     /**
      * Called after dependency injection, but before dependencies are all
-     * Running.  It is critical that you remember to call super.postInject() when you
+     * RUNNING.  It is critical that you remember to call super.postInject() when you
      * override this method.
      */
     default void postInject() {

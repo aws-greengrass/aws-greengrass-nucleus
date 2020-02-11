@@ -204,17 +204,18 @@ public class Context implements Closeable {
         }
     }
 
-    public synchronized void globalNotifyStateChanged(EvergreenService l, final State was) {
+    public synchronized void globalNotifyStateChanged(EvergreenService service, final State prevState,
+                                                      final State activeState) {
         if (listeners != null) {
-            listeners.forEach(s -> s.globalServiceStateChanged(l, was));
+            listeners.forEach(s -> s.globalServiceStateChanged(service, prevState, activeState));
         }
     }
 
-    public void setAllStates(State ms) {
+    public void addDesiredStatesForAll(State desiredState) {
         forEach(f -> {
             Object v = f.get();
             if (v instanceof EvergreenService) {
-                ((EvergreenService) v).setState(ms);
+                ((EvergreenService) v).addDesiredState(desiredState);
             }
         });
     }
@@ -412,7 +413,7 @@ public class Context implements Closeable {
                             //                            .getName()
                             //                            + " = " + v);
                             if (asService != null && v instanceof EvergreenService) {
-                                asService.addDependency((EvergreenService) v, startWhen == null ? State.Running :
+                                asService.addDependency((EvergreenService) v, startWhen == null ? State.RUNNING :
                                         startWhen.value());
                             }
                         } catch (Throwable ex) {

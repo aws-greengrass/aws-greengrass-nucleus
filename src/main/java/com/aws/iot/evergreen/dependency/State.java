@@ -11,41 +11,58 @@ public enum State {
     /**
      * Object does not have a state (not a Lifecycle)
      */
-    Stateless(true, false, false),
+    STATELESS(true, false, false),
+
     /**
      * Freshly created, probably being injected
      */
-    New(true, false, false),
+    NEW(true, false, false),
+
     /**
      * Associated artifacts are being installed. TODO: How to handle the download
      * phase of installation is a topic of debate.  For now, Downloading isn't a state
      * since it can (and should) be done in the background by a MIN_PRIORITY thread.
      */
-    Installing(true, false, false),
+    @Deprecated
+    INSTALLING(true, false, false),
+
     /**
-     * Waiting for some dependency to start Running
+     * Associated artifacts are installed.
      */
-    AwaitingStartup(true, false, false),
+    INSTALLED(true, false, false),
+
+    /**
+     * Waiting for some dependency to start RUNNING
+     */
+    @Deprecated
+    AWAITING_STARTUP(true, false, false),
     /**
      * Executed when all dependencies are satisfied. When this step is completed
-     * the service will be Running.
+     * the service will be RUNNING.
      */
-    Starting(true, false, false),
+    @Deprecated
+    STARTING(true, false, false),
     /**
      * Up and running, operating normally. This is the only state that should
      * ever take a significant amount of time to run.
      */
-    Running(true, true, true),
+    RUNNING(true, true, true),
     //    /**
-    //     * Running, but experiencing problems that the service is attempting to
+    //     * RUNNING, but experiencing problems that the service is attempting to
     //     * repair itself
     //     */
     //    Unstable(false, true, false),
+
+    /**
+     *
+     */
+    STOPPING(true, false, false),
+
     /**
      * Not running. It may be possible for the enclosing framework to restart
      * it.
      */
-    Errored(false, false, false),
+    ERRORED(false, false, false),
     //    /**
     //     * In the process of being restarted
     //     */
@@ -53,18 +70,20 @@ public enum State {
     /**
      * Shut down, cannot be restarted.  Generally the result of an unresolvable error.
      */
-    Broken(false, false, false),
+    BROKEN(false, false, false),
     /**
      * The service has done it's job and has no more to do. May be restarted
      * (for example, a monitoring task that will be restarted by a timer)
      */
-    Finished(true, false, true);
+    FINISHED(true, false, true);
 
     private final boolean happy;
     private final boolean running;
     private final boolean functioningProperly;
 
     State(boolean h, boolean r, boolean p) {
+        // TODO Review with James and team
+        // Do we need these anymore?
         happy = h;
         running = r;
         functioningProperly = p;

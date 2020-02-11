@@ -10,6 +10,8 @@ import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
 
 import java.nio.CharBuffer;
+import java.time.Instant;
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,8 +53,8 @@ public class Periodicity {
             Periodicity ret;
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);
             Runnable action = () -> {
-                if (s.inState(State.Finished)) {
-                    s.setState(State.Running);
+                if (s.inState(State.FINISHED)) {
+                    s.addDesiredState(State.RUNNING);
                 }
             };
             if (n instanceof Topic) {

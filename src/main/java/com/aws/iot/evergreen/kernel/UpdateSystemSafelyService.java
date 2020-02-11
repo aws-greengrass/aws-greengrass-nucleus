@@ -61,7 +61,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
         pendingActions.put(tag, action);
         log.note(getName(), "Adding update action", tag);
         if (!isPeriodic()) {
-            setState(State.Running);
+            addDesiredState(State.RUNNING);
         }
     }
 

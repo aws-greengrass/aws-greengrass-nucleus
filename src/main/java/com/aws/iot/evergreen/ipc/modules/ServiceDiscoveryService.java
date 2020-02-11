@@ -51,6 +51,7 @@ public class ServiceDiscoveryService extends EvergreenService {
 
     @Override
     public void postInject() {
+        super.postInject();
         try {
             router.registerServiceCallback(SERVICE_DISCOVERY_NAME, this::handleMessage);
         } catch (IPCException e) {

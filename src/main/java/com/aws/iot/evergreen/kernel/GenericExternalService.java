@@ -32,7 +32,8 @@ public class GenericExternalService extends EvergreenService {
         c.subscribe((what, child) -> {
             if (c.parentNeedsToKnow() && !child.childOf("shutdown")) {
                 context.getLog().warn(getName(), "responding to change to", child);
-                setState(child.childOf("install") ? State.Installing : State.AwaitingStartup);
+                //TODO Do we always want to restart?
+                requestRestart();
             }
         });
 
@@ -46,8 +47,9 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void install() {
-        if (run("install", null) == RunStatus.Errored) {
-            setState(State.Errored);
+        RunStatus runStatus = run("install", null);
+        if (runStatus == RunStatus.Errored) {
+            throw new RuntimeException("Errored when running install script.");
         }
         super.install();
     }
@@ -61,7 +63,7 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void startup() {
         if (run("startup", null) == RunStatus.Errored) {
-            setState(State.Errored);
+            addDesiredState(State.ERRORED);
         }
         super.startup();
     }
@@ -72,32 +74,28 @@ public class GenericExternalService extends EvergreenService {
             currentScript = null;
             if (!inShutdown) {
                 if (exit == 0) {
-                    setState(State.Finished);
-                    context.getLog().significant(getName(), "Finished");
+                    addDesiredState(State.FINISHED);
+                    context.getLog().significant(getName(), "FINISHED");
                 } else {
-                    setState(State.Errored);
+                    addDesiredState(State.ERRORED);
                     context.getLog().error(getName(), "Failed", exit2String(exit));
                 }
             }
         }) == RunStatus.NothingDone) {
             context.getLog().significant(getName(), "run: NothingDone");
-            setState(State.Finished);
+            addDesiredState(State.FINISHED);
         }
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown() throws IOException {
         inShutdown = true;
         run("shutdown", null);
         Exec e = currentScript;
         if (e != null && e.isRunning()) {
-            try {
-                context.getLog().significant(getName(), "shutting down", e);
-                e.close();
-                e.waitClosed(1000);
-            } catch (IOException ioe) {
-                context.getLog().error(this, "shutdown failure", Utils.getUltimateMessage(ioe));
-            }
+            context.getLog().significant(getName(), "shutting down", e);
+            e.close();
+            e.waitClosed(1000);
         }
         inShutdown = false;
     }

@@ -129,7 +129,7 @@
         pwd
         printenv
         while true; do
-        date; sleep 5; echo RUNNING
+        date; sleep 5; echo MAIN RUNNING
         done
       download:
         hw.jar: http://foo/hw.jar
