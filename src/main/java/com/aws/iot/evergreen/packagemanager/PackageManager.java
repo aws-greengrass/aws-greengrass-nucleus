@@ -2,7 +2,6 @@ package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.model.Package;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +35,21 @@ public class PackageManager {
         serviceRegistryMap.put(rootPackage.getServiceName(), rootPackage);
 
         return rootPackage;
+    }
+
+    public Package loadPackage(String targetPackageName, String targetPackageVersion) {
+        return null;
+    }
+
+    /*
+     given target package, download it and its dependencies artifacts
+     the downloading process should be asynchronous with boolean return type
+     to indicate whether it's finished
+     */
+    public boolean downloadArtifacts(Package targetPackage) {
+        // for simplicity, implement in synchronous manner
+        artifactCache.cacheArtifact(targetPackage);
+        return true;
     }
 
     public void installService(String serviceName) {
