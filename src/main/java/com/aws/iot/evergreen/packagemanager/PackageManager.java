@@ -38,7 +38,7 @@ public class PackageManager {
     }
 
     public Package loadPackage(String targetPackageName, String targetPackageVersion) {
-        return null;
+        return packageLoader.loadPackage(targetPackageName, targetPackageVersion);
     }
 
     /*

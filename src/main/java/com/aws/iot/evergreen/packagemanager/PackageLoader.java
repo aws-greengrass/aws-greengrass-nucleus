@@ -57,6 +57,29 @@ public class PackageLoader {
         return rootPackage;
     }
 
+    public Package loadPackage(String packageName, String packageVersion) {
+         PackageProvider packageProvider = new MockPackageProvider();
+         Package targetPackage = constructAndRegisterPackage(new ByteArrayInputStream(packageProvider.getPackageRecipe(packageName, packageVersion,
+                 "deploymentId").getBytes()));
+
+        Queue<Package> packageQueue = new LinkedList<>();
+        packageQueue.offer(targetPackage);
+
+        while (!packageQueue.isEmpty()) {
+            Package pkg = packageQueue.poll();
+            for (Package.Dependency dependency : pkg.getDependencies()) {
+                String serializedRecipe = packageProvider.getPackageRecipe(dependency.getPackageName(),
+                        dependency.getPackageVersion(), "deploymentId");
+                Package dpkg = constructAndRegisterPackage(new ByteArrayInputStream(serializedRecipe.getBytes()));
+                pkg.getDependencyPackageMap()
+                        .put(dependency.getPackageName() + "-" + dependency.getPackageVersion(), dpkg);
+                packageQueue.offer(dpkg);
+            }
+        }
+
+        return targetPackage;
+    }
+
     private Package constructAndRegisterPackage(InputStream recipeStream) {
         Package pkg = null;
         try {
