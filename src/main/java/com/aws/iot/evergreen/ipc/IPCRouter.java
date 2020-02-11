@@ -32,12 +32,12 @@ public class IPCRouter {
     @Inject
     Log log;
 
-    private final Map<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
+    private final Map<Integer, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
     private final Map<ConnectionContext, Channel> clientToChannelMap = new ConcurrentHashMap<>();
     private final Map<ConnectionContext, List<Consumer<ConnectionContext>>> clientToDisconnectorsMap =
             new ConcurrentHashMap<>();
-    private final Map<ClientAndSequenceNumber, CompletableFuture<FrameReader.Message>> sequenceNumberToCallbackMap =
-            new ConcurrentHashMap<ClientAndSequenceNumber, CompletableFuture<FrameReader.Message>>();
+    private final Map<ClientAndRequestId, CompletableFuture<FrameReader.Message>> requestIdToCallbackMap =
+            new ConcurrentHashMap<>();
 
     /**
      * Registers a callback for a destination, Dispatcher will invoke the function for all message with registered
@@ -48,7 +48,7 @@ public class IPCRouter {
      *                    the thread safe
      * @throws IPCException if the callback is already registered for a destination
      */
-    public void registerServiceCallback(String destination, IPCCallback callback) throws IPCException {
+    public void registerServiceCallback(int destination, IPCCallback callback) throws IPCException {
         log.log(Log.Level.Note, "registering callback for destination ", destination);
         IPCCallback existingFunction = destinationCallbackMap.putIfAbsent(destination, callback);
         if (existingFunction != null) {
@@ -63,7 +63,7 @@ public class IPCRouter {
      * @return destination callback (may be null)
      */
     @Nullable
-    public IPCCallback getCallbackForDestination(String destination) {
+    public IPCCallback getCallbackForDestination(int destination) {
         return destinationCallbackMap.get(destination);
     }
 
@@ -97,8 +97,8 @@ public class IPCRouter {
                     new FrameReader.MessageFrame(destination, message, FrameReader.FrameType.REQUEST);
 
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
-            sequenceNumberToCallbackMap
-                    .put(new ClientAndSequenceNumber(requestFrame.sequenceNumber, connectionContext), fut);
+            requestIdToCallbackMap
+                    .put(new ClientAndRequestId(requestFrame.requestId, connectionContext), fut);
 
             channel.writeAndFlush(requestFrame);
 
@@ -113,13 +113,11 @@ public class IPCRouter {
      * @param context client which disconnected's context
      */
     public void clientDisconnected(ConnectionContext context) {
-        List<Consumer<ConnectionContext>> disconnectors = clientToDisconnectorsMap.get(context);
+        clientToChannelMap.remove(context);
+        List<Consumer<ConnectionContext>> disconnectors = clientToDisconnectorsMap.remove(context);
         if (disconnectors != null) {
             disconnectors.forEach(d -> d.accept(context));
         }
-
-        clientToChannelMap.remove(context);
-        clientToDisconnectorsMap.remove(context);
     }
 
     /**
@@ -136,33 +134,33 @@ public class IPCRouter {
     /**
      * Only called by MessageRouter, do not call in any other place.
      * Called to handle a response type message coming into the server.
-     * A sequence number listener should have already been registered.
+     * A request id listener should have already been registered.
      *
      * @param context the client context
      * @param message the incoming response message
-     * @throws IPCException if no callback was registered for the sequence number
+     * @throws IPCException if no callback was registered for the request id
      */
     public void handleResponseMessage(ConnectionContext context, FrameReader.MessageFrame message) throws IPCException {
         CompletableFuture<FrameReader.Message> fut =
-                sequenceNumberToCallbackMap.get(new ClientAndSequenceNumber(message.sequenceNumber, context));
+                requestIdToCallbackMap.get(new ClientAndRequestId(message.requestId, context));
         if (fut == null) {
             throw new IPCException(
-                    "Callback not found for incoming response message with sequence number " + message.sequenceNumber);
+                    "Callback not found for incoming response message with request id " + message.requestId);
         }
         fut.complete(message.message);
     }
 
 
     /**
-     * Just having a mapping from sequence number to callback isn't good enough because our sequence numbers
+     * Just having a mapping from request id to callback isn't good enough because our request ids
      * aren't random. This ensures that we map the response back to the correct listener based on what
      * connection was used to send the request to begin with.
      */
     @AllArgsConstructor
     @Getter
     @EqualsAndHashCode
-    private static class ClientAndSequenceNumber {
-        private final int sequenceNumber;
+    private static class ClientAndRequestId {
+        private final int requestId;
         private final ConnectionContext context;
     }
 }
