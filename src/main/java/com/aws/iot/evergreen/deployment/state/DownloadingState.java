@@ -17,6 +17,7 @@ public class DownloadingState implements State {
 
     @Override
     public boolean canProceed() {
+        System.out.println("<Downloading>: checking if deployment can proceed");
         //invoke package manager to download artifact, download can be asynchronous
         for (Package pkg : deploymentProcess.getTargetPackages().values()) {
             packageManager.downloadArtifacts(pkg);
@@ -26,6 +27,7 @@ public class DownloadingState implements State {
 
     @Override
     public void proceed() {
+        System.out.println("<Downloading>: proceed");
         deploymentProcess.setCurrentState(deploymentProcess.getDownloadedState());
     }
 

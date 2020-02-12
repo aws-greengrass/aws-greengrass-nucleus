@@ -58,8 +58,8 @@ public class PackageLoader {
     }
 
     public Package loadPackage(String packageName, String packageVersion) {
-         PackageProvider packageProvider = new MockPackageProvider();
-         Package targetPackage = constructAndRegisterPackage(new ByteArrayInputStream(packageProvider.getPackageRecipe(packageName, packageVersion,
+        PackageProvider packageProvider = new MockPackageProvider();
+        Package targetPackage = constructAndRegisterPackage(new ByteArrayInputStream(packageProvider.getPackageRecipe(packageName, packageVersion,
                  "deploymentId").getBytes()));
 
         Queue<Package> packageQueue = new LinkedList<>();

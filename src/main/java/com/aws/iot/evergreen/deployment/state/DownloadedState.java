@@ -22,6 +22,7 @@ public class DownloadedState implements State {
 
     @Override
     public boolean canProceed() {
+        System.out.println("<Downloaded>: checking if deployment can proceed");
         // check update kernel conditions
         DeploymentPacket packet = deploymentProcess.getDeploymentPacket();
         BiPredicate<Kernel, Map<String, Map<String, Parameter>>> updateCondition = packet.getUpdateCondition();
@@ -33,6 +34,7 @@ public class DownloadedState implements State {
 
     @Override
     public void proceed() {
+        System.out.println("<Downloaded>: proceed");
         // resolve kernel config
         deploymentProcess.setResolvedKernelConfig(resolveKernelConfig());
         deploymentProcess.setCurrentState(deploymentProcess.getUpdatingKernelState());

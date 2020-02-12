@@ -27,6 +27,7 @@ public class InitializedState implements State {
 
     @Override
     public boolean canProceed() {
+        System.out.println("<Initialized>: checking if deployment can proceed");
         // check deployment download condition
         DeploymentPacket packet = deploymentProcess.getDeploymentPacket();
         BiPredicate<Kernel, Map<String, Map<String, Parameter>>> downloadCondition = packet.getDownloadCondition();
@@ -38,6 +39,7 @@ public class InitializedState implements State {
 
     @Override
     public void proceed() {
+        System.out.println("<Initialized>: proceed");
         //invoke package manager to resolve dependency tree
         Map<String, Map<String, Parameter>> targetPackageConfigs = deploymentProcess.getDeploymentPacket().getTargetPackageConfigs();
         Map<String, Package> targetPackages = targetPackageConfigs.keySet().stream().collect(Collectors.toMap(Function.identity(), this::loadPackage));
@@ -49,7 +51,7 @@ public class InitializedState implements State {
     private Package loadPackage(String packageIdentifier) {
         //TODO validate
         String[] packageIdentifiers = packageIdentifier.split("-");
-        if (packageIdentifier.length() != 2) {
+        if (packageIdentifiers.length != 2) {
             throw new RuntimeException("Failed to parse package identifier");
         }
 

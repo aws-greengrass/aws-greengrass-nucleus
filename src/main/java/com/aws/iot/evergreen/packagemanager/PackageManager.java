@@ -48,7 +48,7 @@ public class PackageManager {
      */
     public boolean downloadArtifacts(Package targetPackage) {
         // for simplicity, implement in synchronous manner
-        artifactCache.cacheArtifact(targetPackage);
+        //artifactCache.cacheArtifact(targetPackage);
         return true;
     }
 
