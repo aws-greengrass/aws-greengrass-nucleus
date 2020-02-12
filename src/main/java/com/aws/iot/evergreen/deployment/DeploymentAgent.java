@@ -19,6 +19,11 @@ public class DeploymentAgent {
 
     private PackageManager packageManager;
 
+    public DeploymentAgent(Kernel kernel, PackageManager packageManager) {
+        this.kernel = kernel;
+        this.packageManager = packageManager;
+    }
+
 
     public void deploy(DeploymentPacket deploymentPacket) {
         if (currentTask != null) {
@@ -35,5 +40,9 @@ public class DeploymentAgent {
         if (currentDeploymentProcess != null && !currentDeploymentProcess.getCurrentState().isFinalState()) {
             currentDeploymentProcess.cancel();
         }
+    }
+
+    public Future<?> getCurrentTask() {
+        return currentTask;
     }
 }

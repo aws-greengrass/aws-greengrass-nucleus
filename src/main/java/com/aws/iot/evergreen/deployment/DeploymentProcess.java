@@ -104,13 +104,16 @@ public class DeploymentProcess {
                 currentState.proceed();
             } else {
                 try {
-                    Thread.sleep(30000);
+                    int duration = 10;
+                    System.out.println(String.format("deployment sleep for %d seconds", duration));
+                    Thread.sleep(duration * 1000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             }
         }
+        System.out.println("final state is " + currentState.getClass().getSimpleName());
     }
 
     public void cancel() {

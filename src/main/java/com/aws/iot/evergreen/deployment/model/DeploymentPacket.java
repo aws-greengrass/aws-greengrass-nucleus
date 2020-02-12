@@ -12,6 +12,18 @@ public class DeploymentPacket {
 
     private BiPredicate<Kernel, Map<String, Map<String, Parameter>>> updateCondition;
 
+    public void setTargetPackageConfigs(Map<String, Map<String, Parameter>> configs) {
+        this.targetPackageConfigs = configs;
+    }
+
+    public void setDownloadCondition(BiPredicate<Kernel, Map<String, Map<String, Parameter>>> condition) {
+        this.downloadCondition = condition;
+    }
+
+    public void setUpdateCondition(BiPredicate<Kernel, Map<String, Map<String, Parameter>>> condition) {
+        this.updateCondition = condition;
+    }
+
     public Map<String, Map<String, Parameter>> getTargetPackageConfigs() {
         return targetPackageConfigs;
     }
