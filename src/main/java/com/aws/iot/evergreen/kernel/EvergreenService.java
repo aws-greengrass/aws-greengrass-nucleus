@@ -105,7 +105,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
 
-    protected void updateActiveState(State newState) {
+    private void updateActiveState(State newState) {
         State oldState = activeState;
         activeState = newState;
         context.getLog().significant(this, "Transited", oldState, "=>", newState);
@@ -178,6 +178,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
                                     } catch (InterruptedException e) {
                                         errored("Interrupted while waiting for dependency ready", e);
+                                        continue;
                                     }
                                 }
 
@@ -188,6 +189,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                                     context.getLog().note(this, "Called starting up");
                                 } catch (Throwable t) {
                                     errored("Failed when starting up", t);
+                                    continue;
                                 }
 
                                 // run
@@ -197,6 +199,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                                     context.getLog().note(this, "Called run");
                                 } catch (Throwable t) {
                                     errored("Failed when running", t);
+                                    continue;
                                 }
 
                                 if (!errored()) {
@@ -213,7 +216,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                         }
                         break;
                     case STOPPING:
-                        if (activeState == State.RUNNING) {
+                        if (State.RUNNING.equals(activeState)) {
                             // Running -> Stopping
                             updateActiveState(State.STOPPING);
 
@@ -224,6 +227,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
                             } catch (Throwable t) {
                                 errored("Failed when shutting down", t);
+                                continue;
                             }
                         } else {
                             // Other states can directly go to finished
