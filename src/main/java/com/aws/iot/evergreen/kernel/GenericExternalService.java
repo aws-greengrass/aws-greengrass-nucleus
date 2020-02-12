@@ -117,7 +117,7 @@ public class GenericExternalService extends EvergreenService {
      * @return the status of the run.
      */
     protected RunStatus run(String name, IntConsumer background) {
-        Node n = pickByOS(name);
+        Node n = config.getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 
