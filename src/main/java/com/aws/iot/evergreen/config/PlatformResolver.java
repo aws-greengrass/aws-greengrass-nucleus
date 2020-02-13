@@ -14,66 +14,66 @@ import java.util.Set;
 
 public class PlatformResolver {
 
-    private static final Set<String> SUPPORTED_PLATFORMS = new HashSet<>();
-    private static final HashMap<String, Integer> RANKS = new HashMap<>();
+    private static final Set<String> SUPPORTED_PLATFORMS = new HashSet<String>() {{
+        addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora",
+                "ubuntu", "macos", "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
+    }};
 
-    static {
-        initialize();
-    }
+    private static final Map<String, Integer> RANKS = initializeRanks();
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
             value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
-    private static void initialize() {
+    private static Map<String, Integer> initializeRanks() {
+        Map<String, Integer> ranks = new HashMap<>();
         // figure out what OS we're running and add applicable tags
         // The more specific a tag is, the higher its rank should be
         // TODO: use better way to determine if a field is platform specific. Eg: using 'platform$' prefix.
-        RANKS.put("all", 0);
-        RANKS.put("any", 0);
+        ranks.put("all", 0);
+        ranks.put("any", 0);
         if (Files.exists(Paths.get("/bin/bash")) || Files.exists(Paths.get("/usr/bin/bash"))) {
-            RANKS.put("unix", 3);
-            RANKS.put("posix", 3);
+            ranks.put("unix", 3);
+            ranks.put("posix", 3);
         }
         if (Files.exists(Paths.get("/proc"))) {
-            RANKS.put("linux", 10);
+            ranks.put("linux", 10);
         }
         if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
-            RANKS.put("debian", 11);
+            ranks.put("debian", 11);
         }
         if (Exec.isWindows) {
-            RANKS.put("windows", 5);
+            ranks.put("windows", 5);
         }
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
-            RANKS.put("fedora", 11);
+            ranks.put("fedora", 11);
         }
         String sysver = Exec.sh("uname -a").toLowerCase();
         if (sysver.contains("ubuntu")) {
-            RANKS.put("ubuntu", 20);
+            ranks.put("ubuntu", 20);
         }
         if (sysver.contains("darwin")) {
-            RANKS.put("macos", 20);
+            ranks.put("macos", 20);
         }
         if (sysver.contains("raspbian")) {
-            RANKS.put("raspbian", 22);
+            ranks.put("raspbian", 22);
         }
         if (sysver.contains("qnx")) {
-            RANKS.put("qnx", 22);
+            ranks.put("qnx", 22);
         }
         if (sysver.contains("cygwin")) {
-            RANKS.put("cygwin", 22);
+            ranks.put("cygwin", 22);
         }
         if (sysver.contains("freebsd")) {
-            RANKS.put("freebsd", 22);
+            ranks.put("freebsd", 22);
         }
         if (sysver.contains("solaris") || sysver.contains("sunos")) {
-            RANKS.put("solaris", 22);
+            ranks.put("solaris", 22);
         }
         try {
-            RANKS.put(InetAddress.getLocalHost().getHostName(), 99);
+            ranks.put(InetAddress.getLocalHost().getHostName(), 99);
         } catch (UnknownHostException ex) {
         }
 
-        SUPPORTED_PLATFORMS.addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora",
-                "ubuntu", "macos", "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
+        return ranks;
     }
 
     public static Object resolvePlatform(Map<Object, Object> input) {
