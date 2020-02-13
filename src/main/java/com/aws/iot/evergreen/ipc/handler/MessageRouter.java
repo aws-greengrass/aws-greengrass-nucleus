@@ -102,9 +102,9 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
                 RequestContext context = auth.doAuth(message.message);
                 ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(context);
                 log.note("Successfully authenticated client", ctx.channel().remoteAddress(), context);
-                sendResponse(new FrameReader.Message(
-                                IPCUtil.encode(GeneralResponse.builder().error(GenericErrorCodes.Success).build())),
-                        message.sequenceNumber, message.destination, ctx, false);
+                sendResponse(new FrameReader.Message(IPCUtil.encode(
+                        GeneralResponse.builder().response(context.getServiceName()).error(GenericErrorCodes.Success)
+                                .build())), message.sequenceNumber, message.destination, ctx, false);
             } catch (Throwable t) {
                 log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
                 sendResponse(new FrameReader.Message(IPCUtil.encode(
