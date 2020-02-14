@@ -4,12 +4,22 @@
 
 package com.aws.iot.evergreen.ipc;
 
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
+import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
+import io.netty.channel.Channel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -19,9 +29,15 @@ import javax.inject.Inject;
 @AllArgsConstructor
 @NoArgsConstructor
 public class IPCRouter {
-    private final ConcurrentHashMap<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
     @Inject
     Log log;
+
+    private final Map<String, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
+    private final Map<ConnectionContext, Channel> clientToChannelMap = new ConcurrentHashMap<>();
+    private final Map<ConnectionContext, List<Consumer<ConnectionContext>>> clientToDisconnectorsMap =
+            new ConcurrentHashMap<>();
+    private final Map<ClientAndSequenceNumber, CompletableFuture<FrameReader.Message>> sequenceNumberToCallbackMap =
+            new ConcurrentHashMap<ClientAndSequenceNumber, CompletableFuture<FrameReader.Message>>();
 
     /**
      * Registers a callback for a destination, Dispatcher will invoke the function for all message with registered
@@ -49,5 +65,104 @@ public class IPCRouter {
     @Nullable
     public IPCCallback getCallbackForDestination(String destination) {
         return destinationCallbackMap.get(destination);
+    }
+
+    /**
+     * Tries to get a connection handle from a context. The connection handle can be used to send
+     * requests to the client and then wait for a response.
+     *
+     * @param connectionContext  The request context of the client that you want the handle to.
+     * @param disconnectCallback Function to be called when the client disconnects. Use for cleaning up
+     *                           extra listeners.
+     * @return
+     */
+    @Nullable
+    public ConnectionHandle getConnectionHandle(ConnectionContext connectionContext,
+                                                Consumer<ConnectionContext> disconnectCallback) {
+        Channel channel = clientToChannelMap.get(connectionContext);
+        if (channel == null) {
+            return null;
+        }
+
+        clientToDisconnectorsMap.compute(connectionContext, (key, value) -> {
+            if (value == null) {
+                value = new ArrayList<>();
+            }
+            value.add(disconnectCallback);
+            return value;
+        });
+
+        return (destination, message) -> {
+            FrameReader.MessageFrame requestFrame =
+                    new FrameReader.MessageFrame(destination, message, FrameReader.FrameType.REQUEST);
+
+            CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
+            sequenceNumberToCallbackMap
+                    .put(new ClientAndSequenceNumber(requestFrame.sequenceNumber, connectionContext), fut);
+
+            channel.writeAndFlush(requestFrame);
+
+            return fut;
+        };
+    }
+
+    /**
+     * Only called by MessageRouter, do not call in any other place.
+     * Called when a client disconnects from the server.
+     *
+     * @param context client which disconnected's context
+     */
+    public void clientDisconnected(ConnectionContext context) {
+        List<Consumer<ConnectionContext>> disconnectors = clientToDisconnectorsMap.get(context);
+        if (disconnectors != null) {
+            disconnectors.forEach(d -> d.accept(context));
+        }
+
+        clientToChannelMap.remove(context);
+        clientToDisconnectorsMap.remove(context);
+    }
+
+    /**
+     * Only called by MessageRouter, do not call in any other place.
+     * Called when a client first authenticates successfully.
+     *
+     * @param context the context for the client that just connected
+     * @param channel the channel to talk to the client
+     */
+    public void clientConnected(ConnectionContext context, Channel channel) {
+        clientToChannelMap.put(context, channel);
+    }
+
+    /**
+     * Only called by MessageRouter, do not call in any other place.
+     * Called to handle a response type message coming into the server.
+     * A sequence number listener should have already been registered.
+     *
+     * @param context the client context
+     * @param message the incoming response message
+     * @throws IPCException if no callback was registered for the sequence number
+     */
+    public void handleResponseMessage(ConnectionContext context, FrameReader.MessageFrame message) throws IPCException {
+        CompletableFuture<FrameReader.Message> fut =
+                sequenceNumberToCallbackMap.get(new ClientAndSequenceNumber(message.sequenceNumber, context));
+        if (fut == null) {
+            throw new IPCException(
+                    "Callback not found for incoming response message with sequence number " + message.sequenceNumber);
+        }
+        fut.complete(message.message);
+    }
+
+
+    /**
+     * Just having a mapping from sequence number to callback isn't good enough because our sequence numbers
+     * aren't random. This ensures that we map the response back to the correct listener based on what
+     * connection was used to send the request to begin with.
+     */
+    @AllArgsConstructor
+    @Getter
+    @EqualsAndHashCode
+    private static class ClientAndSequenceNumber {
+        private final int sequenceNumber;
+        private final ConnectionContext context;
     }
 }

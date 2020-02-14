@@ -5,8 +5,8 @@ import com.aws.iot.evergreen.builtin.services.servicediscovery.ServiceDiscoveryA
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
@@ -64,7 +64,7 @@ public class ServiceDiscoveryService extends EvergreenService {
      * @param context client request context
      * @return future containing response message
      */
-    public Future<Message> handleMessage(Message request, RequestContext context) {
+    public Future<Message> handleMessage(Message request, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
         try {
             GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj =
