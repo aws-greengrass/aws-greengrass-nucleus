@@ -1,11 +1,9 @@
-package com.aws.iot.evergreen.ipc.handler;
+package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
-import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
@@ -87,7 +85,7 @@ public class AuthHandler implements InjectionActions {
             throw new IPCClientNotAuthorizedException("Auth token not found");
         }
 
-        return new ConnectionContext(serviceName, remoteAddress);
+        return new ConnectionContext(serviceName, remoteAddress, router);
     }
 
     void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
@@ -96,10 +94,10 @@ public class AuthHandler implements InjectionActions {
                 ConnectionContext context = doAuth(message.message, ctx.channel().remoteAddress());
                 ctx.channel().attr(IPCChannelHandler.CONNECTION_CONTEXT_KEY).set(context);
                 log.note("Successfully authenticated client", context);
+                router.clientConnected(context, ctx.channel());
                 sendResponse(new FrameReader.Message(IPCUtil.encode(
                         GeneralResponse.builder().response(context.getServiceName()).error(GenericErrorCodes.Success)
                                 .build())), message.requestId, message.destination, ctx, false);
-                router.clientConnected(context, ctx.channel());
             } catch (Throwable t) {
                 log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
                 sendResponse(new FrameReader.Message(IPCUtil.encode(

@@ -1,10 +1,8 @@
-package com.aws.iot.evergreen.ipc.handler;
+package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
@@ -29,8 +27,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 
-import static com.aws.iot.evergreen.ipc.handler.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
-import static com.aws.iot.evergreen.ipc.handler.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
+import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -114,7 +112,7 @@ class AuthHandlerTest {
                         new FrameReader.Message("MyAuthToken".getBytes(StandardCharsets.UTF_8)),
                         FrameReader.FrameType.REQUEST);
 
-        ConnectionContext requestCtx = new ConnectionContext("ABC", mock(SocketAddress.class));
+        ConnectionContext requestCtx = new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class));
         doReturn(requestCtx).when(mockAuth).doAuth(any(), any());
 
         mockAuth.handleAuth(mockCtx, requestFrame);
