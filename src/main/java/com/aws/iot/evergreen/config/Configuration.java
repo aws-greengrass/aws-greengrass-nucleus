@@ -100,26 +100,6 @@ public class Configuration {
         return n;
     }
 
-    /**
-     * Find Topic by path after resolving the path for the OS.
-     * Allows us to find Service.Lookup, or Service.Linux.Lookup whichever is appropriate.
-     */
-    public Topic findResolvedTopic(String... path) {
-        Topics t = findTopics(Arrays.copyOfRange(path, 0, path.length - 1));
-        if (t == null) {
-            return null;
-        }
-        Node topics = EvergreenService.pickByOS(t);
-        if (topics != null) {
-            if (topics instanceof Topics) {
-                return ((Topics) topics).findLeafChild(path[path.length - 1]);
-            } else if (topics instanceof Topic) {
-                return (Topic) topics;
-            }
-        }
-        return find(path);
-    }
-
     public Topics getRoot() {
         return root;
     }
@@ -133,7 +113,7 @@ public class Configuration {
     }
 
     /**
-     * Merges a Map into this configuration. The most common use case is for
+     * Merges a Map into this configuration. The merge will resolve platform. The most common use case is for
      * reading textual config files via jackson-jr. For example, to merge a
      * .yaml file:
      * <br><code>
@@ -147,8 +127,12 @@ public class Configuration {
      * @param timestamp last modified time for the configuration values
      * @param map map to merge
      */
-    public void mergeMap(long timestamp, Map<Object, Object> map) {
-        root.mergeMap(timestamp, map);
+    public void mergeMap(long timestamp, Map<Object, Object> map) throws IllegalArgumentException {
+        Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
+        if (!(resolvedPlatformMap instanceof Map)) {
+            throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
+        }
+        root.mergeMap(timestamp, (Map<Object, Object>) resolvedPlatformMap);
     }
 
     public Map<String, Object> toPOJO() {
