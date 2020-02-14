@@ -91,7 +91,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
         // TODO input validation. https://sim.amazon.com/issues/P32540011
 
         boolean pathIsReserved = kernel.orderedDependencies().parallelStream()
-                .map(service -> config.findResolvedTopic(service.getName(), SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY))
+                .map(service -> config.find(service.getName(), SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY))
                 .filter(Objects::nonNull).anyMatch(t -> {
                     Object o = t.getOnce();
                     if (o instanceof Collection) {

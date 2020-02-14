@@ -1,0 +1,16 @@
+services:
+  haskell:
+    lifecycle:
+      install: curl -sSL https://get.haskellstack.org/ | sh
+
+  influxdb:
+    requires: homebrew:AwaitingStartup
+
+    lifecycle:
+      install:
+        skipif: onpath influx
+        script: brew install influxdb
+
+      startup: brew services start influxdb
+      shutdown: brew services stop influxdb
+

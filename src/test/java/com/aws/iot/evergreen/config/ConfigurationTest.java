@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 public class ConfigurationTest {
     final Configuration config = new Configuration(new Context());
-    int prev = 0;
 
     //    @Test
     public void T1() {
@@ -132,7 +131,7 @@ public class ConfigurationTest {
             StringWriter sw = new StringWriter();
             JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(testConfig.toPOJO(), sw);
             String tc = sw.toString();
-            assertTrue(tc.contains("all: \"{platform.invoke} {name}\""));
+            assertTrue(tc.contains("\"{platform.invoke} {name}\""), tc);
             assertTrue(tc.contains("requires: \"greenlake\""));
         }
     }
