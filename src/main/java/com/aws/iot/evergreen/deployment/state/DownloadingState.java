@@ -53,7 +53,7 @@ public class DownloadingState implements State {
     }
 
     private boolean proceedDownload() {
-        System.out.println("<Downloading>: checking if can proceed downloading.");
+        System.out.println("<Downloading>: checking if can proceed downloading");
         DeploymentPacket packet = deploymentProcess.getDeploymentPacket();
         BiPredicate<Kernel, Map<String, Map<String, Parameter>>> downloadCondition = packet.getDownloadCondition();
         if (downloadCondition != null) {

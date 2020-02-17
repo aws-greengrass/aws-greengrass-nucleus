@@ -25,29 +25,26 @@ class DeploymentAgentTest {
 
 
         packet.setDownloadCondition((kernel, configs) -> {
-            System.out.println("checking download conditions");
-
             long now = new Date().getTime()/1000;
 
             int window = (int) (now%60);
 
             if (window >= 20 && window <= 40 ) {
-                System.out.println("proceed download");
+                System.out.println("[Decision] proceed download");
                 return true;
             } else {
-                System.out.println("can't download");
+                System.out.println("[Decision] can't download");
                 return false;
             }
         });
 
+
         packet.setUpdateCondition((kernel, configs) -> {
-            System.out.println("checking update conditions");
-            float random = new Random().nextFloat();
-            if (random > 0.66) {
-                System.out.println("proceed update");
+            if (new Random().nextBoolean()) {
+                System.out.println("[Decision] proceed update");
                 return true;
             } else {
-                System.out.println("can't update");
+                System.out.println("[Decision] can't update");
                 return false;
             }
         });

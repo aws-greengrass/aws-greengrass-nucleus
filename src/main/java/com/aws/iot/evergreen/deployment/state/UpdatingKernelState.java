@@ -17,7 +17,7 @@ public class UpdatingKernelState implements State {
 
     @Override
     public boolean canProceed() {
-        System.out.println("<Updating>: checking if deployment can proceed");
+        System.out.println("<Updating>: updating kernel");
         // update kernel with resolved kernel config
         // update kernel call can be asynchronous
         Map<String, Object> resolvedConfig = deploymentProcess.getResolvedKernelConfig();
@@ -27,7 +27,7 @@ public class UpdatingKernelState implements State {
 
     @Override
     public void proceed() {
-        System.out.println("<Updating>: proceed");
+        System.out.println("<Updating>: updating kernel finished, proceed");
         deploymentProcess.setCurrentState(deploymentProcess.getFinishedState());
     }
 
