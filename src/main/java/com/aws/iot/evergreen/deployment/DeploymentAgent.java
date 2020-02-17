@@ -25,7 +25,7 @@ public class DeploymentAgent {
     }
 
 
-    public void deploy(DeploymentPacket deploymentPacket) {
+    public Future<?> deploy(DeploymentPacket deploymentPacket) {
         if (currentTask != null) {
             if (!currentTask.isDone()) {
                 throw new RuntimeException("A deployment is processing");
@@ -34,6 +34,7 @@ public class DeploymentAgent {
 
         currentDeploymentProcess = new DeploymentProcess(deploymentPacket, kernel, packageManager);
         currentTask = executor.submit(currentDeploymentProcess::proceed);
+        return currentTask;
     }
 
     public void cancelDeployment() {
@@ -42,7 +43,7 @@ public class DeploymentAgent {
         }
     }
 
-    public Future<?> getCurrentTask() {
-        return currentTask;
+    public DeploymentProcess getCurrentDeploymentProcess() {
+        return currentDeploymentProcess;
     }
 }

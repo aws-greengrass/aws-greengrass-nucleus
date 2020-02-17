@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.deployment.DeploymentProcess;
 import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
 import com.aws.iot.evergreen.deployment.model.Parameter;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.model.Package;
 import java.util.Collections;
 import java.util.Map;
@@ -15,9 +16,12 @@ public class DownloadedState implements State {
 
     private final Kernel kernel;
 
-    public DownloadedState(DeploymentProcess deploymentProcess, Kernel kernel) {
+    private final PackageManager packageManager;
+
+    public DownloadedState(DeploymentProcess deploymentProcess, Kernel kernel, PackageManager packageManager) {
         this.deploymentProcess = deploymentProcess;
         this.kernel = kernel;
+        this.packageManager = packageManager;
     }
 
     @Override
@@ -46,8 +50,9 @@ public class DownloadedState implements State {
     }
 
     private Map<String, Object> resolveKernelConfig() {
-        Map<String, Package> targetPackages = deploymentProcess.getTargetPackages();
         Map<String, Map<String, Parameter>> targetPackageConfigs = deploymentProcess.getDeploymentPacket().getTargetPackageConfigs();
+        Map<String, Package> targetPackages = packageManager.loadPackages(targetPackageConfigs.keySet());
+        // resolve config
 
         return Collections.emptyMap();
     }

@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.model.Package;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 public class DeploymentProcess {
 
@@ -27,17 +28,16 @@ public class DeploymentProcess {
 
     private final DeploymentPacket deploymentPacket;
 
-    //initialize in initialized state
-    private Map<String, Package> targetPackages;
+    private Set<Package> pendingDownloadPackages;
 
     //placeholder for resolved kernel config, change the type if necessary
     //resolved in downloaded state
     private Map<String, Object> resolvedKernelConfig;
 
     public DeploymentProcess(DeploymentPacket packet, Kernel kernel, PackageManager packageManager) {
-        this.initializedState = new InitializedState(this, kernel, packageManager);
-        this.downloadingState = new DownloadingState(this, packageManager);
-        this.downloadedState = new DownloadedState(this, kernel);
+        this.initializedState = new InitializedState(this, packageManager);
+        this.downloadingState = new DownloadingState(this, kernel, packageManager);
+        this.downloadedState = new DownloadedState(this, kernel, packageManager);
         this.updatingKernelState = new UpdatingKernelState(this, kernel);
         this.finishedState = new FinishedState();
         this.canceledState = new CanceledState();
@@ -82,12 +82,12 @@ public class DeploymentProcess {
         return deploymentPacket;
     }
 
-    public void setTargetPackages(Map<String, Package> packages) {
-        this.targetPackages = Collections.unmodifiableMap(packages);
+    public void setPendingDownloadPackages(Set<Package> packages) {
+        this.pendingDownloadPackages = Collections.unmodifiableSet(packages);
     }
 
-    public Map<String, Package> getTargetPackages() {
-        return targetPackages;
+    public Set<Package> getPendingDownloadPackages() {
+        return pendingDownloadPackages;
     }
 
     public void setResolvedKernelConfig(Map<String, Object> kernelConfig) {
@@ -104,8 +104,7 @@ public class DeploymentProcess {
                 currentState.proceed();
             } else {
                 try {
-                    int duration = 10;
-                    System.out.println(String.format("deployment sleep for %d seconds", duration));
+                    int duration = 2;
                     Thread.sleep(duration * 1000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

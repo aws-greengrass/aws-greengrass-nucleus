@@ -4,7 +4,14 @@ import com.aws.iot.evergreen.packagemanager.model.Package;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class PackageManager {
 
@@ -20,6 +27,8 @@ public class PackageManager {
 
     private final SoftwareInstaller softwareInstaller;
 
+    private int downloadTrialCount = 0;
+
     public PackageManager() {
         PackageDatabaseAccessor packageDatabaseAccessor = new PackageDatabaseAccessor();
         this.packageLoader = new PackageLoader(packageDatabaseAccessor);
@@ -27,30 +36,41 @@ public class PackageManager {
         this.softwareInstaller = new SoftwareInstaller(packageDatabaseAccessor, WORKING_DIRECTORY);
     }
 
-    public Package loadPackage(String packageFolder) {
-        Package rootPackage = packageLoader.loadPackage(Paths.get(packageFolder));
-        // cache artifact
-        artifactCache.cacheArtifact(rootPackage);
-        //root recipe should contain service name
-        serviceRegistryMap.put(rootPackage.getServiceName(), rootPackage);
-
-        return rootPackage;
+    private Package loadPackage(String packageIdentifier) {
+        String[] ids = packageIdentifier.split("-");
+        if (ids.length != 2) {
+            throw new RuntimeException("Failed to recognize package name/version");
+        }
+        return packageLoader.loadPackage(ids[0], ids[1]);
     }
 
-    public Package loadPackage(String targetPackageName, String targetPackageVersion) {
-        return packageLoader.loadPackage(targetPackageName, targetPackageVersion);
+    public Map<String, Package> loadPackages(Set<String> targetPackageIdentifiers) {
+        return targetPackageIdentifiers.stream().collect(Collectors.toMap(Function.identity(), this::loadPackage));
+    }
+
+    public Set<Package> getPendingDownloadPackages(Set<String> targetPackageIdentifiers) {
+        return Collections.emptySet();
     }
 
     /*
-     given target package, download it and its dependencies artifacts
+     given packages, download its  artifacts
      the downloading process should be asynchronous with boolean return type
      to indicate whether it's finished
      */
-    public boolean downloadArtifacts(Package targetPackage) {
-        // for simplicity, implement in synchronous manner
-        //artifactCache.cacheArtifact(targetPackage);
-        return true;
+    public Future<Boolean> downloadPackages(Set<Package> pendingDownloadPackage) {
+        System.out.println(String.format("download %d trial", downloadTrialCount+1));
+        return Executors.newSingleThreadExecutor().submit(() -> {
+            if (++ downloadTrialCount < 3) {
+                System.out.println("downloading ...");
+                Thread.sleep(60000);
+                return true;
+            } else {
+                System.out.println("download succeed!");
+                return true;
+            }
+        });
     }
+
 
     public void installService(String serviceName) {
         Package rootPackage = serviceRegistryMap.get(serviceName);

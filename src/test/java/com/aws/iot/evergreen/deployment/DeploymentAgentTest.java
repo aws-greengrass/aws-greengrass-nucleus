@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
 import com.aws.iot.evergreen.deployment.model.Parameter;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Random;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
@@ -19,35 +20,46 @@ class DeploymentAgentTest {
         DeploymentPacket packet = new DeploymentPacket();
 
         Parameter p1 = new Parameter("p1", "1234", Parameter.ParameterType.NUMBER);
-        packet.setTargetPackageConfigs(Collections.singletonMap("Belt-1.0", Collections.singletonMap(p1.getName(), p1)));
+        packet.setTargetPackageConfigs(Collections.singletonMap("Belt-1.0", Collections.singletonMap(p1.getName(),
+                p1)));
+
 
         packet.setDownloadCondition((kernel, configs) -> {
             System.out.println("checking download conditions");
-            boolean random = new Random().nextBoolean();
-            if (random) {
+
+            long now = new Date().getTime()/1000;
+
+            int window = (int) (now%60);
+
+            if (window >= 20 && window <= 40 ) {
                 System.out.println("proceed download");
+                return true;
             } else {
                 System.out.println("can't download");
+                return false;
             }
-            return random;
         });
 
         packet.setUpdateCondition((kernel, configs) -> {
             System.out.println("checking update conditions");
-            boolean random = new Random().nextBoolean();
-            if (random) {
+            float random = new Random().nextFloat();
+            if (random > 0.66) {
                 System.out.println("proceed update");
+                return true;
             } else {
                 System.out.println("can't update");
+                return false;
             }
-            return random;
         });
 
-        deploymentAgent.deploy(packet);
+        Future<?> task = deploymentAgent.deploy(packet);
+        DeploymentProcess deploymentProcess = deploymentAgent.getCurrentDeploymentProcess();
 
-        Future<?> task = deploymentAgent.getCurrentTask();
         while (!task.isDone()) {
-            Thread.sleep(300);
+//            System.out.println(String.format("=== Current state <%s> ===", deploymentProcess.getCurrentState()
+//                    .getClass()
+//                    .getSimpleName()));
+            Thread.sleep(2000);
         }
     }
 
