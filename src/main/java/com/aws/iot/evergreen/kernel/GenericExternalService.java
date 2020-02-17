@@ -36,10 +36,16 @@ public class GenericExternalService extends EvergreenService {
      */
     public GenericExternalService(Topics c) {
         super(c);
+
+        // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
             if (c.parentNeedsToKnow() && !child.childOf("shutdown")) {
                 context.getLog().warn(getName(), "responding to change to", child);
-                setState(child.childOf("install") ? State.Installing : State.AwaitingStartup);
+                if (child.childOf("install")) {
+                    requestReinstallService();
+                } else {
+                    requestRestartService();
+                }
             }
         });
 
@@ -67,10 +73,37 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void startup() {
-        if (run("startup", null) == RunStatus.Errored) {
+        RunStatus result = run("startup", exit -> {
+            if (getState() == State.Installed) {
+                if (exit == 0) {
+                    super.startup();
+                } else {
+                    setState(State.Errored);
+                }
+            }
+        });
+        if (result == RunStatus.Errored) {
             setState(State.Errored);
+        } else if (result == RunStatus.NothingDone) {
+            super.startup();
+
+            if (run("run", exit -> {
+                currentScript = null;
+                if (!inShutdown) {
+                    if (exit == 0) {
+                        setState(State.Stopping);
+                        context.getLog().significant(getName(), "Stopping");
+                    } else {
+                        setState(State.Errored);
+                        context.getLog().error(getName(), "Failed", exit2String(exit));
+                    }
+                }
+            }) == RunStatus.NothingDone) {
+                context.getLog().significant(getName(), "run: NothingDone");
+                this.requestStopService();
+                setState(State.Finished);
+            }
         }
-        super.startup();
     }
 
     @Override
@@ -82,31 +115,14 @@ public class GenericExternalService extends EvergreenService {
             try {
                 context.getLog().significant(getName(), "shutting down", e);
                 e.close();
-                e.waitClosed(1000);
+                //e.waitClosed(1000);
+                context.getLog().significant(getName(), "shutting down succeed", e);
             } catch (IOException ioe) {
                 context.getLog().error(this, "shutdown failure", Utils.getUltimateMessage(ioe));
             }
         }
-        inShutdown = false;
-    }
 
-    @Override
-    public void run() {
-        if (run("run", exit -> {
-            currentScript = null;
-            if (!inShutdown) {
-                if (exit == 0) {
-                    setState(State.Finished);
-                    context.getLog().significant(getName(), "Finished");
-                } else {
-                    setState(State.Errored);
-                    context.getLog().error(getName(), "Failed", exit2String(exit));
-                }
-            }
-        }) == RunStatus.NothingDone) {
-            context.getLog().significant(getName(), "run: NothingDone");
-            setState(State.Finished);
-        }
+        inShutdown = false;
     }
 
     /**

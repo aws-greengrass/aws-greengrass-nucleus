@@ -230,6 +230,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 serviceImplementors.put(is.name(), cl);
                 System.out.println("Found Plugin: " + cl.getSimpleName());
             });
+
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
                 context.put("service-implementors", serviceImplementors);
@@ -401,7 +402,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
-            l.setState(State.Installing);
+            l.startLifecycle();
+            l.requestStartService();
         });
     }
 

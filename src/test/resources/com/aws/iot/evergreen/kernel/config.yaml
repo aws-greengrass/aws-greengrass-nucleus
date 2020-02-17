@@ -120,7 +120,7 @@
       install:
           skipif: true
           all: echo All installed
-      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock, hello
+      requires: jdk11, git, hello-docker, hello-docker-nginx, mqtt, hello, ticktock:Installed
       xyzzy: localhttp, broken
       setenv:
           JUSTME: fancy a spot of tea?

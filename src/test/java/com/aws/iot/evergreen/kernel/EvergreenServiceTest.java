@@ -63,9 +63,8 @@ class EvergreenServiceTest {
 
         // verify stateTopic
         Mockito.verify(stateTopic).setParentNeedsToKnow(false);
-        Mockito.verify(stateTopic).setValue(Long.MAX_VALUE, State.New);
+        Mockito.verify(stateTopic).setValue(State.New);
         Mockito.verify(stateTopic).validate(validatorArgumentCaptor.capture());
-        Mockito.verify(stateTopic).subscribe(evergreenService);
         Mockito.verifyNoMoreInteractions(stateTopic);
 
         // verify validator
@@ -101,7 +100,7 @@ class EvergreenServiceTest {
         inOrder.verify(stateTopic).getOnce();
         inOrder.verify(context).getLog();
         inOrder.verify(log).note(EVERGREEN_SERVICE_FULL_NAME, currentState, "=>", newState);
-        inOrder.verify(stateTopic).setValue(Long.MAX_VALUE, newState);
+        inOrder.verify(stateTopic).setValue(newState);
         inOrder.verify(context).globalNotifyStateChanged(evergreenService, currentState);
 
 

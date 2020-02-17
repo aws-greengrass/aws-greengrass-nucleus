@@ -63,7 +63,7 @@ public class Periodicity {
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);
             Runnable action = () -> {
                 if (s.inState(State.Finished)) {
-                    s.setState(State.Running);
+                    s.requestStartService();
                 }
             };
             if (n instanceof Topic) {
