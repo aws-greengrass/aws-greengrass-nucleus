@@ -1,0 +1,160 @@
+/*
+ * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ */
+
+package com.aws.iot.evergreen.ipc;
+
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
+import com.aws.iot.evergreen.ipc.common.FrameReader;
+import com.aws.iot.evergreen.ipc.exceptions.IPCException;
+import com.aws.iot.evergreen.util.Log;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.local.LocalAddress;
+import io.netty.util.Attribute;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.net.SocketAddress;
+import java.util.concurrent.CompletableFuture;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+public class IPCChannelHandlerTest {
+    public static final String ERROR_MESSAGE = "AAAAAAH!";
+    @Mock
+    AuthHandler mockAuth;
+    @Mock
+    IPCRouter ipcRouter;
+    @Mock
+    ChannelHandlerContext mockCtx;
+    @Mock
+    Channel mockChannel;
+    @Mock
+    Attribute<ConnectionContext> mockAttr;
+    ConnectionContext mockAttrValue = null;
+    @Mock
+    ChannelFuture mockChannelFuture;
+
+    @Captor
+    ArgumentCaptor<FrameReader.MessageFrame> frameCaptor;
+
+    private IPCChannelHandler router;
+
+    @BeforeEach
+    public void setupMocks() throws Exception {
+        router = new IPCChannelHandler(mock(Log.class), mockAuth, ipcRouter);
+
+        when(mockCtx.channel()).thenReturn(mockChannel);
+        when(mockChannel.attr(any())).thenReturn((Attribute) mockAttr);
+        doAnswer((invocation) -> mockAttrValue = invocation.getArgument(0)).when(mockAttr).set(any());
+        lenient().when(mockChannel.remoteAddress()).thenReturn(LocalAddress.ANY);
+
+        router.channelRegistered(mockCtx);
+
+        when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
+    }
+
+    @Test
+    public void GIVEN_authenticated_client_WHEN_request_with_unregistered_destination_THEN_respond_with_error()
+            throws Exception {
+        // GIVEN
+        // done in setupMocks
+
+        // Pretend that we are authenticated
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class)));
+
+        // WHEN
+        FrameReader.MessageFrame requestFrame =
+                new FrameReader.MessageFrame(200, new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
+        router.channelRead(mockCtx, requestFrame);
+
+        // THEN
+        verify(mockChannelFuture, times(0)).addListener(any());
+        verify(ipcRouter).getCallbackForDestination(eq(200));
+
+        FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
+        assertEquals(BuiltInServiceDestinationCode.ERROR.getValue(), responseFrame.destination);
+        assertEquals(requestFrame.requestId, responseFrame.requestId);
+        assertThat(new String(responseFrame.message.getPayload()), containsString("Destination handler not found"));
+    }
+
+    @Test
+    public void GIVEN_authenticated_client_WHEN_request_with_normal_return_THEN_respond_with_message()
+            throws Exception {
+        // GIVEN
+        // done in setupMocks
+
+        // Pretend that we are authenticated
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class)));
+        // Setup handler for destination
+        when(ipcRouter.getCallbackForDestination(anyInt())).thenReturn((message, ctx) -> {
+            CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
+            fut.complete(new FrameReader.Message("Success".getBytes()));
+            return fut;
+        });
+
+        // WHEN
+        FrameReader.MessageFrame requestFrame =
+                new FrameReader.MessageFrame(200, new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
+        router.channelRead(mockCtx, requestFrame);
+
+        // THEN
+        verify(mockChannelFuture, times(0)).addListener(any());
+        verify(ipcRouter).getCallbackForDestination(eq(200));
+
+        FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
+        assertEquals(200, responseFrame.destination);
+        assertEquals(requestFrame.requestId, responseFrame.requestId);
+        assertEquals("Success", new String(responseFrame.message.getPayload()));
+    }
+
+    @Test
+    public void GIVEN_authenticated_client_WHEN_request_with_exceptional_return_THEN_respond_with_error()
+            throws Exception {
+        // GIVEN
+        // done in setupMocks
+
+        // Pretend that we are authenticated
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class)));
+        // Setup handler for destination
+        when(ipcRouter.getCallbackForDestination(anyInt())).thenReturn((message, ctx) -> {
+            CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
+            fut.completeExceptionally(new IPCException(ERROR_MESSAGE));
+            return fut;
+        });
+
+        // WHEN
+        FrameReader.MessageFrame requestFrame =
+                new FrameReader.MessageFrame(200, new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
+        router.channelRead(mockCtx, requestFrame);
+
+        // THEN
+        verify(mockChannelFuture, times(0)).addListener(any());
+        verify(ipcRouter).getCallbackForDestination(eq(200));
+
+        FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
+        assertEquals(200, responseFrame.destination);
+        assertEquals(requestFrame.requestId, responseFrame.requestId);
+        assertThat(new String(responseFrame.message.getPayload()), containsString("InternalError"));
+        assertThat(new String(responseFrame.message.getPayload()), containsString(ERROR_MESSAGE));
+    }
+}

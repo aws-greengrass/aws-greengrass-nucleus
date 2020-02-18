@@ -2,9 +2,8 @@ package com.aws.iot.evergreen.builtin.services.lifecycle;
 
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.ipc.ConnectionHandle;
-import com.aws.iot.evergreen.ipc.IPCRouter;
-import com.aws.iot.evergreen.ipc.common.ConnectionContext;
+import com.aws.iot.evergreen.ipc.ConnectionContext;
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
@@ -26,8 +25,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle.LIFECYCLE_SERVICE_NAME;
-
 /**
  * Class to handle business logic for all Lifecycle requests over IPC.
  */
@@ -38,9 +35,6 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     @Inject
     private Kernel kernel;
-
-    @Inject
-    private IPCRouter router;
 
     @Inject
     private ExecutorService executor;
@@ -87,7 +81,7 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     /**
      * Set up a listener for state changes for a requested service. (Currently any service can listen to any other
-     * service's lifecyle changes).
+     * service's lifecycle changes).
      *
      * @param listenRequest incoming listen request
      * @param context       caller context
@@ -100,6 +94,7 @@ public class LifecycleIPCAgent implements InjectionActions {
             if (old == null) {
                 old = new ConcurrentHashMap<>();
             }
+            context.onDisconnect(() -> listeners.values().forEach(map -> map.remove(context)));
             old.put(context, sendStateUpdateToListener(listenRequest, context));
             return old;
         });
@@ -123,12 +118,8 @@ public class LifecycleIPCAgent implements InjectionActions {
 
                     try {
                         // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
-                        ConnectionHandle connectionHandle =
-                                router.getConnectionHandle(context, this::handleConnectionClosed);
-                        if (connectionHandle != null) {
-                            connectionHandle.sendAndReceive(LIFECYCLE_SERVICE_NAME,
-                                    new FrameReader.Message(IPCUtil.encode(req))).get();
-                        }
+                        context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
+                                new FrameReader.Message(IPCUtil.encode(req))).get();
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
                     } catch (IOException | InterruptedException | ExecutionException e) {
                         // Log
@@ -137,15 +128,5 @@ public class LifecycleIPCAgent implements InjectionActions {
                 }
             });
         };
-    }
-
-    /**
-     * Remove state listeners for each clientId when the client disconnects.
-     *
-     * @param context client which disconnected
-     */
-    public void handleConnectionClosed(ConnectionContext context) {
-        // Remove all listeners for the closed client so we don't waste time trying to notify it
-        listeners.values().forEach(map -> map.remove(context));
     }
 }

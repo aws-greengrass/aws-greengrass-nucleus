@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.handler.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {

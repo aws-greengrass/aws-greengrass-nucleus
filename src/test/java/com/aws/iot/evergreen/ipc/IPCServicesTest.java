@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
-import static com.aws.iot.evergreen.ipc.handler.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
