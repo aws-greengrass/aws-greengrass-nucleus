@@ -388,7 +388,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     public boolean inState(State state) {
-        return state == activeState;
+        return state.equals(activeState);
     }
 
     public Topic getStateTopic() {
