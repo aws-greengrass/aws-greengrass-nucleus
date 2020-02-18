@@ -2,11 +2,9 @@
  * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  */
 
-package com.aws.iot.evergreen.ipc.handler;
+package com.aws.iot.evergreen.ipc;
 
-import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
@@ -29,9 +27,9 @@ import java.util.concurrent.CompletableFuture;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -82,7 +80,7 @@ public class IPCChannelHandlerTest {
         // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class)));
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class)));
 
         // WHEN
         FrameReader.MessageFrame requestFrame =
@@ -106,7 +104,7 @@ public class IPCChannelHandlerTest {
         // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class)));
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class)));
         // Setup handler for destination
         when(ipcRouter.getCallbackForDestination(anyInt())).thenReturn((message, ctx) -> {
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
@@ -136,7 +134,7 @@ public class IPCChannelHandlerTest {
         // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class)));
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class)));
         // Setup handler for destination
         when(ipcRouter.getCallbackForDestination(anyInt())).thenReturn((message, ctx) -> {
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();

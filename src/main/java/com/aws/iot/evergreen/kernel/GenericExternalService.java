@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.ipc.handler.AuthHandler;
+import com.aws.iot.evergreen.ipc.AuthHandler;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;

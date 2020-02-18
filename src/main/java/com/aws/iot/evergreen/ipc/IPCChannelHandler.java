@@ -2,12 +2,9 @@
  * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  */
 
-package com.aws.iot.evergreen.ipc.handler;
+package com.aws.iot.evergreen.ipc;
 
-import com.aws.iot.evergreen.ipc.IPCCallback;
-import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
@@ -58,7 +55,10 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         super.channelUnregistered(ctx);
-        router.clientDisconnected(ctx.channel().attr(CONNECTION_CONTEXT_KEY).get());
+        ConnectionContext context = ctx.channel().attr(CONNECTION_CONTEXT_KEY).get();
+        if (context != null) {
+            context.clientDisconnected();
+        }
     }
 
     @Override
@@ -113,6 +113,8 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         // TODO: Proper exception handling https://issues.amazon.com/issues/P32787597
-        log.warn("Error in IPC server", cause);
+        log.warn("Caught error in IPC server", cause);
+        // Close out the connection since we don't know what went wrong.
+        ctx.close();
     }
 }

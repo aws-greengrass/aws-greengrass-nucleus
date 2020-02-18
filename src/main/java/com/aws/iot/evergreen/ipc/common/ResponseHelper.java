@@ -14,15 +14,15 @@ public class ResponseHelper {
     /**
      * Send a message in response over the channel.
      *
-     * @param msg message to be sent
-     * @param requestId request id to respond with
-     * @param destination destination of the response
-     * @param ctx netty channel context used to send the response
+     * @param msg           message to be sent
+     * @param requestId     request id to respond with
+     * @param destination   destination of the response
+     * @param ctx           netty channel context used to send the response
      * @param closeWhenDone true if the channel should be shutdown
      * @throws IOException if anything goes wrong
      */
-    public static void sendResponse(FrameReader.Message msg, int requestId, int destination,
-                                       ChannelHandlerContext ctx, boolean closeWhenDone) throws IOException {
+    public static void sendResponse(FrameReader.Message msg, int requestId, int destination, ChannelHandlerContext ctx,
+                                    boolean closeWhenDone) throws IOException {
         // TODO: Validate frame data length
 
         FrameReader.MessageFrame response =

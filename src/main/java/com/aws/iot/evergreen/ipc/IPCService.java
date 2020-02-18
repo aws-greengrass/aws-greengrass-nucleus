@@ -4,7 +4,6 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder;
-import com.aws.iot.evergreen.ipc.handler.IPCChannelHandler;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
 import io.netty.bootstrap.ServerBootstrap;
