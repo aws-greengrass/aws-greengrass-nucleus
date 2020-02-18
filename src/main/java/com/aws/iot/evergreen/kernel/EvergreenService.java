@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +38,9 @@ public class EvergreenService implements InjectionActions, Closeable {
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
 
     public final Topics config;
+    public Context context;
     protected final CopyOnWriteArrayList<EvergreenService> explicitDependencies = new CopyOnWriteArrayList<>();
+    protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private final Object dependencyReadyLock = new Object();
     private final Topic stateTopic;
     private final CopyOnWriteArrayList<State> desiredStatesSequence = new CopyOnWriteArrayList<>();
@@ -371,18 +374,6 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
     }
 
-    private Topic initStateTopic(final Topics topics) {
-        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
-        state.setParentNeedsToKnow(false);
-        state.setValue(Long.MAX_VALUE, State.New);
-        state.validate((newStateObj, oldStateObj) -> {
-            State newState = Coerce.toEnum(State.class, newStateObj);
-            return newState == null ? oldStateObj : newStateObj;
-        });
-        state.subscribe(this);
-        return state;
-    }
-
     public void broadcastStateChange(State newState) {
         final State prevState = (State) this.stateTopic.getOnce();
 
@@ -553,7 +544,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void postInject() {
-        addDependency(config.getChild("requires"));
+        Node d = config.getChild("requires");
 
         if (d instanceof Topic) {
             String ds = ((Topic) d).getOnce().toString();

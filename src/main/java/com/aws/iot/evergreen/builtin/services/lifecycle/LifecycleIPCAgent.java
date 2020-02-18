@@ -39,10 +39,10 @@ public class LifecycleIPCAgent implements InjectionActions {
     @Inject
     private ExecutorService executor;
 
-    private EvergreenService.GlobalStateChangeListener onServiceChange = (service, prev) -> {
+    private EvergreenService.GlobalStateChangeListener onServiceChange = (service, prev, active) -> {
         Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
         if (callbacks != null) {
-            callbacks.values().forEach(x -> x.accept(prev, service.getState()));
+            callbacks.values().forEach(x -> x.accept(prev, active));
         }
     };
 
@@ -69,7 +69,7 @@ public class LifecycleIPCAgent implements InjectionActions {
 
         GeneralResponse<Void, LifecycleResponseStatus> resp = new GeneralResponse<>();
         if (service.isPresent()) {
-            service.get().setState(s);
+            service.get().addDesiredState(s);
             resp.setError(LifecycleResponseStatus.Success);
         } else {
             resp.setError(LifecycleResponseStatus.InvalidRequest);
