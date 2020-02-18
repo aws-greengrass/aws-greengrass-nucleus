@@ -4,7 +4,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder;
-import com.aws.iot.evergreen.ipc.handler.MessageRouter;
+import com.aws.iot.evergreen.ipc.handler.IPCChannelHandler;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
 import io.netty.bootstrap.ServerBootstrap;
@@ -26,37 +26,33 @@ import static com.aws.iot.evergreen.util.Log.Level;
 
 /**
  * Entry point to the kernel service IPC mechanism. IPC service manages the lifecycle of all IPC components
- * <p>
- * IPCService relies on the kernel to synchronize between startup() and run() calls.
- * <p>
- * How messages flow:
- * <p>
- * New connection:
+ *
+ * <p>IPCService relies on the kernel to synchronize between startup() and run() calls.
+ *
+ * <p>How messages flow:
+ *
+ * <p>New connection:
  * Server listens for new connections, new connections are forwarded to MessageRouter using the Netty pipeline.
  * MessageRouter authorizes connection and will then allow further queries to be routed.
- * <p>
- * Outgoing messages:
+ *
+ * <p>Outgoing messages:
  * The client must first send a request to setup a "listener" on the server. As part of handling that request,
  * the service will receive a pointer to the channel that they will then be able to use to push messages
  * to the client at any time in the future.
  */
-
 @ImplementsService(name = "IPCService", autostart = true)
 public class IPCService extends EvergreenService {
-    private static final int MAX_SO_BACKLOG = 128;
-
     public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
+    private static final int MAX_SO_BACKLOG = 128;
     private static final String LOCAL_IP = "127.0.0.1";
-
-    @Inject
-    Log log;
-
     private final EventLoopGroup bossGroup = new NioEventLoopGroup();
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
+    @Inject
+    Log log;
     private int port;
 
     @Inject
-    private MessageRouter messageRouter;
+    private IPCChannelHandler ipcChannelHandler;
 
     public IPCService(Topics c) {
         super(c);
@@ -87,8 +83,7 @@ public class IPCService extends EvergreenService {
     private int listen() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
 
-        b.group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
+        b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     public void initChannel(SocketChannel ch) {
@@ -96,11 +91,9 @@ public class IPCService extends EvergreenService {
 
                         p.addLast(new MessageFrameDecoder());
                         p.addLast(new MessageFrameEncoder());
-                        p.addLast(messageRouter);
+                        p.addLast(ipcChannelHandler);
                     }
-                })
-                .option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG)
-                .childOption(ChannelOption.SO_KEEPALIVE, true);
+                }).option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG).childOption(ChannelOption.SO_KEEPALIVE, true);
 
         // Bind and start to accept incoming connections.
         ChannelFuture f = b.bind(InetAddress.getLoopbackAddress(), 0).sync();
@@ -111,7 +104,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     * Do nothing in "run" since we started up the server in "startup"
+     * Do nothing in "run" since we started up the server in "startup".
      */
     @Override
     public void run() {
@@ -119,7 +112,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     *
+     * Shutdown the IPC server.
      */
     @Override
     public void shutdown() {
@@ -130,7 +123,7 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     * IPCService will only transition to errored state if the server socket is not able to bind or accept connections
+     * IPCService will only transition to errored state if the server socket is not able to bind or accept connections.
      */
     @Override
     public void handleError() {

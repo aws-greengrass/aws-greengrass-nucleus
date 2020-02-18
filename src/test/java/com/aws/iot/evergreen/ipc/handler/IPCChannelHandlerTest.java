@@ -6,7 +6,7 @@ package com.aws.iot.evergreen.ipc.handler;
 
 import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.util.Log;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class MessageRouterTest {
+public class IPCChannelHandlerTest {
     public static final String ERROR_MESSAGE = "AAAAAAH!";
     @Mock
     AuthHandler mockAuth;
@@ -53,19 +53,19 @@ public class MessageRouterTest {
     @Mock
     Channel mockChannel;
     @Mock
-    Attribute<RequestContext> mockAttr;
-    RequestContext mockAttrValue = null;
+    Attribute<ConnectionContext> mockAttr;
+    ConnectionContext mockAttrValue = null;
     @Mock
     ChannelFuture mockChannelFuture;
 
     @Captor
     ArgumentCaptor<FrameReader.MessageFrame> frameCaptor;
 
-    private MessageRouter router;
+    private IPCChannelHandler router;
 
     @BeforeEach
     public void setupMocks() throws Exception {
-        router = new MessageRouter(mock(Log.class), mockAuth, ipcRouter);
+        router = new IPCChannelHandler(mock(Log.class), mockAuth, ipcRouter);
 
         when(mockCtx.channel()).thenReturn(mockChannel);
         when(mockChannel.attr(any())).thenReturn((Attribute) mockAttr);
@@ -86,7 +86,7 @@ public class MessageRouterTest {
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame(AUTH_SERVICE, new FrameReader.Message("MyAuthToken"
                 .getBytes(StandardCharsets.UTF_8)), FrameReader.FrameType.REQUEST);
 
-        RequestContext requestCtx = new RequestContext("ABC");
+        ConnectionContext requestCtx = new ConnectionContext("ABC");
         when(mockAuth.doAuth(any())).thenReturn(requestCtx);
 
         router.channelRead(mockCtx, requestFrame);
@@ -147,7 +147,7 @@ public class MessageRouterTest {
         // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new RequestContext("ABC"));
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC"));
 
         // WHEN
         FrameReader.MessageFrame requestFrame = new FrameReader.MessageFrame("Destination", new FrameReader.Message(new byte[0]), FrameReader.FrameType.REQUEST);
@@ -169,7 +169,7 @@ public class MessageRouterTest {
         // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new RequestContext("ABC"));
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC"));
         // Setup handler for destination
         when(ipcRouter.getCallbackForDestination(anyString())).thenReturn((message, ctx) -> {
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();
@@ -197,7 +197,7 @@ public class MessageRouterTest {
         // done in setupMocks
 
         // Pretend that we are authenticated
-        when(mockAttr.get()).thenReturn(new RequestContext("ABC"));
+        when(mockAttr.get()).thenReturn(new ConnectionContext("ABC"));
         // Setup handler for destination
         when(ipcRouter.getCallbackForDestination(anyString())).thenReturn((message, ctx) -> {
             CompletableFuture<FrameReader.Message> fut = new CompletableFuture<>();

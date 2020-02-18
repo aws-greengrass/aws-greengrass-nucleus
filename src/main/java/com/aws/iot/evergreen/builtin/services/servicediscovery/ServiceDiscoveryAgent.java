@@ -79,37 +79,37 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     /**
      * Register a resource with Service Discovery. Will throw if the resource is already registered.
      *
-     * @param request
-     * @param serviceName
+     * @param request incoming request
+     * @param serviceName name of the calling service
      * @return
      */
-    public GeneralResponse<Resource, ServiceDiscoveryResponseStatus> registerResource(RegisterResourceRequest request, String serviceName) {
+    public GeneralResponse<Resource, ServiceDiscoveryResponseStatus> registerResource(RegisterResourceRequest request,
+                                                                                      String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<Resource, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
         // TODO input validation. https://sim.amazon.com/issues/P32540011
 
-        boolean pathIsReserved =
-                kernel.orderedDependencies().parallelStream()
-                        .map(service -> config.findResolvedTopic(service.getName(), SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY))
-                        .filter(Objects::nonNull).anyMatch(t -> {
-                            Object o = t.getOnce();
-                            if (o instanceof Collection) {
-                                String name = t.name;
-                                Topics p = t.parent;
-                                while (p.name != null) {
-                                    name = p.name;
-                                    p = p.parent;
-                                }
-                                return ((Collection) o).contains(resourcePath) && !serviceName.equals(name);
-                            }
-                            return false;
-                        });
+        boolean pathIsReserved = kernel.orderedDependencies().parallelStream()
+                .map(service -> config.find(service.getName(), SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY))
+                .filter(Objects::nonNull).anyMatch(t -> {
+                    Object o = t.getOnce();
+                    if (o instanceof Collection) {
+                        String name = t.name;
+                        Topics p = t.parent;
+                        while (p.name != null) {
+                            name = p.name;
+                            p = p.parent;
+                        }
+                        return ((Collection) o).contains(resourcePath) && !serviceName.equals(name);
+                    }
+                    return false;
+                });
 
         if (pathIsReserved) {
             response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-            response.setErrorMessage(String.format("Service %s is not allowed to register %s", serviceName,
-                    resourcePath));
+            response.setErrorMessage(
+                    String.format("Service %s is not allowed to register %s", serviceName, resourcePath));
             return response;
         }
 
@@ -121,7 +121,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             }
 
             SDAResource sdaResource =
-                    SDAResource.builder().resource(request.getResource()).publishedToDNSSD(request.isPublishToDNSSD()).owningService(serviceName).build();
+                    SDAResource.builder().resource(request.getResource()).publishedToDNSSD(request.isPublishToDNSSD())
+                            .owningService(serviceName).build();
             config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
 
             response.setError(ServiceDiscoveryResponseStatus.Success);
@@ -134,9 +135,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * Update an already existing resource. The update will only update the URI, TXT Records, and whether
      * it is published to DNS-SD or not.
      *
-     * @param request
-     * @param serviceName
-     * @return
+     * @param request incoming request
+     * @param serviceName calling service name
      */
     public GeneralResponse<Void, ServiceDiscoveryResponseStatus> updateResource(UpdateResourceRequest request,
                                                                                 String serviceName) {
@@ -155,8 +155,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
             if (!resource.getOwningService().equals(serviceName)) {
                 response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-                response.setErrorMessage(String.format("Service %s is not allowed to update %s", serviceName,
-                        resourcePath));
+                response.setErrorMessage(
+                        String.format("Service %s is not allowed to update %s", serviceName, resourcePath));
                 return response;
             }
 
@@ -173,9 +173,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     /**
      * Remove an existing resource.
      *
-     * @param request
-     * @param serviceName
-     * @return
+     * @param request incoming request
+     * @param serviceName calling service name
      */
     public GeneralResponse<Void, ServiceDiscoveryResponseStatus> removeResource(RemoveResourceRequest request,
                                                                                 String serviceName) {
@@ -194,8 +193,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             SDAResource resource = (SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce();
             if (!resource.getOwningService().equals(serviceName)) {
                 response.setError(ServiceDiscoveryResponseStatus.ResourceNotOwned);
-                response.setErrorMessage(String.format("Service %s is not allowed to remove %s", serviceName,
-                        resourcePath));
+                response.setErrorMessage(
+                        String.format("Service %s is not allowed to remove %s", serviceName, resourcePath));
                 return response;
             }
 
@@ -209,11 +208,11 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * Lookup resources. Returns a list of matching resources. Any null field in the input request
      * will be treated as a wildcard, so any value will match it.
      *
-     * @param request
-     * @param serviceName
-     * @return
+     * @param request incoming request
+     * @param serviceName calling service name
      */
-    public GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> lookupResources(LookupResourceRequest request, String serviceName) {
+    public GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> lookupResources(
+            LookupResourceRequest request, String serviceName) {
         String resourcePath = resourceToPath(request.getResource());
         GeneralResponse<List<Resource>, ServiceDiscoveryResponseStatus> response = new GeneralResponse<>();
 
@@ -225,7 +224,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
             // Try a direct lookup
             response.setResponse(matchingResources);
             if (isRegistered(resourcePath)) {
-                matchingResources.add(((SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce()).getResource());
+                matchingResources
+                        .add(((SDAResource) config.find(REGISTERED_RESOURCES, resourcePath).getOnce()).getResource());
                 return response;
             }
 
@@ -243,6 +243,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     private List<Resource> findMatchingResourcesInMap(LookupResourceRequest request) {
         // Just use a dumb linear search since we probably don't have *that* many resources.
         // Can definitely be optimized in future.
-        return config.lookupTopics(REGISTERED_RESOURCES).children.values().stream().map(node -> ((SDAResource) ((Topic) node).getOnce()).getResource()).filter(r -> matchResourceFields(request.getResource(), r)).collect(Collectors.toList());
+        return config.lookupTopics(REGISTERED_RESOURCES).children.values().stream()
+                .map(node -> ((SDAResource) ((Topic) node).getOnce()).getResource())
+                .filter(r -> matchResourceFields(request.getResource(), r)).collect(Collectors.toList());
     }
 }

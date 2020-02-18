@@ -100,26 +100,6 @@ public class Configuration {
         return n;
     }
 
-    /**
-     * Find Topic by path after resolving the path for the OS.
-     * Allows us to find Service.Lookup, or Service.Linux.Lookup whichever is appropriate.
-     */
-    public Topic findResolvedTopic(String... path) {
-        Topics t = findTopics(Arrays.copyOfRange(path, 0, path.length - 1));
-        if (t == null) {
-            return null;
-        }
-        Node topics = EvergreenService.pickByOS(t);
-        if (topics != null) {
-            if (topics instanceof Topics) {
-                return ((Topics) topics).findLeafChild(path[path.length - 1]);
-            } else if (topics instanceof Topic) {
-                return (Topic) topics;
-            }
-        }
-        return find(path);
-    }
-
     public Topics getRoot() {
         return root;
     }
@@ -133,7 +113,7 @@ public class Configuration {
     }
 
     /**
-     * Merges a Map into this configuration. The most common use case is for
+     * Merges a Map into this configuration. The merge will resolve platform. The most common use case is for
      * reading textual config files via jackson-jr. For example, to merge a
      * .yaml file:
      * <br><code>
@@ -144,11 +124,15 @@ public class Configuration {
      * parser, which is JSON. You can replace <code>new YAMLFactory()</code>
      * with any other supported parser.
      *
-     * @param timestamp
-     * @param map
+     * @param timestamp last modified time for the configuration values
+     * @param map map to merge
      */
-    public void mergeMap(long timestamp, Map<Object, Object> map) {
-        root.mergeMap(timestamp, map);
+    public void mergeMap(long timestamp, Map<Object, Object> map) throws IllegalArgumentException {
+        Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
+        if (!(resolvedPlatformMap instanceof Map)) {
+            throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
+        }
+        root.mergeMap(timestamp, (Map<Object, Object>) resolvedPlatformMap);
     }
 
     public Map<String, Object> toPOJO() {
@@ -163,11 +147,19 @@ public class Configuration {
         return s.contains(":/") ? read(new URL(s), false) : read(Paths.get(s));
     }
 
+    /**
+     * Read and merge configuration from a URL.
+     *
+     * @param url configuration source URL
+     * @param useSourceTimestamp true if the modified time should be set based on the value from the server (if any)
+     * @return this with the new configuration merged in
+     * @throws IOException if the reading fails
+     */
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         context.getLog().significant("Reading URL", url);
         URLConnection u = url.openConnection();
-        return read(u.getInputStream(), extension(url.getPath()), useSourceTimestamp ? u.getLastModified() :
-                System.currentTimeMillis());
+        return read(u.getInputStream(), extension(url.getPath()),
+                useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
     }
 
     public Configuration read(Path s) throws IOException {
@@ -179,11 +171,15 @@ public class Configuration {
         return read(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)), extension, timestamp);
     }
 
-    public Configuration copyFrom(Configuration other) {
-        getRoot().copyFrom(other.getRoot());
-        return this;
-    }
-
+    /**
+     * Read in a configuration from a Reader and merge it with the current configuration.
+     *
+     * @param in reader to read new configuration from
+     * @param extension extension of the file we're reading in (changes how we deserialize the input data)
+     * @param timestamp timestamp to use as the last modified time
+     * @return this with the merged in configuration
+     * @throws IOException if reading fails
+     */
     public Configuration read(Reader in, String extension, long timestamp) throws IOException {
         try {
             switch (extension) {
@@ -193,14 +189,15 @@ public class Configuration {
                 case "evg":  // evergreen
                 case "yaml":
                     mergeMap(timestamp,
-                            (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).anyFrom(in));
+                            (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                                    .anyFrom(in));
                     break;
                 case "tlog":
                     ConfigurationReader.mergeTLogInto(this, in);
                     break;
                 default:
-                    throw new IllegalArgumentException("File format '" + extension
-                            + "' is not supported.  Use one of: yaml, json or tlog");
+                    throw new IllegalArgumentException(
+                            "File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
             }
         } finally {
             close(in);
@@ -208,6 +205,13 @@ public class Configuration {
         return this;
     }
 
+    /**
+     * Read in a new configuration from a URL and merge it into the current config.
+     *
+     * @param u URL to read in the configuration from
+     * @param sourceTimestamp true if the URL source timestamp should be used as the last modified time
+     * @return any throwable that occurs from the merge or read
+     */
     public Throwable readMerge(URL u, boolean sourceTimestamp) {
         // TODO: Does not handle dependencies properly yet
         // TODO: Nor are environment variables accounted for properly
@@ -219,6 +223,11 @@ public class Configuration {
             read(u, sourceTimestamp);
             context.getLog().note("Finished " + u);
         });
+    }
+
+    public Configuration copyFrom(Configuration other) {
+        getRoot().copyFrom(other.getRoot());
+        return this;
     }
 
     @Override

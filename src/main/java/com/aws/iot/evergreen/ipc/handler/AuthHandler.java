@@ -3,8 +3,8 @@ package com.aws.iot.evergreen.ipc.handler;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
@@ -27,6 +27,11 @@ public class AuthHandler implements InjectionActions {
     @Inject
     private Configuration config;
 
+    /**
+     * Register an auth token for the given service.
+     *
+     * @param s service to generate an auth token for
+     */
     public static void registerAuthToken(EvergreenService s) {
         Topic uid = s.config.createLeafChild(SERVICE_UNIQUE_ID_KEY).setParentNeedsToKnow(false);
         String authToken = Utils.generateRandomString(16).toUpperCase();
@@ -43,11 +48,13 @@ public class AuthHandler implements InjectionActions {
     }
 
     /**
-     * @param request
-     * @return
-     * @throws IPCClientNotAuthorizedException
+     * Authenticate the incoming request and return a RequestContext if successful.
+     *
+     * @param request incoming request frame to be validated.
+     * @return RequestContext containing the server name if validated.
+     * @throws IPCClientNotAuthorizedException thrown if not authorized, or any other error happens.
      */
-    public RequestContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
+    public ConnectionContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
         GeneralRequest<String, AuthRequestTypes> decodedRequest;
         try {
             decodedRequest = IPCUtil.decode(request, new TypeReference<GeneralRequest<String, AuthRequestTypes>>() {
@@ -65,6 +72,6 @@ public class AuthHandler implements InjectionActions {
             throw new IPCClientNotAuthorizedException("Auth token not found");
         }
 
-        return new RequestContext(serviceName);
+        return new ConnectionContext(serviceName);
     }
 }

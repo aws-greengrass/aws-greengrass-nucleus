@@ -13,20 +13,13 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Log;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.net.InetAddress;
 import java.net.URL;
-import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,14 +35,9 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 public class EvergreenService implements InjectionActions, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
-    private static final Map<String, Integer> RANKS = buildRanks();
 
     public final Topics config;
-    public Context context;
-
     protected final CopyOnWriteArrayList<EvergreenService> explicitDependencies = new CopyOnWriteArrayList<>();
-    protected ConcurrentHashMap<EvergreenService, State> dependencies;
-
     private final Object dependencyReadyLock = new Object();
     private final Topic stateTopic;
     private final CopyOnWriteArrayList<State> desiredStatesSequence = new CopyOnWriteArrayList<>();
@@ -292,6 +280,15 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     }
 
+    /**
+     * Locate an EvergreenService by name from the provided context.
+     *
+     * @param context context to lookup the name in
+     * @param name name of the service to find
+     * @return found service or null
+     * @throws Throwable maybe throws?
+     */
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public static EvergreenService locate(Context context, String name) throws Throwable {
         return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
             Configuration c = context.get(Configuration.class);
@@ -308,9 +305,9 @@ public class EvergreenService implements InjectionActions, Closeable {
                             // TODO: allow the file to be a zip package?
                             URL u = new URL(s + name + ".evg");
                             k.read(u, false);
-                            context.getLog()
-                                    .log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name, "Found external " + "definition", s);
-                        } catch (IOException ex) {
+                            context.getLog().log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name,
+                                    "Found external " + "definition", s);
+                        } catch (IOException ignored) {
                         }
                     } else {
                         break;
@@ -366,30 +363,24 @@ public class EvergreenService implements InjectionActions, Closeable {
     public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
         try {
             context.getLog().error("Error locating service", name, message, ex);
-            return new GenericExternalService(Topics
-                    .errorNode(context, name, "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
+            return new GenericExternalService(Topics.errorNode(context, name,
+                    "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
         } catch (Throwable ex1) {
             context.getLog().error(name, message, ex);
             return null;
         }
     }
 
-    public static int rank(String s) {
-        Integer i = RANKS.get(s);
-        return i == null ? -1 : i;
-    }
-
-    public static Node pickByOS(Topics n) {
-        Node bestn = null;
-        int bestrank = -1;
-        for (Map.Entry<String, Node> me : n.children.entrySet()) {
-            int g = rank(me.getKey());
-            if (g > bestrank) {
-                bestrank = g;
-                bestn = me.getValue();
-            }
-        }
-        return bestn;
+    private Topic initStateTopic(final Topics topics) {
+        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
+        state.setParentNeedsToKnow(false);
+        state.setValue(Long.MAX_VALUE, State.New);
+        state.validate((newStateObj, oldStateObj) -> {
+            State newState = Coerce.toEnum(State.class, newStateObj);
+            return newState == null ? oldStateObj : newStateObj;
+        });
+        state.subscribe(this);
+        return state;
     }
 
     public void broadcastStateChange(State newState) {
@@ -564,6 +555,23 @@ public class EvergreenService implements InjectionActions, Closeable {
     public void postInject() {
         addDependency(config.getChild("requires"));
 
+        if (d instanceof Topic) {
+            String ds = ((Topic) d).getOnce().toString();
+            Matcher m = DEP_PARSE.matcher(ds);
+            while (m.find()) {
+                addDependency(m.group(1), m.group(3));
+            }
+            if (!m.hitEnd()) {
+                errored("bad dependency syntax", ds);
+            }
+        } else if (d == null) {
+            return;
+        } else {
+            String errMsg = String.format("Unrecognized dependency configuration for service %s, config content: %s", getName(), d.toString());
+            System.err.println(errMsg);
+            // TODO: invalidate the config file
+        }
+        
         if (periodicityInformation == null) {
             this.periodicityInformation = Periodicity.of(this);
         }
@@ -572,26 +580,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         new Thread(this::startLifeCycleFsm).start();
     }
 
-    public boolean addDependency(Node d) {
-        boolean ret = false;
-        if (d instanceof Topics) {
-            d = pickByOS((Topics) d);
-        }
-        if (d instanceof Topic) {
-            String ds = ((Topic) d).getOnce().toString();
-            Matcher m = DEP_PARSE.matcher(ds);
-            while (m.find()) {
-                addDependency(m.group(1), m.group(3));
-                ret = true;
-            }
-            if (!m.hitEnd()) {
-                errored("bad dependency syntax", ds);
-            }
-        }
-        return ret;
-    }
-
-    public void addDependency(String name, String startWhen) {
+    private void addDependency(String name, String startWhen) {
         if (startWhen == null) {
             startWhen = State.RUNNING.toString();
         }
@@ -646,14 +635,6 @@ public class EvergreenService implements InjectionActions, Closeable {
         return sb.toString();
     }
 
-    Node pickByOS(String name) {
-        Node n = config.getChild(name);
-        if (n instanceof Topics) {
-            n = pickByOS((Topics) n);
-        }
-        return n;
-    }
-
     protected void addDependencies(HashSet<EvergreenService> deps) {
         deps.add(this);
         if (dependencies != null) {
@@ -675,59 +656,6 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     public interface GlobalStateChangeListener {
         void globalServiceStateChanged(EvergreenService service, State prevState, State activeState);
-    }
-
-    private static Map<String, Integer> buildRanks() {
-        Map<String, Integer> ranks = new HashMap<>();
-        // figure out what OS we're running and add applicable tags
-        // The more specific a tag is, the higher its rank should be
-        // TODO: a loopy set of hacks
-        ranks.put("all", 0);
-        ranks.put("any", 0);
-        if (Files.exists(Paths.get("/bin/bash")) || Files.exists(Paths.get("/usr/bin/bash"))) {
-            ranks.put("unix", 3);
-            ranks.put("posix", 3);
-        }
-        if (Files.exists(Paths.get("/proc"))) {
-            ranks.put("linux", 10);
-        }
-        if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
-            ranks.put("debian", 11);
-        }
-        if (Exec.isWindows) {
-            ranks.put("windows", 5);
-        }
-        if (Files.exists(Paths.get("/usr/bin/yum"))) {
-            ranks.put("fedora", 11);
-        }
-        String sysver = Exec.sh("uname -a").toLowerCase();
-        if (sysver.contains("ubuntu")) {
-            ranks.put("ubuntu", 20);
-        }
-        if (sysver.contains("darwin")) {
-            ranks.put("macos", 20);
-        }
-        if (sysver.contains("raspbian")) {
-            ranks.put("raspbian", 22);
-        }
-        if (sysver.contains("qnx")) {
-            ranks.put("qnx", 22);
-        }
-        if (sysver.contains("cygwin")) {
-            ranks.put("cygwin", 22);
-        }
-        if (sysver.contains("freebsd")) {
-            ranks.put("freebsd", 22);
-        }
-        if (sysver.contains("solaris") || sysver.contains("sunos")) {
-            ranks.put("solaris", 22);
-        }
-        try {
-            ranks.put(InetAddress.getLocalHost().getHostName(), 99);
-        } catch (UnknownHostException ex) {
-        }
-
-        return ranks;
     }
 
 }

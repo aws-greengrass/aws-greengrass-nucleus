@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Node;
@@ -61,7 +62,8 @@ public interface ShellRunner {
                     log.warn(note, ss);
                     onBehalfOf.setStatus(ss);
                 }).withTimeout(timeout, TimeUnit.SECONDS).setenv("SVCUID",
-                        String.valueOf(onBehalfOf.config.findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())).cd(config.workPath.toFile());
+                        String.valueOf(onBehalfOf.config.findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
+                        .cd(config.workPath.toFile());
             }
             return null;
         }

@@ -25,7 +25,9 @@ import java.util.function.Consumer;
 
 public class EZPlugins {
     private final ArrayList<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
-    private Path cacheDirectory, trustedCacheDirectory, untrustedCacheDirectory;
+    private Path cacheDirectory;
+    private Path trustedCacheDirectory;
+    private Path untrustedCacheDirectory;
     private ClassLoader root = this.getClass().getClassLoader();
     private boolean doneFirstLoad;
 
@@ -42,6 +44,13 @@ public class EZPlugins {
         }
     }
 
+    /**
+     * Set the plugin root directory.
+     *
+     * @param d plugin root directory
+     * @return this
+     */
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public final EZPlugins setCacheDirectory(Path d) {
         cacheDirectory = d;
         trustedCacheDirectory = cacheDirectory.resolve("trusted");
@@ -49,7 +58,7 @@ public class EZPlugins {
         try {
             Files.createDirectories(trustedCacheDirectory);
             Files.createDirectories(untrustedCacheDirectory);
-        } catch (IOException ex) {
+        } catch (IOException ignored) {
         }
         return this;
     }
@@ -72,7 +81,7 @@ public class EZPlugins {
 
     /**
      * Don't call loadCache until after all of the implementing/annotated
-     * matchers have been registered
+     * matchers have been registered.
      */
     public EZPlugins loadCache() throws IOException {
         AtomicReference<IOException> e1 = new AtomicReference<>(null);
@@ -112,6 +121,12 @@ public class EZPlugins {
         return this;
     }
 
+    /**
+     * List the available plugin filenames.
+     *
+     * @param trusted set to true if it should list trusted plugins, false for untrusted plugins
+     * @return string array of plugin filenames
+     */
     public String[] list(boolean trusted) {
         ArrayList<String> s = new ArrayList<>();
         try {
@@ -127,6 +142,12 @@ public class EZPlugins {
         return s.toArray(new String[0]);
     }
 
+    /**
+     * Delete all plugins.
+     *
+     * @return this
+     * @throws IOException if deletion fails
+     */
     public EZPlugins clearCache() throws IOException {
         walk(cacheDirectory, p -> {
             if (p.toString().endsWith(".jar")) {
@@ -140,6 +161,14 @@ public class EZPlugins {
         return this;
     }
 
+    /**
+     * Load a jar from a URL into the plugin cache.
+     *
+     * @param trusted true if the plugin should be set as trusted
+     * @param u URL to load the jar from
+     * @return this
+     * @throws IOException if loading fails
+     */
     public EZPlugins loadToCache(boolean trusted, URL u) throws IOException {
         String nm = Utils.namePart(u.getPath());
         if (!nm.endsWith(".jar")) {
@@ -151,6 +180,14 @@ public class EZPlugins {
         return this;
     }
 
+    /**
+     * Move a jar from the path into the plugin cache.
+     *
+     * @param trusted true if it should be moved into the trusted plugin cache
+     * @param u path to the jar to move
+     * @return this
+     * @throws IOException if moving fails
+     */
     public EZPlugins moveToCache(boolean trusted, Path u) throws IOException {
         Path p = u.getFileName();
         if (p == null) {
@@ -168,6 +205,13 @@ public class EZPlugins {
         return this;
     }
 
+    /**
+     * Find plugins implementing the given class.
+     *
+     * @param c Class that the plugin should implement
+     * @param m Callback to do something if a matching plugin is found
+     * @return this
+     */
     public <T> EZPlugins implementing(Class<T> c, ImplementingClassMatchProcessor<T> m) {
         if (doneFirstLoad) {
             throw new IllegalStateException("EZPlugins: all matchers must be specified before the first class load");
@@ -176,6 +220,13 @@ public class EZPlugins {
         return this;
     }
 
+    /**
+     * Find plugin annotated with a given class.
+     *
+     * @param c Annotation to search for
+     * @param m Callback if a match is found
+     * @return this
+     */
     public <T extends Annotation> EZPlugins annotated(Class<T> c, ClassAnnotationMatchProcessor m) {
         if (doneFirstLoad) {
             throw new IllegalStateException("EZPlugins: all matchers must be specified before the first class load");

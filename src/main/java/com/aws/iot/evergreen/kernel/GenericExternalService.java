@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Node;
@@ -19,14 +20,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GenericExternalService extends EvergreenService {
-    static final String[] sigCodes = {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE",
-            "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD",
-            "SIGCONT", "SIGSTOP", "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM",
-            "SIGPROF", "SIGWINCH", "SIGIO", "SIGPWR", "SIGSYS",};
+    static final String[] sigCodes =
+            {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
+                    "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
+                    "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH",
+                    "SIGIO", "SIGPWR", "SIGSYS",};
     private static final Pattern skipcmd = Pattern.compile("(exists|onpath) +(.+)");
     private boolean inShutdown;
     private Exec currentScript;
 
+    /**
+     * Create a new GenericExternalService.
+     *
+     * @param c root topic for this service.
+     */
     public GenericExternalService(Topics c) {
         super(c);
         c.subscribe((what, child) -> {
@@ -41,8 +48,8 @@ public class GenericExternalService extends EvergreenService {
     }
 
     public static String exit2String(int exitCode) {
-        return exitCode > 128 && exitCode < 129 + sigCodes.length ? sigCodes[exitCode - 129] :
-                "exit(" + ((exitCode << 24) >> 24) + ")";
+        return exitCode > 128 && exitCode < 129 + sigCodes.length ? sigCodes[exitCode - 129]
+                : "exit(" + ((exitCode << 24) >> 24) + ")";
     }
 
     @Override
@@ -69,6 +76,23 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
+    public void shutdown() {
+        inShutdown = true;
+        run("shutdown", null);
+        Exec e = currentScript;
+        if (e != null && e.isRunning()) {
+            try {
+                context.getLog().significant(getName(), "shutting down", e);
+                e.close();
+                e.waitClosed(1000);
+            } catch (IOException ioe) {
+                context.getLog().error(this, "shutdown failure", Utils.getUltimateMessage(ioe));
+            }
+        }
+        inShutdown = false;
+    }
+
+    @Override
     public void run() {
         if (run("run", exit -> {
             currentScript = null;
@@ -87,27 +111,21 @@ public class GenericExternalService extends EvergreenService {
         }
     }
 
-    @Override
-    public void shutdown() throws IOException {
-        inShutdown = true;
-        run("shutdown", null);
-        Exec e = currentScript;
-        if (e != null && e.isRunning()) {
-            context.getLog().significant(getName(), "shutting down", e);
-            e.close();
-            e.waitClosed(1000);
-        }
-        inShutdown = false;
-    }
-
+    /**
+     * Run one of the commands defined in the config on the command line.
+     *
+     * @param name name of the command to run ("run", "install", "start").
+     * @param background IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
+     * @return the status of the run.
+     */
     protected RunStatus run(String name, IntConsumer background) {
-        Node n = pickByOS(name);
+        Node n = config.getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 
     protected RunStatus run(Node n, IntConsumer background) {
-        return n instanceof Topic ? run((Topic) n, background, null) : n instanceof Topics ? run((Topics) n,
-                background) : RunStatus.Errored;
+        return n instanceof Topic ? run((Topic) n, background, null)
+                : n instanceof Topics ? run((Topics) n, background) : RunStatus.Errored;
     }
 
     protected RunStatus run(Topic t, IntConsumer background, Topics config) {
@@ -115,8 +133,8 @@ public class GenericExternalService extends EvergreenService {
     }
 
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
-        ShellRunner shellRunner = context.get(ShellRunner.class);
-        EZTemplates templateEngine = context.get(EZTemplates.class);
+        final ShellRunner shellRunner = context.get(ShellRunner.class);
+        final EZTemplates templateEngine = context.get(EZTemplates.class);
         cmd = templateEngine.rewrite(cmd).toString();
         setStatus(cmd);
         if (background == null) {
@@ -134,6 +152,21 @@ public class GenericExternalService extends EvergreenService {
             return ret;
         } else {
             return RunStatus.NothingDone;
+        }
+    }
+
+    protected RunStatus run(Topics t, IntConsumer background) {
+        if (!shouldSkip(t)) {
+            Node script = t.getChild("script");
+            if (script instanceof Topic) {
+                return run((Topic) script, background, t);
+            } else {
+                errored("Missing script: for ", t.getFullName());
+                return RunStatus.Errored;
+            }
+        } else {
+            context.getLog().significant("Skipping", t.getFullName());
+            return RunStatus.OK;
         }
     }
 
@@ -167,21 +200,6 @@ public class GenericExternalService extends EvergreenService {
             return neg ^ (status != RunStatus.Errored);
         }
         return false;
-    }
-
-    protected RunStatus run(Topics t, IntConsumer background) {
-        if (!shouldSkip(t)) {
-            Node script = t.getChild("script");
-            if (script instanceof Topic) {
-                return run((Topic) script, background, t);
-            } else {
-                errored("Missing script: for ", t.getFullName());
-                return RunStatus.Errored;
-            }
-        } else {
-            context.getLog().significant("Skipping", t.getFullName());
-            return RunStatus.OK;
-        }
     }
 
     private void addEnv(Exec exec, Topics src) {

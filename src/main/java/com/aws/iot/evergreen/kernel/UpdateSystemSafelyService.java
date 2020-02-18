@@ -1,5 +1,6 @@
 /* Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Topics;
@@ -18,15 +19,15 @@ import javax.inject.Singleton;
  * Handles requests to update the system's configuration during safe times.
  * (or anything else that's disruptive and shouldn't be done until the system
  * is in a "safe" state).
- * <p>
- * It maintains two lists: one is a list of actions that will be executed when the
+ *
+ * <p>It maintains two lists: one is a list of actions that will be executed when the
  * system is next "disruptable".  This is typically code that is going to install an update.
- * <p>
- * The other is a list of functions that are called to check if the system is "disruptable".
+ *
+ * <p>The other is a list of functions that are called to check if the system is "disruptable".
  * For example, a TV might not be disruptable if it is being used, or a robot if it is
  * in motion.
- * <p>
- * If the update service is periodic, update actions will only be processed at that time.
+ *
+ * <p>If the update service is periodic, update actions will only be processed at that time.
  * Otherwise, it the update will be processed immediately, assuming that all disruptability
  * checks pass.
  */
@@ -51,6 +52,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
     }
 
     /**
+     * Add an update action to be performed when the system is in a "safe" state.
+     *
      * @param tag    used both as a printable description and a de-duplication key.  eg. If
      *               the action is installing a new config file, the tag should probably be the
      *               URL of the config.  If a key is duplicated by subsequent actions, they
@@ -79,7 +82,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
         }
     }
 
-    @SuppressWarnings("SleepWhileInLoop")
+    @SuppressWarnings({"SleepWhileInLoop", "checkstyle:emptycatchblock"})
     @Override
     public void run() {
         // run() is invoked on it's own thread
@@ -101,7 +104,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 try {
                     log.note(getName(), "Holding for", maxt - now, "millis");
                     Thread.sleep(maxt - now);
-                } catch (InterruptedException ex) {
+                } catch (InterruptedException ignored) {
                 }
             } else {
                 log.note(getName(), "Queueing update actions");
@@ -122,16 +125,16 @@ public class UpdateSystemSafelyService extends EvergreenService {
          * is acceptable.
          *
          * @return Estimated time when this handler will be willing to be disrupted,
-         * expressed as milliseconds since the epoch. If
-         * the returned value is less than now (System.currentTimeMillis()) the handler
-         * is granting permission to be disrupted.  Otherwise, it will be asked again
-         * sometime later.
+         *     expressed as milliseconds since the epoch. If
+         *     the returned value is less than now (System.currentTimeMillis()) the handler
+         *     is granting permission to be disrupted.  Otherwise, it will be asked again
+         *     sometime later.
          */
         long whenIsDisruptionOK();
 
         /**
          * After a disruption, this is called to signal to the handler that the
-         * disruption is over and it's OK to start activity
+         * disruption is over and it's OK to start activity.
          */
         void disruptionCompleted();
     }

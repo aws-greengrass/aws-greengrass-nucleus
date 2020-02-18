@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.util;
 
 import java.io.BufferedWriter;
@@ -25,6 +26,10 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
+// Ignoring all checkstyle issues since this file will be replaced soon.
+@SuppressWarnings(
+        {"checkstyle:MissingJavadocMethod", "checkstyle:OverloadMethodsDeclarationOrder", "checkstyle:EmptyCatchBlock",
+                "checkstyle:AvoidEscapedUnicodeCharacters"})
 public class Log implements Closeable {
     private static final Entry closeMarker = new Entry(Instant.MIN, Level.Note);
     final ArrayBlockingQueue<Entry> queue = new ArrayBlockingQueue<>(100, false);
@@ -189,6 +194,7 @@ public class Log implements Closeable {
         public final Instant time;
         public final Level level;
         public final Object[] args;
+
         public Entry(Instant t, Level l, Object... a) {
             time = t;
             level = l;

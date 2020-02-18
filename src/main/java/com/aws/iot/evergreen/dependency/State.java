@@ -1,20 +1,21 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.dependency;
 
 /**
- * The states in the lifecycle of a service
+ * The states in the lifecycle of a service.
  */
 public enum State {
     // TODO Not sure I trust this list yet
 
     /**
-     * Object does not have a state (not a Lifecycle)
+     * Object does not have a state (not a Lifecycle).
      */
     STATELESS(true, false, false),
 
     /**
-     * Freshly created, probably being injected
+     * Freshly created, probably being injected.
      */
     NEW(true, false, false),
 
@@ -90,21 +91,21 @@ public enum State {
     }
 
     /**
-     * Nothing is going wrong, but it may not be fully "up"
+     * Nothing is going wrong, but it may not be fully "up".
      */
     public boolean isHappy() {
         return happy;
     }
 
     /**
-     * Fully up and running with associated service code executing (may be Unstable)
+     * Fully up and running with associated service code executing (may be Unstable).
      */
     public boolean isRunning() {
         return running;
     }
 
     /**
-     * Fully up and running, all is good
+     * Fully up and running, all is good.
      */
     public boolean isFunctioningProperly() {
         return functioningProperly;

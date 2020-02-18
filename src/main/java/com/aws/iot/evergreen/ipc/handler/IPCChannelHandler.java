@@ -6,9 +6,9 @@ package com.aws.iot.evergreen.ipc.handler;
 
 import com.aws.iot.evergreen.ipc.IPCCallback;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
-import com.aws.iot.evergreen.ipc.common.RequestContext;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.util.Log;
@@ -33,8 +33,8 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
 @ChannelHandler.Sharable
 @AllArgsConstructor
 @NoArgsConstructor
-public class MessageRouter extends ChannelInboundHandlerAdapter {
-    public static final AttributeKey<RequestContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
+public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
+    public static final AttributeKey<ConnectionContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
     private static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
 
     @Inject
@@ -57,7 +57,7 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         super.channelUnregistered(ctx);
-        // TODO: Handle de-registration of any listeners such as Lifecycle https://issues.amazon.com/issues/P32808717
+        router.clientDisconnected(ctx.channel().attr(CONNECTION_CONTEXT_KEY).get());
     }
 
     @Override
@@ -70,38 +70,33 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        if (FrameReader.FrameType.RESPONSE.equals(message.type)) {
+            router.handleResponseMessage(ctx.channel().attr(CONNECTION_CONTEXT_KEY).get(), message);
+            return;
+        }
+
         IPCCallback cb = router.getCallbackForDestination(message.destination);
         if (cb == null) {
-            log.warn(DEST_NOT_FOUND_ERROR,
-                    ctx.channel().remoteAddress(), message.destination);
-            sendResponse(new FrameReader.Message(
-                            IPCUtil.encode(GeneralResponse.builder()
-                                    .error(GenericErrorCodes.InvalidRequest)
-                                    .errorMessage(DEST_NOT_FOUND_ERROR)
-                                    .build())),
-                    message.sequenceNumber,
-                    message.destination, ctx, false);
+            log.warn(DEST_NOT_FOUND_ERROR, ctx.channel().remoteAddress(), message.destination);
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().error(GenericErrorCodes.InvalidRequest).errorMessage(DEST_NOT_FOUND_ERROR)
+                            .build())), message.sequenceNumber, message.destination, ctx, false);
             return;
         }
 
         try {
             // TODO: Be smart about timeouts? https://issues.amazon.com/issues/86453f7c-c94e-4a3c-b8ff-679767e7443c
-            FrameReader.Message responseMessage = cb.onMessage(message.message,
-                    ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
-                    // This .get() blocks forever waiting for the response to the request
-                    .get();
-            sendResponse(responseMessage,
-                    message.sequenceNumber,
-                    message.destination, ctx, false);
+            FrameReader.Message responseMessage =
+                    cb.onMessage(message.message, ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
+                            // This .get() blocks forever waiting for the response to the request
+                            .get();
+            sendResponse(responseMessage, message.sequenceNumber, message.destination, ctx, false);
         } catch (Throwable throwable) {
             // This is just a catch-all. Any service specific errors should be handled by the service code.
             // Ideally this never gets executed.
-            sendResponse(new FrameReader.Message(
-                            IPCUtil.encode(GeneralResponse.builder()
-                                    .error(GenericErrorCodes.InternalError)
-                                    .errorMessage(getUltimateMessage(throwable))
-                                    .build())),
-                    message.sequenceNumber,
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().error(GenericErrorCodes.InternalError)
+                            .errorMessage(getUltimateMessage(throwable)).build())), message.sequenceNumber,
                     message.destination, ctx, false);
         }
     }
@@ -109,33 +104,25 @@ public class MessageRouter extends ChannelInboundHandlerAdapter {
     private void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
         if (message.destination.equals(AUTH_SERVICE)) {
             try {
-                RequestContext context = auth.doAuth(message.message);
+                ConnectionContext context = auth.doAuth(message.message);
                 ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(context);
                 log.note("Successfully authenticated client", ctx.channel().remoteAddress(), context);
-                sendResponse(new FrameReader.Message(
-                                IPCUtil.encode(GeneralResponse.builder()
-                                        .error(GenericErrorCodes.Success)
-                                        .build())),
-                        message.sequenceNumber,
-                        message.destination, ctx, false);
+                sendResponse(new FrameReader.Message(IPCUtil.encode(
+                        GeneralResponse.builder().response(context.getServiceName()).error(GenericErrorCodes.Success)
+                                .build())), message.sequenceNumber, message.destination, ctx, false);
+                router.clientConnected(context, ctx.channel());
             } catch (Throwable t) {
                 log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
-                sendResponse(new FrameReader.Message(
-                                IPCUtil.encode(GeneralResponse.builder()
-                                        .errorMessage("Error while authenticating client")
-                                        .error(GenericErrorCodes.Unauthorized)
-                                        .build())),
-                        message.sequenceNumber,
+                sendResponse(new FrameReader.Message(IPCUtil.encode(
+                        GeneralResponse.builder().errorMessage("Error while authenticating client")
+                                .error(GenericErrorCodes.Unauthorized).build())), message.sequenceNumber,
                         message.destination, ctx, true);
             }
         } else {
             log.warn("Wrong destination for first packet from client", ctx.channel().remoteAddress());
-            sendResponse(new FrameReader.Message(
-                            IPCUtil.encode(GeneralResponse.builder()
-                                    .errorMessage("Error while authenticating client")
-                                    .error(GenericErrorCodes.Unauthorized)
-                                    .build())),
-                    message.sequenceNumber,
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().errorMessage("Error while authenticating client")
+                            .error(GenericErrorCodes.Unauthorized).build())), message.sequenceNumber,
                     message.destination, ctx, true);
         }
     }

@@ -1,5 +1,6 @@
 /* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Configuration;
@@ -37,7 +38,7 @@ import static com.aws.iot.evergreen.util.Utils.isEmpty;
 import static com.aws.iot.evergreen.util.Utils.nullEmpty;
 
 /**
- * A collection of Objects that work together
+ * A collection of Objects that work together.
  */
 @SuppressFBWarnings(value = "SC_START_IN_CTOR", justification = "Starting thread in constructor is what we want")
 public class Context implements Closeable {
@@ -55,6 +56,7 @@ public class Context implements Closeable {
             //                setDaemon(true);
         }
 
+        @SuppressWarnings({"checkstyle:emptycatchblock"})
         @Override
         public void run() {
             while (true) {
@@ -65,7 +67,7 @@ public class Context implements Closeable {
                     } catch (Throwable t) {
                         log.error("subscription listener errored", task.getClass(), t);
                     }
-                } catch (InterruptedException e) {
+                } catch (InterruptedException ignored) {
                 }
             }
         }
@@ -112,6 +114,13 @@ public class Context implements Closeable {
         return new Value<>(cl, null).get();
     }
 
+    /**
+     * Get the class with the provided tag, if it exists.
+     *
+     * @param cl class to lookup
+     * @param tag tag of the instance of the class to get
+     * @return null if it could not be found, returns the class otherwise
+     */
     public <T> T getIfExists(Class<T> cl, String tag) {
         Value v = getvIfExists(tag == null ? cl : tag);
         if (v == null) {
@@ -125,6 +134,13 @@ public class Context implements Closeable {
         return parts.get(tag);
     }
 
+    /**
+     * Put a class into the Context.
+     *
+     * @param cl type of class to be stored
+     * @param v instance of class to store
+     * @return this
+     */
     public <T> Context put(Class<T> cl, T v) {
         parts.compute(cl, (k, ov) -> {
             if (ov == null) {
@@ -137,6 +153,13 @@ public class Context implements Closeable {
         return this;
     }
 
+    /**
+     * Put a class into the Context.
+     *
+     * @param cl type of class to be stored
+     * @param v value instance of class to store
+     * @return this
+     */
     public <T> Context put(Class<T> cl, Value<T> v) {
         parts.compute(cl, (k, ov) -> {
             if (ov == null) {
@@ -149,8 +172,15 @@ public class Context implements Closeable {
         return this;
     }
 
-    public Context put(String k, Object v) {
-        parts.compute(k, (k2, ov) -> {
+    /**
+     * Put object into the context with a provided tag.
+     *
+     * @param tag tag
+     * @param v value
+     * @return this
+     */
+    public Context put(String tag, Object v) {
+        parts.compute(tag, (k2, ov) -> {
             if (ov == null) {
                 ov = new Value(v.getClass(), v);
             } else {
@@ -165,6 +195,9 @@ public class Context implements Closeable {
         parts.values().forEach(f);
     }
 
+    /**
+     * Shutdown this context, closing all closeable classes stored in this context.
+     */
     public void shutdown() {
         if (shuttingDown) {
             return;
@@ -188,6 +221,11 @@ public class Context implements Closeable {
         shutdown();
     }
 
+    /**
+     * Add a global state change listener.
+     *
+     * @param l listener to add
+     */
     public synchronized void addGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
         if (listeners == null) {
             listeners = new CopyOnWriteArrayList<>();
@@ -195,6 +233,11 @@ public class Context implements Closeable {
         listeners.add(l);
     }
 
+    /**
+     * Remove a global state change listener.
+     *
+     * @param l listener to remove
+     */
     public synchronized void removeGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
         if (listeners != null) {
             listeners.remove(l);
@@ -204,6 +247,12 @@ public class Context implements Closeable {
         }
     }
 
+    /**
+     * Serially send an event to the global state change listeners.
+     *
+     * @param changedService the service which had a state change
+     * @param previousState the previous state of the service
+     */
     public synchronized void globalNotifyStateChanged(EvergreenService service, final State prevState,
                                                       final State activeState) {
         if (listeners != null) {
@@ -211,6 +260,11 @@ public class Context implements Closeable {
         }
     }
 
+    /**
+     * Set the state of every service.
+     *
+     * @param newState new state
+     */
     public void addDesiredStatesForAll(State desiredState) {
         forEach(f -> {
             Object v = f.get();
@@ -224,6 +278,12 @@ public class Context implements Closeable {
         serialized.add(r);
     }
 
+    /**
+     * Run a Crashable function on the publish queue and wait for it to finish execution.
+     *
+     * @param r Crashable
+     * @return Throwable resulting from running the Crashable (if any)
+     */
     public Throwable runOnPublishQueueAndWait(Crashable r) {
         AtomicReference<Throwable> ret = new AtomicReference<>();
         CountDownLatch ready = new CountDownLatch(1);
@@ -257,14 +317,16 @@ public class Context implements Closeable {
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
     public @interface StartWhen {
+        /**
+         * What state to start the service.
+         */
         State value();
     }
 
     public class Value<T> implements Provider<T> {
         final Class<T> targetClass;
         public volatile T value;
-        @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC",
-                justification = "No need to be sync")
+        @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;
 
         Value(Class<T> c, T v) {
@@ -287,9 +349,8 @@ public class Context implements Closeable {
                 return v;
             }
             try {
-                Class<T> ccl = targetClass.isInterface()
-                        ? (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default")
-                        : targetClass;
+                Class<T> ccl = targetClass.isInterface() ? (Class<T>) targetClass.getClassLoader()
+                        .loadClass(targetClass.getName() + "$Default") : targetClass;
                 //                System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
                 Constructor<T> cons = null;
                 for (Constructor<T> c : (Constructor<T>[]) ccl.getConstructors()) {
@@ -313,8 +374,8 @@ public class Context implements Closeable {
                 Object[] args = new Object[np];
                 Class[] types = cons.getParameterTypes();
                 for (int i = 0; i < np; i++) {
-                    Class T = types[i];
-                    if (T == Topics.class) {
+                    Class type = types[i];
+                    if (type == Topics.class) {
                         ImplementsService svc = ccl.getAnnotation(ImplementsService.class);
                         if (svc != null) {
                             String nm = svc.name();
@@ -323,7 +384,7 @@ public class Context implements Closeable {
                         }
                         args[i] = Topics.errorNode(Context.this, "message", "Synthetic args");
                     } else {
-                        args[i] = Context.this.get(T);
+                        args[i] = Context.this.get(type);
                     }
                 }
                 //                System.out.println("**Construct "+Utils.deepToString(cons, 90)+" "+Utils
@@ -335,6 +396,12 @@ public class Context implements Closeable {
             }
         }
 
+        /**
+         * Put a new value.
+         *
+         * @param v new value
+         * @return new value
+         */
         public final synchronized T put(T v) {
             if (v == value) {
                 return v;
@@ -402,7 +469,8 @@ public class Context implements Closeable {
                                 //                                Class scl = (Class) ((ParameterizedType) f
                                 //                                .getGenericType()).getActualTypeArguments()[0];
                                 //                                System.out.println("\tprovides " + scl);
-                                v = getv((Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0], name);
+                                v = getv((Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
+                                        name);
                             } else {
                                 v = Context.this.get(t, name);
                             }

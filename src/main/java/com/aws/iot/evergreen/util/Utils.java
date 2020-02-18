@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+@SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder"})
 public class Utils {
     public static final Path homePath = Paths.get(System.getProperty("user.home"));
     private static final char[] rsChars = "abcdefghjklmnpqrstuvwxyz0123456789".toCharArray();
@@ -25,10 +26,16 @@ public class Utils {
     private Utils() {
     }
 
-    public static Throwable close(Object c) {
-        if (c instanceof Closeable) {
+    /**
+     * Tries to close an object if it can.
+     *
+     * @param closeable object to be closed.
+     * @return error if any.
+     */
+    public static Throwable close(Object closeable) {
+        if (closeable instanceof Closeable) {
             try {
-                ((Closeable) c).close();
+                ((Closeable) closeable).close();
                 return null;
             } catch (Throwable t) {
                 return t;
@@ -38,10 +45,16 @@ public class Utils {
         }
     }
 
-    public static Throwable flush(Object c) {
-        if (c instanceof Flushable) {
+    /**
+     * Tries to flush an object if it can.
+     *
+     * @param flushable object to be flushed.
+     * @return error if any.
+     */
+    public static Throwable flush(Object flushable) {
+        if (flushable instanceof Flushable) {
             try {
-                ((Flushable) c).flush();
+                ((Flushable) flushable).flush();
                 return null;
             } catch (Throwable t) {
                 return t;
@@ -51,6 +64,12 @@ public class Utils {
         }
     }
 
+    /**
+     * Returns true if the given string is null, empty, or only whitespace.
+     *
+     * @param s string to check.
+     * @return true if it is null, empty, or only whitespace.
+     */
     public static boolean isEmpty(String s) {
         if (s == null) {
             return true;
@@ -84,6 +103,12 @@ public class Utils {
         return s == null || s.isEmpty() ? null : s;
     }
 
+    /**
+     * Get the last cause in the chain of causes (the first cause which happened).
+     *
+     * @param t throwable to get the cause of.
+     * @return Throwable the ultimate cause.
+     */
     public static Throwable getUltimateCause(Throwable t) {
         while (t.getCause() != null) {
             t = t.getCause();
@@ -91,6 +116,12 @@ public class Utils {
         return t;
     }
 
+    /**
+     * Get the last message from the chain of causes (the message of the first cause which happened).
+     *
+     * @param t throwable to get the cause of.
+     * @return String message.
+     */
     public static String getUltimateMessage(Throwable t) {
         if (t == null) {
             return "No Error";
@@ -99,6 +130,12 @@ public class Utils {
         return isEmpty(msg) ? t.toString() : msg;
     }
 
+    /**
+     * Generate a secure random string of a given length.
+     *
+     * @param desiredLength length of the output string
+     * @return the random string
+     */
     public static String generateRandomString(int desiredLength) {
         SecureRandom r;
         if ((r = random) == null) {
@@ -117,6 +154,12 @@ public class Utils {
         return homePath.resolve(s);
     }
 
+    /**
+     * Tries to pull the file extension from a path as a string.
+     *
+     * @param s the file path/name.
+     * @return the extension (if any) or else the empty string.
+     */
     public static String extension(String s) {
         if (s != null) {
             int dp = s.lastIndexOf('.');
@@ -131,30 +174,36 @@ public class Utils {
         return s == null ? "" : s.substring(s.lastIndexOf('/') + 1);
     }
 
-    public static String deepToNonEmptyString(Object obj) {
-        if (obj == null) {
-            return "null";
-        }
-        String string = deepToString(obj).toString().trim();
-        return string.isEmpty() ? "\"\"" : string;
-    }
-
     public static CharSequence deepToString(Object o) {
         return deepToString(o, 40);
     }
 
-    public static CharSequence deepToString(Object o, int len) {
+    /**
+     * Tries to convert an object into a string with a max length.
+     *
+     * @param o         object to convert to a string.
+     * @param maxLength maximum length of the returned string.
+     * @return string representation of the given object.
+     */
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
+    public static CharSequence deepToString(Object o, int maxLength) {
         if (o instanceof CharSequence) {
             return (CharSequence) o;
         }
         StringBuilder sb = new StringBuilder();
         try {
-            deepToString(o, sb, len);
-        } catch (IOException ex) {
+            deepToString(o, sb, maxLength);
+        } catch (IOException ignored) {
         }
         return sb;
     }
 
+    /**
+     * Un-JSON-encode a string by stripping quotes and escape characters.
+     *
+     * @param cs JSON encoded string
+     * @return unencoded string
+     */
     public static String dequote(CharSequence cs) {
         final StringBuilder sb = new StringBuilder();
         int limit = cs.length();
@@ -195,12 +244,22 @@ public class Utils {
         return sb.toString();
     }
 
-    public static int deepToStringQuoted(Object o, Appendable sb, int maxlen) throws IOException {
+    /**
+     * Same as deepToString, but output string as JSON encoded, escaping
+     * special characters.
+     *
+     * @param o         object to encode.
+     * @param sb        Appendable object to write the output to.
+     * @param maxLength maximum length of the output string.
+     * @return output length.
+     * @throws IOException if the append fails.
+     */
+    public static int deepToStringQuoted(Object o, Appendable sb, int maxLength) throws IOException {
         if (o instanceof CharSequence) {
             sb.append('"');
             CharSequence s = (CharSequence) o;
             int l0 = s.length();
-            int len = Math.min(l0, Math.max(5, maxlen - 10));
+            int len = Math.min(l0, Math.max(5, maxLength - 10));
             int olen = 2;
             for (int i = 0; i < len; i++) {
                 char c = s.charAt(i);
@@ -232,10 +291,19 @@ public class Utils {
             sb.append('"');
             return olen;
         }
-        return deepToString(o, sb, maxlen);
+        return deepToString(o, sb, maxLength);
     }
 
-    public static int deepToString(Object o, Appendable sb, int maxlen) throws IOException {
+    /**
+     * Convert an object to a string representation for human readability.
+     *
+     * @param o         object to convert to string.
+     * @param sb        Appendable to write the string into.
+     * @param maxLength maximum length of the output.
+     * @return actual output length.
+     * @throws IOException if the append fails.
+     */
+    public static int deepToString(Object o, Appendable sb, int maxLength) throws IOException {
         int olen = 0;
         if (o == null) {
             sb.append("null");
@@ -245,7 +313,7 @@ public class Utils {
             olen += 2;
             sb.append('[');
             for (int i = 0; i < len; i++) {
-                if (olen >= maxlen) {
+                if (olen >= maxLength) {
                     sb.append("...");
                     olen += 3;
                     break;
@@ -254,7 +322,7 @@ public class Utils {
                     sb.append(',');
                     olen++;
                 }
-                olen += deepToStringQuoted(Array.get(o, i), sb, maxlen - olen);
+                olen += deepToStringQuoted(Array.get(o, i), sb, maxLength - olen);
             }
             sb.append(']');
         } else if (o instanceof Map) {
@@ -262,7 +330,7 @@ public class Utils {
             olen += 2;
             int slot = 0;
             for (Map.Entry<?, ?> me : ((Map<?, ?>) o).entrySet()) {
-                if (olen >= maxlen) {
+                if (olen >= maxLength) {
                     sb.append("...");
                     olen += 3;
                     break;
@@ -271,10 +339,10 @@ public class Utils {
                     sb.append(',');
                     olen++;
                 }
-                olen += deepToString(me.getKey(), sb, maxlen - olen);
+                olen += deepToString(me.getKey(), sb, maxLength - olen);
                 sb.append(':');
                 olen++;
-                olen += deepToStringQuoted(me.getValue(), sb, maxlen - olen);
+                olen += deepToStringQuoted(me.getValue(), sb, maxLength - olen);
             }
             sb.append('}');
         } else if (o instanceof Iterable && !(o instanceof Path)) {
@@ -282,7 +350,7 @@ public class Utils {
             olen += 2;
             int slot = 0;
             for (Object obj : (Iterable) o) {
-                if (olen >= maxlen) {
+                if (olen >= maxLength) {
                     sb.append("...");
                     olen += 3;
                     break;
@@ -291,7 +359,7 @@ public class Utils {
                     sb.append(',');
                     olen++;
                 }
-                olen += deepToStringQuoted(obj, sb, maxlen - olen);
+                olen += deepToStringQuoted(obj, sb, maxLength - olen);
             }
             sb.append(']');
         } else {
@@ -302,25 +370,40 @@ public class Utils {
         return olen;
     }
 
-    public static void appendHex(long v, int w, Appendable out) throws IOException {
-        while (--w >= 0) {
-            out.append(hex[(int) ((v >> (w << 2))) & 0xF]);
+    /**
+     * Write value to out as hexadecimal of the provided width.
+     *
+     * @param value value to write as hex.
+     * @param width number of hex characters required in the output.
+     * @param out   Appendable to write to.
+     * @throws IOException if the append fails.
+     */
+    public static void appendHex(long value, int width, Appendable out) throws IOException {
+        while (--width >= 0) {
+            out.append(hex[(int) ((value >> (width << 2))) & 0xF]);
         }
     }
 
-    public static void appendLong(long v, Appendable out) throws IOException {
-        if (v < 0) {
+    /**
+     * Write the given long to the appendable.
+     *
+     * @param value value to write to the appendable.
+     * @param out   Appendable.
+     * @throws IOException if the append fails.
+     */
+    public static void appendLong(long value, Appendable out) throws IOException {
+        if (value < 0) {
             out.append('-');
-            v = -v;
-            if (v < 0) {  // only one number is its own negative
+            value = -value;
+            if (value < 0) {  // only one number is its own negative
                 out.append("9223372036854775808");
                 return;
             }
         }
-        if (v >= 10) {
-            appendLong(v / 10, out);
+        if (value >= 10) {
+            appendLong(value / 10, out);
         }
-        out.append((char) ('0' + v % 10));
+        out.append((char) ('0' + value % 10));
     }
 
     public static long parseLong(CharSequence str) {
@@ -335,6 +418,17 @@ public class Utils {
         return parseLong(CharBuffer.wrap(str, pos, limit), radix);
     }
 
+    /**
+     * Parse an input string as a long. Throws NumberFormatException if the input
+     * is not a long.
+     *
+     * @param str   input string.
+     * @param pos   starting position in the string.
+     * @param limit stopping position in the string.
+     * @param radix the base of the long.
+     * @return the parsed long.
+     * @throws NumberFormatException if the input string does not represent a long.
+     */
     public static long parseLongChecked(CharSequence str, int pos, int limit, int radix) {
         CharBuffer buf = CharBuffer.wrap(str, pos, limit);
         long res = parseLong(buf, radix);
@@ -344,6 +438,12 @@ public class Utils {
         return res;
     }
 
+    /**
+     * Parse the given string into a long.
+     *
+     * @param str input string.
+     * @return long value from the string.
+     */
     public static long parseLong(CharBuffer str) {
         long ret;
         boolean neg = false;
@@ -389,6 +489,13 @@ public class Utils {
         return neg ? -ret : ret;
     }
 
+    /**
+     * Parse long from string with a given base.
+     *
+     * @param str   input string.
+     * @param radix base of the long.
+     * @return resulting long.
+     */
     public static long parseLong(CharBuffer str, int radix) {
         long ret = 0;
         while (str.remaining() > 0) {
@@ -412,6 +519,14 @@ public class Utils {
         return ret;
     }
 
+    /**
+     * Make an immutable map from provided keys and values.
+     *
+     * @param k1            first key
+     * @param v1            first value
+     * @param keyValuePairs remaining keys and values
+     * @return immutable map with the provided key-values
+     */
     public static <K, V> Map<K, V> immutableMap(K k1, V v1, Object... keyValuePairs) {
         if (keyValuePairs.length % 2 != 0) {
             throw new IllegalArgumentException("Expected even number of arguments");
