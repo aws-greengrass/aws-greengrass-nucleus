@@ -23,12 +23,12 @@ public class IPCRouterTest {
         IPCRouter router = new IPCRouter(log);
 
         CountDownLatch cdl = new CountDownLatch(1);
-        router.registerServiceCallback("dest", (a, b) -> {
+        router.registerServiceCallback(100, (a, b) -> {
             cdl.countDown();
             return null;
         });
 
-        router.getCallbackForDestination("dest").onMessage(null, null);
+        router.getCallbackForDestination(100).onMessage(null, null);
         assertTrue(cdl.await(100, TimeUnit.MILLISECONDS));
     }
 
@@ -36,8 +36,8 @@ public class IPCRouterTest {
     public void GIVEN_already_registered_function_WHEN_register_callback_THEN_exception_is_thrown() throws Throwable {
         IPCRouter router = new IPCRouter(log);
 
-        router.registerServiceCallback("dest", (a, b) -> null);
+        router.registerServiceCallback(100, (a, b) -> null);
 
-        assertThrows(IPCException.class, () -> router.registerServiceCallback("dest", (a, b) -> null));
+        assertThrows(IPCException.class, () -> router.registerServiceCallback(100, (a, b) -> null));
     }
 }

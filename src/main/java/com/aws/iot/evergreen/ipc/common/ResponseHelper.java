@@ -15,18 +15,18 @@ public class ResponseHelper {
      * Send a message in response over the channel.
      *
      * @param msg message to be sent
-     * @param sequenceNumber sequence number to respond with
+     * @param requestId request id to respond with
      * @param destination destination of the response
      * @param ctx netty channel context used to send the response
      * @param closeWhenDone true if the channel should be shutdown
      * @throws IOException if anything goes wrong
      */
-    public static void sendResponse(FrameReader.Message msg, int sequenceNumber, String destination,
+    public static void sendResponse(FrameReader.Message msg, int requestId, int destination,
                                        ChannelHandlerContext ctx, boolean closeWhenDone) throws IOException {
         // TODO: Validate frame data length
 
         FrameReader.MessageFrame response =
-                new FrameReader.MessageFrame(sequenceNumber, destination, msg, FrameReader.FrameType.RESPONSE);
+                new FrameReader.MessageFrame(requestId, destination, msg, FrameReader.FrameType.RESPONSE);
         ChannelFuture future = ctx.writeAndFlush(response);
         if (closeWhenDone) {
             future.addListener(ChannelFutureListener.CLOSE);

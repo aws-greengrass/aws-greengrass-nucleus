@@ -6,5 +6,5 @@ import java.util.concurrent.Future;
 
 @FunctionalInterface
 public interface ConnectionHandle {
-    Future<FrameReader.Message> sendAndReceive(String destination, FrameReader.Message message);
+    Future<FrameReader.Message> sendAndReceive(int destination, FrameReader.Message message);
 }

@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.ConnectionHandle;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
@@ -25,8 +26,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
-
-import static com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle.LIFECYCLE_SERVICE_NAME;
 
 /**
  * Class to handle business logic for all Lifecycle requests over IPC.
@@ -126,7 +125,7 @@ public class LifecycleIPCAgent implements InjectionActions {
                         ConnectionHandle connectionHandle =
                                 router.getConnectionHandle(context, this::handleConnectionClosed);
                         if (connectionHandle != null) {
-                            connectionHandle.sendAndReceive(LIFECYCLE_SERVICE_NAME,
+                            connectionHandle.sendAndReceive(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
                                     new FrameReader.Message(IPCUtil.encode(req))).get();
                         }
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289

@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.builtin.services.lifecycle.LifecycleIPCAgent;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
@@ -26,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle.LIFECYCLE_SERVICE_NAME;
 import static com.aws.iot.evergreen.util.Log.Level;
 
 
@@ -50,11 +50,12 @@ public class LifecycleIPCService extends EvergreenService {
 
     @Override
     public void postInject() {
+        BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.LIFECYCLE;
         super.postInject();
         try {
-            router.registerServiceCallback(LIFECYCLE_SERVICE_NAME, this::handleMessage);
+            router.registerServiceCallback(destination.getValue(), this::handleMessage);
         } catch (IPCException e) {
-            log.log(Level.Error, "Error registering callback for service " + LIFECYCLE_SERVICE_NAME);
+            log.log(Level.Error, "Error registering callback for service " + destination.name());
         }
     }
 

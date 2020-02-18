@@ -3,20 +3,29 @@ package com.aws.iot.evergreen.ipc.handler;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
+import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
+import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
+import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import javax.inject.Inject;
+
+import static com.aws.iot.evergreen.ipc.common.ResponseHelper.sendResponse;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -26,6 +35,10 @@ public class AuthHandler implements InjectionActions {
 
     @Inject
     private Configuration config;
+    @Inject
+    private Log log;
+    @Inject
+    private IPCRouter router;
 
     /**
      * Register an auth token for the given service.
@@ -50,11 +63,13 @@ public class AuthHandler implements InjectionActions {
     /**
      * Authenticate the incoming request and return a RequestContext if successful.
      *
-     * @param request incoming request frame to be validated.
+     * @param request       incoming request frame to be validated.
+     * @param remoteAddress remote address the client is connected from
      * @return RequestContext containing the server name if validated.
      * @throws IPCClientNotAuthorizedException thrown if not authorized, or any other error happens.
      */
-    public ConnectionContext doAuth(FrameReader.Message request) throws IPCClientNotAuthorizedException {
+    public ConnectionContext doAuth(FrameReader.Message request, SocketAddress remoteAddress)
+            throws IPCClientNotAuthorizedException {
         GeneralRequest<String, AuthRequestTypes> decodedRequest;
         try {
             decodedRequest = IPCUtil.decode(request, new TypeReference<GeneralRequest<String, AuthRequestTypes>>() {
@@ -72,6 +87,32 @@ public class AuthHandler implements InjectionActions {
             throw new IPCClientNotAuthorizedException("Auth token not found");
         }
 
-        return new ConnectionContext(serviceName);
+        return new ConnectionContext(serviceName, remoteAddress);
+    }
+
+    void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
+        if (message.destination == BuiltInServiceDestinationCode.AUTH.getValue()) {
+            try {
+                ConnectionContext context = doAuth(message.message, ctx.channel().remoteAddress());
+                ctx.channel().attr(IPCChannelHandler.CONNECTION_CONTEXT_KEY).set(context);
+                log.note("Successfully authenticated client", context);
+                sendResponse(new FrameReader.Message(IPCUtil.encode(
+                        GeneralResponse.builder().response(context.getServiceName()).error(GenericErrorCodes.Success)
+                                .build())), message.requestId, message.destination, ctx, false);
+                router.clientConnected(context, ctx.channel());
+            } catch (Throwable t) {
+                log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
+                sendResponse(new FrameReader.Message(IPCUtil.encode(
+                        GeneralResponse.builder().errorMessage("Error while authenticating client")
+                                .error(GenericErrorCodes.Unauthorized).build())), message.requestId,
+                        message.destination, ctx, true);
+            }
+        } else {
+            log.warn("Wrong destination for first packet from client", ctx.channel().remoteAddress());
+            sendResponse(new FrameReader.Message(IPCUtil.encode(
+                    GeneralResponse.builder().errorMessage("Error while authenticating client")
+                            .error(GenericErrorCodes.Unauthorized).build())), message.requestId, message.destination,
+                    ctx, true);
+        }
     }
 }

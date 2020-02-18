@@ -16,11 +16,15 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.LENGTH_FIELD_LENGTH;
+import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.LENGTH_FIELD_OFFSET;
+import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.MAX_PAYLOAD_SIZE;
 import static com.aws.iot.evergreen.util.Log.Level;
 
 
@@ -89,6 +93,8 @@ public class IPCService extends EvergreenService {
                     public void initChannel(SocketChannel ch) {
                         ChannelPipeline p = ch.pipeline();
 
+                        p.addLast(new LengthFieldBasedFrameDecoder(MAX_PAYLOAD_SIZE, LENGTH_FIELD_OFFSET,
+                                LENGTH_FIELD_LENGTH));
                         p.addLast(new MessageFrameDecoder());
                         p.addLast(new MessageFrameEncoder());
                         p.addLast(ipcChannelHandler);

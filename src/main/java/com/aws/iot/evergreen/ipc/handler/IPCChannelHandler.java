@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.ipc.handler;
 
 import com.aws.iot.evergreen.ipc.IPCCallback;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
@@ -19,10 +20,9 @@ import io.netty.util.AttributeKey;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.common.Constants.AUTH_SERVICE;
 import static com.aws.iot.evergreen.ipc.common.ResponseHelper.sendResponse;
 import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
 
@@ -36,6 +36,7 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateMessage;
 public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     public static final AttributeKey<ConnectionContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
     private static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
+    private static final String UNSUPPORTED_PROTOCOL_VERSION = "Unsupported protocol version";
 
     @Inject
     private Log log;
@@ -64,9 +65,17 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         final FrameReader.MessageFrame message = (FrameReader.MessageFrame) msg;
 
+        // Match up the version, if it doesn't match then return an error and close the connection
+        if (message.version != FrameReader.VERSION) {
+            log.warn(UNSUPPORTED_PROTOCOL_VERSION, ctx.channel().remoteAddress());
+            sendResponse(new FrameReader.Message(UNSUPPORTED_PROTOCOL_VERSION.getBytes(StandardCharsets.UTF_8)),
+                    message.requestId, BuiltInServiceDestinationCode.ERROR.getValue(), ctx, true);
+            return;
+        }
+
         // When there isn't context yet, we expect a call to be authorized first
         if (ctx.channel().attr(CONNECTION_CONTEXT_KEY).get() == null) {
-            handleAuth(ctx, message);
+            auth.handleAuth(ctx, message);
             return;
         }
 
@@ -75,12 +84,12 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        // Get the callback for a destination. If it doesn't exist, then send back an error message.
         IPCCallback cb = router.getCallbackForDestination(message.destination);
         if (cb == null) {
             log.warn(DEST_NOT_FOUND_ERROR, ctx.channel().remoteAddress(), message.destination);
-            sendResponse(new FrameReader.Message(IPCUtil.encode(
-                    GeneralResponse.builder().error(GenericErrorCodes.InvalidRequest).errorMessage(DEST_NOT_FOUND_ERROR)
-                            .build())), message.sequenceNumber, message.destination, ctx, false);
+            sendResponse(new FrameReader.Message(DEST_NOT_FOUND_ERROR.getBytes(StandardCharsets.UTF_8)),
+                    message.requestId, BuiltInServiceDestinationCode.ERROR.getValue(), ctx, false);
             return;
         }
 
@@ -90,40 +99,14 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
                     cb.onMessage(message.message, ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
                             // This .get() blocks forever waiting for the response to the request
                             .get();
-            sendResponse(responseMessage, message.sequenceNumber, message.destination, ctx, false);
+            sendResponse(responseMessage, message.requestId, message.destination, ctx, false);
         } catch (Throwable throwable) {
             // This is just a catch-all. Any service specific errors should be handled by the service code.
             // Ideally this never gets executed.
             sendResponse(new FrameReader.Message(IPCUtil.encode(
                     GeneralResponse.builder().error(GenericErrorCodes.InternalError)
-                            .errorMessage(getUltimateMessage(throwable)).build())), message.sequenceNumber,
+                            .errorMessage(getUltimateMessage(throwable)).build())), message.requestId,
                     message.destination, ctx, false);
-        }
-    }
-
-    private void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
-        if (message.destination.equals(AUTH_SERVICE)) {
-            try {
-                ConnectionContext context = auth.doAuth(message.message);
-                ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(context);
-                log.note("Successfully authenticated client", ctx.channel().remoteAddress(), context);
-                sendResponse(new FrameReader.Message(IPCUtil.encode(
-                        GeneralResponse.builder().response(context.getServiceName()).error(GenericErrorCodes.Success)
-                                .build())), message.sequenceNumber, message.destination, ctx, false);
-                router.clientConnected(context, ctx.channel());
-            } catch (Throwable t) {
-                log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
-                sendResponse(new FrameReader.Message(IPCUtil.encode(
-                        GeneralResponse.builder().errorMessage("Error while authenticating client")
-                                .error(GenericErrorCodes.Unauthorized).build())), message.sequenceNumber,
-                        message.destination, ctx, true);
-            }
-        } else {
-            log.warn("Wrong destination for first packet from client", ctx.channel().remoteAddress());
-            sendResponse(new FrameReader.Message(IPCUtil.encode(
-                    GeneralResponse.builder().errorMessage("Error while authenticating client")
-                            .error(GenericErrorCodes.Unauthorized).build())), message.sequenceNumber,
-                    message.destination, ctx, true);
         }
     }
 
