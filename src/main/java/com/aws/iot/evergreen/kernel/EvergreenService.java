@@ -32,33 +32,134 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME", justification = "Need hardcoded paths to find what OS we're on")
+@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
+        justification = "Need hardcoded paths to find what OS we're on")
 public class EvergreenService implements InjectionActions, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
 
     public final Topics config;
-    public Context context;
     protected final CopyOnWriteArrayList<EvergreenService> explicitDependencies = new CopyOnWriteArrayList<>();
-    protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private final Object dependencyReadyLock = new Object();
     private final Topic stateTopic;
     private final CopyOnWriteArrayList<State> desiredStatesSequence = new CopyOnWriteArrayList<>();
-
+    public Context context;
+    protected ConcurrentHashMap<EvergreenService, State> dependencies;
     private Throwable error;
     private Periodicity periodicityInformation;
-
-    public State getActiveState() {
-        return activeState;
-    }
-
     private State activeState = State.NEW;
     private String status;
-
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics topics) {
         this.config = topics;
         this.stateTopic = initStateTopic(topics);
+    }
+
+    public static State getState(EvergreenService evergreenService) {
+        return evergreenService.getActiveState();
+    }
+
+    static void setState(Object o, State state) {
+        if (o instanceof EvergreenService) {
+            ((EvergreenService) o).broadcastStateChange(state);
+        }
+    }
+
+    /**
+     * Locate an EvergreenService by name from the provided context.
+     *
+     * @param context context to lookup the name in
+     * @param name    name of the service to find
+     * @return found service or null
+     * @throws Throwable maybe throws?
+     */
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
+    public static EvergreenService locate(Context context, String name) throws Throwable {
+        return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
+            Configuration c = context.get(Configuration.class);
+            Topics t = c.lookupTopics(Configuration.splitPath(name));
+            assert (t != null);
+            if (t.isEmpty()) {
+                // No definition of this service was found in the config file.
+                // weave config fragments in from elsewhere...
+                Kernel k = context.get(Kernel.class);
+                for (String s : k.getServiceServerURLlist()) {
+                    if (t.isEmpty()) {
+                        try {
+                            // TODO: should probably think hard about what file extension to use
+                            // TODO: allow the file to be a zip package?
+                            URL u = new URL(s + name + ".evg");
+                            k.read(u, false);
+                            context.getLog()
+                                    .log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name,
+                                            "Found external " + "definition", s);
+                        } catch (IOException ignored) {
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                if (t.isEmpty()) {
+                    t.createLeafChild("run").dflt("echo No definition found for " + name + ";exit -1");
+                }
+            }
+            EvergreenService ret;
+            Class clazz = null;
+            Node n = t.getChild("class");
+            if (n != null) {
+                String cn = Coerce.toString(n);
+                try {
+                    clazz = Class.forName(cn);
+                } catch (Throwable ex) {
+                    context.getLog().error("Can't find class definition", ex);
+                    return errNode(context, name, "creating code-backed service from " + cn, ex);
+                }
+            }
+            if (clazz == null) {
+                Map<String, Class> si = context.getIfExists(Map.class, "service-implementors");
+                if (si != null) {
+                    clazz = si.get(name);
+                }
+            }
+            if (clazz != null) {
+                try {
+                    Constructor ctor = clazz.getConstructor(Topics.class);
+                    ret = (EvergreenService) ctor.newInstance(t);
+                    if (clazz.getAnnotation(Singleton.class) != null) {
+                        context.put(ret.getClass(), v);
+                    }
+                } catch (Throwable ex) {
+                    context.getLog().error("Can't create instance of " + clazz, ex);
+                    ret = errNode(context, name, "creating code-backed service from "
+                            + clazz.getSimpleName(), ex);
+                }
+            } else if (t.isEmpty()) {
+                ret = errNode(context, name, "No matching definition in system model", null);
+            } else {
+                try {
+                    ret = new GenericExternalService(t);
+                } catch (Throwable ex) {
+                    context.getLog().error("Can't create generic instance from " + Coerce.toString(t), ex);
+                    ret = errNode(context, name, "Creating generic service", ex);
+                }
+            }
+            return ret;
+        });
+    }
+
+    public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
+        try {
+            context.getLog().error("Error locating service", name, message, ex);
+            return new GenericExternalService(Topics
+                    .errorNode(context, name, "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
+        } catch (Throwable ex1) {
+            context.getLog().error(name, message, ex);
+            return null;
+        }
+    }
+
+    public State getActiveState() {
+        return activeState;
     }
 
     private Topic initStateTopic(final Topics topics) {
@@ -70,16 +171,6 @@ public class EvergreenService implements InjectionActions, Closeable {
             return newState == null ? oldStateObj : newStateObj;
         });
         return state;
-    }
-
-    public static State getState(EvergreenService evergreenService) {
-        return evergreenService.getActiveState();
-    }
-
-    static void setState(Object o, State state) {
-        if (o instanceof EvergreenService) {
-            ((EvergreenService) o).broadcastStateChange(state);
-        }
     }
 
     public void addDesiredState(State desiredState) {
@@ -94,7 +185,6 @@ public class EvergreenService implements InjectionActions, Closeable {
     public void requestRestart() {
         desiredStatesSequence.addAll(Arrays.asList(State.FINISHED, State.RUNNING));
     }
-
 
     private void updateActiveState(State newState) {
         State oldState = activeState;
@@ -163,9 +253,9 @@ public class EvergreenService implements InjectionActions, Closeable {
                                 // wait for dependency
                                 if (dependencies != null) {
                                     try {
-                                        context.getLog().note(this,"Waiting for dependency");
+                                        context.getLog().note(this, "Waiting for dependency");
                                         waitForDependencyReady();
-                                        context.getLog().note(this,"Dependency is ready");
+                                        context.getLog().note(this, "Dependency is ready");
 
                                     } catch (InterruptedException e) {
                                         errored("Interrupted while waiting for dependency ready", e);
@@ -248,9 +338,9 @@ public class EvergreenService implements InjectionActions, Closeable {
                                 // Failed when New -> Install
                                 desiredStatesSequence.add(State.INSTALLED);
                                 break;
-//
+                            //
                             case INSTALLED:
-//                              Installed -> Errored
+                                //                              Installed -> Errored
                                 // Failed when Installed -> Running
                                 desiredStatesSequence.add(State.RUNNING);
                                 break;
@@ -281,97 +371,6 @@ public class EvergreenService implements InjectionActions, Closeable {
             }
         }
 
-    }
-
-    /**
-     * Locate an EvergreenService by name from the provided context.
-     *
-     * @param context context to lookup the name in
-     * @param name name of the service to find
-     * @return found service or null
-     * @throws Throwable maybe throws?
-     */
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
-    public static EvergreenService locate(Context context, String name) throws Throwable {
-        return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
-            Configuration c = context.get(Configuration.class);
-            Topics t = c.lookupTopics(Configuration.splitPath(name));
-            assert (t != null);
-            if (t.isEmpty()) {
-                // No definition of this service was found in the config file.
-                // weave config fragments in from elsewhere...
-                Kernel k = context.get(Kernel.class);
-                for (String s : k.getServiceServerURLlist()) {
-                    if (t.isEmpty()) {
-                        try {
-                            // TODO: should probably think hard about what file extension to use
-                            // TODO: allow the file to be a zip package?
-                            URL u = new URL(s + name + ".evg");
-                            k.read(u, false);
-                            context.getLog().log(t.isEmpty() ? Log.Level.Error : Log.Level.Note, name,
-                                    "Found external " + "definition", s);
-                        } catch (IOException ignored) {
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                if (t.isEmpty()) {
-                    t.createLeafChild("run").dflt("echo No definition found for " + name + ";exit -1");
-                }
-            }
-            EvergreenService ret;
-            Class clazz = null;
-            Node n = t.getChild("class");
-            if (n != null) {
-                String cn = Coerce.toString(n);
-                try {
-                    clazz = Class.forName(cn);
-                } catch (Throwable ex) {
-                    context.getLog().error("Can't find class definition", ex);
-                    return errNode(context, name, "creating code-backed service from " + cn, ex);
-                }
-            }
-            if (clazz == null) {
-                Map<String, Class> si = context.getIfExists(Map.class, "service-implementors");
-                if (si != null) {
-                    clazz = si.get(name);
-                }
-            }
-            if (clazz != null) {
-                try {
-                    Constructor ctor = clazz.getConstructor(Topics.class);
-                    ret = (EvergreenService) ctor.newInstance(t);
-                    if (clazz.getAnnotation(Singleton.class) != null) {
-                        context.put(ret.getClass(), v);
-                    }
-                } catch (Throwable ex) {
-                    context.getLog().error("Can't create instance of " + clazz, ex);
-                    ret = errNode(context, name, "creating code-backed service from " + clazz.getSimpleName(), ex);
-                }
-            } else if (t.isEmpty()) {
-                ret = errNode(context, name, "No matching definition in system model", null);
-            } else {
-                try {
-                    ret = new GenericExternalService(t);
-                } catch (Throwable ex) {
-                    context.getLog().error("Can't create generic instance from " + Coerce.toString(t), ex);
-                    ret = errNode(context, name, "Creating generic service", ex);
-                }
-            }
-            return ret;
-        });
-    }
-
-    public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
-        try {
-            context.getLog().error("Error locating service", name, message, ex);
-            return new GenericExternalService(Topics.errorNode(context, name,
-                    "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
-        } catch (Throwable ex1) {
-            context.getLog().error(name, message, ex);
-            return null;
-        }
     }
 
     public void broadcastStateChange(State newState) {
@@ -558,11 +557,13 @@ public class EvergreenService implements InjectionActions, Closeable {
         } else if (d == null) {
             return;
         } else {
-            String errMsg = String.format("Unrecognized dependency configuration for service %s, config content: %s", getName(), d.toString());
+            String errMsg = String
+                    .format("Unrecognized dependency configuration for service %s, config content: %s", getName(), d
+                            .toString());
             System.err.println(errMsg);
             // TODO: invalidate the config file
         }
-        
+
         if (periodicityInformation == null) {
             this.periodicityInformation = Periodicity.of(this);
         }
