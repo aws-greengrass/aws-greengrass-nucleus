@@ -164,6 +164,13 @@ public class Configuration {
                 useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
     }
 
+    /**
+     * Read a new Configuration from a given Path.
+     *
+     * @param s path to read the config from.
+     * @return configuration from the path.
+     * @throws IOException if the reading fails.
+     */
     public Configuration read(Path s) throws IOException {
         logger.atInfo().addKeyValue("path", s).setEventType("config-loading")
                 .log("Read configuration from a file path");

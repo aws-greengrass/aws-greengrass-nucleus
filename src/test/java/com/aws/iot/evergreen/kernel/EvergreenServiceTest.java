@@ -5,17 +5,17 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.Validator;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.logging.api.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class EvergreenServiceTest {
@@ -32,6 +32,9 @@ class EvergreenServiceTest {
     private Topic stateTopic;
 
     @Mock
+    private Topic requiresTopic;
+
+    @Mock
     private Context context;
 
     @Captor
@@ -39,8 +42,10 @@ class EvergreenServiceTest {
 
     @BeforeEach
     void beforeEach() {
-        Mockito.when(config.createLeafChild(Mockito.any())).thenReturn(stateTopic);
+        Mockito.when(config.createLeafChild(eq("_State"))).thenReturn(stateTopic);
+        Mockito.when(config.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
         Mockito.when(config.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
+        Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
 
         evergreenService = new EvergreenService(config);
         evergreenService.context = context;
