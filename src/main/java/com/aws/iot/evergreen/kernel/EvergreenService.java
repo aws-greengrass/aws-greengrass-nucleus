@@ -253,6 +253,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                                 // wait for dependency
                                 if (dependencies != null) {
                                     try {
+
                                         context.getLog().note(this, "Waiting for dependency");
                                         waitForDependencyReady();
                                         context.getLog().note(this, "Dependency is ready");
@@ -554,14 +555,14 @@ public class EvergreenService implements InjectionActions, Closeable {
             if (!m.hitEnd()) {
                 errored("bad dependency syntax", ds);
             }
-        } else if (d == null) {
-            return;
         } else {
-            String errMsg = String
-                    .format("Unrecognized dependency configuration for service %s, config content: %s", getName(), d
-                            .toString());
-            System.err.println(errMsg);
-            // TODO: invalidate the config file
+            if (d != null) {
+                String errMsg = String
+                        .format("Unrecognized dependency configuration for service %s, config content: %s", getName(), d
+                                .toString());
+                System.err.println(errMsg);
+                // TODO: invalidate the config file
+            }
         }
 
         if (periodicityInformation == null) {

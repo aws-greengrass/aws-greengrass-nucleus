@@ -157,7 +157,7 @@ public class IPCServicesTest {
         });
 
         c.listenToStateChanges("ServiceName", p.getRight());
-        c.reportState("Errored");
+        c.reportState("ERRORED");
         p.getLeft().get(500, TimeUnit.MILLISECONDS);
         client.disconnect();
     }
