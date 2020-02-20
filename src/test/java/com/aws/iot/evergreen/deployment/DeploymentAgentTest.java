@@ -43,11 +43,14 @@ class DeploymentAgentTest {
             return random;
         });
 
-        deploymentAgent.deploy(packet);
+        Future<?> task = deploymentAgent.deploy(packet);
+        DeploymentProcess deploymentProcess = deploymentAgent.getCurrentDeploymentProcess();
 
-        Future<?> task = deploymentAgent.getCurrentTask();
         while (!task.isDone()) {
-            Thread.sleep(300);
+//            System.out.println(String.format("=== Current state <%s> ===", deploymentProcess.getCurrentState()
+//                    .getClass()
+//                    .getSimpleName()));
+            Thread.sleep(2000);
         }
     }
 

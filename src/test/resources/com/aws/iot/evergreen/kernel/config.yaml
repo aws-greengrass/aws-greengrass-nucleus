@@ -51,6 +51,13 @@
       all: "{platform.invoke} {args}"
 
 #services:
+  DeploymentService:
+      thingName: abanthiyTestEvergreen
+      mqttClientEndpoint: aun2g37imm74n-ats.iot.us-east-1.amazonaws.com
+      certificateFilePath: /Users/abanthiy/Documents/Evergreen/Certs/1584962a14-certificate.pem.crt
+      privateKeyPath: /Users/abanthiy/Documents/Evergreen/Certs/1584962a14-private.pem.key
+      rootCaPath: /Users/abanthiy/Documents/Evergreen/Certs/AmazonRootCA1.pem
+
   localhttp:
       class: com.aws.iot.httpservice.SimpleHttpServer
 

@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.*;
 import com.aws.iot.evergreen.dependency.*;
+import com.aws.iot.evergreen.deployment.DeploymentAgent;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.util.*;
 
@@ -27,9 +28,11 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -103,6 +106,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
         context.put(PackageManager.class, new PackageManager());
+        context.put(DeploymentAgent.class, new DeploymentAgent());
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
