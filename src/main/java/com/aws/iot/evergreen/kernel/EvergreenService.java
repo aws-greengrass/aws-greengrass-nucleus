@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -53,10 +55,10 @@ public class EvergreenService implements InjectionActions, Closeable {
     private State prevState = State.New;
     private String status;
 
-    private final List<State> desiredStateList = new ArrayList<>(3);
+    // A state event can be a state transition event, or a desired state updated notification.
+    private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
 
-    //Used to notify when state has changed Or a desiredState is set.
-    private final Object stateChangeEvent = new Object();
+    private final List<State> desiredStateList = new ArrayList<>(3);
 
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics topics) {
@@ -89,28 +91,36 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Set the state of the service. Should only be called by service or through IPC.
      * @param newState
      */
-    private void setState(State newState) {
-        final State currentState = getState();
+    private void conditionalSetState(State condition, State newState) {
+        synchronized (this.state) {
+            final State currentState = getState();
+            if (condition != null && !currentState.equals(condition)) {
+                return;
+            }
+            if (newState.equals(currentState)) {
+                return;
+            }
 
-        // TODO: Add validation
-        if (!newState.equals(currentState)) {
+            // TODO: Add validation
             context.getLog().note(getName(), currentState, "=>", newState);
             prevState = currentState;
-            // Make sure the order of setValue() invocation is same as order of global state notification
-            synchronized (this.state) {
-                this.state.setValue(newState);
-                context.globalNotifyStateChanged(this, currentState);
-                synchronized (this.stateChangeEvent) {
-                    stateChangeEvent.notifyAll();
-                }
-            }
+            this.state.setValue(newState);
+            context.globalNotifyStateChanged(this, currentState);
+
+            // push to queue
+            enqueueStateEvent(newState);
         }
+    }
+
+    private void setState(State newState) {
+        conditionalSetState(null, newState);
     }
 
     public void reportState(State newState) {
         if (newState.equals(State.Installed) || newState.equals(State.Broken) || newState.equals(State.Finished)) {
             throw new IllegalArgumentException("Invalid state: " + newState);
         }
+        // TODO: add more validation. Eg. Not allow to reportState when current state is Errored or Finished.
         setState(newState);
     }
 
@@ -217,8 +227,6 @@ public class EvergreenService implements InjectionActions, Closeable {
         return state;
     }
 
-
-
     public boolean inState(State s) {
         return s == state.getOnce();
     }
@@ -253,9 +261,31 @@ public class EvergreenService implements InjectionActions, Closeable {
             }
             desiredStateList.clear();
             desiredStateList.addAll(newStateList);
-            synchronized (stateChangeEvent) {
-                stateChangeEvent.notifyAll();
+            // try insert to the queue, if queue full doesn't block.
+            enqueueStateEvent("DesiredStateUpdated");
+        }
+    }
+
+    // Enqueue a state event.
+    // If the event is state transition, the enqueue is blocking on existing state transition event to be processed.
+    // If the event is desired state changed notification, the enqueue is not blocking.
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
+            value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+    private synchronized void enqueueStateEvent(Object event) {
+        if (event instanceof State) {
+            if (!(stateEventQueue.peek() instanceof State)) {
+                stateEventQueue.clear();
             }
+            try {
+                stateEventQueue.put(event);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } else {
+            // Ignore returned value of offer().
+            // If enqueue isn't successful, the event queue has contents and there is no need to send another
+            // trigger to process state transition.
+            stateEventQueue.offer(event);
         }
     }
 
@@ -302,67 +332,62 @@ public class EvergreenService implements InjectionActions, Closeable {
         setState(State.Errored);
     }
 
-    private void waitOnStateChangeEvent(State currentState) throws InterruptedException {
-        synchronized (stateChangeEvent) {
-            while (desiredStateList.isEmpty() && getState() == currentState) {
-                stateChangeEvent.wait();
-            }
-        }
-    }
-
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
         while (true) {
-            State desiredState = null;
-            switch (this.getState()) {
+            State desiredState;
+            // blocking on event queue.
+            // The state event can either be a state transition event or a desired state updated event.
+            // State transition events are processed in strict order of setState() invocation.
+            stateEventQueue.take();
+            State current = getState();
+            context.getLog().note("Processing state", getName(), getState());
+
+            // if already in desired state, remove the head of desired state list.
+            desiredState = peekOrRemoveFirstDesiredState(current);
+            while (desiredState == current) {
+                desiredState = peekOrRemoveFirstDesiredState(current);
+            }
+
+            switch (current) {
                 case Broken:
                     context.getLog().significant(getName(), "Broken");
                     return;
                 case New:
-                    desiredState = peekOrRemoveFirstDesiredState(State.New);
-                    if (desiredState == null || desiredState == State.New) {
-                        waitOnStateChangeEvent(State.New);
+                    // if no desired state is set, don't do anything.
+                    if (desiredState == null) {
                         continue;
                     }
+
                     // TODO: Add install() to setBackTask with timeout logic.
                     try {
                         install();
                     } catch (Throwable t) {
                         errored("Error in install", t);
+                        continue;
                     }
-                    if (getState() != State.Errored) {
-                        setState(State.Installed);
-                    }
+                    conditionalSetState(State.New, State.Installed);
                     break;
                 case Installed:
-                    desiredState = peekOrRemoveFirstDesiredState(State.Installed);
-                    if (desiredState == null || desiredState == State.Installed) {
-                        waitOnStateChangeEvent(State.Installed);
+                    if (desiredState == null) {
                         continue;
                     }
 
                     switch (desiredState) {
                         case Finished:
                             stopBackingTask();
-                            setState(State.Finished);
+                            conditionalSetState(State.Installed, State.Finished);
                             break;
                         case Running:
-                            //TODO: use backing task
                             setBackingTask(() -> {
                                 try {
                                     waitForDependencyReady();
-                                    context.getLog().error(getName(), "starting");
+                                    context.getLog().note(getName(), "starting");
                                     startup();// TODO: rename to  initiateStartup. Service need to report state to Running.
                                 } catch (InterruptedException e) {
                                     return;
                                 }
                             }, "start");
-
-                            synchronized (stateChangeEvent) {
-                                if (getState() == State.Installed) {
-                                    stateChangeEvent.wait();
-                                }
-                            }
 
                             break;
                         default:
@@ -372,27 +397,27 @@ public class EvergreenService implements InjectionActions, Closeable {
                     }
                     break;
                 case Running:
-                    // TODO: Start health check here.
-                    desiredState = peekOrRemoveFirstDesiredState(State.Running);
-                    if (desiredState == null || desiredState == State.Running) {
-                        waitOnStateChangeEvent(State.Running);
+                    if (desiredState == null) {
                         continue;
                     }
-                    setState(State.Stopping);
+
+                    conditionalSetState(State.Running, State.Stopping);
                     break;
                 case Stopping:
                     // doesn't handle desiredState in Stopping.
-                    shutdown();
-                    if (this.getState() != State.Errored) {
-                        setState(State.Finished);
-                    }
-                    break;
-                case Finished:
-                    desiredState = peekOrRemoveFirstDesiredState(State.Finished);
-                    if (desiredState == null || desiredState == State.Finished) {
-                        waitOnStateChangeEvent(State.Finished);
+                    try {
+                        shutdown();
+                    } catch (Throwable t) {
+                        errored("Shutting down", t);
                         continue;
                     }
+                    conditionalSetState(State.Stopping, State.Finished);
+                    break;
+                case Finished:
+                    if (desiredState == null) {
+                        continue;
+                    }
+
                     context.getLog().note(getName(), getState(), "desiredState", desiredState);
                     switch (desiredState) {
                         case New:
@@ -430,7 +455,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                             // not allowed
                             break;
                     }
-                    if (desiredStateList.isEmpty()) {
+                    if (desiredState == null) {
                         requestStart();
                     }
                     break;

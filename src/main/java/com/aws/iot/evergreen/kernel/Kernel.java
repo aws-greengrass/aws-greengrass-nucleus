@@ -88,7 +88,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         super(new Context());
         context.put(Configuration.class, this);
         context.put(Kernel.class, this);
-        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
+        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(4);
         context.put(ScheduledThreadPoolExecutor.class, ses);
         context.put(ScheduledExecutorService.class, ses);
         context.put(Executor.class, ses);
