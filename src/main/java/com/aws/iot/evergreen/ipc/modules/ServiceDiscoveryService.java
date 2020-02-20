@@ -17,7 +17,6 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCod
 import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryResponseStatus;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.Log;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -27,16 +26,12 @@ import java.util.concurrent.Future;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCodes.values;
-import static com.aws.iot.evergreen.util.Log.Level;
-
 
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "servicediscovery", autostart = true)
 public class ServiceDiscoveryService extends EvergreenService {
     private final ObjectMapper mapper = new CBORMapper();
 
-    @Inject
-    Log log;
     @Inject
     private ServiceDiscoveryAgent agent;
 
@@ -53,8 +48,11 @@ public class ServiceDiscoveryService extends EvergreenService {
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.SERVICE_DISCOVERY;
         try {
             router.registerServiceCallback(destination.getValue(), this::handleMessage);
+            logger.atInfo().setEventType("ipc-register-request-handler").addKeyValue("destination", destination.name())
+                    .log();
         } catch (IPCException e) {
-            log.log(Level.Error, "Error registering callback for service " + destination.name());
+            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e).addKeyValue("destination",
+                    destination.name()).log("Failed to register service callback to destination");
         }
     }
 
@@ -104,7 +102,7 @@ public class ServiceDiscoveryService extends EvergreenService {
                     .payload(mapper.writeValueAsBytes(response)).build();
             fut.complete(new Message(applicationMessage.toByteArray()));
         } catch (Throwable e) {
-            log.log(Level.Error, "Failed to respond to handleMessage", e);
+            logger.atError().setEventType("service-discovery-error").setCause(e).log("Failed to handle message.");
             try {
                 ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse(
                         ServiceDiscoveryResponseStatus.InternalError, e.getMessage());
@@ -112,7 +110,8 @@ public class ServiceDiscoveryService extends EvergreenService {
                         .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
-                log.log(Level.Error, "Couldn't even send them the error back", e);
+                logger.atError().setEventType("service-discovery-error").setCause(ex)
+                        .log("Failed to send error response.");
             }
         }
 

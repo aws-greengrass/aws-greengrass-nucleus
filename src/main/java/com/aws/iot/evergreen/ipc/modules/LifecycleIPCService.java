@@ -16,7 +16,6 @@ import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.Log;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -24,9 +23,6 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
-
-import static com.aws.iot.evergreen.util.Log.Level;
-
 
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "lifecycleipc", autostart = true)
@@ -36,9 +32,6 @@ public class LifecycleIPCService extends EvergreenService {
 
     @Inject
     private IPCRouter router;
-
-    @Inject
-    Log log;
 
     @Inject
     private LifecycleIPCAgent agent;
@@ -53,8 +46,11 @@ public class LifecycleIPCService extends EvergreenService {
         super.postInject();
         try {
             router.registerServiceCallback(destination.getValue(), this::handleMessage);
+            logger.atInfo().setEventType("ipc-register-request-handler").addKeyValue("destination", destination.name())
+                    .log();
         } catch (IPCException e) {
-            log.log(Level.Error, "Error registering callback for service " + destination.name());
+            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e).addKeyValue("destination",
+                    destination.name()).log("Failed to register service callback to destination");
         }
     }
 
@@ -96,7 +92,7 @@ public class LifecycleIPCService extends EvergreenService {
                     .payload(mapper.writeValueAsBytes(lifecycleGenericResponse)).build();
             fut.complete(new Message(responseMessage.toByteArray()));
         } catch (Throwable e) {
-            log.log(Level.Error, "Failed to respond to handleMessage", e);
+            logger.atError().setEventType("lifecycle-error").setCause(e).log("Failed to handle message.");
             try {
                 LifecycleGenericResponse response = LifecycleGenericResponse.builder()
                         .status(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
@@ -105,7 +101,8 @@ public class LifecycleIPCService extends EvergreenService {
                         .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
-                log.log(Level.Error, "Couldn't even send them the error back", e);
+                logger.atError().setEventType("lifecycle-error").setCause(ex)
+                        .log("Failed to send error response.");
             }
         }
         if (!fut.isDone()) {

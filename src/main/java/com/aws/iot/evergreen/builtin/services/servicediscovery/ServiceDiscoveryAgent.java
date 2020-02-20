@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryRespo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.LockScope;
-import com.aws.iot.evergreen.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,9 +35,6 @@ public class ServiceDiscoveryAgent implements InjectionActions {
 
     @Inject
     private Configuration config;
-
-    @Inject
-    private Log log;
 
     @Inject
     private Kernel kernel;

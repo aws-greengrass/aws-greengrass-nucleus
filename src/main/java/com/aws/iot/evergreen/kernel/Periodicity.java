@@ -35,6 +35,8 @@ public class Periodicity {
     private final EvergreenService service;
     private ScheduledFuture future;
 
+    private static final float DEFAULT_FUZZ_FACTOR = 0.5f;
+
     private Periodicity(Topic i, Topic f, Topic p, EvergreenService s) throws IllegalArgumentException {
         // f is a random "fuzz factor" to add some noise to the phase offset so that
         // if (for example) there are many devices doing periodic reports,they don't all
@@ -80,7 +82,10 @@ public class Periodicity {
             }
             return ret;
         } catch (Throwable t) {
-            s.errored("Unparseable periodic parameter: " + Utils.deepToString(n), t);
+            s.logger.atError().setCause(t).setEventType("service-invalid-config").addKeyValue("parameter",
+                    Utils.deepToString(n)).addKeyValue("serviceName", s.getName())
+                    .log("Unparseable periodic parameter.");
+            s.serviceErrored(t);
         }
         return null;
     }
@@ -153,8 +158,9 @@ public class Periodicity {
                 fuzzFactor = 1;
             }
         } catch (Throwable t) {
-            service.context.getLog().warn("Error parsing fuzz factor: " + Coerce.toString(fuzz), t);
-            fuzzFactor = 0.5f;
+            service.logger.atWarn().addKeyValue("factor", Coerce.toString(fuzz)).setCause(t)
+                    .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default.");
+            fuzzFactor = DEFAULT_FUZZ_FACTOR;
         }
 
         // make cycle phase be relative to the local time zone

@@ -5,7 +5,6 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.Log;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -24,7 +23,6 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.LENGTH_FIELD_LENGTH;
 import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.LENGTH_FIELD_OFFSET;
 import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.MAX_PAYLOAD_SIZE;
-import static com.aws.iot.evergreen.util.Log.Level;
 
 
 /**
@@ -50,8 +48,7 @@ public class IPCService extends EvergreenService {
     private static final String LOCAL_IP = "127.0.0.1";
     private final EventLoopGroup bossGroup = new NioEventLoopGroup();
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
-    @Inject
-    Log log;
+
     private int port;
 
     @Inject
@@ -67,19 +64,19 @@ public class IPCService extends EvergreenService {
      */
     @Override
     public void startup() {
-        log.log(Level.Note, "Startup called for IPC service");
+        logger.atInfo().setEventType("ipc-starting").log();
         try {
             port = listen();
 
             String serverUri = "tcp://" + LOCAL_IP + ":" + port;
-            log.log(Log.Level.Note, "IPC service URI: ", serverUri);
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
             config.parent.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME).setValue(serverUri);
 
             super.startup();
+            logger.atInfo().setEventType("ipc-started").addKeyValue("uri", serverUri).log();
         } catch (InterruptedException e) {
-            log.error("Failed IPC server startup");
+            logger.atError().setCause(e).setEventType("ipc-start-error").log();
         }
     }
 
@@ -104,7 +101,7 @@ public class IPCService extends EvergreenService {
         ChannelFuture f = b.bind(InetAddress.getLoopbackAddress(), 0).sync();
         int port = ((InetSocketAddress) f.channel().localAddress()).getPort();
 
-        log.note("IPC ready to accept connections on port", port);
+        logger.atDebug().addKeyValue("port", port).log("IPC ready to accept connections");
         return port;
     }
 
@@ -113,7 +110,7 @@ public class IPCService extends EvergreenService {
      */
     @Override
     public void run() {
-        log.log(Level.Note, "Run called for IPC service");
+        logger.atInfo().setEventType("ipc-run").log("Do nothing. IPC Service should be started with startup()");
     }
 
     /**
@@ -121,7 +118,7 @@ public class IPCService extends EvergreenService {
      */
     @Override
     public void shutdown() {
-        log.log(Level.Note, "Shutdown called for IPC service");
+        logger.atInfo().setEventType("ipc-shutdown").log();
         //TODO: transition to errored state if shutdown failed ?
         workerGroup.shutdownGracefully();
         bossGroup.shutdownGracefully();

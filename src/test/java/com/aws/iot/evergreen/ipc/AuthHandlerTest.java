@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.Log;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -69,7 +68,7 @@ class AuthHandlerTest {
         lenient().doAnswer((invocation) -> mockAttrValue = invocation.getArgument(0)).when(mockAttr).set(any());
         lenient().when(mockChannel.remoteAddress()).thenReturn(LocalAddress.ANY);
         lenient().when(mockCtx.writeAndFlush(frameCaptor.capture())).thenReturn(mockChannelFuture);
-        mockAuth = spy(new AuthHandler(mock(Configuration.class), mock(Log.class), mock(IPCRouter.class)));
+        mockAuth = spy(new AuthHandler(mock(Configuration.class), mock(IPCRouter.class)));
     }
 
     @Test
@@ -81,7 +80,7 @@ class AuthHandlerTest {
         assertNotNull(authToken);
         assertEquals(SERVICE_NAME, config.find(AUTH_TOKEN_LOOKUP_KEY, (String) authToken).getOnce());
 
-        AuthHandler auth = new AuthHandler(config, mock(Log.class), mock(IPCRouter.class));
+        AuthHandler auth = new AuthHandler(config, mock(IPCRouter.class));
 
         AuthRequest authRequest = new AuthRequest((String) authToken);
         ApplicationMessage applicationMessage = ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
@@ -97,7 +96,7 @@ class AuthHandlerTest {
     public void GIVEN_service_WHEN_try_to_authenticate_with_bad_token_THEN_is_rejected() throws Exception {
         Configuration config = new Configuration(new Context());
 
-        AuthHandler auth = new AuthHandler(config, mock(Log.class), mock(IPCRouter.class));
+        AuthHandler auth = new AuthHandler(config, mock(IPCRouter.class));
         AuthRequest authRequest = new AuthRequest("MyAuthToken");
         ApplicationMessage applicationMessage = ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
 

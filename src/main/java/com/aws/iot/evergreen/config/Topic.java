@@ -4,6 +4,8 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
@@ -14,6 +16,8 @@ public class Topic extends Node {
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for modtime to be sync")
     private long modtime;
     private Object value;
+
+    private static final Logger logger = LogManager.getLogger(Topic.class);
 
     Topic(Context c, String n, Topics p) {
         super(c, n, p);
@@ -119,6 +123,8 @@ public class Topic extends Node {
 
     @Override
     public void fire(WhatHappened what) {
+        logger.atDebug().setEventType("config-node-update").addKeyValue("configNode",
+                getFullName()).addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
                 try {
@@ -128,7 +134,9 @@ public class Topic extends Node {
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
-                    context.getLog().error(getFullName(), ex);
+                    logger.atError().setCause(ex).setEventType("config-node-update-error").addKeyValue(
+                            "configNode", getFullName()).addKeyValue("subscriber", s.toString()).addKeyValue("reason",
+                            what.name()).log();
                 }
             }
         }
