@@ -402,7 +402,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
-            l.startLifecycle();
             l.requestStart();
         });
     }

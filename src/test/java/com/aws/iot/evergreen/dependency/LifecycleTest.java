@@ -36,8 +36,6 @@ public class LifecycleTest {
         c1 v = context.get(c1.class);
         context.addGlobalStateChangeListener((service, was) -> System.out.println(service.getName() + ": " + was + " " +
                 "=> " + service.getState()));
-        context.get(c1.class).startLifecycle();
-        context.get(c2.class).startLifecycle();
         context.get(c1.class).requestStart();
         context.get(c2.class).requestStart();
         try {
@@ -63,7 +61,7 @@ public class LifecycleTest {
         assertNotNull(v);
         assertNotNull(v.C2);
         assertSame(v.C2, v.C2.C3.prov.get());
-        assertTrue(v.getState().isFunctioningProperly());
+        assertTrue(v.getState().isFunctioningProperly(), "c1:" + v.getState().toString());
         assertTrue(v.installCalled, v.toString());
         assertTrue(v.startupCalled, v.toString());
         assertTrue(v.C2.startupCalled, v.C2.toString());

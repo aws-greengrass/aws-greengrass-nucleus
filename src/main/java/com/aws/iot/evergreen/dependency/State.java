@@ -38,7 +38,7 @@ public enum State {
      * ever take a significant amount of time to run.
      */
     Running(true, true, true),
-    Stopping(true, false, false),
+    Stopping(true, false, true),
     //    /**
     //     * Running, but experiencing problems that the service is attempting to
     //     * repair itself

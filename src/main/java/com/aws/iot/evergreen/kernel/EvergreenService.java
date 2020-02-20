@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -54,11 +56,22 @@ public class EvergreenService implements InjectionActions, Closeable {
     private Periodicity periodicityInformation;
     private State prevState = State.New;
     private String status;
+    private boolean closed = false;
 
     // A state event can be a state transition event, or a desired state updated notification.
+    // TODO: make class of StateEvent instead of generic object.
     private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
 
     private final List<State> desiredStateList = new ArrayList<>(3);
+    private static final Set<State> validReportState = getValidReportState();
+
+    private static Set<State> getValidReportState() {
+        Set<State> result = new HashSet<>();
+        result.add(State.Running);
+        result.add(State.Errored);
+        result.add(State.Finished);
+        return result;
+    }
 
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics topics) {
@@ -66,37 +79,14 @@ public class EvergreenService implements InjectionActions, Closeable {
         this.state = initStateTopic(topics);
     }
 
-    /**
-     * Start the Lifecycle in a separate thread.
-     */
-    public void startLifecycle() {
-        new Thread(() -> {
-            try {
-                startStateTransition();
-            } catch (Throwable e) {
-                context.getLog().error("Error in state transition", e);
-                System.err.println("Error in state transition");
-                e.printStackTrace(System.err);
-                context.getLog().note("restarting service", getName());
-                startLifecycle();
-            }
-        }).start();
-    }
-
     public State getState() {
         return (State) state.getOnce();
     }
 
-    /**
-     * Set the state of the service. Should only be called by service or through IPC.
-     * @param newState
-     */
-    private void conditionalSetState(State condition, State newState) {
+    private void setState(State newState) {
         synchronized (this.state) {
             final State currentState = getState();
-            if (condition != null && !currentState.equals(condition)) {
-                return;
-            }
+
             if (newState.equals(currentState)) {
                 return;
             }
@@ -106,23 +96,37 @@ public class EvergreenService implements InjectionActions, Closeable {
             prevState = currentState;
             this.state.setValue(newState);
             context.globalNotifyStateChanged(this, currentState);
-
-            // push to queue
-            enqueueStateEvent(newState);
         }
     }
 
-    private void setState(State newState) {
-        conditionalSetState(null, newState);
-    }
-
-    public void reportState(State newState) {
-        if (newState.equals(State.Installed) || newState.equals(State.Broken) || newState.equals(State.Finished)) {
+    /**
+     * public API for service to report state. Allowed state are Running, Finished, Errored.
+     * @param newState
+     * @return
+     */
+    public synchronized boolean reportState(State newState) {
+        context.getLog().note(getName(), "reporting state", newState);
+        if (!validReportState.contains(newState)) {
             throw new IllegalArgumentException("Invalid state: " + newState);
         }
-        // TODO: add more validation. Eg. Not allow to reportState when current state is Errored or Finished.
-        setState(newState);
+        // TODO: Add more validations
+
+        if (getState().equals(State.Starting) && newState.equals(State.Finished)) {
+            // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
+            requestStop();
+        }
+
+        return enqueueStateEvent(newState);
     }
+
+    private State getReportState() {
+        Object top = stateEventQueue.poll();
+        if (top instanceof State) {
+            return (State) top;
+        }
+        return null;
+    }
+
 
     /**
      * Locate an EvergreenService by name from the provided context.
@@ -267,25 +271,20 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     // Enqueue a state event.
-    // If the event is state transition, the enqueue is blocking on existing state transition event to be processed.
-    // If the event is desired state changed notification, the enqueue is not blocking.
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
             value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
-    private synchronized void enqueueStateEvent(Object event) {
+    private synchronized boolean enqueueStateEvent(Object event) {
         if (event instanceof State) {
-            if (!(stateEventQueue.peek() instanceof State)) {
-                stateEventQueue.clear();
-            }
-            try {
-                stateEventQueue.put(event);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            // override existing reportState
+            stateEventQueue.clear();
+            return stateEventQueue.offer(event);
         } else {
+            stateEventQueue.offer(event);
+
             // Ignore returned value of offer().
             // If enqueue isn't successful, the event queue has contents and there is no need to send another
             // trigger to process state transition.
-            stateEventQueue.offer(event);
+            return true;
         }
     }
 
@@ -325,21 +324,11 @@ public class EvergreenService implements InjectionActions, Closeable {
         return true;
     }
 
-    /**
-     * Error out a service.
-     */
-    void errorService() {
-        setState(State.Errored);
-    }
-
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
-        while (true) {
+        while (!closed) {
             State desiredState;
-            // blocking on event queue.
-            // The state event can either be a state transition event or a desired state updated event.
-            // State transition events are processed in strict order of setState() invocation.
-            stateEventQueue.take();
+
             State current = getState();
             context.getLog().note("Processing state", getName(), getState());
 
@@ -356,36 +345,54 @@ public class EvergreenService implements InjectionActions, Closeable {
                 case New:
                     // if no desired state is set, don't do anything.
                     if (desiredState == null) {
-                        continue;
+                        break;
                     }
+                    CountDownLatch installLatch = new CountDownLatch(1);
+                    setBackingTask(() -> {
+                        try {
+                            install();
+                        } catch (Throwable t) {
+                            reportState(State.Errored);
+                            getContext().getLog().error(getName(), "Error in install", t);
+                        } finally {
+                            installLatch.countDown();
+                        }
+                    }, "install");
 
-                    // TODO: Add install() to setBackTask with timeout logic.
-                    try {
-                        install();
-                    } catch (Throwable t) {
-                        errored("Error in install", t);
+                    // TODO: Configurable timeout logic.
+                    boolean ok = installLatch.await(120, TimeUnit.SECONDS);
+                    if (getReportState() == State.Errored || !ok) {
+                        setState(State.Errored);
                         continue;
+                    } else {
+                        setState(State.Installed);
                     }
-                    conditionalSetState(State.New, State.Installed);
-                    break;
+                    continue;
                 case Installed:
                     if (desiredState == null) {
-                        continue;
+                        break;
                     }
 
                     switch (desiredState) {
                         case Finished:
                             stopBackingTask();
-                            conditionalSetState(State.Installed, State.Finished);
-                            break;
+                            setState(State.Finished);
+                            continue;
                         case Running:
                             setBackingTask(() -> {
                                 try {
                                     waitForDependencyReady();
                                     context.getLog().note(getName(), "starting");
-                                    startup();// TODO: rename to  initiateStartup. Service need to report state to Running.
                                 } catch (InterruptedException e) {
+                                    context.getLog().note(getName(), "Get interrupted when waiting for dependency ready");
                                     return;
+                                }
+
+                                try {
+                                    startup();// TODO: rename to  initiateStartup. Service need to report state to Running.
+                                } catch (Throwable t) {
+                                    reportState(State.Errored);
+                                    getContext().getLog().error(getName(), "Error in running", t);
                                 }
                             }, "start");
 
@@ -398,24 +405,39 @@ public class EvergreenService implements InjectionActions, Closeable {
                     break;
                 case Running:
                     if (desiredState == null) {
+                        break;
+                    }
+
+                    setState(State.Stopping);
+                    continue;
+                case Stopping:
+                    // doesn't handle desiredState in Stopping.
+                    // Not use setBackingTask because it will cancel the existing task.
+                    CountDownLatch stopping = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            shutdown();
+                        } catch (Throwable t) {
+                            getContext().getLog().error(getName(), "Error in shutting down", t);
+                            reportState(State.Errored);
+                        } finally {
+                            stopping.countDown();
+                        }
+
+                    }).start();
+
+                    boolean stopSucceed = stopping.await(30, TimeUnit.SECONDS);
+                    if (getReportState() == State.Errored || !stopSucceed) {
+                        setState(State.Errored);
+                        continue;
+                    } else {
+                        setState(State.Finished);
                         continue;
                     }
 
-                    conditionalSetState(State.Running, State.Stopping);
-                    break;
-                case Stopping:
-                    // doesn't handle desiredState in Stopping.
-                    try {
-                        shutdown();
-                    } catch (Throwable t) {
-                        errored("Shutting down", t);
-                        continue;
-                    }
-                    conditionalSetState(State.Stopping, State.Finished);
-                    break;
                 case Finished:
                     if (desiredState == null) {
-                        continue;
+                        break;
                     }
 
                     context.getLog().note(getName(), getState(), "desiredState", desiredState);
@@ -423,10 +445,10 @@ public class EvergreenService implements InjectionActions, Closeable {
                         case New:
                         case Installed:
                             setState(State.New);
-                            break;
+                            continue;
                         case Running:
                             setState(State.Installed);
-                            break;
+                            continue;
                         default:
                             context.getLog().error("Unexpected desired state", desiredState);
                             // not allowed to set desired state to Stopping, Errored, Broken
@@ -435,33 +457,43 @@ public class EvergreenService implements InjectionActions, Closeable {
                 case Errored:
                     handleError();
                     //TODO: Set service to broken state if error happens too often
+                    if (desiredState == null) {
+                        requestStart();
+                    }
                     switch (prevState) {
                         case Running:
                             setState(State.Stopping);
-                            break;
+                            continue;
                         case New: // error in installing.
                             setState(State.New);
-                            break;
+                            continue;
                         case Installed: // error in starting
                             setState(State.Installed);
-                            break;
+                            continue;
                         case Stopping:
                             // not handled;
                             setState(State.Finished);
-                            break;
+                            continue;
                         default:
                             context.getLog().error("Unexpected previous state", prevState);
                             setState(State.Finished);
                             // not allowed
-                            break;
+                            continue;
                     }
-                    if (desiredState == null) {
-                        requestStart();
-                    }
-                    break;
                 default:
                     context.getLog().error("Unrecognized state", getState());
                     break;
+            }
+
+            // blocking on event queue.
+            // The state event can either be a report state transition event or a desired state updated event.
+            // State transition events are processed in strict order of setState() invocation.
+            // TODO: check if it's possible to move this blocking logic to the beginning of while loop.
+            Object stateEvent = stateEventQueue.take();
+            if (stateEvent instanceof State) {
+                State toState = (State) stateEvent;
+                context.getLog().note(getName(), "Get reported state", toState);
+                setState(toState);
             }
         }
     }
@@ -573,6 +605,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         if (shutdownLatch.getCount() == 0 && backingTask != null) {
             backingTask.cancel(true);
         }
+        closed = true;
     }
 
     public Context getContext() {
@@ -649,6 +682,20 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void postInject() {
+        new Thread(() -> {
+            while (!closed) {
+                try {
+                    startStateTransition();
+                    return;
+                } catch (Throwable e) {
+                    context.getLog().error("Error in state transition", e);
+                    System.err.println("Error in state transition");
+                    e.printStackTrace(System.err);
+                    context.getLog().note("restarting service", getName());
+                }
+            }
+        }).start();
+
         Node d = config.getChild("requires");
         if (d instanceof Topic) {
             String ds = ((Topic) d).getOnce().toString();
