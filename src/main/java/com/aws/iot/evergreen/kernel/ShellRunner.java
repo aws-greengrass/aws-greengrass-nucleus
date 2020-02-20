@@ -5,9 +5,10 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
-import com.aws.iot.evergreen.util.Log;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
@@ -25,16 +26,17 @@ public interface ShellRunner {
     boolean successful(Exec e, String command, IntConsumer background);
 
     class Default implements ShellRunner {
-        @Inject
-        Log log;
+        private static final Logger logger = LogManager.getLogger(ShellRunner.class);
+
         @Inject
         Kernel config;
 
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
             if (!isEmpty(command) && onBehalfOf != null) {
-                if (!isEmpty(note) && log != null /* !!?!! */) {
-                    log.significant("run", note);
+                if (!isEmpty(note) && logger != null /* !!?!! */) {
+                    logger.atInfo().setEventType("shell-runner-start").addKeyValue("scriptName", note)
+                            .addKeyValue("serviceName", onBehalfOf.getName()).log();
                 }
                 int timeout = -1;
                 Node n = onBehalfOf.config.getChild("bashtimeout");
@@ -55,11 +57,13 @@ public interface ShellRunner {
                 }
                 return new Exec().withShell(command).withOut(s -> {
                     String ss = s.toString().trim();
-                    log.note(note, ss);
+                    logger.atInfo().setEventType("shell-runner-stdout").addKeyValue("scriptName", note)
+                            .addKeyValue("serviceName", onBehalfOf.getName()).addKeyValue("stdout", ss).log();
                     onBehalfOf.setStatus(ss);
                 }).withErr(s -> {
                     String ss = s.toString().trim();
-                    log.warn(note, ss);
+                    logger.atWarn().setEventType("shell-runner-stderr").addKeyValue("scriptName", note)
+                            .addKeyValue("serviceName", onBehalfOf.getName()).addKeyValue("stderr", ss).log();
                     onBehalfOf.setStatus(ss);
                 }).withTimeout(timeout, TimeUnit.SECONDS).setenv("SVCUID",
                         String.valueOf(onBehalfOf.config.findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
@@ -73,7 +77,7 @@ public interface ShellRunner {
             if (background != null) {
                 e.background(background);
             } else if (!e.successful(true)) {
-                log.error("failed", command);
+                logger.atWarn().setEventType("shell-runner-error").addKeyValue("command", command).log();
                 return false;
             }
             return true;
@@ -81,12 +85,12 @@ public interface ShellRunner {
     }
 
     class Dryrun implements ShellRunner {
-        @Inject
-        Log log;
+        private static final Logger logger = LogManager.getLogger(ShellRunner.class);
 
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
-            log.significant("# " + note + "\n" + command);
+            logger.atInfo().setEventType("shell-dryrun").addKeyValue("name", note)
+                    .addKeyValue("command", command).log();
             return OK;
         }
 

@@ -120,6 +120,20 @@
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
+                    <systemProperties>
+                        <property>
+                            <name>log.level</name>
+                            <value>INFO</value>
+                        </property>
+                        <property>
+                            <name>log.store</name>
+                            <value>CONSOLE</value>
+                        </property>
+                        <property>
+                            <name>log.fmt</name>
+                            <value>JSON</value>
+                        </property>
+                    </systemProperties>
                 </configuration>
                 <executions>
                     <execution>
@@ -144,6 +158,7 @@
                             <skipTests>false</skipTests>
                             <excludedGroups>*</excludedGroups>
                             <groups>Integration</groups>
+                            <reuseForks>false</reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
                         </configuration>
                     </execution>
                 </executions>
@@ -188,7 +203,7 @@
                     <logViolationsToConsole>true</logViolationsToConsole>
                     <configLocation>checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
-                    <!-- 36 is the total number of warning at this moment. Set it as the max allowed so that
+                    <!-- This is the total number of warning at this moment. Set it as the max allowed so that
                     we don't introduce more violations in new code. -->
                     <maxAllowedViolations>36</maxAllowedViolations>
                 </configuration>

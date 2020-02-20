@@ -3,9 +3,16 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
@@ -18,14 +25,18 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class KernelTest {
     static final int[] gc = new int[10];
     static final CountDownLatch[] OK = new CountDownLatch[10];
-    private static final Expected[] expectations = {new Expected(0, "RUNNING", "Main service"),
-            //new Expected("docs.docker.com/", "docker hello world"),
-            new Expected(0, "tick-tock", "periodic", 3),
-            new Expected(0, "ANSWER=42", "global setenv"),
-            new Expected(0, "EVERGREEN_UID=", "generated unique token"), new Expected(0, "mqtt.moquette.run",
-            "moquette mqtt server"), new Expected(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
-            new Expected(1, "NEWMAIN", "Assignment to 'run' script'"), new Expected(2, "JUSTME=fancy a spot of " +
-            "coffee?", "merge yaml"),};
+    private static final Expected[] expectations = {
+        new Expected(0, "\"stdout\":\"RUNNING\"", "Main service"),
+        //new Expected("docs.docker.com/", "docker hello world"),
+        new Expected(0, "\"stdout\":\"tick-tock\"", "periodic", 3),
+        new Expected(0, "\"stdout\":\"ANSWER=42\"", "global setenv"),
+        new Expected(0, "\"stdout\":\"EVERGREEN_UID=", "generated unique token"),
+        new Expected(0, "\"stdout\":\"version: 0.12.1\"", "moquette mqtt server"),
+        new Expected(0, "\"stdout\":\"JUSTME=fancy a spot of tea?\"", "local setenv in main service"),
+        new Expected(1, "\"stdout\":\"NEWMAIN\"", "Assignment to 'run' script'"),
+        new Expected(2, "\"stdout\":\"JUSTME=fancy a spot of coffee?\"", "merge yaml")
+    };
+    static final String LogFileName = "test.log";
 
     static {
         for (int i = gc.length; --i >= 0; ) {
@@ -33,9 +44,28 @@ public class KernelTest {
         }
     }
 
-    //    boolean seenDocker, seenShell
-    //    int seenTickTock = 4;
-    //    long lastTickTock = 0;
+    @BeforeAll
+    public static void setup() {
+        System.setProperty("log.fmt", "JSON");
+        System.setProperty("log.storeName", LogFileName);
+        System.setProperty("log.store", "FILE");
+        System.setProperty("log.level", "INFO");
+        try {
+            Files.deleteIfExists(Paths.get(LogFileName));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @AfterAll
+    public static void cleanup() {
+        try {
+            Files.deleteIfExists(Paths.get(LogFileName));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Test
     public void testErrorRetry() throws InterruptedException {
         String tdir = System.getProperty("user.home") + "/kernelTest";
@@ -99,39 +129,72 @@ public class KernelTest {
     }
 
     @Test
-    public void testSomeMethod() {
+    public void testSomeMethod() throws IOException {
+        Runnable runnable = () -> {
+            File fileToWatch = new File(LogFileName);
+            long lastKnownPosition = 0;
+
+            while (!fileToWatch.exists()) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            try {
+                while (true) {
+                    Thread.sleep(1000);
+                    long fileLength = fileToWatch.length();
+
+                    /**
+                     * This case occur, when file is taken backup and new file
+                     * created with the same name.
+                     */
+                    if (fileLength < lastKnownPosition) {
+                        lastKnownPosition = 0;
+                    }
+                    if (fileLength > lastKnownPosition) {
+                        RandomAccessFile randomAccessFile = new RandomAccessFile(fileToWatch, "r");
+                        randomAccessFile.seek(lastKnownPosition);
+                        String line = null;
+                        while ((line = randomAccessFile.readLine()) != null) {
+                            for (Expected pattern : expectations) {
+                                if (line.contains(pattern.pattern)) {
+                                    if (++pattern.seen == 1) {
+                                        System.out.println("KernelTest: Just saw " + pattern.message);
+                                        OK[pattern.group].countDown();
+                                        System.out.println("\tOK[" + pattern.group + "]=" + OK[pattern.group].getCount());
+                                    }
+                                }
+                            }
+                        }
+                        lastKnownPosition = randomAccessFile.getFilePointer();
+                        randomAccessFile.close();
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+        Thread thread = new Thread(runnable);
+        thread.start();
+
         try {
             String tdir = System.getProperty("user.home") + "/kernelTest";
             Kernel kernel = new Kernel();
-            kernel.setLogWatcher(logline -> {
-                if (logline.args.length >= 2) {
-                    String a1 = String.valueOf(logline.args[1]);
-                    boolean allDone = true;
-                    for (Expected pattern : expectations) {
-                        if (a1.contains(pattern.pattern)) {
-                            if (++pattern.seen == 1) {
-                                System.out.println("KernelTest: Just saw " + pattern.message);
-                                OK[pattern.group].countDown();
-                                System.out.println("\tOK[" + pattern.group + "]=" + OK[pattern.group].getCount());
-                            }
-                        }
-                        if (pattern.seen <= 0) {
-                            allDone = false;
-                        }
-                    }
-                }
-            });
             kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", Kernel.class.getResource("config.yaml").toString());
             kernel.launch();
             boolean ok = OK[0].await(200, TimeUnit.SECONDS);
             assertTrue(ok);
             testGroup(0);
             System.out.println("First phase passed, now for the harder stuff");
+
             kernel.find("main", "run").setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " +
                     "   done");
             //            kernel.writeConfig(new OutputStreamWriter(System.out));
             testGroup(1);
-            kernel.context.getLog().note("Now merging delta.yaml");
+            System.out.println("Now merging delta.yaml");
+
             kernel.context.get(UpdateSystemSafelyService.class).addUpdateAction("test",
                     () -> kernel.readMerge(Kernel.class.getResource("delta.yaml"), false));
             testGroup(2);

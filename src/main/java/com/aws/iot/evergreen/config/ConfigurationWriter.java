@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.config;
 
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Commitable;
 import com.aws.iot.evergreen.util.CommitableWriter;
@@ -25,6 +27,8 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
 
+    private static final Logger logger = LogManager.getLogger(ConfigurationWriter.class);
+
     @SuppressWarnings("LeakingThisInConstructor")
     ConfigurationWriter(Configuration c, Writer o) {
         out = o;
@@ -45,8 +49,11 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     public static void dump(Configuration c, Path file) {
         try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
             cs.writeAll();
+            logger.atInfo().setEventType("config-dump").addKeyValue("path",
+                    file).log();
         } catch (IOException ex) {
-            c.root.context.getLog().error("ConfigurationWriter.dump", ex);
+            logger.atError().setEventType("config-dump-error").setCause(ex).addKeyValue("path",
+                    file).log();
         }
     }
 
@@ -105,7 +112,8 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 Coerce.toParseableString(n.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
-                n.context.getLog().error("ConfigurationWriter.published", n.getFullName(), ex);
+                logger.atError().setEventType("config-dump-error").addKeyValue("configNode",
+                        n.getFullName()).setCause(ex).log();
             }
         }
         if (flushImmediately) {

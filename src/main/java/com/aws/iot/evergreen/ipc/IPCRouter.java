@@ -6,33 +6,30 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import io.netty.channel.Channel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import javax.annotation.Nullable;
-import javax.inject.Inject;
 
 /**
  * Class for storing routing between IPC destination names and their handlers.
  */
 @AllArgsConstructor
-@NoArgsConstructor
 public class IPCRouter {
-    @Inject
-    Log log;
-
     private final Map<Integer, IPCCallback> destinationCallbackMap = new ConcurrentHashMap<>();
     private final Map<ConnectionContext, Channel> clientToChannelMap = new ConcurrentHashMap<>();
     private final Map<ClientAndRequestId, CompletableFuture<FrameReader.Message>> requestIdToCallbackMap =
             new ConcurrentHashMap<>();
+
+    private static final Logger logger = LogManager.getLogger(IPCRouter.class);
 
     /**
      * Registers a callback for a destination, Dispatcher will invoke the function for all message with registered
@@ -44,7 +41,6 @@ public class IPCRouter {
      * @throws IPCException if the callback is already registered for a destination
      */
     public void registerServiceCallback(int destination, IPCCallback callback) throws IPCException {
-        log.log(Log.Level.Note, "registering callback for destination ", destination);
         IPCCallback existingFunction = destinationCallbackMap.putIfAbsent(destination, callback);
         if (existingFunction != null) {
             throw new IPCException("callback for destination already registered");

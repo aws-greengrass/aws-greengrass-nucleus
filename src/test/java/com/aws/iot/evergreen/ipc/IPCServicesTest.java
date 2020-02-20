@@ -13,7 +13,9 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotFoundException;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.KernelTest;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.TestUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -49,13 +51,14 @@ public class IPCServicesTest {
         System.out.println("tdir = " + tdir);
         kernel = new Kernel();
 
-        kernel.setLogWatcher(logline -> {
-            if (logline.args.length == 1 && logline.args[0].equals("Run called for IPC service")) {
+        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
+
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
+            if (service.getName().equals("IPCService") && service.getState().equals(State.RUNNING)) {
                 OK.countDown();
             }
         });
 
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
         kernel.launch();
         OK.await(10, TimeUnit.SECONDS);
         Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);

@@ -9,7 +9,8 @@ import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.GenericErrorCodes;
 import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -34,9 +35,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     public static final AttributeKey<ConnectionContext> CONNECTION_CONTEXT_KEY = AttributeKey.newInstance("ctx");
     private static final String DEST_NOT_FOUND_ERROR = "Destination handler not found";
     private static final String UNSUPPORTED_PROTOCOL_VERSION = "Unsupported protocol version";
-
-    @Inject
-    private Log log;
+    private static final Logger logger = LogManager.getLogger(IPCChannelHandler.class);
 
     @Inject
     private AuthHandler auth;
@@ -67,7 +66,9 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
 
         // Match up the version, if it doesn't match then return an error and close the connection
         if (message.version != FrameReader.VERSION) {
-            log.warn(UNSUPPORTED_PROTOCOL_VERSION, ctx.channel().remoteAddress());
+            logger.atWarn().setEventType("request-version-mismatch").addKeyValue("clientAddress",
+                    ctx.channel().remoteAddress()).addKeyValue("clientMessageVersion", message.version)
+                    .addKeyValue("supportedVersion", FrameReader.VERSION).log(UNSUPPORTED_PROTOCOL_VERSION);
             sendResponse(new FrameReader.Message(UNSUPPORTED_PROTOCOL_VERSION.getBytes(StandardCharsets.UTF_8)),
                     message.requestId, BuiltInServiceDestinationCode.ERROR.getValue(), ctx, true);
             return;
@@ -87,7 +88,9 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
         // Get the callback for a destination. If it doesn't exist, then send back an error message.
         IPCCallback cb = router.getCallbackForDestination(message.destination);
         if (cb == null) {
-            log.warn(DEST_NOT_FOUND_ERROR, ctx.channel().remoteAddress(), message.destination);
+            logger.atWarn().setEventType("request-destination-not-found").addKeyValue("clientAddress",
+                    ctx.channel().remoteAddress()).addKeyValue("destination", message.destination)
+                    .log(DEST_NOT_FOUND_ERROR);
             sendResponse(new FrameReader.Message(DEST_NOT_FOUND_ERROR.getBytes(StandardCharsets.UTF_8)),
                     message.requestId, BuiltInServiceDestinationCode.ERROR.getValue(), ctx, false);
             return;
@@ -113,7 +116,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         // TODO: Proper exception handling https://issues.amazon.com/issues/P32787597
-        log.warn("Caught error in IPC server", cause);
+        logger.atError().setEventType("ipc-server-error").setCause(cause).log();
         // Close out the connection since we don't know what went wrong.
         ctx.close();
     }

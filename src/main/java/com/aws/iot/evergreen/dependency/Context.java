@@ -8,8 +8,9 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -43,7 +44,7 @@ import static com.aws.iot.evergreen.util.Utils.nullEmpty;
 @SuppressFBWarnings(value = "SC_START_IN_CTOR", justification = "Starting thread in constructor is what we want")
 public class Context implements Closeable {
     private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
-    private final Log log = new Log();  // Some painful meta-circularities make life easier if the log is slightly
+    private static final Logger logger = LogManager.getLogger(Context.class);
     // magical
     private boolean shuttingDown = false;
     // global state change notification
@@ -65,7 +66,7 @@ public class Context implements Closeable {
                     try {
                         task.run();
                     } catch (Throwable t) {
-                        log.error("subscription listener errored", task.getClass(), t);
+                        logger.atError().setEventType("run-on-publish-queue-error").setCause(t).log();
                     }
                 } catch (InterruptedException ignored) {
                 }
@@ -75,15 +76,10 @@ public class Context implements Closeable {
 
     {
         parts.put(Context.class, new Value(Context.class, this));
-        parts.put(Log.class, new Value(Log.class, log));
     }
 
     {
         publishThread.start();
-    }
-
-    public Log getLog() {
-        return log;
     }
 
     public <T> T get(Class<T> cl) {
@@ -206,14 +202,16 @@ public class Context implements Closeable {
         forEach(v -> {
             Object vv = v.value;
             try {
-                if (vv instanceof Closeable && vv != log) {
+                if (vv instanceof Closeable) {
                     ((Closeable) vv).close();
+                    logger.atDebug().setEventType("context-shutdown").addKeyValue("class",
+                            Coerce.toString(vv)).log();
                 }
             } catch (Throwable t) {
-                log.error("Failed to shutdown", Coerce.toString(vv), t);
+                logger.atError().setEventType("context-shutdown-error").setCause(t).addKeyValue("class",
+                        Coerce.toString(vv)).log();
             }
         });
-        Utils.close(log);
     }
 
     @Override
@@ -277,7 +275,7 @@ public class Context implements Closeable {
                 r.run();
             } catch (Throwable t) {
                 ret.set(t);
-                getLog().error("runOnPublishQueueAndWait", t);
+                logger.atError().setEventType("run-publish-queue-and-wait-error").setCause(t).log();
             }
             ready.countDown();
         });
@@ -376,7 +374,6 @@ public class Context implements Closeable {
                 //                .deepToString(args, 90));
                 return put(cons.newInstance(args));
             } catch (Throwable ex) {
-                log.error("Can't create instance of", targetClass, ex);
                 throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
             }
         }
@@ -417,6 +414,9 @@ public class Context implements Closeable {
                 return;
             }
             Class cl = lvalue.getClass();
+            String className = cl.getName();
+            logger.atTrace().addKeyValue("class", className).setEventType("class-injection-start").log();
+
             EvergreenService asService = lvalue instanceof EvergreenService ? (EvergreenService) lvalue : null;
             InjectionActions injectionActions = lvalue instanceof InjectionActions ? (InjectionActions) lvalue : null;
             if (asService != null) {
@@ -425,11 +425,13 @@ public class Context implements Closeable {
             if (injectionActions != null) {
                 try {
                     injectionActions.preInject();
+                    logger.atTrace().addKeyValue("class", className)
+                            .setEventType("class-pre-inject-complete").log();
                 } catch (Throwable e) {
+                    logger.atError().setCause(e).addKeyValue("class", className)
+                            .setEventType("class-pre-inject-error").log();
                     if (asService != null) {
-                        asService.errored("preInject", e);
-                    } else {
-                        getLog().error("preInject", cl, e);
+                        asService.serviceErrored(e);
                     }
                 }
             }
@@ -469,11 +471,13 @@ public class Context implements Closeable {
                                 asService.addDependency((EvergreenService) v,
                                         startWhen == null ? State.RUNNING : startWhen.value());
                             }
+                            logger.atTrace().addKeyValue("class", f.getName())
+                                    .setEventType("class-inject-complete").log();
                         } catch (Throwable ex) {
+                            logger.atError().setCause(ex).addKeyValue("class", f.getName())
+                                    .setEventType("class-inject-error").log();
                             if (asService != null) {
-                                asService.errored("Injecting", ex);
-                            } else {
-                                log.error("Error injecting into", f, ex);
+                                asService.serviceErrored(ex);
                             }
                         }
                     }
@@ -481,17 +485,21 @@ public class Context implements Closeable {
                 }
                 cl = cl.getSuperclass();
             }
-            if (injectionActions != null && (asService == null || !asService.errored())) {
+            if (injectionActions != null && (asService == null || !asService.isErrored())) {
                 try {
                     injectionActions.postInject();
+                    logger.atTrace().addKeyValue("class", value.getClass())
+                            .setEventType("class-post-inject-complete").log();
                 } catch (Throwable e) {
+                    logger.atError().setCause(e).addKeyValue("class", value.getClass())
+                            .setEventType("class-post-inject-error").log();
                     if (asService != null) {
-                        asService.errored("postInject", e);
-                    } else {
-                        log.error("postInject", value.getClass(), e);
+                        asService.serviceErrored(e);
                     }
                 }
             }
+
+            logger.atTrace().addKeyValue("class", className).setEventType("class-injection-complete").log();
         }
 
     }

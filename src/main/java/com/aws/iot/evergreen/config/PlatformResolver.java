@@ -23,6 +23,7 @@ public class PlatformResolver {
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
             value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
+    @SuppressWarnings({"checkstyle:emptycatchblock"})
     private static Map<String, Integer> initializeRanks() {
         Map<String, Integer> ranks = new HashMap<>();
         // figure out what OS we're running and add applicable tags

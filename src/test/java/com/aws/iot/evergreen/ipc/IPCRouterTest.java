@@ -1,9 +1,10 @@
 package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -15,12 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 public class IPCRouterTest {
-    @Mock
-    Log log;
 
     @Test
     public void GIVEN_function_WHEN_register_callback_THEN_callback_can_be_called() throws Throwable {
-        IPCRouter router = new IPCRouter(log);
+        IPCRouter router = new IPCRouter();
 
         CountDownLatch cdl = new CountDownLatch(1);
         router.registerServiceCallback(100, (a, b) -> {
@@ -34,7 +33,7 @@ public class IPCRouterTest {
 
     @Test
     public void GIVEN_already_registered_function_WHEN_register_callback_THEN_exception_is_thrown() throws Throwable {
-        IPCRouter router = new IPCRouter(log);
+        IPCRouter router = new IPCRouter();
 
         router.registerServiceCallback(100, (a, b) -> null);
 

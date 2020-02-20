@@ -4,7 +4,8 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.jr.ob.JSON;
 
 import java.io.BufferedReader;
@@ -18,7 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -37,6 +37,7 @@ public class Configuration {
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
     public final Context context;
     final Topics root;
+    private static final Logger logger = LogManager.getLogger(Configuration.class);
 
     @Inject
     @SuppressWarnings("LeakingThisInConstructor")
@@ -156,14 +157,16 @@ public class Configuration {
      * @throws IOException if the reading fails
      */
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
-        context.getLog().significant("Reading URL", url);
+        logger.atInfo().addKeyValue("url", url).setEventType("config-loading")
+                .log("Read configuration from a URL.");
         URLConnection u = url.openConnection();
         return read(u.getInputStream(), extension(url.getPath()),
                 useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
     }
 
     public Configuration read(Path s) throws IOException {
-        context.getLog().significant("Reading", s);
+        logger.atInfo().addKeyValue("path", s).setEventType("config-loading")
+                .log("Read configuration from a file path");
         return read(Files.newBufferedReader(s), extension(s.toString()), Files.getLastModifiedTime(s).toMillis());
     }
 
@@ -219,9 +222,11 @@ public class Configuration {
          * fired while the large config change is happening.  They get reconciled
          * all together */
         return context.runOnPublishQueueAndWait(() -> {
-            context.getLog().note("Merging " + u);
+            logger.atDebug().setEventType("config-merge-start").addKeyValue("url", u)
+                    .log("Start merging configuration.");
             read(u, sourceTimestamp);
-            context.getLog().note("Finished " + u);
+            logger.atDebug().setEventType("config-merge-finish").addKeyValue("url", u)
+                    .log("Finish merging configuration.");
         });
     }
 

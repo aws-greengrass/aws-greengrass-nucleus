@@ -11,7 +11,8 @@ import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
@@ -29,11 +30,10 @@ public class AuthHandler implements InjectionActions {
     public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
     public static final String SERVICE_UNIQUE_ID_KEY = "_UID";
     public static final int AUTH_API_VERSION = 1;
+    private static final Logger logger = LogManager.getLogger(AuthHandler.class);
 
     @Inject
     private Configuration config;
-    @Inject
-    private Log log;
     @Inject
     private IPCRouter router;
 
@@ -91,7 +91,9 @@ public class AuthHandler implements InjectionActions {
             try {
                 ConnectionContext context = doAuth(message.message, ctx.channel().remoteAddress());
                 ctx.channel().attr(IPCChannelHandler.CONNECTION_CONTEXT_KEY).set(context);
-                log.note("Successfully authenticated client", context);
+                logger.atInfo().setEventType("ipc-client-authenticated").addKeyValue("clientContext",
+                        context).log();
+
                 router.clientConnected(context, ctx.channel());
                 AuthResponse authResponse = AuthResponse.builder()
                         .serviceName(context.getServiceName()).clientId(context.getClientId()).build();
@@ -100,7 +102,8 @@ public class AuthHandler implements InjectionActions {
                 sendResponse(new FrameReader.Message(applicationMessage.toByteArray()),
                         message.requestId, message.destination, ctx, false);
             } catch (Throwable t) {
-                log.warn("Error while authenticating client", ctx.channel().remoteAddress(), t);
+                logger.atError().setEventType("ipc-client-auth-error").setCause(t).addKeyValue("clientAddress",
+                        ctx.channel().remoteAddress()).log();
                 AuthResponse authResponse = AuthResponse.builder()
                         .errorMessage("Error while authenticating client").build();
                 ApplicationMessage applicationMessage = ApplicationMessage.builder()
@@ -109,7 +112,9 @@ public class AuthHandler implements InjectionActions {
                         message.destination, ctx, true);
             }
         } else {
-            log.warn("Wrong destination for first packet from client", ctx.channel().remoteAddress());
+            logger.atError().setEventType("ipc-client-auth-error").addKeyValue("clientAddress",
+                    ctx.channel().remoteAddress()).addKeyValue("destination", message.destination)
+                    .log("First request from client should be destined for Auth");
             AuthResponse authResponse = AuthResponse.builder()
                     .errorMessage("Error while authenticating client").build();
             ApplicationMessage applicationMessage = ApplicationMessage.builder()
