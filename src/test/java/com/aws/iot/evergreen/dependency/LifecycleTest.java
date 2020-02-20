@@ -38,8 +38,8 @@ public class LifecycleTest {
                 "=> " + service.getState()));
         context.get(c1.class).startLifecycle();
         context.get(c2.class).startLifecycle();
-        context.get(c1.class).requestStartService();
-        context.get(c2.class).requestStartService();
+        context.get(c1.class).requestStart();
+        context.get(c2.class).requestStart();
         try {
             if (!cd.await(5, TimeUnit.SECONDS)) {
                 fail("Startup timed out");
@@ -50,8 +50,8 @@ public class LifecycleTest {
         }
 
         cd = new CountDownLatch(2);
-        context.get(c1.class).requestStopService();
-        context.get(c2.class).requestStopService();
+        context.get(c1.class).requestStop();
+        context.get(c2.class).requestStop();
         try {
             if (!cd.await(1, TimeUnit.SECONDS)) {
                 fail("Stop timed out");

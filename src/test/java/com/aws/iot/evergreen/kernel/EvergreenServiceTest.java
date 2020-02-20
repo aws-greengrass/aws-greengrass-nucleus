@@ -93,7 +93,7 @@ class EvergreenServiceTest {
         Mockito.when(config.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
 
         // WHEN
-        evergreenService.setState(newState);
+        evergreenService.reportState(newState);
 
         // THEN
         InOrder inOrder = Mockito.inOrder(stateTopic, context, log);

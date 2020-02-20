@@ -42,9 +42,9 @@ public class GenericExternalService extends EvergreenService {
             if (c.parentNeedsToKnow() && !child.childOf("shutdown")) {
                 context.getLog().warn(getName(), "responding to change to", child);
                 if (child.childOf("install")) {
-                    requestReinstallService();
+                    requestReinstall();
                 } else {
-                    requestRestartService();
+                    requestRestart();
                 }
             }
         });
@@ -60,7 +60,7 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void install() {
         if (run("install", null) == RunStatus.Errored) {
-            setState(State.Errored);
+            reportState(State.Errored);
         }
         super.install();
     }
@@ -78,12 +78,12 @@ public class GenericExternalService extends EvergreenService {
                 if (exit == 0) {
                     super.startup();
                 } else {
-                    setState(State.Errored);
+                    reportState(State.Errored);
                 }
             }
         });
         if (result == RunStatus.Errored) {
-            setState(State.Errored);
+            reportState(State.Errored);
         } else if (result == RunStatus.NothingDone) {
             super.startup();
 
@@ -91,17 +91,17 @@ public class GenericExternalService extends EvergreenService {
                 currentScript = null;
                 if (!inShutdown) {
                     if (exit == 0) {
-                        setState(State.Stopping);
+                        reportState(State.Stopping);
                         context.getLog().significant(getName(), "Stopping");
                     } else {
-                        setState(State.Errored);
+                        reportState(State.Errored);
                         context.getLog().error(getName(), "Failed", exit2String(exit));
                     }
                 }
             }) == RunStatus.NothingDone) {
                 context.getLog().significant(getName(), "run: NothingDone");
-                this.requestStopService();
-                setState(State.Finished);
+                this.requestStop();
+                reportState(State.Stopping);
             }
         }
     }

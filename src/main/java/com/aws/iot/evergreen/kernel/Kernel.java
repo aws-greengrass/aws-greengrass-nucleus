@@ -403,7 +403,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
             l.startLifecycle();
-            l.requestStartService();
+            l.requestStart();
         });
     }
 

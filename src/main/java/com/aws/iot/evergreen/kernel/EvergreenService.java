@@ -53,8 +53,10 @@ public class EvergreenService implements InjectionActions, Closeable {
     private State prevState = State.New;
     private String status;
 
+    private final List<State> desiredStateList = new ArrayList<>(3);
 
-    private boolean closed;
+    //Used to notify when state has changed Or a desiredState is set.
+    private final Object stateChangeEvent = new Object();
 
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics topics) {
@@ -83,20 +85,14 @@ public class EvergreenService implements InjectionActions, Closeable {
         return (State) state.getOnce();
     }
 
-    static void setState(Object o, State state) {
-        if (o instanceof EvergreenService) {
-            ((EvergreenService) o).setState(state);
-        }
-    }
-
     /**
-     * TODO: make private and add a wrapper of reportState() for public access.
      * Set the state of the service. Should only be called by service or through IPC.
      * @param newState
      */
-    public void setState(State newState) {
+    private void setState(State newState) {
         final State currentState = getState();
 
+        // TODO: Add validation
         if (!newState.equals(currentState)) {
             context.getLog().note(getName(), currentState, "=>", newState);
             prevState = currentState;
@@ -109,6 +105,13 @@ public class EvergreenService implements InjectionActions, Closeable {
                 }
             }
         }
+    }
+
+    public void reportState(State newState) {
+        if (newState.equals(State.Installed) || newState.equals(State.Broken) || newState.equals(State.Finished)) {
+            throw new IllegalArgumentException("Invalid state: " + newState);
+        }
+        setState(newState);
     }
 
     /**
@@ -228,11 +231,6 @@ public class EvergreenService implements InjectionActions, Closeable {
         return periodicityInformation != null;
     }
 
-    private final List<State> desiredStateList = new ArrayList<>(3);
-
-    //Used to notify when state has changed Or a desiredState is set.
-    private final Object stateChangeEvent = new Object();
-
     private State peekOrRemoveFirstDesiredState(State activeState) {
         synchronized (desiredStateList) {
             if (desiredStateList.isEmpty()) {
@@ -265,7 +263,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Start Service.
      * @return successful
      */
-    public boolean requestStartService() {
+    public boolean requestStart() {
         setDesiredState(State.Running);
         return true;
     }
@@ -274,7 +272,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Stop Service.
      * @return successful
      */
-    public boolean requestStopService() {
+    public boolean requestStop() {
         setDesiredState(State.Finished);
         return true;
     }
@@ -283,7 +281,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Restart Service.
      * @return successful
      */
-    public boolean requestRestartService() {
+    public boolean requestRestart() {
         setDesiredState(State.Finished, State.Running);
         return true;
     }
@@ -292,7 +290,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * ReInstall Service.
      * @return successful
      */
-    public boolean requestReinstallService() {
+    public boolean requestReinstall() {
         setDesiredState(State.Finished, State.New, State.Running);
         return true;
     }
@@ -433,7 +431,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                             break;
                     }
                     if (desiredStateList.isEmpty()) {
-                        requestStartService();
+                        requestStart();
                     }
                     break;
                 default:
@@ -518,7 +516,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * it is called right after postInject.  The service doesn't transition to Running
      * until *after* this state is complete.
      */
-    public void startup() {
+    protected void startup() {
         setState(State.Running);
     }
 
@@ -531,7 +529,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Called when the object's state leaves Running.
      * To shutdown a service, use <tt>setState(Finished)</tt>
      */
-    public void shutdown() {
+    protected void shutdown() {
         Periodicity t = periodicityInformation;
         if (t != null) {
             t.shutdown();
@@ -540,7 +538,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void close() {
-        requestStopService();
+        requestStop();
         Periodicity t = periodicityInformation;
         if (t != null) {
             t.shutdown();
@@ -572,7 +570,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         dependentEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
             if (this.getState() == State.Installed || this.getState() == State.Running) {
                 if (!dependencyReady(dependentEvergreenService)) {
-                    this.requestRestartService();
+                    this.requestRestart();
                 }
             }
 
@@ -598,12 +596,9 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     private void waitForDependencyReady() throws InterruptedException {
-        if (dependencyReady()) {
-            return;
-        }
-        context.getLog().error(getName(), "waiting for dependency ready");
         synchronized (dependencyReadyLock) {
             while (!dependencyReady()) {
+                context.getLog().note(getName(), "waiting for dependency ready");
                 dependencyReadyLock.wait();
             }
         }

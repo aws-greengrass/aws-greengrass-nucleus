@@ -64,7 +64,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
         pendingActions.put(tag, action);
         log.note(getName(), "Adding update action", tag);
         if (!isPeriodic()) {
-            requestStartService();
+            requestStart();
         }
     }
 
@@ -86,7 +86,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
     @Override
     public void startup() {
         // startup() is invoked on it's own thread
-        setState(State.Running);
+        reportState(State.Running);
         log.note(getName(), "Checking for updates");
         while (!pendingActions.isEmpty()) {
             // TODO: should really use an injected clock to support simulation-time
@@ -117,7 +117,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 log.note(getName(), "Back on run Q safe-time update");
             }
         }
-        this.requestStopService();
+        this.requestStop();
     }
 
     public interface DisruptableCheck {
