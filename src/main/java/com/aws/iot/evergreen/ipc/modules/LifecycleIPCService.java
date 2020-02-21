@@ -100,7 +100,8 @@ public class LifecycleIPCService extends EvergreenService {
             try {
                 LifecycleGenericResponse response = LifecycleGenericResponse.builder()
                         .status(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
-                ApplicationMessage responseMessage = ApplicationMessage.builder().version(applicationMessage.getVersion())
+                ApplicationMessage responseMessage = ApplicationMessage.builder()
+                        .version(applicationMessage.getVersion())
                         .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
