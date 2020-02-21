@@ -66,9 +66,8 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <Running>
-    // Set capacity to 3, since currently the max length of state transition path is reInstall(),
-    // which is Finished->New->Running
-    private final List<State> desiredStateList = new ArrayList<>(3);
+    // ReInstall a service will set DesiredStateList to <Finished->New->Running>
+    private final List<State> desiredStateList = new CopyOnWriteArrayList<>();
 
     private static final Set<State> validReportState = new HashSet<>(Arrays.asList(
             State.Running, State.Errored, State.Finished));
@@ -102,10 +101,10 @@ public class EvergreenService implements InjectionActions, Closeable {
      * @param newState
      * @return
      */
-    public synchronized boolean reportState(State newState) {
+    public synchronized void reportState(State newState) {
         context.getLog().note(getName(), "reporting state", newState);
         if (!validReportState.contains(newState)) {
-            throw new IllegalArgumentException("Invalid state: " + newState);
+            context.getLog().error("invalid report state: " + newState);
         }
         // TODO: Add more validations
 
@@ -114,7 +113,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             requestStop();
         }
 
-        return enqueueStateEvent(newState);
+        enqueueStateEvent(newState);
     }
 
     private Optional<State> getReportState() {
@@ -269,55 +268,46 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
-    private synchronized boolean enqueueStateEvent(Object event) {
+    private synchronized void enqueueStateEvent(Object event) {
         if (event instanceof State) {
             // override existing reportState
             stateEventQueue.clear();
-            return stateEventQueue.offer(event);
+            stateEventQueue.offer(event);
         } else {
             stateEventQueue.offer(event);
 
             // Ignore returned value of offer().
             // If enqueue isn't successful, the event queue has contents and there is no need to send another
             // trigger to process state transition.
-            return true;
         }
     }
 
     /**
      * Start Service.
-     * @return successful
      */
-    public boolean requestStart() {
+    public void requestStart() {
         setDesiredState(State.Running);
-        return true;
     }
 
     /**
      * Stop Service.
-     * @return successful
      */
-    public boolean requestStop() {
+    public void requestStop() {
         setDesiredState(State.Finished);
-        return true;
     }
 
     /**
      * Restart Service.
-     * @return successful
      */
-    public boolean requestRestart() {
+    public void requestRestart() {
         setDesiredState(State.Finished, State.Running);
-        return true;
     }
 
     /**
      * ReInstall Service.
-     * @return successful
      */
-    public boolean requestReinstall() {
+    public void requestReinstall() {
         setDesiredState(State.Finished, State.New, State.Running);
-        return true;
     }
 
     private void startStateTransition() throws InterruptedException {
@@ -360,7 +350,6 @@ public class EvergreenService implements InjectionActions, Closeable {
                     State reportState = getReportState().orElse(null);
                     if (State.Errored.equals(reportState) || !ok) {
                         setState(State.Errored);
-                        continue;
                     } else {
                         setState(State.Installed);
                     }
@@ -484,7 +473,6 @@ public class EvergreenService implements InjectionActions, Closeable {
 
             // blocking on event queue.
             // The state event can either be a report state transition event or a desired state updated event.
-            // State transition events are processed in strict order of setState() invocation.
             // TODO: check if it's possible to move this blocking logic to the beginning of while loop.
             Object stateEvent = stateEventQueue.take();
             if (stateEvent instanceof State) {
@@ -499,16 +487,6 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Custom handler to handle error.
      */
     public void handleError() {
-    }
-
-    /**
-     * @return true iff this service is in the process of transitioning from one state
-     * to the state returned by getState() - setState() is "aspirational".  getState()
-     * returns the state that the service aspires to be in.  inTransition() returns true
-     * if that aspiration has been met.
-     */
-    public boolean inTransition() {
-        return prevState != getState();
     }
 
     private synchronized void setBackingTask(Runnable r, String db) {
@@ -542,7 +520,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         } else {
             context.getLog().error(this, message, e);
         }
-        setState(State.Errored);
+        reportState(State.Errored);
     }
 
     public boolean errored() {
@@ -571,17 +549,16 @@ public class EvergreenService implements InjectionActions, Closeable {
      * until *after* this state is complete.
      */
     protected void startup() {
-        setState(State.Running);
+        reportState(State.Running);
     }
 
     @Deprecated
     public void run() {
-        setState(State.Finished);
+        reportState(State.Finished);
     }
 
     /**
      * Called when the object's state leaves Running.
-     * To shutdown a service, use <tt>setState(Finished)</tt>
      */
     protected void shutdown() {
         Periodicity t = periodicityInformation;
