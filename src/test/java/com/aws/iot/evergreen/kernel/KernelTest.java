@@ -206,22 +206,6 @@ public class KernelTest {
         kernel.shutdown();
     }
 
-    @Test
-    public void testStartingDeploymentService() {
-        try {
-            String tdir = System.getProperty("user.home") + "/kernelTest";
-            Kernel kernel = new Kernel();
-            kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", Kernel.class.getResource("config.yaml").toString());
-            kernel.launch();
-            while(true) {
-                //Keeping the kernel runnning
-                Thread.sleep(100000);
-            }
-        } catch (Throwable ex) {
-            ex.printStackTrace(System.out);
-            fail();
-        }
-    }
 
     private void testGroup(int g) {
         try {

@@ -16,6 +16,11 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
+    - name: Decrypt the test Iot thing private key
+      uses: actions/checkout@v2
+      run: ./.github/scripts/decrypt_secret.sh
+      env:
+        evergreen_test_iot_thing_private_key_secret_passphrase: ${{secrets.evergreen_test_iot_thing_private_key}}
     - name: Build with Maven
       run: mvn -ntp -q verify
     - name: Convert Jacoco to Cobertura

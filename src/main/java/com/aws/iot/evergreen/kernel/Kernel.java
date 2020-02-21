@@ -2,7 +2,6 @@
  * SPDX-License-Identifier: Apache-2.0 */
 
 package com.aws.iot.evergreen.kernel;
-import com.aws.iot.evergreen.deployment.IotJobsHelper;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
@@ -99,7 +98,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
-        context.put(IotJobsHelper.class, new IotJobsHelper());
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
