@@ -259,20 +259,6 @@ public class Context implements Closeable {
         }
     }
 
-    /**
-     * Set the state of every service.
-     *
-     * @param newState new state
-     */
-    public void setAllStates(State newState) {
-        forEach(f -> {
-            Object v = f.get();
-            if (v instanceof EvergreenService) {
-                ((EvergreenService) v).setState(newState);
-            }
-        });
-    }
-
     public void runOnPublishQueue(Runnable r) {
         serialized.add(r);
     }

@@ -23,6 +23,7 @@ public enum State {
      * since it can (and should) be done in the background by a MIN_PRIORITY thread.
      */
     Installing(true, false, false),
+    Installed(true, false, false),
     /**
      * Waiting for some dependency to start Running.
      */
@@ -37,6 +38,7 @@ public enum State {
      * ever take a significant amount of time to run.
      */
     Running(true, true, true),
+    Stopping(true, false, true),
     //    /**
     //     * Running, but experiencing problems that the service is attempting to
     //     * repair itself

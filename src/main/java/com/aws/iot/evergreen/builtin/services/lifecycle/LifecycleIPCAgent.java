@@ -69,7 +69,7 @@ public class LifecycleIPCAgent implements InjectionActions {
 
         GeneralResponse<Void, LifecycleResponseStatus> resp = new GeneralResponse<>();
         if (service.isPresent()) {
-            service.get().setState(s);
+            service.get().reportState(s);
             resp.setError(LifecycleResponseStatus.Success);
         } else {
             resp.setError(LifecycleResponseStatus.InvalidRequest);

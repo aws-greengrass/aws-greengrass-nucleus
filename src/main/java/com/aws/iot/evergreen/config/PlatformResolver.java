@@ -71,6 +71,7 @@ public class PlatformResolver {
         try {
             ranks.put(InetAddress.getLocalHost().getHostName(), 99);
         } catch (UnknownHostException ex) {
+            ex.printStackTrace();
         }
 
         return ranks;
@@ -114,7 +115,8 @@ public class PlatformResolver {
             // assume no nested platform specific configurations.
             return bestRankNode;
 
-            // if nested platform specific node is allowed, use below code. Can have validation on the ranks so that inner node rank can't exceed outer node rank.
+            // if nested platform specific node is allowed, use below code.
+            // Can have validation on the ranks so that inner node rank can't exceed outer node rank.
             /*
             if (bestRankNode == null) {
                 return null;

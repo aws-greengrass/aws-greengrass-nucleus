@@ -20,7 +20,8 @@ public class KernelTest {
     static final CountDownLatch[] OK = new CountDownLatch[10];
     private static final Expected[] expectations = {new Expected(0, "RUNNING", "Main service"),
             //new Expected("docs.docker.com/", "docker hello world"),
-            new Expected(0, "tick-tock", "periodic", 3), new Expected(0, "ANSWER=42", "global setenv"),
+            new Expected(0, "tick-tock", "periodic", 3),
+            new Expected(0, "ANSWER=42", "global setenv"),
             new Expected(0, "EVERGREEN_UID=", "generated unique token"), new Expected(0, "mqtt.moquette.run",
             "moquette mqtt server"), new Expected(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
             new Expected(1, "NEWMAIN", "Assignment to 'run' script'"), new Expected(2, "JUSTME=fancy a spot of " +
@@ -42,26 +43,26 @@ public class KernelTest {
         kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", Kernel.class.getResource("config_broken.yaml").toString());
 
         LinkedList<ExpectedStateTransition> expectedStateTransitionList =
-                new LinkedList<>(Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.New,
-                                State.Installing), new ExpectedStateTransition("installErrorRetry", State.Installing,
-                                State.Errored), new ExpectedStateTransition("installErrorRetry", State.Errored,
-                                State.Installing), new ExpectedStateTransition("installErrorRetry", State.Installing,
-                                State.AwaitingStartup),
+                new LinkedList<>(Arrays.asList(
+                        new ExpectedStateTransition("installErrorRetry", State.New, State.Errored),
+                        new ExpectedStateTransition("installErrorRetry", State.Errored, State.New),
+                        new ExpectedStateTransition("installErrorRetry", State.New, State.Installed),
 
                         // main service doesn't start until dependency ready
-                        new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
-                        new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting),
-                        new ExpectedStateTransition("main", State.Starting, State.Running),
+                        new ExpectedStateTransition("runErrorRetry", State.Installed, State.Running),
+                        new ExpectedStateTransition("main", State.Installed, State.Running),
 
                         // runErrorRetry restart on error
                         new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
-                        new ExpectedStateTransition("runErrorRetry", State.Errored, State.AwaitingStartup),
+                        new ExpectedStateTransition("runErrorRetry", State.Errored, State.Stopping),
+                        new ExpectedStateTransition("runErrorRetry", State.Stopping, State.Finished),
+                        new ExpectedStateTransition("runErrorRetry", State.Finished, State.Installed),
 
                         // main service restart on dependency error
                         new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
-                        new ExpectedStateTransition("main", State.Running, State.AwaitingStartup),
-                        new ExpectedStateTransition("runErrorRetry", State.Starting, State.Running),
-                        new ExpectedStateTransition("main", State.AwaitingStartup, State.Starting)));
+                        new ExpectedStateTransition("main", State.Running, State.Stopping),
+                        new ExpectedStateTransition("runErrorRetry", State.Installed, State.Running),
+                        new ExpectedStateTransition("main", State.Installed, State.Running)));
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 

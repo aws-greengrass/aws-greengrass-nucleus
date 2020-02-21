@@ -88,7 +88,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         super(new Context());
         context.put(Configuration.class, this);
         context.put(Kernel.class, this);
-        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
+        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(4);
         context.put(ScheduledThreadPoolExecutor.class, ses);
         context.put(ScheduledExecutorService.class, ses);
         context.put(Executor.class, ses);
@@ -230,6 +230,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 serviceImplementors.put(is.name(), cl);
                 System.out.println("Found Plugin: " + cl.getSimpleName());
             });
+
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
                 context.put("service-implementors", serviceImplementors);
@@ -401,7 +402,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
             log.significant("Starting to install", l);
-            l.setState(State.Installing);
+            l.requestStart();
         });
     }
 
