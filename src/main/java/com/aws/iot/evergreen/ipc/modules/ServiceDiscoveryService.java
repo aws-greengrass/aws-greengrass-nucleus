@@ -34,7 +34,7 @@ import static com.aws.iot.evergreen.util.Log.Level;
 @ImplementsService(name = "servicediscovery", autostart = true)
 public class ServiceDiscoveryService extends EvergreenService {
     private final ObjectMapper mapper = new CBORMapper();
-    public static final int DISCOVERY_SERVICE_API_VERSION = 1;
+
     @Inject
     Log log;
     @Inject
@@ -67,11 +67,10 @@ public class ServiceDiscoveryService extends EvergreenService {
      */
     public Future<Message> handleMessage(Message request, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
+        ApplicationMessage message = new ApplicationMessage(request.getPayload());
         try {
-            ApplicationMessage message = new ApplicationMessage(request.getPayload());
-            if (message.getVersion() != DISCOVERY_SERVICE_API_VERSION) {
-                throw new IllegalArgumentException("Unknown API Version");
-            }
+            //TODO: add version compatibility check
+
             ServiceDiscoveryOpCodes opCode = values()[message.getOpCode()];
             ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse();
             switch (opCode) {
@@ -101,7 +100,7 @@ public class ServiceDiscoveryService extends EvergreenService {
                     response.setErrorMessage("Unknown request type " + opCode.toString());
                     break;
             }
-            ApplicationMessage applicationMessage = ApplicationMessage.builder().version(DISCOVERY_SERVICE_API_VERSION)
+            ApplicationMessage applicationMessage = ApplicationMessage.builder().version(message.getVersion())
                     .payload(mapper.writeValueAsBytes(response)).build();
             fut.complete(new Message(applicationMessage.toByteArray()));
         } catch (Throwable e) {
@@ -109,7 +108,7 @@ public class ServiceDiscoveryService extends EvergreenService {
             try {
                 ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse(
                         ServiceDiscoveryResponseStatus.InternalError, e.getMessage());
-                ApplicationMessage responseMessage = ApplicationMessage.builder().version(DISCOVERY_SERVICE_API_VERSION)
+                ApplicationMessage responseMessage = ApplicationMessage.builder().version(message.getVersion())
                         .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {

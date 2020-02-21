@@ -31,7 +31,7 @@ import static com.aws.iot.evergreen.util.Log.Level;
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "lifecycleipc", autostart = true)
 public class LifecycleIPCService extends EvergreenService {
-    public static final int LIFECYCLE_SERVICE_API_VERSION = 1;
+
     private ObjectMapper mapper = new CBORMapper();
 
     @Inject
@@ -68,12 +68,9 @@ public class LifecycleIPCService extends EvergreenService {
     public Future<Message> handleMessage(Message message, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
 
+        ApplicationMessage applicationMessage = new ApplicationMessage(message.getPayload());
         try {
-            ApplicationMessage applicationMessage = new ApplicationMessage(message.getPayload());
-            if (applicationMessage.getVersion() != LIFECYCLE_SERVICE_API_VERSION) {
-                throw new IllegalArgumentException("Unknown API Version");
-            }
-
+            //TODO: add version compatibility check
             LifecycleServiceOpCodes lifecycleServiceOpCodes =
                     LifecycleServiceOpCodes.values()[applicationMessage.getOpCode()];
             LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
@@ -95,7 +92,7 @@ public class LifecycleIPCService extends EvergreenService {
                     break;
             }
 
-            ApplicationMessage responseMessage = ApplicationMessage.builder().version(LIFECYCLE_SERVICE_API_VERSION)
+            ApplicationMessage responseMessage = ApplicationMessage.builder().version(applicationMessage.getVersion())
                     .payload(mapper.writeValueAsBytes(lifecycleGenericResponse)).build();
             fut.complete(new Message(responseMessage.toByteArray()));
         } catch (Throwable e) {
@@ -103,7 +100,7 @@ public class LifecycleIPCService extends EvergreenService {
             try {
                 LifecycleGenericResponse response = LifecycleGenericResponse.builder()
                         .status(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
-                ApplicationMessage responseMessage = ApplicationMessage.builder().version(LIFECYCLE_SERVICE_API_VERSION)
+                ApplicationMessage responseMessage = ApplicationMessage.builder().version(applicationMessage.getVersion())
                         .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
