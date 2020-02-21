@@ -28,7 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 
-import static com.aws.iot.evergreen.ipc.AuthHandler.*;
+import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_API_VERSION;
+import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
+import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
