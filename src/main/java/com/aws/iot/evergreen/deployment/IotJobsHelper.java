@@ -1,3 +1,7 @@
+/*
+ * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ */
+
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.util.Log;
@@ -27,10 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 @NoArgsConstructor
-public class DeploymentAgent {
+public class IotJobsHelper {
 
     @Inject
     private static Log logger;
@@ -41,7 +44,7 @@ public class DeploymentAgent {
     private String privateKeyFile;
     private String rootCaPath;
     private String thingName;
-    private IotJobsClient jobs;
+    private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
 
     private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -56,7 +59,6 @@ public class DeploymentAgent {
         public void onConnectionResumed(boolean sessionPresent) {
             logger.log(Log.Level.Note, "Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
         }
-
     };
 
 
@@ -98,7 +100,7 @@ public class DeploymentAgent {
                     .withConnectionEventCallbacks(callbacks);
 
             connection = builder.build();
-            jobs = new IotJobsClient(connection);
+            iotJobsClient = new IotJobsClient(connection);
             connection.connect();
         } catch (CrtRuntimeException ex) {
             logger.log(Log.Level.Error, "Caught exception while establishing connection to AWS Iot. " +
@@ -114,35 +116,19 @@ public class DeploymentAgent {
     }
 
     /**
-     * Connects to AWS Iot and retrieves the Iot Jobs which are queued for this device.
-     * For each job, gets the job document, updates the jobs status to in progress and triggers the corresponding deployment
+     * Updates the status of an Iot Job with given JobId to a given status
+     *
+     * @param jobId  The jobId to be updated
+     * @param status The {@link JobStatus} to which to update
+     * @return
      */
-    public void listenForDeployments() {
-
-        try {
-            List<String> queuedJobs = getAllQueuedJobs(jobs).get();
-
-            for (String jobId : queuedJobs) {
-
-                Map<String, Object> jobDocument = getJobDetails(jobs, jobId).get();
-
-                //update the status of the job as in progress
-                updateJobStatus(jobs, jobId, JobStatus.IN_PROGRESS);
-
-            }
-        } catch (CrtRuntimeException | InterruptedException | ExecutionException ex) {
-            logger.log(Log.Level.Error, "Exception encountered: " + ex.toString());
-        }
-
-    }
-
-    private CompletableFuture<Boolean> updateJobStatus(IotJobsClient jobs, String jobId, JobStatus status) {
+    public CompletableFuture<Boolean> updateJobStatus(String jobId, JobStatus status) {
         CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
 
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
-        CompletableFuture<Integer> subscribed = jobs.SubscribeToUpdateJobExecutionAccepted(
+        CompletableFuture<Integer> subscribed = iotJobsClient.SubscribeToUpdateJobExecutionAccepted(
                 subscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
@@ -151,12 +137,11 @@ public class DeploymentAgent {
                 });
         try {
             subscribed.get();
-            logger.log(Log.Level.Note, "Subscribed to UpdateJobExecutionAccepted");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to UpdateJobExecutionAccepted", ex);
         }
 
-        subscribed = jobs.SubscribeToUpdateJobExecutionRejected(
+        subscribed = iotJobsClient.SubscribeToUpdateJobExecutionRejected(
                 subscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
@@ -166,7 +151,6 @@ public class DeploymentAgent {
 
         try {
             subscribed.get();
-            logger.log(Log.Level.Note, "Subscribed to UpdateJobExecutionRejected");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to UpdateJobExecutionRejected", ex);
         }
@@ -175,7 +159,7 @@ public class DeploymentAgent {
         updateJobRequest.jobId = jobId;
         updateJobRequest.status = status;
         updateJobRequest.thingName = thingName;
-        CompletableFuture<Integer> published = jobs.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
+        CompletableFuture<Integer> published = iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
         try {
             published.get();
             return responseFuture;
@@ -185,12 +169,17 @@ public class DeploymentAgent {
         }
     }
 
-    private CompletableFuture<List<String>> getAllQueuedJobs(IotJobsClient jobs) {
+    /**
+     * Get the list of all queued jobs
+     *
+     * @return List of Job Ids
+     */
+    public CompletableFuture<List<String>> getAllQueuedJobs() {
         CompletableFuture<List<String>> responseFuture = new CompletableFuture<>();
         List<String> queuedJobs = new ArrayList<>();
         GetPendingJobExecutionsSubscriptionRequest subscriptionRequest = new GetPendingJobExecutionsSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
-        CompletableFuture<Integer> subscribed = jobs.SubscribeToGetPendingJobExecutionsAccepted(
+        CompletableFuture<Integer> subscribed = iotJobsClient.SubscribeToGetPendingJobExecutionsAccepted(
                 subscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
@@ -204,32 +193,36 @@ public class DeploymentAgent {
                 });
         try {
             subscribed.get();
-            logger.log(Log.Level.Note, "Subscribed to GetPendingJobExecutionsAccepted");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to GetPendingJobExecutions", ex);
         }
 
         GetPendingJobExecutionsRequest publishRequest = new GetPendingJobExecutionsRequest();
         publishRequest.thingName = thingName;
-        CompletableFuture<Integer> published = jobs.PublishGetPendingJobExecutions(
+        CompletableFuture<Integer> published = iotJobsClient.PublishGetPendingJobExecutions(
                 publishRequest,
                 QualityOfService.AT_LEAST_ONCE);
         try {
-            int response = published.get();
-            logger.log(Log.Level.Note, "Published to GetPendingJobExecutions with response " + response);
+            published.get();
             return responseFuture;
         } catch (Exception ex) {
             throw new RuntimeException("Failed to publish to GetPendingJobExecutions", ex);
         }
     }
 
-    private CompletableFuture<Map<String, Object>> getJobDetails(IotJobsClient jobs, String jobId) {
+    /**
+     * Get the job document for the given Job Id
+     *
+     * @param jobId The Job Id
+     * @return Job document
+     */
+    public CompletableFuture<Map<String, Object>> getJobDetails(String jobId) {
         CompletableFuture<Map<String, Object>> responseFuture = new CompletableFuture<>();
 
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest = new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = thingName;
         describeJobExecutionSubscriptionRequest.jobId = jobId;
-        CompletableFuture<Integer> subscribed = jobs.SubscribeToDescribeJobExecutionAccepted(
+        CompletableFuture<Integer> subscribed = iotJobsClient.SubscribeToDescribeJobExecutionAccepted(
                 describeJobExecutionSubscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
@@ -244,7 +237,6 @@ public class DeploymentAgent {
 
         try {
             subscribed.get();
-            logger.log(Log.Level.Note, "Subscribed to DescribeJobExecutionAccepted");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to DescribeJobExecutionAccepted", ex);
         }
@@ -254,7 +246,7 @@ public class DeploymentAgent {
         describeJobExecutionRequest.jobId = jobId;
         describeJobExecutionRequest.includeJobDocument = true;
         describeJobExecutionRequest.executionNumber = 1L;
-        CompletableFuture<Integer> published = jobs.PublishDescribeJobExecution(describeJobExecutionRequest,
+        CompletableFuture<Integer> published = iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest,
                 QualityOfService.AT_LEAST_ONCE);
         try {
             published.get();
@@ -264,5 +256,4 @@ public class DeploymentAgent {
         }
 
     }
-
 }

@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0 */
 
 package com.aws.iot.evergreen.kernel;
-import com.aws.iot.evergreen.deployment.DeploymentAgent;
+import com.aws.iot.evergreen.deployment.IotJobsHelper;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
@@ -24,11 +24,9 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -101,7 +99,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
-        context.put(DeploymentAgent.class, new DeploymentAgent());
+        context.put(IotJobsHelper.class, new IotJobsHelper());
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -386,24 +384,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
     }
 
-    /** TODO : Remove after packaging demo and have this be taken care of by dynamic config loading
-     * at safe times through UpdateSystemSafelyService
-     */
-    public void update(String updateConfigPath, List<String> serviceNames) throws MalformedURLException, Throwable{
-        readMerge(new File(updateConfigPath).toURI().toURL(), false);
-        for (String service: serviceNames) {
-            EvergreenService es = EvergreenService.locate(context, service);
-            es.install();
-            es.awaitingStartup();
-            es.startup();
-            es.run();
-            getMain().addDependency(es, State.Running);
-
-        }
-
-        clearODcache();
-    }
-    
     /*
      * When a config file gets read, it gets woven together from fragments from
      * multiple sources.  This writes a fresh copy of the config file, as it is,
