@@ -67,9 +67,9 @@ public class Topic extends Node {
     }
 
     /**
-     * This should rarely be used. Instead, use subscribe(Subscriber)
+     * This should rarely be used. Instead, use subscribe(Subscriber).
+     * Not synchronized with setState(). The returned value is the value of the last completed setState().
      */
-    // @Deprecated
     public Object getOnce() {
         return value;
     }
