@@ -5,8 +5,9 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
-import com.aws.iot.evergreen.ipc.services.common.AuthRequestTypes;
-import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
+import com.aws.iot.evergreen.ipc.services.auth.AuthRequest;
+import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
+import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
@@ -27,13 +28,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 
-import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
-import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.AuthHandler.*;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -82,8 +80,11 @@ class AuthHandlerTest {
         assertEquals(SERVICE_NAME, config.find(AUTH_TOKEN_LOOKUP_KEY, (String) authToken).getOnce());
 
         AuthHandler auth = new AuthHandler(config, mock(Log.class), mock(IPCRouter.class));
-        ConnectionContext authContext = auth.doAuth(new FrameReader.Message(
-                        IPCUtil.encode(GeneralRequest.builder().type(AuthRequestTypes.Auth).request(authToken).build())),
+
+        AuthRequest authRequest = new AuthRequest((String) authToken);
+        ApplicationMessage applicationMessage = ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
+
+        ConnectionContext authContext = auth.doAuth(new FrameReader.Message(applicationMessage.toByteArray()),
                 mock(SocketAddress.class));
 
         assertNotNull(authContext);
@@ -95,8 +96,10 @@ class AuthHandlerTest {
         Configuration config = new Configuration(new Context());
 
         AuthHandler auth = new AuthHandler(config, mock(Log.class), mock(IPCRouter.class));
-        assertThrows(IPCClientNotAuthorizedException.class, () -> auth.doAuth(new FrameReader.Message(
-                        IPCUtil.encode(GeneralRequest.builder().type(AuthRequestTypes.Auth).request("Bad Token").build())),
+        AuthRequest authRequest = new AuthRequest("MyAuthToken");
+        ApplicationMessage applicationMessage = ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
+
+        assertThrows(IPCClientNotAuthorizedException.class, () -> auth.doAuth(new FrameReader.Message(applicationMessage.toByteArray()),
                 mock(SocketAddress.class)));
     }
 
@@ -107,9 +110,12 @@ class AuthHandlerTest {
         // done in setupMocks
 
         // WHEN
+        AuthRequest authRequest = new AuthRequest("MyAuthToken");
+        ApplicationMessage applicationMessage = ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
+
         FrameReader.MessageFrame requestFrame =
                 new FrameReader.MessageFrame(BuiltInServiceDestinationCode.AUTH.getValue(),
-                        new FrameReader.Message("MyAuthToken".getBytes(StandardCharsets.UTF_8)),
+                        new FrameReader.Message(applicationMessage.toByteArray()),
                         FrameReader.FrameType.REQUEST);
 
         ConnectionContext requestCtx = new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class));
@@ -123,7 +129,11 @@ class AuthHandlerTest {
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals(BuiltInServiceDestinationCode.AUTH.getValue(), responseFrame.destination);
         assertEquals(requestFrame.requestId, responseFrame.requestId);
-        assertThat(new String(responseFrame.message.getPayload()), containsString("Success"));
+
+        AuthResponse authResponse = IPCUtil.decode(
+                new ApplicationMessage(responseFrame.message.getPayload()).getPayload(),AuthResponse.class);
+        assertEquals("ABC",authResponse.getServiceName());
+        assertTrue(authResponse.getClientId()!=null);
         assertEquals(requestCtx, mockAttrValue);
     }
 
@@ -148,8 +158,9 @@ class AuthHandlerTest {
         FrameReader.MessageFrame responseFrame = frameCaptor.getValue();
         assertEquals(BuiltInServiceDestinationCode.AUTH.getValue(), responseFrame.destination);
         assertEquals(requestFrame.requestId, responseFrame.requestId);
-        assertThat(new String(responseFrame.message.getPayload()), containsString("Unauthorized"));
-        assertThat(new String(responseFrame.message.getPayload()), containsString("Error while authenticating client"));
+        AuthResponse authResponse = IPCUtil.decode(
+                new ApplicationMessage(responseFrame.message.getPayload()).getPayload(),AuthResponse.class);
+        assertThat(authResponse.getErrorMessage(), containsString("Error while authenticating client"));
     }
 
     @Test

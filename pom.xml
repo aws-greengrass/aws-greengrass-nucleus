@@ -72,7 +72,8 @@
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>evergreen-java-sdk</artifactId>
-            <version>0.0.0-SNAPSHOT</version>
+            <version>0.0.0-updated_application_protocol-SNAPSHOT</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

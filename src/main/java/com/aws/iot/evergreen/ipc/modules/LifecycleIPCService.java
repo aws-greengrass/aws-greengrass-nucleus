@@ -9,16 +9,14 @@ import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
-import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
-import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
+import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleGenericResponse;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleListenRequest;
-import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleRequestTypes;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -33,6 +31,7 @@ import static com.aws.iot.evergreen.util.Log.Level;
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "lifecycleipc", autostart = true)
 public class LifecycleIPCService extends EvergreenService {
+    public static final int LIFECYCLE_SERVICE_API_VERSION = 1;
     private ObjectMapper mapper = new CBORMapper();
 
     @Inject
@@ -62,55 +61,58 @@ public class LifecycleIPCService extends EvergreenService {
     /**
      * Handle all requests from the client.
      *
-     * @param request the incoming request
+     * @param message the incoming request
      * @param context caller request context
      * @return future containing our response
      */
-    public Future<Message> handleMessage(Message request, ConnectionContext context) {
+    public Future<Message> handleMessage(Message message, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
 
         try {
-            GeneralRequest<Object, LifecycleRequestTypes> obj =
-                    IPCUtil.decode(request, new TypeReference<GeneralRequest<Object, LifecycleRequestTypes>>() {
-                    });
+            ApplicationMessage applicationMessage = new ApplicationMessage(message.getPayload());
+            if (applicationMessage.getVersion() != LIFECYCLE_SERVICE_API_VERSION) {
+                throw new IllegalArgumentException("Unknown API Version");
+            }
 
-            GeneralResponse<?, LifecycleResponseStatus> genResp = new GeneralResponse<>();
-            switch (obj.getType()) {
-                case listen:
+            LifecycleServiceOpCodes lifecycleServiceOpCodes =
+                    LifecycleServiceOpCodes.values()[applicationMessage.getOpCode()];
+            LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
+            switch (lifecycleServiceOpCodes) {
+                case REGISTER_LISTENER:
                     LifecycleListenRequest listenRequest =
-                            mapper.convertValue(obj.getRequest(), LifecycleListenRequest.class);
-                    genResp = agent.listenToStateChanges(listenRequest, context);
+                            mapper.readValue(applicationMessage.getPayload(), LifecycleListenRequest.class);
+                    lifecycleGenericResponse = agent.listenToStateChanges(listenRequest, context);
                     break;
-                case setState:
+                case REPORT_STATE:
                     StateChangeRequest stateChangeRequest =
-                            mapper.convertValue(obj.getRequest(), StateChangeRequest.class);
-                    genResp = agent.reportState(stateChangeRequest, context);
+                            mapper.readValue(applicationMessage.getPayload(), StateChangeRequest.class);
+                    lifecycleGenericResponse = agent.reportState(stateChangeRequest, context);
                     break;
                 default:
-                    genResp.setError(LifecycleResponseStatus.InvalidRequest);
-                    genResp.setErrorMessage("Unknown request type " + obj.getType());
+                    lifecycleGenericResponse.setStatus(LifecycleResponseStatus.InvalidRequest);
+                    lifecycleGenericResponse.setErrorMessage("Unknown request type "
+                            + lifecycleServiceOpCodes.toString());
                     break;
             }
-            fut.complete(new Message(IPCUtil.encode(genResp)));
 
+            ApplicationMessage responseMessage = ApplicationMessage.builder().version(LIFECYCLE_SERVICE_API_VERSION)
+                    .payload(mapper.writeValueAsBytes(lifecycleGenericResponse)).build();
+            fut.complete(new Message(responseMessage.toByteArray()));
         } catch (Throwable e) {
             log.log(Level.Error, "Failed to respond to handleMessage", e);
-
-            GeneralResponse<Void, LifecycleResponseStatus> errorResponse =
-                    GeneralResponse.<Void, LifecycleResponseStatus>builder()
-                            .error(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
-
             try {
-                fut.complete(new Message(IPCUtil.encode(errorResponse)));
+                LifecycleGenericResponse response = LifecycleGenericResponse.builder()
+                        .status(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
+                ApplicationMessage responseMessage = ApplicationMessage.builder().version(LIFECYCLE_SERVICE_API_VERSION)
+                        .payload(mapper.writeValueAsBytes(response)).build();
+                fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
                 log.log(Level.Error, "Couldn't even send them the error back", e);
             }
         }
-
         if (!fut.isDone()) {
             fut.completeExceptionally(new IPCException("Unable to serialize any responses"));
         }
-
         return fut;
     }
 }
