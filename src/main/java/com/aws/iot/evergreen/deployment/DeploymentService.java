@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.util.Log;
 
 import javax.inject.Inject;
@@ -25,9 +24,6 @@ public class DeploymentService extends EvergreenService {
     @Inject
     private DeploymentAgent deploymentAgent;
 
-    @Inject
-    private PackageManager packageManager;
-
     public DeploymentService(Topics c) {
         super(c);
     }
@@ -42,12 +38,7 @@ public class DeploymentService extends EvergreenService {
                 getStringParameterFromConfig("rootCaPath"),
                 getStringParameterFromConfig("mqttClientEndpoint"));
         deploymentAgent.setupConnectionToAWSIot();
-        super.startup();
-    }
 
-    @Override
-    public void run() {
-        logger.log(Log.Level.Note, "Run called for Deployment service");
         while(true) {
             deploymentAgent.listenForDeployments();
             try {
@@ -56,6 +47,11 @@ public class DeploymentService extends EvergreenService {
                 logger.log(Log.Level.Warn, "Deployment service interrupted");
             }
         }
+    }
+
+    @Override
+    public void shutdown() {
+        deploymentAgent.closeConnection();
     }
 
     private String getStringParameterFromConfig(String parameterName) {

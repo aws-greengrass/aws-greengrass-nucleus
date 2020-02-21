@@ -217,7 +217,6 @@ public class KernelTest {
                 //Keeping the kernel runnning
                 Thread.sleep(100000);
             }
-//            kernel.shutdown();
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
             fail();

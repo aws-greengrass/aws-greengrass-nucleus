@@ -1,11 +1,7 @@
 package com.aws.iot.evergreen.deployment;
 
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
-import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.util.Log;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -32,37 +28,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 @NoArgsConstructor
 public class DeploymentAgent {
 
-    private  String clientId = UUID.randomUUID().toString(); // Use unique client IDs for concurrent connections.
-    private  String clientEndpoint;
-    private  String certificateFile;
-    private  String privateKeyFile;
-    private  String rootCaPath;
-    private  String thingName;
-
     @Inject
     private static Log logger;
 
-    @Inject
-    private Kernel kernel;
-
-    @Inject
-    private PackageManager packageManager;
-
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
-
-    private DeploymentProcess currentDeploymentProcess;
-
-    private Future<?> currentTask;
-
+    private String clientId = UUID.randomUUID().toString(); // Use unique client IDs for concurrent connections.
+    private String clientEndpoint;
+    private String certificateFile;
+    private String privateKeyFile;
+    private String rootCaPath;
+    private String thingName;
     private IotJobsClient jobs;
-
     private MqttClientConnection connection;
 
     private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -75,49 +54,20 @@ public class DeploymentAgent {
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.log(Log.Level.Note,"Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
+            logger.log(Log.Level.Note, "Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
         }
+
     };
 
-    public DeploymentAgent(Kernel kernel, PackageManager packageManager) {
-        this.kernel = kernel;
-        this.packageManager = packageManager;
-    }
-
-    public Future<?> deploy(DeploymentPacket deploymentPacket) {
-        if (currentTask != null) {
-            if (!currentTask.isDone()) {
-                //wait for the current task to finish
-                try {
-                    currentTask.get();
-                } catch(InterruptedException | ExecutionException e) {
-                    throw new RuntimeException("Caught excepion while processing a deployment", e);
-                }
-
-            }
-        }
-        currentDeploymentProcess = new DeploymentProcess(deploymentPacket, kernel, packageManager);
-        currentTask = executor.submit(currentDeploymentProcess::proceed);
-        return currentTask;
-    }
-
-    public void cancelDeployment() {
-        if (currentDeploymentProcess != null && !currentDeploymentProcess.getCurrentState().isFinalState()) {
-            currentDeploymentProcess.cancel();
-        }
-    }
-
-    public DeploymentProcess getCurrentDeploymentProcess() {
-        return currentDeploymentProcess;
-    }
 
     /**
      * Sets up the device context
-     * @param thingName The IotThingName
+     *
+     * @param thingName       The IotThingName
      * @param certificateFile Path for the X.509 certificate which device will use to connect to Iot cloud
-     * @param privateKeyFile Path for the private key used by device to connect to Iot cloud
-     * @param rootCaPath Path for the root CA certificate
-     * @param clientEndpoint The Mqtt endpoint for this AWS customer account
+     * @param privateKeyFile  Path for the private key used by device to connect to Iot cloud
+     * @param rootCaPath      Path for the root CA certificate
+     * @param clientEndpoint  The Mqtt endpoint for this AWS customer account
      */
     public void setDeviceContext(String thingName,
                                  String certificateFile,
@@ -135,10 +85,10 @@ public class DeploymentAgent {
      * Sets up the IotJobsClient client over Mqtt
      */
     public void setupConnectionToAWSIot() {
-        try(EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
-            HostResolver resolver = new HostResolver(eventLoopGroup);
-            ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-            AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(certificateFile, privateKeyFile)) {
+        try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
+             HostResolver resolver = new HostResolver(eventLoopGroup);
+             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
+             AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(certificateFile, privateKeyFile)) {
 
             builder.withCertificateAuthorityFromPath(null, rootCaPath)
                     .withEndpoint(clientEndpoint)
@@ -149,11 +99,18 @@ public class DeploymentAgent {
 
             connection = builder.build();
             jobs = new IotJobsClient(connection);
-
-        } catch(CrtRuntimeException ex) {
-            logger.log(Log.Level.Error,"Caught exception while establishing connection to AWS Iot. " +
+            connection.connect();
+        } catch (CrtRuntimeException ex) {
+            logger.log(Log.Level.Error, "Caught exception while establishing connection to AWS Iot. " +
                     "Exception encountered: " + ex.toString());
         }
+    }
+
+    /**
+     * Closes the Mqtt connection
+     */
+    public void closeConnection() {
+        connection.close();
     }
 
     /**
@@ -163,29 +120,18 @@ public class DeploymentAgent {
     public void listenForDeployments() {
 
         try {
-            CompletableFuture<Boolean> connected = connection.connect();
-            try {
-                boolean sessionPresent = connected.get();
-                logger.log(Log.Level.Note,"Connected to " + (!sessionPresent ? "new" : "existing") + " session!");
-            } catch (Exception ex) {
-                throw new RuntimeException("Exception occurred during connect", ex);
-            }
-
             List<String> queuedJobs = getAllQueuedJobs(jobs).get();
 
-            for(String jobId: queuedJobs) {
+            for (String jobId : queuedJobs) {
 
                 Map<String, Object> jobDocument = getJobDetails(jobs, jobId).get();
 
                 //update the status of the job as in progress
                 updateJobStatus(jobs, jobId, JobStatus.IN_PROGRESS);
 
-                //send for deployment
-                DeploymentPacket deploymentPacket = convertJobDocumentToDeploymentPacket(jobDocument);
-                this.deploy(deploymentPacket);
             }
         } catch (CrtRuntimeException | InterruptedException | ExecutionException ex) {
-            logger.log(Log.Level.Error,"Exception encountered: " + ex.toString());
+            logger.log(Log.Level.Error, "Exception encountered: " + ex.toString());
         }
 
     }
@@ -200,12 +146,12 @@ public class DeploymentAgent {
                 subscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.log(Log.Level.Note,"Marked job " + jobId + "as "+status);
+                    logger.log(Log.Level.Note, "Marked job " + jobId + "as " + status);
                     responseFuture.complete(Boolean.TRUE);
                 });
         try {
             subscribed.get();
-            logger.log(Log.Level.Note,"Subscribed to UpdateJobExecutionAccepted");
+            logger.log(Log.Level.Note, "Subscribed to UpdateJobExecutionAccepted");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to UpdateJobExecutionAccepted", ex);
         }
@@ -214,13 +160,13 @@ public class DeploymentAgent {
                 subscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.log(Log.Level.Error,"Job " + jobId + " not updated as " + status);
+                    logger.log(Log.Level.Error, "Job " + jobId + " not updated as " + status);
                     responseFuture.complete(Boolean.FALSE);
                 });
 
         try {
             subscribed.get();
-            logger.log(Log.Level.Note,"Subscribed to UpdateJobExecutionRejected");
+            logger.log(Log.Level.Note, "Subscribed to UpdateJobExecutionRejected");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to UpdateJobExecutionRejected", ex);
         }
@@ -239,7 +185,7 @@ public class DeploymentAgent {
         }
     }
 
-    private CompletableFuture<List<String>> getAllQueuedJobs(IotJobsClient jobs){
+    private CompletableFuture<List<String>> getAllQueuedJobs(IotJobsClient jobs) {
         CompletableFuture<List<String>> responseFuture = new CompletableFuture<>();
         List<String> queuedJobs = new ArrayList<>();
         GetPendingJobExecutionsSubscriptionRequest subscriptionRequest = new GetPendingJobExecutionsSubscriptionRequest();
@@ -247,18 +193,18 @@ public class DeploymentAgent {
         CompletableFuture<Integer> subscribed = jobs.SubscribeToGetPendingJobExecutionsAccepted(
                 subscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
-                (response)->{
-                    logger.log(Log.Level.Note,"Queued Jobs: " + (response.queuedJobs.size() + response.inProgressJobs.size() == 0 ? "none" : ""));
+                (response) -> {
+                    logger.log(Log.Level.Note, "Queued Jobs: " + (response.queuedJobs.size() + response.inProgressJobs.size() == 0 ? "none" : ""));
 
                     for (JobExecutionSummary job : response.queuedJobs) {
                         queuedJobs.add(job.jobId);
-                        logger.log(Log.Level.Note," " + job.jobId + " @ " + job.lastUpdatedAt.toString());
+                        logger.log(Log.Level.Note, " " + job.jobId + " @ " + job.lastUpdatedAt.toString());
                     }
                     responseFuture.complete(queuedJobs);
                 });
         try {
             subscribed.get();
-            logger.log(Log.Level.Note,"Subscribed to GetPendingJobExecutionsAccepted");
+            logger.log(Log.Level.Note, "Subscribed to GetPendingJobExecutionsAccepted");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to GetPendingJobExecutions", ex);
         }
@@ -270,7 +216,7 @@ public class DeploymentAgent {
                 QualityOfService.AT_LEAST_ONCE);
         try {
             int response = published.get();
-            logger.log(Log.Level.Note,"Published to GetPendingJobExecutions with response " + response);
+            logger.log(Log.Level.Note, "Published to GetPendingJobExecutions with response " + response);
             return responseFuture;
         } catch (Exception ex) {
             throw new RuntimeException("Failed to publish to GetPendingJobExecutions", ex);
@@ -287,10 +233,10 @@ public class DeploymentAgent {
                 describeJobExecutionSubscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.log(Log.Level.Note,"Describe Job: " + response.execution.jobId + " version: " + response.execution.versionNumber);
+                    logger.log(Log.Level.Note, "Describe Job: " + response.execution.jobId + " version: " + response.execution.versionNumber);
                     if (response.execution.jobDocument != null) {
                         response.execution.jobDocument.forEach((key, value) -> {
-                            logger.log(Log.Level.Note,"  " + key + ": " + value);
+                            logger.log(Log.Level.Note, "  " + key + ": " + value);
                         });
                     }
                     responseFuture.complete(response.execution.jobDocument);
@@ -298,7 +244,7 @@ public class DeploymentAgent {
 
         try {
             subscribed.get();
-            logger.log(Log.Level.Note,"Subscribed to DescribeJobExecutionAccepted");
+            logger.log(Log.Level.Note, "Subscribed to DescribeJobExecutionAccepted");
         } catch (Exception ex) {
             throw new RuntimeException("Failed to subscribe to DescribeJobExecutionAccepted", ex);
         }
@@ -317,11 +263,6 @@ public class DeploymentAgent {
             throw new RuntimeException("Failed to publish to DescribeJobExecution", ex);
         }
 
-    }
-
-    private static DeploymentPacket convertJobDocumentToDeploymentPacket(Map<String, Object> jobDocument) {
-        //TODO
-        return new DeploymentPacket();
     }
 
 }
