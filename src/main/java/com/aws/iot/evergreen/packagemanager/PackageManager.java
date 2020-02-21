@@ -1,3 +1,6 @@
+/* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.models.Package;
@@ -13,7 +16,7 @@ public class PackageManager {
      * Given a set of proposed package dependency trees.
      * Return the local resolved dependency tress in the future
      */
-    public Future<Map<PackageMetadata, Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
+    public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
         return null;
     }
 
