@@ -26,6 +26,14 @@ public class PackageMetadata {
     @EqualsAndHashCode.Exclude
     Set<PackageMetadata> dependsOn;
 
+    /**
+     * Constructor for PackageMetadata.
+     *
+     * @param name package name
+     * @param version package version
+     * @param versionConstraint package version constraint
+     * @param dependsOn dependency package information
+     */
     public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn) {
         if (Utils.isEmpty(name)) {
             throw new IllegalArgumentException("package name can't be empty");
@@ -42,6 +50,13 @@ public class PackageMetadata {
         this.dependsOn = dependsOn == null ? Collections.emptySet() : Collections.unmodifiableSet(dependsOn);
     }
 
+    /**
+     * Constructor for PackageMetadata when no dependency information is known.
+     *
+     * @param name package name
+     * @param version package version
+     * @param constraint package version constraint
+     */
     public PackageMetadata(String name, String version, String constraint) {
         this(name, version, constraint, null);
     }
