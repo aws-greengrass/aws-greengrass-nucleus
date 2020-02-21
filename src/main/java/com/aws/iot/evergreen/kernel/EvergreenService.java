@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Log;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -33,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,28 +53,25 @@ public class EvergreenService implements InjectionActions, Closeable {
     private final Topic state;
     public Context context;
     protected ConcurrentHashMap<EvergreenService, State> dependencies;
-    private CountDownLatch shutdownLatch = new CountDownLatch(0);
     private Throwable error;
     private Future backingTask;
     private Periodicity periodicityInformation;
     private State prevState = State.New;
     private String status;
-    private boolean closed = false;
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
     private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
 
+    // DesiredStateList is used to set desired path of state transition.
+    // Eg. Start a service will need DesiredStateList to be <Running>
+    // Set capacity to 3, since currently the max length of state transition path is reInstall(),
+    // which is Finished->New->Running
     private final List<State> desiredStateList = new ArrayList<>(3);
-    private static final Set<State> validReportState = getValidReportState();
 
-    private static Set<State> getValidReportState() {
-        Set<State> result = new HashSet<>();
-        result.add(State.Running);
-        result.add(State.Errored);
-        result.add(State.Finished);
-        return result;
-    }
+    private static final Set<State> validReportState = new HashSet<>(Arrays.asList(
+            State.Running, State.Errored, State.Finished));
 
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics topics) {
@@ -84,19 +84,17 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     private void setState(State newState) {
-        synchronized (this.state) {
-            final State currentState = getState();
+        final State currentState = getState();
 
-            if (newState.equals(currentState)) {
-                return;
-            }
-
-            // TODO: Add validation
-            context.getLog().note(getName(), currentState, "=>", newState);
-            prevState = currentState;
-            this.state.setValue(newState);
-            context.globalNotifyStateChanged(this, currentState);
+        if (newState.equals(currentState)) {
+            return;
         }
+
+        // TODO: Add validation
+        context.getLog().note(getName(), currentState, "=>", newState);
+        prevState = currentState;
+        this.state.setValue(newState);
+        context.globalNotifyStateChanged(this, currentState);
     }
 
     /**
@@ -119,12 +117,12 @@ public class EvergreenService implements InjectionActions, Closeable {
         return enqueueStateEvent(newState);
     }
 
-    private State getReportState() {
+    private Optional<State> getReportState() {
         Object top = stateEventQueue.poll();
         if (top instanceof State) {
-            return (State) top;
+            return Optional.of((State) top);
         }
-        return null;
+        return Optional.empty();
     }
 
 
@@ -243,21 +241,21 @@ public class EvergreenService implements InjectionActions, Closeable {
         return periodicityInformation != null;
     }
 
-    private State peekOrRemoveFirstDesiredState(State activeState) {
-        synchronized (desiredStateList) {
-            if (desiredStateList.isEmpty()) {
-                return null;
-            }
-            State first = desiredStateList.get(0);
-            if (first == activeState) {
-                return desiredStateList.remove(0);
-            } else {
-                return first;
-            }
+    private Optional<State> peekOrRemoveFirstDesiredState(State activeState) {
+        if (desiredStateList.isEmpty()) {
+            return Optional.empty();
         }
+        State first = desiredStateList.get(0);
+        if (first == activeState) {
+            desiredStateList.remove(first);
+            // ignore remove() return value as it's possible that desiredStateList update
+        }
+        return Optional.ofNullable(first);
     }
 
-    private void setDesiredState(State... state) {
+    // Set desiredStateList and override existing desiredStateList.
+    // Expect to have multi-thread access
+    private synchronized void setDesiredState(State... state) {
         synchronized (desiredStateList) {
             List<State> newStateList = Arrays.asList(state);
             if (newStateList.equals(desiredStateList)) {
@@ -270,9 +268,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
     }
 
-    // Enqueue a state event.
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
-            value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     private synchronized boolean enqueueStateEvent(Object event) {
         if (event instanceof State) {
             // override existing reportState
@@ -326,15 +322,15 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
-        while (!closed) {
-            State desiredState;
+        while (!closed.get()) {
+            Optional<State> desiredState;
 
             State current = getState();
             context.getLog().note("Processing state", getName(), getState());
 
             // if already in desired state, remove the head of desired state list.
             desiredState = peekOrRemoveFirstDesiredState(current);
-            while (desiredState == current) {
+            while (desiredState.isPresent() && desiredState.get().equals(current)) {
                 desiredState = peekOrRemoveFirstDesiredState(current);
             }
 
@@ -344,7 +340,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                     return;
                 case New:
                     // if no desired state is set, don't do anything.
-                    if (desiredState == null) {
+                    if (!desiredState.isPresent()) {
                         break;
                     }
                     CountDownLatch installLatch = new CountDownLatch(1);
@@ -361,7 +357,8 @@ public class EvergreenService implements InjectionActions, Closeable {
 
                     // TODO: Configurable timeout logic.
                     boolean ok = installLatch.await(120, TimeUnit.SECONDS);
-                    if (getReportState() == State.Errored || !ok) {
+                    State reportState = getReportState().orElse(null);
+                    if (State.Errored.equals(reportState) || !ok) {
                         setState(State.Errored);
                         continue;
                     } else {
@@ -369,11 +366,11 @@ public class EvergreenService implements InjectionActions, Closeable {
                     }
                     continue;
                 case Installed:
-                    if (desiredState == null) {
+                    if (!desiredState.isPresent()) {
                         break;
                     }
 
-                    switch (desiredState) {
+                    switch (desiredState.get()) {
                         case Finished:
                             stopBackingTask();
                             setState(State.Finished);
@@ -404,7 +401,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                     }
                     break;
                 case Running:
-                    if (desiredState == null) {
+                    if (!desiredState.isPresent()) {
                         break;
                     }
 
@@ -427,7 +424,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                     }).start();
 
                     boolean stopSucceed = stopping.await(30, TimeUnit.SECONDS);
-                    if (getReportState() == State.Errored || !stopSucceed) {
+                    if (State.Errored.equals(getReportState().orElse(null)) || !stopSucceed) {
                         setState(State.Errored);
                         continue;
                     } else {
@@ -436,12 +433,12 @@ public class EvergreenService implements InjectionActions, Closeable {
                     }
 
                 case Finished:
-                    if (desiredState == null) {
+                    if (!desiredState.isPresent()) {
                         break;
                     }
 
                     context.getLog().note(getName(), getState(), "desiredState", desiredState);
-                    switch (desiredState) {
+                    switch (desiredState.get()) {
                         case New:
                         case Installed:
                             setState(State.New);
@@ -457,7 +454,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                 case Errored:
                     handleError();
                     //TODO: Set service to broken state if error happens too often
-                    if (desiredState == null) {
+                    if (!desiredState.isPresent()) {
                         requestStart();
                     }
                     switch (prevState) {
@@ -511,7 +508,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      * if that aspiration has been met.
      */
     public boolean inTransition() {
-        return prevState != getState() || shutdownLatch.getCount() != 0;
+        return prevState != getState();
     }
 
     private synchronized void setBackingTask(Runnable r, String db) {
@@ -601,11 +598,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             t.shutdown();
         }
 
-        // if the current task is not shutdown
-        if (shutdownLatch.getCount() == 0 && backingTask != null) {
-            backingTask.cancel(true);
-        }
-        closed = true;
+        closed.set(true);
     }
 
     public Context getContext() {
@@ -682,16 +675,15 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void postInject() {
+        //TODO: Use better threadPool mechanism
         new Thread(() -> {
-            while (!closed) {
+            while (!closed.get()) {
                 try {
                     startStateTransition();
                     return;
                 } catch (Throwable e) {
-                    context.getLog().error("Error in state transition", e);
-                    System.err.println("Error in state transition");
-                    e.printStackTrace(System.err);
-                    context.getLog().note("restarting service", getName());
+                    context.getLog().error("Error in handling state transition", getName(), getState(), e);
+                    context.getLog().note("Restart handling state transition", getName());
                 }
             }
         }).start();
