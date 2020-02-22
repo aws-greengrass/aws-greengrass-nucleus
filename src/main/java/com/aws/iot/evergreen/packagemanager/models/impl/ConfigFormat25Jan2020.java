@@ -5,12 +5,14 @@ import com.aws.iot.evergreen.packagemanager.exceptions.DefaultPlatformConfigNotF
 import com.aws.iot.evergreen.packagemanager.exceptions.UnsupportedRecipeFormatException;
 import com.aws.iot.evergreen.packagemanager.models.PackageConfigFormat;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactProvider;
+import com.aws.iot.evergreen.packagemanager.plugins.LocalArtifactProvider;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,8 +101,16 @@ public class ConfigFormat25Jan2020 implements PackageConfigFormat {
                                              @JsonProperty("dependencies") HashMap<String, String> dependencies,
                                              @JsonProperty("requires") List<String> requires) {
             this.lifecycle = lifecycle == null ? Collections.emptyMap() : Collections.unmodifiableMap(lifecycle);
-            // TODO: This is a placeholder, migrate to using Artifact Providers in next update
-            this.artifactProviders = Collections.emptySet();
+            // TODO: This is temporary, Migrate to deserializing artifact providers directly
+            if (artifacts == null) {
+                this.artifactProviders = Collections.emptySet();
+            } else {
+                HashSet<ArtifactProvider> providerSet = new HashSet<>();
+                for (String url : artifacts) {
+                    providerSet.add(new LocalArtifactProvider(url));
+                }
+                this.artifactProviders = providerSet;
+            }
             this.dependencies = dependencies == null ? Collections.emptyMap() :
                                 Collections.unmodifiableMap(dependencies);
         }
