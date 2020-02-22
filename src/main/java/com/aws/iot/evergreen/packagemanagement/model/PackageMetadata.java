@@ -22,12 +22,11 @@ public class PackageMetadata {
     @EqualsAndHashCode.Include
     Semver version;
 
-    Set<String> versionConstraints;
+    String versionConstraint;
 
     Set<PackageMetadata> dependsOn;
 
-
-    public PackageMetadata(String name, String version, Set<String> versionConstraints,
+    public PackageMetadata(String name, String version, String versionConstraint,
                            Set<PackageMetadata> dependsOn) {
         if (StringUtils.isBlank(name)) {
             throw new IllegalArgumentException("package name can't be blank");
@@ -35,17 +34,17 @@ public class PackageMetadata {
         if (StringUtils.isBlank(version)) {
             throw new IllegalArgumentException("package version can't be blank");
         }
+        if (StringUtils.isBlank(versionConstraint)) {
+            throw new IllegalArgumentException("package version constraint can't be blank");
+        }
         this.name = name;
         this.version = new Semver(version, Semver.SemverType.NPM);
-
-        this.versionConstraints = versionConstraints == null ? Collections.emptySet() :
-                Collections.unmodifiableSet(versionConstraints);
+        this.versionConstraint = versionConstraint;
         this.dependsOn = dependsOn == null ? Collections.emptySet() : Collections.unmodifiableSet(dependsOn);
-
     }
 
-    public PackageMetadata(String name, String version) {
-        this(name, version, null, null);
+    public PackageMetadata(String name, String version, String constraint) {
+        this(name, version, constraint, null);
     }
 
 }
