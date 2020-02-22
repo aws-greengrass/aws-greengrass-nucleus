@@ -30,10 +30,10 @@ public class PackageMetadata {
     public PackageMetadata(String name, String version, Set<String> versionConstraints,
                            Set<PackageMetadata> dependsOn) {
         if (StringUtils.isBlank(name)) {
-            throw new NullPointerException("package name can't be blank");
+            throw new IllegalArgumentException("package name can't be blank");
         }
         if (StringUtils.isBlank(version)) {
-            throw new NullPointerException("package version can't be blank");
+            throw new IllegalArgumentException("package version can't be blank");
         }
         this.name = name;
         this.version = new Semver(version, Semver.SemverType.NPM);
