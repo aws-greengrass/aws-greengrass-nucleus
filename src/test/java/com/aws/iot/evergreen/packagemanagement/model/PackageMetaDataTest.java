@@ -1,7 +1,5 @@
 package com.aws.iot.evergreen.packagemanagement.model;
 
-
-import com.vdurmont.semver4j.Semver;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
