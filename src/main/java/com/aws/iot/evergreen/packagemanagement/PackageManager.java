@@ -1,6 +1,8 @@
 package com.aws.iot.evergreen.packagemanagement;
 
+import com.aws.iot.evergreen.packagemanagement.model.Package;
 import com.aws.iot.evergreen.packagemanagement.model.PackageMetadata;
+import com.aws.iot.evergreen.packagemanagement.model.PackageRegistryEntry;
 import com.aws.iot.evergreen.packagemanagement.model.PackageVersionConflictException;
 import java.util.Collections;
 import java.util.Map;
@@ -10,10 +12,18 @@ import java.util.concurrent.Future;
 public class PackageManager {
 
     /*
-     * Given a set of proposed package dependency trees,
-     * figure out packages need to be refreshed by dependency resolution
+     * Given a set of proposed package dependency trees.
+     * Return the local resolved dependency tress in the future
      */
-    public Set<PackageMetadata> resolvePendingRefreshPackages(Set<PackageMetadata> proposedPackages) throws PackageVersionConflictException {
+    public Future<Map<PackageMetadata, Package>> resolvePackages(Set<PackageMetadata> proposedPackage) {
+        return null;
+    }
+
+    /*
+     * Given a set of proposed package dependency trees,
+     * figure out new package dependencies.
+     */
+    private Set<PackageRegistryEntry> resolveNewPackagesDependencies(Set<PackageMetadata> proposedPackages) throws PackageVersionConflictException {
         return Collections.emptySet();
     }
 
@@ -21,14 +31,14 @@ public class PackageManager {
      * Given a set of pending refresh packages, download the package recipes and artifacts in background
      * Return the packages got successfully downloaded
      */
-    public Future<Set<PackageMetadata>> downloadPackages(Set<PackageMetadata> pendingRefreshPackages) {
+    private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
         return null;
     }
 
     /*
-     * Given a set of target packages, return their resolved dependency trees and recipe data initialized
+     * Given a set of target packages, return their resolved dependency trees with recipe data initialized
      */
-    public Map<PackageMetadata, Package> loadPackages(Set<PackageMetadata> proposedPackages) {
+    private Map<PackageMetadata, Package> loadPackages(Set<PackageMetadata> proposedPackages) {
         return Collections.emptyMap();
     }
 }
