@@ -2,29 +2,26 @@ package com.aws.iot.evergreen.packagemanager.models;
 
 import com.aws.iot.evergreen.util.Utils;
 import com.vdurmont.semver4j.Semver;
-import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
-import lombok.experimental.FieldDefaults;
 
 import java.util.Collections;
 import java.util.Set;
 
 @Getter
 @ToString
-@FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 @EqualsAndHashCode
 public class PackageMetadata {
 
-    String name;
+    private final String name;
 
-    Semver version;
+    private final Semver version;
 
-    String versionConstraint;
+    private final String versionConstraint;
 
     @EqualsAndHashCode.Exclude
-    Set<PackageMetadata> dependsOn;
+    private final Set<PackageMetadata> dependsOn;
 
     /**
      * Constructor for PackageMetadata.
