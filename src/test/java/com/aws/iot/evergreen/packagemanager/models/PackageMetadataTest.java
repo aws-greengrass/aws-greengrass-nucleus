@@ -11,7 +11,7 @@ import static org.hamcrest.core.IsNot.not;
 class PackageMetadataTest {
 
     @Test
-    void Given_package_metadata_WHEN_equality_is_called_THEN_decide_if_they_are_equal() {
+    void GIVEN_package_metadata_WHEN_equality_is_called_THEN_decide_if_they_are_equal() {
         PackageMetadata package1 = new PackageMetadata("PkgA", "1.3.4", ">1.0.0", Collections.emptySet());
         PackageMetadata package2 = new PackageMetadata("PkgA", "1.2.3", ">1.0.0", Collections.emptySet());
         PackageMetadata package3 = new PackageMetadata("PkgA", "1.3.4", ">1.0.0", Collections.singleton(package1));
