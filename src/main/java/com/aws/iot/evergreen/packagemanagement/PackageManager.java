@@ -19,6 +19,7 @@ public class PackageManager {
 
     /*
      * Given a set of pending refresh packages, download the package recipes and artifacts in background
+     * Return the packages got successfully downloaded
      */
     public Future<Set<PackageMetaData>> downloadPackages(Set<PackageMetaData> pendingRefreshPackages) {
         return null;
