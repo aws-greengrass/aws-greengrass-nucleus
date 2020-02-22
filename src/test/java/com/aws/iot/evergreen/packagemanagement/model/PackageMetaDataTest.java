@@ -13,15 +13,17 @@ class PackageMetaDataTest {
 
     @Test
     void testPackageMetaDataEquality() {
-        PackageMetaData package1 = new PackageMetaData("PkgA", new Semver("1.3.4"), Collections.emptySet(),
+        PackageMetadata package1 = new PackageMetadata("PkgA", "1.3.4", Collections.emptySet(),
                 Collections.emptySet());
-        PackageMetaData package2 = new PackageMetaData("PkgA", new Semver("1.2.3"), Collections.emptySet(),
+        PackageMetadata package2 = new PackageMetadata("PkgA", "1.2.3", Collections.emptySet(),
                 Collections.emptySet());
-        PackageMetaData package3 = new PackageMetaData("PkgA", new Semver("1.3.4"), Collections.emptySet(),
+        PackageMetadata package3 = new PackageMetadata("PkgA", "1.3.4", Collections.emptySet(),
                 Collections.singleton(package1));
+        PackageMetadata package4 = new PackageMetadata("PkgA", "1.3.4");
 
         assertThat(package1, not(package2));
         assertThat(package1, is(package3));
+        assertThat(package1, is(package4));
     }
 
 }
