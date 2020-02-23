@@ -1,0 +1,30 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: MonitoringService
+Description: Test recipe for Evergreen packages
+Publisher: Me
+Version: '1.0.0'
+Config:
+  Platform:
+    Default:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: sudo apt-get install git
+      artifacts:
+        - %s/MonitoringService-1.0.0/monitor_artifact_100.txt
+      dependencies:
+        Log: '2.0'
+        Cool-Database: '1.0'
+    Debian:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: sudo apt-get install git
+    MacOS:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: brew install git
+      requires:
+        - homebrew

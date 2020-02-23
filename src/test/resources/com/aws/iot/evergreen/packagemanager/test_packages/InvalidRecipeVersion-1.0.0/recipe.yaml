@@ -1,0 +1,28 @@
+---
+RecipeTemplateVersion: 'Invalid'
+PackageName: InvalidRecipeVersion
+Description: Test recipe for Evergreen packages
+Publisher: Me
+Version: '1.0.0'
+Config:
+  Platform:
+    Default:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: sudo apt-get install git
+      dependencies:
+        Log: '2.0'
+        Cool-Database: '1.0'
+    Debian:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: sudo apt-get install git
+    MacOS:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: brew install git
+      requires:
+        - homebrew
