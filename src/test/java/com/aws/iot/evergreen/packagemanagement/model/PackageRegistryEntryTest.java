@@ -9,7 +9,7 @@ import static org.hamcrest.core.IsNot.not;
 class PackageRegistryEntryTest {
 
     @Test
-    void testEquality() {
+    void Given_package_registry_entry_WHEN_equality_is_called_THEN_decide_if_they_are_equal() {
         PackageRegistryEntry entry1 = new PackageRegistryEntry("A", "1.2.3");
         PackageRegistryEntry entry2 = new PackageRegistryEntry("A", "1.3.3");
         PackageRegistryEntry entry3 = new PackageRegistryEntry("A", "1.2.3");
