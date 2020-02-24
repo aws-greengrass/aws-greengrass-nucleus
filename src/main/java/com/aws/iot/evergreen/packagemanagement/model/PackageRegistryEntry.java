@@ -1,15 +1,14 @@
 package com.aws.iot.evergreen.packagemanagement.model;
 
 import com.vdurmont.semver4j.Semver;
-
-import java.util.HashSet;
-import java.util.Set;
-
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import lombok.experimental.FieldDefaults;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @ToString
