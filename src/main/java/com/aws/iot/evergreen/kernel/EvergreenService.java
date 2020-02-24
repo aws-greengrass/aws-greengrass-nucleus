@@ -108,7 +108,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
         // TODO: Add more validations
 
-        if (getState().equals(State.Starting) && newState.equals(State.Finished)) {
+        if (getState().equals(State.Installed) && newState.equals(State.Finished)) {
             // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
             requestStop();
         }
