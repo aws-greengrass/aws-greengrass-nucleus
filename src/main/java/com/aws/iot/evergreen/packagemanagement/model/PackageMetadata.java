@@ -14,17 +14,16 @@ import java.util.Set;
 @Getter
 @ToString
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@EqualsAndHashCode
 public class PackageMetadata {
 
-    @EqualsAndHashCode.Include
     String name;
 
-    @EqualsAndHashCode.Include
     Semver version;
 
     String versionConstraint;
 
+    @EqualsAndHashCode.Exclude
     Set<PackageMetadata> dependsOn;
 
     public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn) {
