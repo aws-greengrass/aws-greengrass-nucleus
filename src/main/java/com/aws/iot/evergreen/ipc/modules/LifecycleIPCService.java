@@ -68,7 +68,7 @@ public class LifecycleIPCService extends EvergreenService {
     public Future<Message> handleMessage(Message message, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
 
-        ApplicationMessage applicationMessage = new ApplicationMessage(message.getPayload());
+        ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
             //TODO: add version compatibility check
             LifecycleServiceOpCodes lifecycleServiceOpCodes =

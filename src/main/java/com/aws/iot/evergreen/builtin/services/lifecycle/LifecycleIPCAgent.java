@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleClientOpCodes;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleGenericResponse;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleListenRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
@@ -114,6 +115,7 @@ public class LifecycleIPCAgent implements InjectionActions {
 
                     try {
                         ApplicationMessage applicationMessage = ApplicationMessage.builder()
+                                .version(LifecycleImpl.API_VERSION)
                                 .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
                                 .payload(IPCUtil.encode(stateTransitionEvent)).build();
                         // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289

@@ -68,7 +68,7 @@ public class AuthHandler implements InjectionActions {
     public ConnectionContext doAuth(FrameReader.Message message, SocketAddress remoteAddress)
             throws IPCClientNotAuthorizedException {
 
-        ApplicationMessage applicationMessage = new ApplicationMessage(message.getPayload());
+        ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         AuthRequest authRequest;
         try {
             authRequest = IPCUtil.decode(applicationMessage.getPayload(), AuthRequest.class);

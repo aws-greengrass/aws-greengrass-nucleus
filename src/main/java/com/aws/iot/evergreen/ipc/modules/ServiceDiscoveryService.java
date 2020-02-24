@@ -67,7 +67,7 @@ public class ServiceDiscoveryService extends EvergreenService {
      */
     public Future<Message> handleMessage(Message request, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
-        ApplicationMessage message = new ApplicationMessage(request.getPayload());
+        ApplicationMessage message = ApplicationMessage.fromBytes(request.getPayload());
         try {
             //TODO: add version compatibility check
 

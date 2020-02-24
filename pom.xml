@@ -72,7 +72,7 @@
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>evergreen-java-sdk</artifactId>
-            <version>0.0.0-updated_application_protocol-SNAPSHOT</version>
+            <version>0.0.0-add_validation-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>

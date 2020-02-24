@@ -133,7 +133,7 @@ class AuthHandlerTest {
         assertEquals(requestFrame.requestId, responseFrame.requestId);
 
         AuthResponse authResponse = IPCUtil.decode(
-                new ApplicationMessage(responseFrame.message.getPayload()).getPayload(),AuthResponse.class);
+                ApplicationMessage.fromBytes(responseFrame.message.getPayload()).getPayload(),AuthResponse.class);
         assertEquals("ABC",authResponse.getServiceName());
         assertTrue(authResponse.getClientId()!=null);
         assertEquals(requestCtx, mockAttrValue);
@@ -161,7 +161,7 @@ class AuthHandlerTest {
         assertEquals(BuiltInServiceDestinationCode.AUTH.getValue(), responseFrame.destination);
         assertEquals(requestFrame.requestId, responseFrame.requestId);
         AuthResponse authResponse = IPCUtil.decode(
-                new ApplicationMessage(responseFrame.message.getPayload()).getPayload(),AuthResponse.class);
+                 ApplicationMessage.fromBytes(responseFrame.message.getPayload()).getPayload(),AuthResponse.class);
         assertThat(authResponse.getErrorMessage(), containsString("Error while authenticating client"));
     }
 
