@@ -88,9 +88,9 @@ public class IotJobsHelper {
      */
     public void setupConnectionToAWSIot() {
         try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
-            HostResolver resolver = new HostResolver(eventLoopGroup);
-            ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-            AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
+             HostResolver resolver = new HostResolver(eventLoopGroup);
+             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
+             AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
                      .newMtlsBuilderFromPath(certificateFile, privateKeyFile)) {
 
             builder.withCertificateAuthorityFromPath(null, rootCaPath).withEndpoint(clientEndpoint)
@@ -107,7 +107,7 @@ public class IotJobsHelper {
      * Closes the Mqtt connection.
      */
     public void closeConnection() {
-        if(connection != null && !connection.isNull()) {
+        if (connection != null && !connection.isNull()) {
             connection.close();
         }
     }
@@ -119,8 +119,7 @@ public class IotJobsHelper {
      * @param status The {@link JobStatus} to which to update
      * @return
      */
-    public CompletableFuture<Boolean> updateJobStatus(String jobId,
-                                                      JobStatus status,
+    public CompletableFuture<Boolean> updateJobStatus(String jobId, JobStatus status,
                                                       HashMap<String, String> statusDetailsMap)
             throws ExecutionException, InterruptedException {
         CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();

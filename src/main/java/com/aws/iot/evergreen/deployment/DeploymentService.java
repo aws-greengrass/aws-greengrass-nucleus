@@ -41,7 +41,7 @@ public class DeploymentService extends EvergreenService {
     public void startup() {
         logger.log(Log.Level.Note, "Starting up the Deployment Service");
         String thingName = getStringParameterFromConfig("thingName");
-        if(thingName.isEmpty()) {
+        if (thingName.isEmpty()) {
             logger.log(Log.Level.Note, "There is no thingName assigned to this device. Cannot communicate with cloud."
                     + " Finishing deployment service");
             reportState(State.Finished);
@@ -59,21 +59,19 @@ public class DeploymentService extends EvergreenService {
 
         while (true) {
             try {
-                if(receivedShutdown) {
+                if (receivedShutdown) {
                     break;
                 }
                 List<String> queuedJobs = iotJobsHelper.getAllQueuedJobs().get();
                 for (String jobId : queuedJobs) {
                     Map<String, Object> jobDocument = iotJobsHelper.getJobDetails(jobId).get();
                     if (jobDocument == null) {
-                        iotJobsHelper.updateJobStatus(jobId,
-                                JobStatus.FAILED,
-                                (HashMap)Collections.singletonMap("JobDocument", "Empty")).get();
+                        iotJobsHelper.updateJobStatus(jobId, JobStatus.FAILED,
+                                (HashMap) Collections.singletonMap("JobDocument", "Empty")).get();
                         continue;
                     }
                     //TODO: Add validation for Job Document
-                    iotJobsHelper.updateJobStatus(jobId, JobStatus.IN_PROGRESS,
-                            null).get();
+                    iotJobsHelper.updateJobStatus(jobId, JobStatus.IN_PROGRESS, null).get();
                 }
                 Thread.sleep(DEPLOYMENT_POLLING_FREQUENCY);
             } catch (CrtRuntimeException | InterruptedException | ExecutionException ex) {
@@ -93,7 +91,7 @@ public class DeploymentService extends EvergreenService {
     private String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
         Topic childTopic = config.findLeafChild(parameterName);
-        if(childTopic != null) {
+        if (childTopic != null) {
             paramValue = childTopic.getOnce().toString();
         }
         return paramValue;
