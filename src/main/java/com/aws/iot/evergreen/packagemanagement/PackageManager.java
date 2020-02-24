@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.packagemanagement.model.Package;
 import com.aws.iot.evergreen.packagemanagement.model.PackageMetadata;
 import com.aws.iot.evergreen.packagemanagement.model.PackageRegistryEntry;
 import com.aws.iot.evergreen.packagemanagement.model.PackageVersionConflictException;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -23,7 +24,8 @@ public class PackageManager {
      * Given a set of proposed package dependency trees,
      * figure out new package dependencies.
      */
-    private Set<PackageRegistryEntry> resolveNewPackagesDependencies(Set<PackageMetadata> proposedPackages) throws PackageVersionConflictException {
+    private Set<PackageRegistryEntry> resolveNewPackagesDependencies(Set<PackageMetadata> proposedPackages)
+            throws PackageVersionConflictException {
         return Collections.emptySet();
     }
 
