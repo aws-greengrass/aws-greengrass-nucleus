@@ -16,34 +16,28 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
+import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionSubscriptionRequest;
-import software.amazon.awssdk.iot.iotjobs.model.GetPendingJobExecutionsRequest;
-import software.amazon.awssdk.iot.iotjobs.model.GetPendingJobExecutionsSubscriptionRequest;
-import software.amazon.awssdk.iot.iotjobs.model.JobExecutionSummary;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
+import software.amazon.awssdk.iot.iotjobs.model.RejectedError;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import javax.inject.Inject;
+import java.util.function.Consumer;
 
 @NoArgsConstructor
 public class IotJobsHelper {
 
-    @Inject
-    private static Log logger;
+    private static String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC = "$aws/things/{thingName}/jobs/{jobId}/update/accepted";
+    private static String UPDATE_SPECIFIC_JOB_REJECTED_TOPIC = "$aws/things/{thingName}/jobs/{jobId}/update/rejected";
 
-    private String clientId = UUID.randomUUID().toString(); // Use unique client IDs for concurrent connections.
-    private String clientEndpoint;
-    private String certificateFile;
-    private String privateKeyFile;
-    private String rootCaPath;
+    //IotJobsHelper is not in Context, so initializing a new one here. It will be added to context in later iterations
+    private static Log logger = new Log();
+
     private String thingName;
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
@@ -64,29 +58,25 @@ public class IotJobsHelper {
         }
     };
 
-
     /**
-     * Sets up the device context.
-     *
-     * @param thingName       The IotThingName
-     * @param certificateFile Path for the X.509 certificate which device will use to connect to Iot cloud
-     * @param privateKeyFile  Path for the private key used by device to connect to Iot cloud
-     * @param rootCaPath      Path for the root CA certificate
-     * @param clientEndpoint  The Mqtt endpoint for this AWS customer account
+     * Constructor.
+     * @param thingName Iot thing name
+     * @param clientEndpoint Custom endpoint for the aws account
+     * @param certificateFile File path for the Iot Thing certificate
+     * @param privateKeyFile File path for the private key for Iot thing
+     * @param rootCaPath File path for the root CA
      */
-    public void setDeviceContext(String thingName, String certificateFile, String privateKeyFile, String rootCaPath,
-                                 String clientEndpoint) {
+    public IotJobsHelper(String thingName, String clientEndpoint, String certificateFile, String privateKeyFile,
+                         String rootCaPath, String clientId) {
         this.thingName = thingName;
-        this.certificateFile = certificateFile;
-        this.privateKeyFile = privateKeyFile;
-        this.rootCaPath = rootCaPath;
-        this.clientEndpoint = clientEndpoint;
+        setupConnectionToAWSIot(certificateFile, privateKeyFile, clientEndpoint, rootCaPath, clientId);
     }
 
     /**
      * Sets up the IotJobsClient client over Mqtt.
      */
-    public void setupConnectionToAWSIot() {
+    private void setupConnectionToAWSIot(String certificateFile, String privateKeyFile, String clientEndpoint,
+                                         String rootCaPath, String clientId) {
         try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
              HostResolver resolver = new HostResolver(eventLoopGroup);
              ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
@@ -98,6 +88,7 @@ public class IotJobsHelper {
                     .withConnectionEventCallbacks(callbacks);
 
             connection = builder.build();
+            builder.withClientId(UUID.randomUUID().toString());
             iotJobsClient = new IotJobsClient(connection);
             connection.connect();
         }
@@ -113,120 +104,83 @@ public class IotJobsHelper {
     }
 
     /**
+     * Subscribes to the topic which recevies confirmation message of Job update for a given JobId.
      * Updates the status of an Iot Job with given JobId to a given status.
      *
      * @param jobId  The jobId to be updated
      * @param status The {@link JobStatus} to which to update
      * @return
      */
-    public CompletableFuture<Boolean> updateJobStatus(String jobId, JobStatus status,
-                                                      HashMap<String, String> statusDetailsMap)
+    public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
             throws ExecutionException, InterruptedException {
-        CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
 
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
-        CompletableFuture<Integer> subscribed = iotJobsClient
-                .SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
-                        (response) -> {
-                            logger.log(Log.Level.Note, "Marked job " + jobId + "as " + status);
-                            responseFuture.complete(Boolean.TRUE);
-                        });
-        subscribed.get();
+        iotJobsClient.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
+                (response) -> {
+                    logger.log(Log.Level.Note, "Marked job " + jobId + "as " + status);
+                    String topicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
+                            .replace("{jobId}", jobId);
+                    connection.unsubscribe(topicForJobId);
+                });
 
-        subscribed = iotJobsClient
-                .SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
-                        (response) -> {
-                            logger.log(Log.Level.Error, "Job " + jobId + " not updated as " + status);
-                            responseFuture.completeExceptionally(new RuntimeException(response.message));
-                        });
+        iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
+                (response) -> {
+                    logger.log(Log.Level.Error, "Job " + jobId + " not updated as " + status);
+                    String topicForJobId = UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName)
+                            .replace("{jobId}", jobId);
+                    //TODO: Add retry for updating the job or throw error
+                    connection.unsubscribe(topicForJobId);
+                });
 
-        subscribed.get();
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
         updateJobRequest.status = status;
         updateJobRequest.statusDetails = statusDetailsMap;
         updateJobRequest.thingName = thingName;
-        CompletableFuture<Integer> published =
-                iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
-        published.get();
-        return responseFuture;
+        //Not waiting on future as it does not work as expected. TODO: resolve with the sdk team
+        iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
     }
 
     /**
-     * Get the list of all queued jobs.
-     *
-     * @return List of Job Ids
+     * Subscribes to the describe job topic to get the job details for the next available pending job
+     * It also publishes a message to get the next pending job.
+     * It returns an empty message if nothing is available
      */
-    public CompletableFuture<List<String>> getAllQueuedJobs() throws ExecutionException, InterruptedException {
-        CompletableFuture<List<String>> responseFuture = new CompletableFuture<>();
-        List<String> queuedJobs = new ArrayList<>();
-        GetPendingJobExecutionsSubscriptionRequest subscriptionRequest =
-                new GetPendingJobExecutionsSubscriptionRequest();
-        subscriptionRequest.thingName = thingName;
-        CompletableFuture<Integer> subscribed = iotJobsClient
-                .SubscribeToGetPendingJobExecutionsAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
-                        (response) -> {
-                            logger.log(Log.Level.Note,
-                                    "Queued Jobs: " + (response.queuedJobs.size() + response.inProgressJobs.size() == 0
-                                            ? "none" : ""));
-
-                            for (JobExecutionSummary job : response.queuedJobs) {
-                                queuedJobs.add(job.jobId);
-                                logger.log(Log.Level.Note, " " + job.jobId + " @ " + job.lastUpdatedAt.toString());
-                            }
-                            responseFuture.complete(queuedJobs);
-                        });
-        subscribed.get();
-
-
-        GetPendingJobExecutionsRequest publishRequest = new GetPendingJobExecutionsRequest();
-        publishRequest.thingName = thingName;
-        CompletableFuture<Integer> published =
-                iotJobsClient.PublishGetPendingJobExecutions(publishRequest, QualityOfService.AT_LEAST_ONCE);
-        published.get();
-        return responseFuture;
-    }
-
-    /**
-     * Get the job document for the given Job Id.
-     *
-     * @param jobId The Job Id
-     * @return Job document
-     */
-    public CompletableFuture<Map<String, Object>> getJobDetails(String jobId)
+    public void subscribeToGetNextJobDecription(Consumer<DescribeJobExecutionResponse> consumerAccept,
+                                                Consumer<RejectedError> consumerReject)
             throws ExecutionException, InterruptedException {
-        CompletableFuture<Map<String, Object>> responseFuture = new CompletableFuture<>();
+        logger.log(Log.Level.Note, "Subscribing to next job description");
 
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = thingName;
-        describeJobExecutionSubscriptionRequest.jobId = jobId;
+        describeJobExecutionSubscriptionRequest.jobId = "$next";
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
-                        QualityOfService.AT_LEAST_ONCE, (response) -> {
-                            logger.log(Log.Level.Note, "Describe Job: " + response.execution.jobId + " version: "
-                                    + response.execution.versionNumber);
-                            if (response.execution.jobDocument != null) {
-                                response.execution.jobDocument.forEach((key, value) -> {
-                                    logger.log(Log.Level.Note, "  " + key + ": " + value);
-                                });
-                            }
-                            responseFuture.complete(response.execution.jobDocument);
-                        });
-
+                        QualityOfService.AT_LEAST_ONCE, consumerAccept);
         subscribed.get();
 
+        iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
+                QualityOfService.AT_LEAST_ONCE, consumerReject);
+        getNextPendingJob();
+    }
 
+    /**
+     * Get the job description of the next available job for this Iot Thing.
+     * @throws ExecutionException {@link ExecutionException}
+     * @throws InterruptedException {@link InterruptedException}
+     */
+    public void getNextPendingJob() throws ExecutionException, InterruptedException {
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
         describeJobExecutionRequest.thingName = thingName;
-        describeJobExecutionRequest.jobId = jobId;
+        describeJobExecutionRequest.jobId = "$next";
         describeJobExecutionRequest.includeJobDocument = true;
-        describeJobExecutionRequest.executionNumber = 1L;
         CompletableFuture<Integer> published =
                 iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
+        logger.log(Log.Level.Note, "Publishing to describe topic");
         published.get();
-        return responseFuture;
+        logger.log(Log.Level.Note, "Published to describe topic");
     }
 }

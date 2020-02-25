@@ -58,69 +58,69 @@
     privateKeyPath: /secrets/test_iot_thing_private.pem.key #relative to $HOME
     rootCaPath: /secrets/AmazonRootCA1.pem #relative to $HOME
 
-  localhttp:
-      class: com.aws.iot.httpservice.SimpleHttpServer
-
-  greenlake:
-    install:
-      debian: |-
-        sudo add-apt-repository https://aws.amazon.com/iot/apt
-        sudo apt-get install greenlake
-    throttleBandwidth: 100 kb/s
-  hello-docker:
-      requires: docker
-      run: docker run --rm hello-world
-      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
-  hello-docker-nginx:
-      requires: docker
-      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
-      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
-  monitoring:
-    install:
-      debian: |-
-        sudo add-apt-repository https://aws.amazon.com/iot/apt
-        sudo apt-get install monitoring
-    requires: greenlake
-  mqtt:
-    requires: mqtt.moquette
-    moquette:
-      setenv:
-        W: $[work]/moquette
-      run:
-        unix: |-
-            pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
-            sh $W/bin/moquette.sh
-      install:
-        unix:
-          skipif: exists $[work]/moquette/bin/moquette.sh
-          script: |-
-            mkdir -p $W || true
-            curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
-      shutdown:
-        unix: pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
-    mosquitto:
-      startup:
-        macos: brew services restart mosquitto
-      install:
-        macos:
-          skipif: brew list | egrep -i -q mosquitto
-          script:  brew install mosquitto
-      shutdown:
-        macos:
-          script: brew services stop mosquitto
-      requires:
-        macos:
-          homebrew
-    tinyembeddedthing:
-      installer: whatever
-
-  fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
-    startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
-  broken:
-    startup: exit -1
-  ticktock:
-      run: echo tick-tock
-      periodic: 2 seconds
+#  localhttp:
+#      class: com.aws.iot.httpservice.SimpleHttpServer
+#
+#  greenlake:
+#    install:
+#      debian: |-
+#        sudo add-apt-repository https://aws.amazon.com/iot/apt
+#        sudo apt-get install greenlake
+#    throttleBandwidth: 100 kb/s
+#  hello-docker:
+#      requires: docker
+#      run: docker run --rm hello-world
+#      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
+#  hello-docker-nginx:
+#      requires: docker
+#      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
+#      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
+#  monitoring:
+#    install:
+#      debian: |-
+#        sudo add-apt-repository https://aws.amazon.com/iot/apt
+#        sudo apt-get install monitoring
+#    requires: greenlake
+#  mqtt:
+#    requires: mqtt.moquette
+#    moquette:
+#      setenv:
+#        W: $[work]/moquette
+#      run:
+#        unix: |-
+#            pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
+#            sh $W/bin/moquette.sh
+#      install:
+#        unix:
+#          skipif: exists $[work]/moquette/bin/moquette.sh
+#          script: |-
+#            mkdir -p $W || true
+#            curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
+#      shutdown:
+#        unix: pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
+#    mosquitto:
+#      startup:
+#        macos: brew services restart mosquitto
+#      install:
+#        macos:
+#          skipif: brew list | egrep -i -q mosquitto
+#          script:  brew install mosquitto
+#      shutdown:
+#        macos:
+#          script: brew services stop mosquitto
+#      requires:
+#        macos:
+#          homebrew
+#    tinyembeddedthing:
+#      installer: whatever
+#
+#  fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
+#    startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
+#  broken:
+#    startup: exit -1
+#  ticktock:
+#      run: echo tick-tock
+#      periodic: 2 seconds
   setenv:
       ANSWER: 42
   main:

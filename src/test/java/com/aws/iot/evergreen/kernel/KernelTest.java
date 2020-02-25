@@ -206,7 +206,6 @@ public class KernelTest {
         kernel.shutdown();
     }
 
-
     private void testGroup(int g) {
         try {
             OK[g].await(100, TimeUnit.SECONDS);
