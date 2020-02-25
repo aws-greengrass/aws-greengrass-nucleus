@@ -62,7 +62,7 @@ public class Periodicity {
             Periodicity ret;
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);
             Runnable action = () -> {
-                if (s.inState(State.Finished)) {
+                if (s.inState(State.FINISHED)) {
                     s.requestStart();
                 }
             };

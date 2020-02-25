@@ -61,7 +61,7 @@ public class GenericExternalService extends EvergreenService {
     public void install() {
         if (run("install", null) == RunStatus.Errored) {
             System.err.println("install errored: " + getName());
-            reportState(State.Errored);
+            reportState(State.ERRORED);
         }
         super.install();
     }
@@ -75,16 +75,16 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void startup() {
         RunStatus result = run("startup", exit -> {
-            if (getState() == State.Installed) {
+            if (getState() == State.INSTALLED) {
                 if (exit == 0) {
                     super.startup();
                 } else {
-                    reportState(State.Errored);
+                    reportState(State.ERRORED);
                 }
             }
         });
         if (result == RunStatus.Errored) {
-            reportState(State.Errored);
+            reportState(State.ERRORED);
         } else if (result == RunStatus.NothingDone) {
             super.startup();
 
@@ -93,9 +93,9 @@ public class GenericExternalService extends EvergreenService {
                 if (!inShutdown) {
                     if (exit == 0) {
                         this.requestStop();
-                        context.getLog().significant(getName(), "Stopping");
+                        context.getLog().significant(getName(), "STOPPING");
                     } else {
-                        reportState(State.Errored);
+                        reportState(State.ERRORED);
                         context.getLog().error(getName(), "Failed", exit2String(exit));
                     }
                 }

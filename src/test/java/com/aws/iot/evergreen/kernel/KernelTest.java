@@ -44,25 +44,25 @@ public class KernelTest {
 
         LinkedList<ExpectedStateTransition> expectedStateTransitionList =
                 new LinkedList<>(Arrays.asList(
-                        new ExpectedStateTransition("installErrorRetry", State.New, State.Errored),
-                        new ExpectedStateTransition("installErrorRetry", State.Errored, State.New),
-                        new ExpectedStateTransition("installErrorRetry", State.New, State.Installed),
+                        new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
+                        new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.NEW),
+                        new ExpectedStateTransition("installErrorRetry", State.NEW, State.INSTALLED),
 
                         // main service doesn't start until dependency ready
-                        new ExpectedStateTransition("runErrorRetry", State.Installed, State.Running),
-                        new ExpectedStateTransition("main", State.Installed, State.Running),
+                        new ExpectedStateTransition("runErrorRetry", State.INSTALLED, State.RUNNING),
+                        new ExpectedStateTransition("main", State.INSTALLED, State.RUNNING),
 
                         // runErrorRetry restart on error
-                        new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
-                        new ExpectedStateTransition("runErrorRetry", State.Errored, State.Stopping),
-                        new ExpectedStateTransition("runErrorRetry", State.Stopping, State.Finished),
-                        new ExpectedStateTransition("runErrorRetry", State.Finished, State.Installed),
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),
+                        new ExpectedStateTransition("runErrorRetry", State.ERRORED, State.STOPPING),
+                        new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.FINISHED),
+                        new ExpectedStateTransition("runErrorRetry", State.FINISHED, State.INSTALLED),
 
                         // main service restart on dependency error
-                        new ExpectedStateTransition("runErrorRetry", State.Running, State.Errored),
-                        new ExpectedStateTransition("main", State.Running, State.Stopping),
-                        new ExpectedStateTransition("runErrorRetry", State.Installed, State.Running),
-                        new ExpectedStateTransition("main", State.Installed, State.Running)));
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),
+                        new ExpectedStateTransition("main", State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition("runErrorRetry", State.INSTALLED, State.RUNNING),
+                        new ExpectedStateTransition("main", State.INSTALLED, State.RUNNING)));
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
