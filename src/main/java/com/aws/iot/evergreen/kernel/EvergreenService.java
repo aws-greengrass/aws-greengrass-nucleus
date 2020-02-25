@@ -6,7 +6,6 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Node;
-import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
@@ -21,13 +20,22 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,9 +43,7 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
-        justification = "Need hardcoded paths to find what OS we're on")
-public class EvergreenService implements InjectionActions, Subscriber, Closeable {
+public class EvergreenService implements InjectionActions, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
 
@@ -47,12 +53,24 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     private final Topic state;
     public Context context;
     protected ConcurrentHashMap<EvergreenService, State> dependencies;
-    private CountDownLatch shutdownLatch = new CountDownLatch(0);
     private Throwable error;
     private Future backingTask;
     private Periodicity periodicityInformation;
-    private State activeState = State.New;
+    private State prevState = State.New;
     private String status;
+    private AtomicBoolean closed = new AtomicBoolean(false);
+
+    // A state event can be a state transition event, or a desired state updated notification.
+    // TODO: make class of StateEvent instead of generic object.
+    private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
+
+    // DesiredStateList is used to set desired path of state transition.
+    // Eg. Start a service will need DesiredStateList to be <Running>
+    // ReInstall a service will set DesiredStateList to <Finished->New->Running>
+    private final List<State> desiredStateList = new CopyOnWriteArrayList<>();
+
+    private static final Set<State> validReportState = new HashSet<>(Arrays.asList(
+            State.Running, State.Errored, State.Finished));
 
     @SuppressWarnings("LeakingThisInConstructor")
     public EvergreenService(Topics topics) {
@@ -60,21 +78,58 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         this.state = initStateTopic(topics);
     }
 
-    public static State getState(EvergreenService evergreenService) {
-        return evergreenService.getState();
+    public State getState() {
+        return (State) state.getOnce();
     }
 
-    static void setState(Object o, State state) {
-        if (o instanceof EvergreenService) {
-            ((EvergreenService) o).setState(state);
+    private void setState(State newState) {
+        final State currentState = getState();
+
+        if (newState.equals(currentState)) {
+            return;
         }
+
+        // TODO: Add validation
+        context.getLog().note(getName(), currentState, "=>", newState);
+        prevState = currentState;
+        this.state.setValue(newState);
+        context.globalNotifyStateChanged(this, currentState);
     }
+
+    /**
+     * public API for service to report state. Allowed state are Running, Finished, Errored.
+     * @param newState
+     * @return
+     */
+    public synchronized void reportState(State newState) {
+        context.getLog().note(getName(), "reporting state", newState);
+        if (!validReportState.contains(newState)) {
+            context.getLog().error("invalid report state: " + newState);
+        }
+        // TODO: Add more validations
+
+        if (getState().equals(State.Installed) && newState.equals(State.Finished)) {
+            // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
+            requestStop();
+        }
+
+        enqueueStateEvent(newState);
+    }
+
+    private Optional<State> getReportState() {
+        Object top = stateEventQueue.poll();
+        if (top instanceof State) {
+            return Optional.of((State) top);
+        }
+        return Optional.empty();
+    }
+
 
     /**
      * Locate an EvergreenService by name from the provided context.
      *
      * @param context context to lookup the name in
-     * @param name name of the service to find
+     * @param name    name of the service to find
      * @return found service or null
      * @throws Throwable maybe throws?
      */
@@ -164,30 +219,13 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     private Topic initStateTopic(final Topics topics) {
         Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
         state.setParentNeedsToKnow(false);
-        state.setValue(Long.MAX_VALUE, State.New);
+        state.setValue(State.New);
         state.validate((newStateObj, oldStateObj) -> {
             State newState = Coerce.toEnum(State.class, newStateObj);
             return newState == null ? oldStateObj : newStateObj;
         });
-        state.subscribe(this);
+
         return state;
-    }
-
-    public State getState() {
-        return (State) state.getOnce();
-    }
-
-    public void setState(State newState) {
-        final State currentState = (State) this.state.getOnce();
-
-        if (newState != currentState) {
-            context.getLog().note(getName(), currentState, "=>", newState);
-            // Make sure the order of setValue() invocation is same as order of global state notification
-            synchronized (this.state) {
-                this.state.setValue(Long.MAX_VALUE, newState);
-                context.globalNotifyStateChanged(this, currentState);
-            }
-        }
     }
 
     public boolean inState(State s) {
@@ -198,154 +236,257 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         return state;
     }
 
-    public boolean isRunningInternally() {
-        Future b = backingTask;
-        return b != null && !b.isDone();
-    }
-
     public boolean isPeriodic() {
         return periodicityInformation != null;
     }
 
-    @Override // for listening to state changes
-    public void published(final WhatHappened what, final Topic topic) {
-        final State newState = (State) topic.getOnce();
-        if (activeState == newState) {
-            return;
+    private Optional<State> peekOrRemoveFirstDesiredState(State activeState) {
+        if (desiredStateList.isEmpty()) {
+            return Optional.empty();
         }
-        if (activeState.isRunning() && !newState.isRunning()) { // transition from running to not running
-            shutdownLatch = new CountDownLatch(1);
-            // Assume that shutdown task won't be cancelled. Following states (installing/awaitingStartup) wait until
-            // shutdown task complete.
-            // May consider just merge shutdown() into other state's handling.
-            State oldState = activeState;
-            setBackingTask(() -> {
-                try {
-                    shutdown();
-                } catch (Throwable t) {
-                    if (oldState != State.Errored) {
-                        errored("Failed shutting down", t);
-                    } else {
-                        context.getLog().error(this, "Failed shutting down", t);
-                    }
-                } finally {
-                    shutdownLatch.countDown();
-                }
-                backingTask = null;
-            }, getName() + "=>" + newState);
-
-            // Since shutdown() is modeled as part of state transition, I initially tried waiting on shutdownLatch()
-            // here.
-            // However, this caused the global configuration publish queue being blocked.
+        State first = desiredStateList.get(0);
+        if (first == activeState) {
+            desiredStateList.remove(first);
+            // ignore remove() return value as it's possible that desiredStateList update
         }
+        return Optional.ofNullable(first);
+    }
 
-        try {
-            switch (newState) {
-                case Installing:
-                    new Thread(() -> {
-                        // wait until shutdown finished.
-                        // not using setBackTask() here to avoid cancelling the ongoing shutdown task
-                        try {
-                            shutdownLatch.await();
-                        } catch (InterruptedException e) {
-                            errored("waiting for shutdown complete", e);
-                            return;
-                        }
-                        // TODO: wait until all install dependency ready.
-                        if (!errored() && getState() == State.Installing) {
-                            setBackingTask(() -> {
-                                try {
-                                    install();
-                                    if (!errored()) {
-                                        setState(State.AwaitingStartup);
-                                    }
-                                } catch (Throwable t) {
-                                    errored("Failed installing", t);
-                                }
-                                backingTask = null;
-                            }, getName() + " => " + newState);
-                        }
-                    }).start();
-
-                    break;
-                case AwaitingStartup:
-                    awaitingStartup();
-                    new Thread(() -> {
-                        // wait until shutdown finished.
-                        try {
-                            shutdownLatch.await();
-                        } catch (InterruptedException e) {
-                            errored("waiting for shutdown complete", e);
-                            return;
-                        }
-                        if (dependencies != null) {
-                            try {
-                                waitForDependencyReady();
-                            } catch (InterruptedException e) {
-                                errored("waiting for dependency ready", e);
-                            }
-                        }
-                        // if no other state change happened in between
-                        if (!errored() && getState() == State.AwaitingStartup) {
-                            setState(State.Starting);
-                        }
-                    }).start();
-
-                    break;
-                case Starting:
-                    setBackingTask(() -> {
-                        try {
-                            periodicityInformation = Periodicity.of(this);
-                            startup();
-                            if (!errored()) {
-                                setState(isPeriodic()  // Let timer do the transition to Running==null
-                                        ? State.Finished : State.Running);
-                            }
-                        } catch (Throwable t) {
-                            errored("Failed starting up", t);
-                        }
-                        backingTask = null;
-                    }, getName() + " => " + newState);
-                    break;
-                case Running:
-                    if (!activeState.isRunning()) {
-                        setBackingTask(() -> {
-                            try {
-                                run();
-                                // subclasses implementing run() should handle state transition;
-                            } catch (Throwable t) {
-                                errored("Failed starting up", t);
-                            }
-                            backingTask = null;
-                        }, getName() + " => " + newState);
-                    }
-                    break;
-                case Errored:
-                    if (activeState != State.Errored) {
-                        // already in the process of error handling
-                        try {
-                            handleError();
-                        } catch (Throwable t) {
-                            // TODO: handle the case where error happens in error recovery.
-                            errored("Error handler failed", t);
-                        }
-                    }
-                    break;
+    // Set desiredStateList and override existing desiredStateList.
+    // Expect to have multi-thread access
+    private synchronized void setDesiredState(State... state) {
+        synchronized (desiredStateList) {
+            List<State> newStateList = Arrays.asList(state);
+            if (newStateList.equals(desiredStateList)) {
+                return;
             }
-        } catch (Throwable t) {
-            errored("Transitioning from " + getName() + " => " + newState, t);
+            desiredStateList.clear();
+            desiredStateList.addAll(newStateList);
+            // try insert to the queue, if queue full doesn't block.
+            enqueueStateEvent("DesiredStateUpdated");
         }
-        activeState = newState;
+    }
+
+    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+    private synchronized void enqueueStateEvent(Object event) {
+        if (event instanceof State) {
+            // override existing reportState
+            stateEventQueue.clear();
+            stateEventQueue.offer(event);
+        } else {
+            stateEventQueue.offer(event);
+
+            // Ignore returned value of offer().
+            // If enqueue isn't successful, the event queue has contents and there is no need to send another
+            // trigger to process state transition.
+        }
     }
 
     /**
-     * @return true iff this service is in the process of transitioning from one state
-     * to the state returned by getState() - setState() is "aspirational".  getState()
-     * returns the state that the service aspires to be in.  inTransition() returns true
-     * if that aspiration has been met.
+     * Start Service.
      */
-    public boolean inTransition() {
-        return activeState != getState() || shutdownLatch.getCount() != 0;
+    public void requestStart() {
+        setDesiredState(State.Running);
+    }
+
+    /**
+     * Stop Service.
+     */
+    public void requestStop() {
+        setDesiredState(State.Finished);
+    }
+
+    /**
+     * Restart Service.
+     */
+    public void requestRestart() {
+        setDesiredState(State.Finished, State.Running);
+    }
+
+    /**
+     * ReInstall Service.
+     */
+    public void requestReinstall() {
+        setDesiredState(State.Finished, State.New, State.Running);
+    }
+
+    private void startStateTransition() throws InterruptedException {
+        periodicityInformation = Periodicity.of(this);
+        while (!closed.get()) {
+            Optional<State> desiredState;
+
+            State current = getState();
+            context.getLog().note("Processing state", getName(), getState());
+
+            // if already in desired state, remove the head of desired state list.
+            desiredState = peekOrRemoveFirstDesiredState(current);
+            while (desiredState.isPresent() && desiredState.get().equals(current)) {
+                desiredState = peekOrRemoveFirstDesiredState(current);
+            }
+
+            switch (current) {
+                case Broken:
+                    context.getLog().significant(getName(), "Broken");
+                    return;
+                case New:
+                    // if no desired state is set, don't do anything.
+                    if (!desiredState.isPresent()) {
+                        break;
+                    }
+                    CountDownLatch installLatch = new CountDownLatch(1);
+                    setBackingTask(() -> {
+                        try {
+                            install();
+                        } catch (Throwable t) {
+                            reportState(State.Errored);
+                            getContext().getLog().error(getName(), "Error in install", t);
+                        } finally {
+                            installLatch.countDown();
+                        }
+                    }, "install");
+
+                    // TODO: Configurable timeout logic.
+                    boolean ok = installLatch.await(120, TimeUnit.SECONDS);
+                    State reportState = getReportState().orElse(null);
+                    if (State.Errored.equals(reportState) || !ok) {
+                        setState(State.Errored);
+                    } else {
+                        setState(State.Installed);
+                    }
+                    continue;
+                case Installed:
+                    if (!desiredState.isPresent()) {
+                        break;
+                    }
+
+                    switch (desiredState.get()) {
+                        case Finished:
+                            stopBackingTask();
+                            setState(State.Finished);
+                            continue;
+                        case Running:
+                            setBackingTask(() -> {
+                                try {
+                                    waitForDependencyReady();
+                                    context.getLog().note(getName(), "starting");
+                                } catch (InterruptedException e) {
+                                    context.getLog().note(getName(), "Get interrupted when waiting for dependency ready");
+                                    return;
+                                }
+
+                                try {
+                                    startup();// TODO: rename to  initiateStartup. Service need to report state to Running.
+                                } catch (Throwable t) {
+                                    reportState(State.Errored);
+                                    getContext().getLog().error(getName(), "Error in running", t);
+                                }
+                            }, "start");
+
+                            break;
+                        default:
+                            context.getLog().error("Unexpected desired state", desiredState);
+                            // not allowed for New, Stopping, Errored, Broken
+                            break;
+                    }
+                    break;
+                case Running:
+                    if (!desiredState.isPresent()) {
+                        break;
+                    }
+
+                    setState(State.Stopping);
+                    continue;
+                case Stopping:
+                    // doesn't handle desiredState in Stopping.
+                    // Not use setBackingTask because it will cancel the existing task.
+                    CountDownLatch stopping = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            shutdown();
+                        } catch (Throwable t) {
+                            getContext().getLog().error(getName(), "Error in shutting down", t);
+                            reportState(State.Errored);
+                        } finally {
+                            stopping.countDown();
+                        }
+
+                    }).start();
+
+                    boolean stopSucceed = stopping.await(30, TimeUnit.SECONDS);
+                    if (State.Errored.equals(getReportState().orElse(null)) || !stopSucceed) {
+                        setState(State.Errored);
+                        continue;
+                    } else {
+                        setState(State.Finished);
+                        continue;
+                    }
+
+                case Finished:
+                    if (!desiredState.isPresent()) {
+                        break;
+                    }
+
+                    context.getLog().note(getName(), getState(), "desiredState", desiredState);
+                    switch (desiredState.get()) {
+                        case New:
+                        case Installed:
+                            setState(State.New);
+                            continue;
+                        case Running:
+                            setState(State.Installed);
+                            continue;
+                        default:
+                            context.getLog().error("Unexpected desired state", desiredState);
+                            // not allowed to set desired state to Stopping, Errored, Broken
+                    }
+                    break;
+                case Errored:
+                    handleError();
+                    //TODO: Set service to broken state if error happens too often
+                    if (!desiredState.isPresent()) {
+                        requestStart();
+                    }
+                    switch (prevState) {
+                        case Running:
+                            setState(State.Stopping);
+                            continue;
+                        case New: // error in installing.
+                            setState(State.New);
+                            continue;
+                        case Installed: // error in starting
+                            setState(State.Installed);
+                            continue;
+                        case Stopping:
+                            // not handled;
+                            setState(State.Finished);
+                            continue;
+                        default:
+                            context.getLog().error("Unexpected previous state", prevState);
+                            setState(State.Finished);
+                            // not allowed
+                            continue;
+                    }
+                default:
+                    context.getLog().error("Unrecognized state", getState());
+                    break;
+            }
+
+            // blocking on event queue.
+            // The state event can either be a report state transition event or a desired state updated event.
+            // TODO: check if it's possible to move this blocking logic to the beginning of while loop.
+            Object stateEvent = stateEventQueue.take();
+            if (stateEvent instanceof State) {
+                State toState = (State) stateEvent;
+                context.getLog().note(getName(), "Get reported state", toState);
+                setState(toState);
+            }
+        }
+    }
+
+    /**
+     * Custom handler to handle error.
+     */
+    public void handleError() {
     }
 
     private synchronized void setBackingTask(Runnable r, String db) {
@@ -359,6 +500,10 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         if (r != null) {
             backingTask = context.get(ExecutorService.class).submit(r);
         }
+    }
+
+    private void stopBackingTask() {
+        setBackingTask(null, null);
     }
 
     public void errored(String message, Throwable e) {
@@ -375,7 +520,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         } else {
             context.getLog().error(this, message, e);
         }
-        setState(State.Errored);
+        reportState(State.Errored);
     }
 
     public boolean errored() {
@@ -401,59 +546,21 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     /**
      * Called when all dependencies are Running. If there are no dependencies,
      * it is called right after postInject.  The service doesn't transition to Running
-     * until *after* this state is complete.  The service transitions to Running when
-     * startup() completes
+     * until *after* this state is complete.
      */
-    public void startup() {
+    protected void startup() {
+        reportState(State.Running);
     }
 
-    /**
-     * Called when all dependencies are Running. Transitions out of Running only happen
-     * by having the run method (or some method/Thread spawned by it) explicitly set
-     * the services state.  run() is executed on it's own thread, but termination of
-     * that thread does not automatically trigger a state transition.  The default
-     * implementation does nothing except transition immediately to Finished.
-     */
-    protected void run() {
-        setState(State.Finished);
-    }
-
-    /**
-     * Called when a running service encounters an error.
-     */
-    protected void handleError() {
-        if (error != null) {
-            context.getLog().error("Handle error", error);
-            error = null;
-        }
-        // TODO Improve error restarts by collecting statistics on errors.  eg. If it error's often, start adding
-        //  backoff waits.
-        //  Maybe doing a little inspection of exceptions to be smarter.  eg. file system full messages could trigger
-        //  a disk
-        //  cleanup before the restart,  Or network errors could look at the network state and not restart until the
-        //  network
-        //  reconnects.
-
-        switch (this.activeState) {
-            case Installing:
-                setState(State.Installing); // retry install
-                break;
-            case AwaitingStartup:
-            case Starting:
-            case Running:
-                setState(State.AwaitingStartup); // restart
-                break;
-            case Finished:
-                setState(State.Finished); // don't do anything
-                break;
-        }
+    @Deprecated
+    public void run() {
+        reportState(State.Finished);
     }
 
     /**
      * Called when the object's state leaves Running.
-     * To shutdown a service, use <tt>setState(Finished)</tt>
      */
-    public void shutdown() {
+    protected void shutdown() {
         Periodicity t = periodicityInformation;
         if (t != null) {
             t.shutdown();
@@ -462,17 +569,25 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 
     @Override
     public void close() {
-        setState(State.Finished);
-        // if the current task is not shutdown
-        if (shutdownLatch.getCount() == 0 && backingTask != null) {
-            backingTask.cancel(true);
+        requestStop();
+        Periodicity t = periodicityInformation;
+        if (t != null) {
+            t.shutdown();
         }
+
+        closed.set(true);
     }
 
     public Context getContext() {
         return context;
     }
 
+    /**
+     * Add dependency
+     *
+     * @param dependentEvergreenService
+     * @param when
+     */
     public void addDependency(EvergreenService dependentEvergreenService, State when) {
         if (dependencies == null) {
             dependencies = new ConcurrentHashMap<>();
@@ -481,12 +596,9 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         dependencies.put(dependentEvergreenService, when);
 
         dependentEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-            if (this.getState() == State.Starting || this.getState().isRunning()) {
-                // if dependency is down, restart the service and wait for dependency up
+            if (this.getState() == State.Installed || this.getState() == State.Running) {
                 if (!dependencyReady(dependentEvergreenService)) {
-                    // TODO: if service is able to handle dependency down, don't restart.
-                    context.getLog().note("Restart service because of dependency error. ", this.getName());
-                    this.setState(State.AwaitingStartup);
+                    this.requestRestart();
                 }
             }
 
@@ -514,6 +626,7 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
     private void waitForDependencyReady() throws InterruptedException {
         synchronized (dependencyReadyLock) {
             while (!dependencyReady()) {
+                context.getLog().note(getName(), "waiting for dependency ready");
                 dependencyReadyLock.wait();
             }
         }
@@ -539,6 +652,19 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
 
     @Override
     public void postInject() {
+        //TODO: Use better threadPool mechanism
+        new Thread(() -> {
+            while (!closed.get()) {
+                try {
+                    startStateTransition();
+                    return;
+                } catch (Throwable e) {
+                    context.getLog().error("Error in handling state transition", getName(), getState(), e);
+                    context.getLog().note("Restart handling state transition", getName());
+                }
+            }
+        }).start();
+
         Node d = config.getChild("requires");
         if (d instanceof Topic) {
             String ds = ((Topic) d).getOnce().toString();
@@ -552,8 +678,8 @@ public class EvergreenService implements InjectionActions, Subscriber, Closeable
         } else if (d == null) {
             return;
         } else {
-            String errMsg = String.format("Unrecognized dependency configuration for service %s, config content: %s", getName(), d.toString());
-            System.err.println(errMsg);
+            String errMsg = String.format("Unrecognized dependency configuration, config content: %s", d.toString());
+            context.getLog().error(getName(), errMsg);
             // TODO: invalidate the config file
         }
     }

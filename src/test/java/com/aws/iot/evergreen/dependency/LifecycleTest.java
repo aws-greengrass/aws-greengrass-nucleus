@@ -1,5 +1,4 @@
-/* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. * SPDX-License-Identifier: Apache-2.0 */
 
 package com.aws.iot.evergreen.dependency;
 
@@ -37,10 +36,23 @@ public class LifecycleTest {
         c1 v = context.get(c1.class);
         context.addGlobalStateChangeListener((service, was) -> System.out.println(service.getName() + ": " + was + " " +
                 "=> " + service.getState()));
-        context.setAllStates(State.Installing);
+        context.get(c1.class).requestStart();
+        context.get(c2.class).requestStart();
+        try {
+            if (!cd.await(5, TimeUnit.SECONDS)) {
+                fail("Startup timed out");
+            }
+        } catch (InterruptedException ex) {
+            ex.printStackTrace(System.out);
+            fail("Startup interrupted out");
+        }
+
+        cd = new CountDownLatch(2);
+        context.get(c1.class).requestStop();
+        context.get(c2.class).requestStop();
         try {
             if (!cd.await(1, TimeUnit.SECONDS)) {
-                fail("Startup timed out");
+                fail("Stop timed out");
             }
         } catch (InterruptedException ex) {
             ex.printStackTrace(System.out);
@@ -49,7 +61,7 @@ public class LifecycleTest {
         assertNotNull(v);
         assertNotNull(v.C2);
         assertSame(v.C2, v.C2.C3.prov.get());
-        assertTrue(v.getState().isFunctioningProperly());
+        assertTrue(v.getState().isFunctioningProperly(), "c1:" + v.getState().toString());
         assertTrue(v.installCalled, v.toString());
         assertTrue(v.startupCalled, v.toString());
         assertTrue(v.C2.startupCalled, v.C2.toString());
@@ -107,6 +119,7 @@ public class LifecycleTest {
             assertNotNull(C3);
             startupCalled = true;
             System.out.println("  C3=" + C3);
+            cd.countDown();
             super.startup();
         }
 
@@ -157,15 +170,18 @@ public class LifecycleTest {
             installCalled = true;
             System.out.println("Invoked install " + this);
             super.install();
+            System.out.println(dependencies);
         }
 
         @Override
         public void startup() {
             startupCalled = true;
-            // Depen dependencies must be started first
+            super.startup();
+            System.out.println("Startup called " + this);
+            //dependencies must be started first
             assertTrue(C2.getState().isFunctioningProperly());
             System.out.println("Startup " + this);
-            super.startup();
+            cd.countDown();
         }
 
         @Override

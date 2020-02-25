@@ -1,0 +1,28 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: ConveyorBelt
+Description: Test recipe for Evergreen packages
+Publisher: Me
+Version: '1.1.0'
+Config:
+  Platform:
+    Default:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: sudo apt-get install git
+      dependencies:
+        Log : '>1.0'
+        Cool-Database : '1.0'
+    Debian:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: sudo apt-get install git
+    MacOS:
+      lifecycle:
+        install:
+          skipif: onpath git
+          script: brew install git
+      requires:
+        - homebrew
