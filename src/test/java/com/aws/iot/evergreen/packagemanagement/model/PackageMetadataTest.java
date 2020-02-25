@@ -1,8 +1,8 @@
 package com.aws.iot.evergreen.packagemanagement.model;
 
-import java.util.Collections;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.Collections;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
