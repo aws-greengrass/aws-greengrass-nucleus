@@ -86,7 +86,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
     @Override
     public void startup() {
         // startup() is invoked on it's own thread
-        reportState(State.Running);
+        reportState(State.RUNNING);
         log.note(getName(), "Checking for updates");
         while (!pendingActions.isEmpty()) {
             // TODO: should really use an injected clock to support simulation-time

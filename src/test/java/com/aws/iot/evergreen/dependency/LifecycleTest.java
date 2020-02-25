@@ -74,7 +74,7 @@ public class LifecycleTest {
         assertTrue(v.shutdownCalled, v.toString());
         assertTrue(v.C2.shutdownCalled, v.C2.toString());
         System.out.println("XYXXY: " + v.getState());
-        assertEquals(State.Finished, v.getState());
+        assertEquals(State.FINISHED, v.getState());
         assertNotNull(v.C2.C3, "non-lifecycle");
         assertSame(v.C2.C3, v.C2.C3.self, "non-lifecycle-loop");
         assertSame(v.C2, v.C2.C3.parent, "non-lifecycle-parent-ref");
@@ -94,7 +94,7 @@ public class LifecycleTest {
 
     public static class c2 extends EvergreenService {
         final String id = "c2/" + ++seq;
-        //        @Inject @StartWhen(New) c1 parent;
+        //        @Inject @StartWhen(NEW) c1 parent;
         public boolean shutdownCalled, startupCalled;
         @Inject
         c3 C3;

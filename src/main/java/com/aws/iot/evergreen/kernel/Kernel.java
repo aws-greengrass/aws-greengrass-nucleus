@@ -284,7 +284,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         try {
             EvergreenService main = getMain(); // Trigger boot  (!?!?)
-            autostart.forEach(s -> main.addDependency(s, State.AwaitingStartup));
+            autostart.forEach(s -> main.addDependency(s, State.RUNNING));
         } catch (Throwable ex) {
             log.error("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ", ex);
             mainServiceName = "fallbackMain";
@@ -409,7 +409,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public void dump() {
         orderedDependencies().forEach(l -> {
             System.out.println(l.getName() + ": " + l.getState());
-            if (l.getState().preceeds(State.Running)) {
+            if (l.getState().preceeds(State.RUNNING)) {
                 l.forAllDependencies(d -> System.out.println("    " + d.getName() + ": " + d.getState()));
             }
         });
