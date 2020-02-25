@@ -19,7 +19,7 @@ import java.util.Set;
 @Value
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class PackageRecipe {
+public class Package {
 
     private final RecipeTemplateVersion recipeTemplateVersion;
 
@@ -56,12 +56,12 @@ public class PackageRecipe {
      * @param config Configuration for this package
      */
     @JsonCreator
-    public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
-                         @JsonProperty("PackageName") String packageName,
-                         @JsonProperty("Version") Semver packageVersion,
-                         @JsonProperty("Description") String description,
-                         @JsonProperty("Publisher") String publisher,
-                         @JsonProperty("Config") PackageConfigFormat config) throws SemverException {
+    public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
+                   @JsonProperty("PackageName") String packageName,
+                   @JsonProperty("Version") Semver packageVersion,
+                   @JsonProperty("Description") String description,
+                   @JsonProperty("Publisher") String publisher,
+                   @JsonProperty("Config") PackageConfigFormat config) throws SemverException {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)

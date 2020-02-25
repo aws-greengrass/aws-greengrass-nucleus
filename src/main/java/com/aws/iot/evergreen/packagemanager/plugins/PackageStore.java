@@ -2,7 +2,7 @@ package com.aws.iot.evergreen.packagemanager.plugins;
 
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.vdurmont.semver4j.Semver;
 
 import java.nio.file.Path;
@@ -13,12 +13,12 @@ public interface PackageStore {
     Optional<String> getPackageRecipeIfExists(final String packageName,
                                                      final Semver packageVersion);
 
-    void cachePackageArtifacts(PackageRecipe evgPackage) throws PackagingException;
+    void cachePackageArtifacts(Package evgPackage) throws PackagingException;
 
-    void cachePackageRecipeAndArtifacts(PackageRecipe evgPackage, final String recipeContents)
+    void cachePackageRecipeAndArtifacts(Package evgPackage, final String recipeContents)
             throws PackagingException;
 
-    void copyPackageArtifactsToPath(PackageRecipe curPackage, Path destPath) throws PackagingException;
+    void copyPackageArtifactsToPath(Package curPackage, Path destPath) throws PackagingException;
 
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException;
 
