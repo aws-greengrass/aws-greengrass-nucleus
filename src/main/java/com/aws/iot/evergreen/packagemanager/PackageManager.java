@@ -1,7 +1,7 @@
-package com.aws.iot.evergreen.packagemanagement;
+package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.packagemanagement.model.Package;
-import com.aws.iot.evergreen.packagemanagement.model.PackageMetadata;
+import com.aws.iot.evergreen.packagemanager.models.Package;
+import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 
 import java.util.Map;
 import java.util.Set;

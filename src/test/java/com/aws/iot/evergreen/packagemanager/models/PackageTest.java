@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class PackageRecipeTests {
+public class PackageTest {
 
     @Test
     public void GIVEN_valid_package_recipe_WHEN_attempt_package_recipe_create_THEN_valid_package_recipe_created()
@@ -20,7 +20,7 @@ public class PackageRecipeTests {
         String recipeContents
                 = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                             "1.0.0");
-        PackageRecipe testPkg = TestHelper.getPackageObject(recipeContents);
+        Package testPkg = TestHelper.getPackageObject(recipeContents);
         assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, testPkg.getPackageName());
         assertTrue(testPkg.getPackageVersion().isEqualTo("1.0.0"));
         assertEquals("Me", testPkg.getPublisher());
@@ -39,8 +39,8 @@ public class PackageRecipeTests {
         String monitorServiceRecipeContents
                 = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                             "1.0.0");
-        PackageRecipe monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
-        PackageRecipe monitorServicePkgCopy = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        Package monitorServicePkgCopy = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         assertTrue(monitorServicePkg.equals(monitorServicePkgCopy));
         assertTrue(monitorServicePkg.hashCode() == monitorServicePkgCopy.hashCode());
@@ -52,13 +52,13 @@ public class PackageRecipeTests {
         String monitorServiceRecipeContents
                 = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                             "1.0.0");
-        PackageRecipe monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         // Same package different versions
         String monitorService11RecipeContents
                 = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                             "1.1.0");
-        PackageRecipe monitorService11Pkg = TestHelper.getPackageObject(monitorService11RecipeContents);
+        Package monitorService11Pkg = TestHelper.getPackageObject(monitorService11RecipeContents);
 
         assertFalse(monitorServicePkg.equals(monitorService11Pkg));
         assertFalse(monitorServicePkg.hashCode() == monitorService11Pkg.hashCode());
@@ -70,13 +70,13 @@ public class PackageRecipeTests {
         String monitorServiceRecipeContents
                 = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                             "1.0.0");
-        PackageRecipe monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         // Different packages
         String conveyorBeltRecipeContents
                 = TestHelper.getPackageRecipeForTestPackage(TestHelper.CONVEYOR_BELT_PACKAGE_NAME,
                                                             "1.0.0");
-        PackageRecipe conveyorBeltPkg = TestHelper.getPackageObject(conveyorBeltRecipeContents);
+        Package conveyorBeltPkg = TestHelper.getPackageObject(conveyorBeltRecipeContents);
 
         assertFalse(monitorServicePkg.equals(conveyorBeltPkg));
         assertFalse(monitorServicePkg.hashCode() == conveyorBeltPkg.hashCode());
