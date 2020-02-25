@@ -1,4 +1,4 @@
-package com.aws.iot.evergreen.packagemanagement.model;
+package com.aws.iot.evergreen.packagemanager.models;
 
 import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
