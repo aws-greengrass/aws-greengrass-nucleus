@@ -22,27 +22,27 @@ public class PackageManager {
         return null;
     }
 
-//    /*
-//     * Given a set of proposed package dependency trees,
-//     * figure out new package dependencies.
-//     */
-//    private Set<PackageRegistryEntry> resolveNewPackagesDependencies(Set<PackageMetadata> proposedPackages)
-//            throws PackageVersionConflictException {
-//        return Collections.emptySet();
-//    }
-//
-//    /*
-//     * Given a set of pending refresh packages, download the package recipes and artifacts in background
-//     * Return the packages got successfully downloaded
-//     */
-//    private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
-//        return null;
-//    }
-//
-//    /*
-//     * Given a set of target packages, return their resolved dependency trees with recipe data initialized
-//     */
-//    private Map<PackageMetadata, Package> loadPackages(Set<PackageMetadata> proposedPackages) {
-//        return Collections.emptyMap();
-//    }
+    //    /*
+    //     * Given a set of proposed package dependency trees,
+    //     * figure out new package dependencies.
+    //     */
+    //    private Set<PackageRegistryEntry> resolveNewPackagesDependencies(Set<PackageMetadata> proposedPackages)
+    //            throws PackageVersionConflictException {
+    //        return Collections.emptySet();
+    //    }
+    //
+    //    /*
+    //     * Given a set of pending refresh packages, download the package recipes and artifacts in background
+    //     * Return the packages got successfully downloaded
+    //     */
+    //    private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
+    //        return null;
+    //    }
+    //
+    //    /*
+    //     * Given a set of target packages, return their resolved dependency trees with recipe data initialized
+    //     */
+    //    private Map<PackageMetadata, Package> loadPackages(Set<PackageMetadata> proposedPackages) {
+    //        return Collections.emptyMap();
+    //    }
 }
