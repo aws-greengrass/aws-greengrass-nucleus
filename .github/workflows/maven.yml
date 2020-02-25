@@ -47,6 +47,7 @@ jobs:
       if: github.event_name == 'push'
     - name: GitHub Actions Artifact Cleaner
       uses: glassechidna/artifact-cleaner@v2
+      continue-on-error: true
       with:
         # Specify a minimum size of artifacts to delete in bytes. Artifacts smaller than this won't be deleted.
         minimumDeletionSize: 0 # optional, default is 0
