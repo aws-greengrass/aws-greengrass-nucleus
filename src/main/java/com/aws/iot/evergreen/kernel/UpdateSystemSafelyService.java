@@ -112,7 +112,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 context.runOnPublishQueueAndWait(() -> {
                     log.note(getName(), "Starting safe-time update");
                     runUpdateActions();
-                    log.note(getName(), "FINISHED read-phase of safe-time update");
+                    log.note(getName(), "Finished read-phase of safe-time update");
                 });
                 log.note(getName(), "Back on run Q safe-time update");
             }

@@ -43,7 +43,7 @@ import javax.inject.Singleton;
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions, Closeable {
-    public static final String STATE_TOPIC_NAME_SUFFIX = "_State";
+    public static final String STATE_TOPIC_NAME = "_State";
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
 
     public final Topics config;
@@ -218,7 +218,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     private Topic initStateTopic(final Topics topics) {
-        Topic state = topics.createLeafChild(STATE_TOPIC_NAME_SUFFIX);
+        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
         state.setParentNeedsToKnow(false);
         state.setValue(State.NEW);
         state.validate((newStateObj, oldStateObj) -> {
