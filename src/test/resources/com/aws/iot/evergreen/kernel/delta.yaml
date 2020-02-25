@@ -5,7 +5,7 @@ main:
     install:
         skipif: true
         all: echo All installed
-    requires: jdk11, git, hello-docker, mqtt, ticktock:Installed, hello
+    requires: jdk11, git, hello-docker, mqtt, ticktock:INSTALLED, hello
     setenv:
         JUSTME: fancy a spot of coffee?
     run: |-

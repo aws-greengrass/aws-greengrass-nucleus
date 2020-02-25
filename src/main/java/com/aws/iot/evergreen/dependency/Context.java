@@ -467,7 +467,7 @@ public class Context implements Closeable {
                             //                            + " = " + v);
                             if (asService != null && v instanceof EvergreenService) {
                                 asService.addDependency((EvergreenService) v,
-                                        startWhen == null ? State.Running : startWhen.value());
+                                        startWhen == null ? State.RUNNING : startWhen.value());
                             }
                         } catch (Throwable ex) {
                             if (asService != null) {

@@ -10,67 +10,59 @@ public enum State {
     // TODO Not sure I trust this list yet
 
     /**
+     * TODO Remove this?
      * Object does not have a state (not a Lifecycle).
+     *
      */
-    Stateless(true, false, false),
+    STATELESS(true, false, false),
+
     /**
      * Freshly created, probably being injected.
      */
-    New(true, false, false),
+    NEW(true, false, false),
+
     /**
-     * Associated artifacts are being installed. TODO: How to handle the download
-     * phase of installation is a topic of debate.  For now, Downloading isn't a state
-     * since it can (and should) be done in the background by a MIN_PRIORITY thread.
+     * Associated artifacts are installed.
      */
-    Installing(true, false, false),
-    Installed(true, false, false),
-    /**
-     * Waiting for some dependency to start Running.
-     */
-    AwaitingStartup(true, false, false),
-    /**
-     * Executed when all dependencies are satisfied. When this step is completed
-     * the service will be Running.
-     */
-    Starting(true, false, false),
+    INSTALLED(true, false, false),
+
     /**
      * Up and running, operating normally. This is the only state that should
      * ever take a significant amount of time to run.
      */
-    Running(true, true, true),
-    Stopping(true, false, true),
-    //    /**
-    //     * Running, but experiencing problems that the service is attempting to
-    //     * repair itself
-    //     */
-    //    Unstable(false, true, false),
+    RUNNING(true, true, true),
+
+    /**
+     * Service is in the process of shutting down.
+     */
+    STOPPING(true, false, true),
+
     /**
      * Not running. It may be possible for the enclosing framework to restart
      * it.
      */
-    Errored(false, false, false),
-    //    /**
-    //     * In the process of being restarted
-    //     */
-    //    Recovering(false, false, false),
+    ERRORED(false, false, false),
+
     /**
-     * Shut down, cannot be restarted.  Generally the result of an unresolvable error.
+     * Shut down, cannot be restarted. Generally the result of an unresolvable error.
      */
-    Broken(false, false, false),
+    BROKEN(false, false, false),
     /**
      * The service has done it's job and has no more to do. May be restarted
      * (for example, a monitoring task that will be restarted by a timer)
      */
-    Finished(true, false, true);
+    FINISHED(true, false, true);
 
     private final boolean happy;
     private final boolean running;
     private final boolean functioningProperly;
 
-    State(boolean h, boolean r, boolean p) {
-        happy = h;
-        running = r;
-        functioningProperly = p;
+
+    State(boolean happy, boolean running, boolean functioningProperly) {
+        // TODO Review with James and Team about do we need this anymore?
+        this.happy = happy;
+        this.running = running;
+        this.functioningProperly = functioningProperly;
     }
 
     /**

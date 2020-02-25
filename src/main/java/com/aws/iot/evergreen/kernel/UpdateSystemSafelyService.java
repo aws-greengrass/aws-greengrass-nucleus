@@ -86,7 +86,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
     @Override
     public void startup() {
         // startup() is invoked on it's own thread
-        reportState(State.Running);
+        reportState(State.RUNNING);
         log.note(getName(), "Checking for updates");
         while (!pendingActions.isEmpty()) {
             // TODO: should really use an injected clock to support simulation-time
@@ -112,7 +112,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 context.runOnPublishQueueAndWait(() -> {
                     log.note(getName(), "Starting safe-time update");
                     runUpdateActions();
-                    log.note(getName(), "Finished read-phase of safe-time update");
+                    log.note(getName(), "FINISHED read-phase of safe-time update");
                 });
                 log.note(getName(), "Back on run Q safe-time update");
             }

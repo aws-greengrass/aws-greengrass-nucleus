@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -63,21 +62,21 @@ class EvergreenServiceTest {
 
         // verify stateTopic
         Mockito.verify(stateTopic).setParentNeedsToKnow(false);
-        Mockito.verify(stateTopic).setValue(State.New);
+        Mockito.verify(stateTopic).setValue(State.NEW);
         Mockito.verify(stateTopic).validate(validatorArgumentCaptor.capture());
         Mockito.verifyNoMoreInteractions(stateTopic);
 
         // verify validator
         Validator validator = validatorArgumentCaptor.getValue();
-        State returnedState = (State) validator.validate(State.New, null);
-        Assertions.assertSame(State.New, returnedState);
+        State returnedState = (State) validator.validate(State.NEW, null);
+        Assertions.assertSame(State.NEW, returnedState);
     }
 
     @Test
     void GIVEN_a_new_state_WHEN_getState_THEN_return_the_new_state() {
-        Mockito.when(stateTopic.getOnce()).thenReturn(State.New);
+        Mockito.when(stateTopic.getOnce()).thenReturn(State.NEW);
 
-        Assertions.assertSame(State.New, evergreenService.getState());
+        Assertions.assertSame(State.NEW, evergreenService.getState());
 
         Mockito.verify(stateTopic).getOnce();
     }

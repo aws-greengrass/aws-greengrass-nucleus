@@ -152,12 +152,12 @@ public class IPCServicesTest {
         LifecycleImpl c = new LifecycleImpl(client);
 
         Pair<CompletableFuture<Void>, BiConsumer<String, String>> p = TestUtils.asyncAssertOnBiConsumer((a, b) -> {
-            assertEquals(State.Finished.toString(), a);
-            assertEquals(State.Errored.toString(), b);
+            assertEquals(State.FINISHED.toString(), a);
+            assertEquals(State.ERRORED.toString(), b);
         });
 
         c.listenToStateChanges("ServiceName", p.getRight());
-        c.reportState("Errored");
+        c.reportState("ERRORED");
         p.getLeft().get(500, TimeUnit.MILLISECONDS);
         client.disconnect();
     }
