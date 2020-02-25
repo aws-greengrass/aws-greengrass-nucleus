@@ -5,13 +5,14 @@ import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingExcept
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.vdurmont.semver4j.Semver;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
 public interface PackageStore {
-    Optional<String> getPackageRecipeIfExists(final String packageName,
-                                                     final Semver packageVersion);
+    Optional<Package> getPackage(final String packageName, final Semver packageVersion)
+            throws PackagingException, IOException;
 
     void cachePackageArtifacts(Package evgPackage) throws PackagingException;
 
@@ -22,5 +23,6 @@ public interface PackageStore {
 
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException;
 
-    Optional<Semver> getLatestPackageVersionIfExists(final String packageName);
+    Optional<Semver> getLatestPackageVersionIfExists(final String packageName)
+            throws UnexpectedPackagingException;
 }
