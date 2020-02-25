@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.ipc.modules;
 
-
 import com.aws.iot.evergreen.builtin.services.servicediscovery.ServiceDiscoveryAgent;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -9,18 +8,16 @@ import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
-import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
-import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
+import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
-import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryRequestTypes;
+import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryGenericResponse;
+import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCodes;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryResponseStatus;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Log;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -29,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCodes.values;
 import static com.aws.iot.evergreen.util.Log.Level;
 
 
@@ -36,6 +34,7 @@ import static com.aws.iot.evergreen.util.Log.Level;
 @ImplementsService(name = "servicediscovery", autostart = true)
 public class ServiceDiscoveryService extends EvergreenService {
     private final ObjectMapper mapper = new CBORMapper();
+
     @Inject
     Log log;
     @Inject
@@ -68,49 +67,50 @@ public class ServiceDiscoveryService extends EvergreenService {
      */
     public Future<Message> handleMessage(Message request, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
+        ApplicationMessage message = ApplicationMessage.fromBytes(request.getPayload());
         try {
-            GeneralRequest<Object, ServiceDiscoveryRequestTypes> obj =
-                    IPCUtil.decode(request, new TypeReference<GeneralRequest<Object, ServiceDiscoveryRequestTypes>>() {
-                    });
+            //TODO: add version compatibility check
 
-            GeneralResponse<?, ServiceDiscoveryResponseStatus> genResp = new GeneralResponse<>();
-            switch (obj.getType()) {
-                case lookup:
-                    LookupResourceRequest lookup = mapper.convertValue(obj.getRequest(), LookupResourceRequest.class);
+            ServiceDiscoveryOpCodes opCode = values()[message.getOpCode()];
+            ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse();
+            switch (opCode) {
+                case LookupResources:
+                    LookupResourceRequest lookup = mapper.readValue(message.getPayload(), LookupResourceRequest.class);
                     // Do lookup
-                    genResp = agent.lookupResources(lookup, context.getServiceName());
+                    response = agent.lookupResources(lookup, context.getServiceName());
                     break;
-                case remove:
-                    RemoveResourceRequest remove = mapper.convertValue(obj.getRequest(), RemoveResourceRequest.class);
+                case RemoveResource:
+                    RemoveResourceRequest remove = mapper.readValue(message.getPayload(), RemoveResourceRequest.class);
                     // Do remove
-                    genResp = agent.removeResource(remove, context.getServiceName());
+                    response = agent.removeResource(remove, context.getServiceName());
                     break;
-                case update:
-                    UpdateResourceRequest update = mapper.convertValue(obj.getRequest(), UpdateResourceRequest.class);
+                case UpdateResource:
+                    UpdateResourceRequest update = mapper.readValue(message.getPayload(), UpdateResourceRequest.class);
                     // Do update
-                    genResp = agent.updateResource(update, context.getServiceName());
+                    response = agent.updateResource(update, context.getServiceName());
                     break;
-                case register:
+                case RegisterResource:
                     RegisterResourceRequest register =
-                            mapper.convertValue(obj.getRequest(), RegisterResourceRequest.class);
+                            mapper.readValue(message.getPayload(), RegisterResourceRequest.class);
                     // Do register
-                    genResp = agent.registerResource(register, context.getServiceName());
+                    response = agent.registerResource(register, context.getServiceName());
                     break;
                 default:
-                    genResp.setError(ServiceDiscoveryResponseStatus.InvalidRequest);
-                    genResp.setErrorMessage("Unknown request type " + obj.getType());
+                    response.setResponseStatus(ServiceDiscoveryResponseStatus.InvalidRequest);
+                    response.setErrorMessage("Unknown request type " + opCode.toString());
                     break;
             }
-            fut.complete(new Message(IPCUtil.encode(genResp)));
+            ApplicationMessage applicationMessage = ApplicationMessage.builder().version(message.getVersion())
+                    .payload(mapper.writeValueAsBytes(response)).build();
+            fut.complete(new Message(applicationMessage.toByteArray()));
         } catch (Throwable e) {
             log.log(Level.Error, "Failed to respond to handleMessage", e);
-
-            GeneralResponse<Void, ServiceDiscoveryResponseStatus> errorResponse =
-                    GeneralResponse.<Void, ServiceDiscoveryResponseStatus>builder()
-                            .error(ServiceDiscoveryResponseStatus.InternalError).errorMessage(e.getMessage()).build();
-
             try {
-                fut.complete(new Message(IPCUtil.encode(errorResponse)));
+                ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse(
+                        ServiceDiscoveryResponseStatus.InternalError, e.getMessage());
+                ApplicationMessage responseMessage = ApplicationMessage.builder().version(message.getVersion())
+                        .payload(mapper.writeValueAsBytes(response)).build();
+                fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
                 log.log(Level.Error, "Couldn't even send them the error back", e);
             }
@@ -119,7 +119,6 @@ public class ServiceDiscoveryService extends EvergreenService {
         if (!fut.isDone()) {
             fut.completeExceptionally(new IPCException("Unable to serialize any responses"));
         }
-
         return fut;
     }
 }

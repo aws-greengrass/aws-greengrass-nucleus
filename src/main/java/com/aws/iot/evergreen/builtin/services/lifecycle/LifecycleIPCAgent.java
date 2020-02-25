@@ -5,11 +5,12 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.services.common.GeneralRequest;
-import com.aws.iot.evergreen.ipc.services.common.GeneralResponse;
+import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleClientOpCodes;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleGenericResponse;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleListenRequest;
-import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleRequestTypes;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateTransitionEvent;
@@ -57,49 +58,49 @@ public class LifecycleIPCAgent implements InjectionActions {
     /**
      * Report the state of the service which the request is coming from.
      *
-     * @param req     incoming request
+     * @param stateChangeRequest  incoming request
      * @param context caller context
      * @return response for setting state
      */
-    public GeneralResponse<Void, LifecycleResponseStatus> reportState(StateChangeRequest req,
+    public LifecycleGenericResponse reportState(StateChangeRequest stateChangeRequest,
                                                                       ConnectionContext context) {
-        State s = State.valueOf(req.getState());
+        State s = State.valueOf(stateChangeRequest.getState());
         Optional<EvergreenService> service =
                 Optional.ofNullable(kernel.context.get(EvergreenService.class, context.getServiceName()));
 
-        GeneralResponse<Void, LifecycleResponseStatus> resp = new GeneralResponse<>();
+        LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
         if (service.isPresent()) {
             service.get().reportState(s);
-            resp.setError(LifecycleResponseStatus.Success);
+            lifecycleGenericResponse.setStatus(LifecycleResponseStatus.Success);
         } else {
-            resp.setError(LifecycleResponseStatus.InvalidRequest);
-            resp.setErrorMessage("Service could not be found");
+            lifecycleGenericResponse.setStatus(LifecycleResponseStatus.InvalidRequest);
+            lifecycleGenericResponse.setErrorMessage("Service could not be found");
         }
 
-        return resp;
+        return lifecycleGenericResponse;
     }
 
     /**
      * Set up a listener for state changes for a requested service. (Currently any service can listen to any other
      * service's lifecycle changes).
      *
-     * @param listenRequest incoming listen request
+     * @param lifecycleListenRequest incoming listen request
      * @param context       caller context
      * @return response
      */
-    public GeneralResponse<Void, LifecycleResponseStatus> listenToStateChanges(LifecycleListenRequest listenRequest,
-                                                                               ConnectionContext context) {
+    public LifecycleGenericResponse listenToStateChanges(LifecycleListenRequest lifecycleListenRequest,
+                                                         ConnectionContext context) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
-        listeners.compute(listenRequest.getServiceName(), (key, old) -> {
+        listeners.compute(lifecycleListenRequest.getServiceName(), (key, old) -> {
             if (old == null) {
                 old = new ConcurrentHashMap<>();
             }
             context.onDisconnect(() -> listeners.values().forEach(map -> map.remove(context)));
-            old.put(context, sendStateUpdateToListener(listenRequest, context));
+            old.put(context, sendStateUpdateToListener(lifecycleListenRequest, context));
             return old;
         });
 
-        return GeneralResponse.<Void, LifecycleResponseStatus>builder().error(LifecycleResponseStatus.Success).build();
+        return LifecycleGenericResponse.builder().status(LifecycleResponseStatus.Success).build();
     }
 
     private BiConsumer<State, State> sendStateUpdateToListener(LifecycleListenRequest listenRequest,
@@ -108,18 +109,18 @@ public class LifecycleIPCAgent implements InjectionActions {
             executor.submit(() -> {
                 // Synchronize on context so that we only try to send 1 update at a time to a given client
                 synchronized (context) {
-                    StateTransitionEvent trans =
-                            StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
-                                    .service(listenRequest.getServiceName()).build();
-
-                    GeneralRequest<StateTransitionEvent, LifecycleRequestTypes> req =
-                            GeneralRequest.<StateTransitionEvent, LifecycleRequestTypes>builder()
-                                    .type(LifecycleRequestTypes.transition).request(trans).build();
+                    StateTransitionEvent stateTransitionEvent =
+                            StateTransitionEvent.builder().newState(newState.toString())
+                                    .oldState(oldState.toString()).service(listenRequest.getServiceName()).build();
 
                     try {
+                        ApplicationMessage applicationMessage = ApplicationMessage.builder()
+                                .version(LifecycleImpl.API_VERSION)
+                                .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
+                                .payload(IPCUtil.encode(stateTransitionEvent)).build();
                         // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
                         context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
-                                new FrameReader.Message(IPCUtil.encode(req))).get();
+                                new FrameReader.Message(applicationMessage.toByteArray())).get();
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
                     } catch (IOException | InterruptedException | ExecutionException e) {
                         // Log
