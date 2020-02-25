@@ -38,19 +38,23 @@ public final class PackageManager {
      * Return the local resolved dependency tress in the future
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
 =======
     public Future<Map<PackageMetadata, Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
+=======
+    public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
+>>>>>>> change to return set instead of map
         this.proposedPackages = proposedPackages;
 
-        return executorService.submit((Callable<Map<PackageMetadata, Package>>) this::resolvePackages);
+        return executorService.submit((Callable<Set<Package>>) this::resolvePackages);
     }
 
     /*
      * Given a set of proposed package dependency trees,
      * figure out new package dependencies.
      */
-    private Map<PackageMetadata, Package> resolvePackages() throws
+    private Set<Package> resolvePackages() throws
             PackageVersionConflictException {
         Map<String, PackageRegistryEntry> activePackageList = packageRegistry.findActivePackages().stream()
                 .collect(Collectors.toMap(PackageRegistryEntry::getName, Function.identity()));
@@ -157,8 +161,8 @@ public final class PackageManager {
      * Given a set of target packages, return their resolved dependency trees and recipe data initialized
      * Given a set of target package names, return their resolved dependency trees with recipe data initialized
      */
-    private Map<PackageMetadata, Package> loadPackages(Set<String> packageNames) {
-        return Collections.emptyMap();
+    private Set<Package> loadPackages(Set<String> packageNames) {
+        return Collections.emptySet();
     }
 
 }
