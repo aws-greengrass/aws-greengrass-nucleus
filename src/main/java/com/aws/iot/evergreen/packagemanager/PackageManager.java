@@ -87,7 +87,7 @@ public final class PackageManager {
             throws PackageVersionConflictException {
 
         Queue<PackageMetadata> processingQueue = new LinkedList<>();
-        processingQueue.offer(packageMetadata);
+        processingQueue.add(packageMetadata);
 
         while (!processingQueue.isEmpty()) {
             PackageMetadata proposedPackage = processingQueue.poll();
@@ -143,7 +143,7 @@ public final class PackageManager {
                                         proposedPackage.getVersion(), proposedDependency.getVersionConstraint()));
                     }
 
-                    processingQueue.offer(proposedDependency);
+                    processingQueue.add(proposedDependency);
                 }
             }
 
