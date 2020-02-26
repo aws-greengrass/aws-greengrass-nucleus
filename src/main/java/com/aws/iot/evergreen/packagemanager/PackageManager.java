@@ -106,10 +106,10 @@ public final class PackageManager {
                 } else {
                     // device version doesn't meet constraint, need to update
                     // check if proposed version meets existing package dependency constraint
-                    for (PackageRegistryEntry.Reference dependsBy : devicePackage.getDependsBy().values()) {
-                        if (!proposedPackage.getVersion().satisfies(dependsBy.getConstraint())) {
+                    for (PackageRegistryEntry.Reference dependsOnBy : devicePackage.getDependsOnBy().values()) {
+                        if (!proposedPackage.getVersion().satisfies(dependsOnBy.getConstraint())) {
                             throw new PackageVersionConflictException(String.format("proposed package %s doesn't meet"
-                                    + " dependent %s constraint", proposedPackage, dependsBy));
+                                    + " dependent %s constraint", proposedPackage, dependsOnBy));
                         }
                     }
                 }
@@ -118,7 +118,7 @@ public final class PackageManager {
             // second to update its dependencies if necessary
             if (useProposedPackage) {
                 devicePackage = new PackageRegistryEntry(proposedPackage.getName(), proposedPackage.getVersion(),
-                        devicePackage == null ? new HashMap<>() : devicePackage.getDependsBy());
+                        devicePackage == null ? new HashMap<>() : devicePackage.getDependsOnBy());
                 devicePackages.put(proposedPackage.getName(), devicePackage);
 
                 for (PackageMetadata proposedDependency : proposedPackage.getDependsOn()) {
@@ -133,12 +133,12 @@ public final class PackageManager {
                         devicePackages.put(proposedDependency.getName(), dependencyPackageEntry);
                     }
                     PackageRegistryEntry.Reference dependBy =
-                            dependencyPackageEntry.getDependsBy().get(proposedPackage.getName());
+                            dependencyPackageEntry.getDependsOnBy().get(proposedPackage.getName());
                     if (dependBy != null) {
                         dependBy.setVersion(proposedPackage.getVersion());
                         dependBy.setConstraint(proposedPackage.getVersionConstraint());
                     } else {
-                        dependencyPackageEntry.getDependsBy().put(proposedPackage.getName(),
+                        dependencyPackageEntry.getDependsOnBy().put(proposedPackage.getName(),
                                 new PackageRegistryEntry.Reference(proposedPackage.getName(),
                                         proposedPackage.getVersion(), proposedDependency.getVersionConstraint()));
                     }
@@ -148,8 +148,8 @@ public final class PackageManager {
             }
 
             // third to update its dependent
-            for (PackageRegistryEntry.Reference dependBy : devicePackage.getDependsBy().values()) {
-                PackageRegistryEntry dependent = devicePackages.get(dependBy.getName());
+            for (PackageRegistryEntry.Reference dependsOnBy : devicePackage.getDependsOnBy().values()) {
+                PackageRegistryEntry dependent = devicePackages.get(dependsOnBy.getName());
                 PackageRegistryEntry.Reference reference = dependent.getDependsOn().get(devicePackage.getName());
                 if (reference.getVersion() == null || !reference.getVersion().isEqualTo(devicePackage.getVersion())) {
                     reference.setVersion(devicePackage.getVersion());
