@@ -4,13 +4,6 @@
         <Or>
             <Bug pattern="DM_CONVERT_CASE"/>
             <Bug pattern="SIC_INNER_SHOULD_BE_STATIC_ANON"/>
-            <!--    TODO: Work on getting rid of these-->
-            <!-- com.aws.iot.evergreen.deployment.model.AwsIotJobsMqttMessage -->
-            <Bug pattern="UWF_UNWRITTEN_FIELD"/>
-            <!-- com.aws.iot.evergreen.deployment.utils.PrivateKeyReader-->
-            <Bug pattern="EI_EXPOSE_REP"/>
-            <Bug pattern="EI_EXPOSE_REP2"/>
-            <!--  TODO: Work on gettign rid of these-->
         </Or>
     </Match>
 </FindBugsFilter>

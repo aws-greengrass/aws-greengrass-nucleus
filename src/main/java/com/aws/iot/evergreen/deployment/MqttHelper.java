@@ -10,8 +10,8 @@ import com.amazonaws.services.iot.client.AWSIotMqttClient;
 import com.amazonaws.services.iot.client.AWSIotQos;
 import com.amazonaws.services.iot.client.AWSIotTopic;
 import com.aws.iot.evergreen.deployment.utils.SampleUtil;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 
 import java.util.function.Consumer;
 
@@ -31,15 +31,11 @@ public class MqttHelper {
      * @param certificateFile File path of the Iot thing certificate
      * @param privateKeyFile File path of the Iot thing private key
      */
-    public MqttHelper(String clientEndpoint, String clientId, String certificateFile, String privateKeyFile) {
+    public MqttHelper(String clientEndpoint, String clientId, String certificateFile, String privateKeyFile)
+            throws AWSIotException {
         SampleUtil.KeyStorePasswordPair pair = SampleUtil.getKeyStorePasswordPair(certificateFile, privateKeyFile);
         this.client = new AWSIotMqttClient(clientEndpoint, clientId, pair.keyStore, pair.keyPassword);
-
-        try {
-            this.client.connect();
-        } catch (AWSIotException e) {
-            logger.error( "Caught AWS Iot Exception");
-        }
+        this.client.connect();
     }
 
     public static class EvergreenDeviceAWSIotTopic extends AWSIotTopic {

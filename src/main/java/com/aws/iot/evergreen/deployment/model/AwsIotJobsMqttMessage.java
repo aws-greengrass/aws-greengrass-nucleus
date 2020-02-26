@@ -7,6 +7,7 @@ package com.aws.iot.evergreen.deployment.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class AwsIotJobsMqttMessage {
     @JsonSerialize
     @Getter
     public static class JobDetails {
+        @SuppressFBWarnings(value = "UWF_UNWRITTEN_FIELD", justification = "Might use it in future iterations")
         private String jobId;
     }
 }

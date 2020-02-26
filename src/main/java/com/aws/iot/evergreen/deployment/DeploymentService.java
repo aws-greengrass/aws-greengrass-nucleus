@@ -137,12 +137,15 @@ public class DeploymentService extends EvergreenService {
         String rootCAPath = envHome + getStringParameterFromConfig("rootCaPath");
         String clientEndpoint = getStringParameterFromConfig("mqttClientEndpoint");
 
-        mqttHelper = new MqttHelper(clientEndpoint, UUID.randomUUID().toString(), certificateFilePath, privateKeyPath);
-        iotJobsHelper = new IotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
-                UUID.randomUUID().toString());
-        reportState(State.RUNNING);
-
         try {
+            mqttHelper = new MqttHelper(clientEndpoint, UUID.randomUUID().toString(),
+                    certificateFilePath, privateKeyPath);
+            iotJobsHelper = new IotJobsHelper(thingName, clientEndpoint,
+                    certificateFilePath, privateKeyPath, rootCAPath,
+                    UUID.randomUUID().toString());
+            reportState(State.RUNNING);
+
+
             // TODO: Move to one SDK.
             // Subscribe to change event does not work well with jobs sdk, so using iot sdk to subscribe to notify topic
             // The Jobs SDK is flaky with its Future reponses. When SubscribeToJobExecutionsChangedEvents
@@ -151,14 +154,9 @@ public class DeploymentService extends EvergreenService {
             String topic = NOTIFY_TOPIC.replace("{thingName}", thingName);
             mqttHelper.subscribe(topic, awsIotNotifyMessageHandler);
 
-            iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer,
-                    new Consumer<RejectedError>() {
-                        @Override
-                        public void accept(RejectedError rejectedError) {
-                            logger.error("Job subscription got rejected");
-                            logger.error(rejectedError.message);
-                        }
-                    });
+            iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer, rejectedError -> {
+                logger.error("Job subscription got rejected", rejectedError);
+            });
         } catch (ExecutionException | InterruptedException | AWSIotException ex) {
             logger.error("Caught exception in subscribing to topics", ex);
             errored = true;
@@ -169,7 +167,7 @@ public class DeploymentService extends EvergreenService {
             try {
                 Thread.sleep(DEPLOYMENT_POLLING_FREQUENCY);
             } catch (InterruptedException ex) {
-                logger.error("Exception encountered: " + ex.toString());
+                logger.error("Exception encountered: ", ex);
                 errored = true;
                 reportState(State.ERRORED);
             }

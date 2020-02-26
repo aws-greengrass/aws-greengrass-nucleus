@@ -5,6 +5,8 @@
 package com.aws.iot.evergreen.deployment.utils;
 
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -24,6 +26,7 @@ import java.util.Base64;
  * aws-iot-device-sdk-java-samples/src/main/java/com/amazonaws/services/iot/client/sample/sampleUtil
  * /PrivateKeyReader.java
  */
+
 public class PrivateKeyReader {
 
     /**
@@ -256,6 +259,7 @@ public class PrivateKeyReader {
             return new BigInteger(1, bytes).intValue();
         }
     }
+
     /**
      * An ASN.1 TLV. The object is not parsed. It can only handle integers and
      * strings.
@@ -266,6 +270,7 @@ public class PrivateKeyReader {
 
         protected final int type;
         protected final int length;
+
         protected final byte[] value;
         protected final int tag;
 
@@ -273,7 +278,7 @@ public class PrivateKeyReader {
          * Construct a ASN.1 TLV. The TLV could be either a constructed or primitive
          * entity.
          *
-         * <p> The first byte in DER encoding is made of following fields,
+         * <p>The first byte in DER encoding is made of following fields,
          * <p/>
          * <pre>
          * -------------------------------------------------
@@ -294,6 +299,7 @@ public class PrivateKeyReader {
          * @param length Length of the field
          * @param value  Encoded octet string for the field.
          */
+        @SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "Taken from sample file in sdk, will revisit")
         public Asn1Object(int tag, int length, byte[] value) {
             this.tag = tag;
             this.type = tag & 0x1F;
@@ -309,6 +315,7 @@ public class PrivateKeyReader {
             return length;
         }
 
+        @SuppressFBWarnings(value = "EI_EXPOSE_REP", justification = "Taken from sample file in sdk, will revisit")
         public byte[] getValue() {
             return value;
         }
