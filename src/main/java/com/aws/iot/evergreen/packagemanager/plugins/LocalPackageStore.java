@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -141,9 +142,12 @@ public class LocalPackageStore implements PackageStore {
             if (Files.notExists(destRootPkgPath)) {
                 Files.createDirectories(destRootPkgPath);
             }
-            Set<ArtifactProvider> artifacts = curPackageRecipe.getArtifactProviders();
-            for (ArtifactProvider artifactUrl : artifacts) {
-                artifactUrl.downloadArtifactToPath(destRootPkgPath);
+
+            // TODO: HACK HACK HACK This should get artifact providers based on key words, not just local
+            List<String> artifacts = curPackageRecipe.getArtifacts();
+            for (String artifact : artifacts) {
+                LocalArtifactProvider artifactProvider = new LocalArtifactProvider(artifact);
+                artifactProvider.downloadArtifactToPath(destRootPkgPath);
             }
         } catch (IOException e) {
             throw new PackagingException("Failed to download artifacts for " + curPackageRecipe.getPackageName(), e);

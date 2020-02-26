@@ -1,11 +1,7 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
-import com.aws.iot.evergreen.packagemanager.models.impl.ConfigFormat25Jan2020;
-import com.aws.iot.evergreen.packagemanager.plugins.ArtifactProvider;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
@@ -13,6 +9,10 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.Value;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,6 +21,7 @@ import java.util.Set;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Package {
 
+    // TODO: Will be used for schema versioning in the future
     private final RecipeTemplateVersion recipeTemplateVersion;
 
     @EqualsAndHashCode.Include
@@ -33,17 +34,17 @@ public class Package {
 
     private final String publisher;
 
-    // TODO: May be more maintainable as a custom deserializer?? This was way faster to get started with
-    @JsonTypeInfo(
-            use = JsonTypeInfo.Id.NAME,
-            include = JsonTypeInfo.As.EXTERNAL_PROPERTY,
-            property = "RecipeTemplateVersion",
-            visible = true)
-    @JsonSubTypes({
-            @JsonSubTypes.Type(value = ConfigFormat25Jan2020.class, name = "2020-01-25")
-    })
-    @JsonProperty("Config")
-    private final PackageConfigFormat config;
+    private final Set<PackageParameter> packageParameters;
+
+    private final Map<String, Object> lifecycle;
+
+    // TODO: Migrate to artifact objects, this is only a list of URLs at the moment
+    private final List<String> artifacts;
+
+    private final Map<String, String> dependencies;
+
+    // TODO: Needs discussion, this should probably be removed after integration demo
+    private final List<String> requires;
 
     /**
      * Constructor for Deserialize.
@@ -53,7 +54,11 @@ public class Package {
      * @param packageVersion Version of the package
      * @param description Description metadata
      * @param publisher Name of the publisher
-     * @param config Configuration for this package
+     * @param packageParameters Parameters included in the recipe
+     * @param lifecycle Lifecycle definitions
+     * @param artifacts Artifact definitions
+     * @param dependencies List of dependencies
+     * @param requires Package Requires
      */
     @JsonCreator
     public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
@@ -61,21 +66,21 @@ public class Package {
                    @JsonProperty("Version") Semver packageVersion,
                    @JsonProperty("Description") String description,
                    @JsonProperty("Publisher") String publisher,
-                   @JsonProperty("Config") PackageConfigFormat config) throws SemverException {
+                   @JsonProperty("Parameters") HashSet<PackageParameter> packageParameters,
+                   @JsonProperty("Lifecycle") HashMap<String, Object> lifecycle,
+                   @JsonProperty("Artifacts") ArrayList<String> artifacts,
+                   @JsonProperty("Dependencies") HashMap<String, String> dependencies,
+                   @JsonProperty("Requires") ArrayList<String> requires) throws SemverException {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
         this.packageVersion = new Semver(packageVersion.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
-        this.config =  config;
-    }
-
-    public Set<ArtifactProvider> getArtifactProviders() {
-        return config.getArtifactProviders();
-    }
-
-    public Map<String, String> getDependencies() {
-        return config.getDependencies();
+        this.packageParameters = packageParameters;
+        this.lifecycle = lifecycle;
+        this.artifacts = artifacts;
+        this.dependencies = dependencies;
+        this.requires = requires;
     }
 }
