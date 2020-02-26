@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import javax.inject.Inject;
 
 @ImplementsService(name = "DeploymentService", autostart = true)
 public class DeploymentService extends EvergreenService {
@@ -37,6 +38,7 @@ public class DeploymentService extends EvergreenService {
 
     private static Logger logger = LogManager.getLogger(DeploymentService.class);
 
+    @Inject
     private IotJobsHelper iotJobsHelper;
     private MqttHelper mqttHelper;
     private AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -117,7 +119,6 @@ public class DeploymentService extends EvergreenService {
 
     public DeploymentService(Topics topics) {
         super(topics);
-        iotJobsHelper = new IotJobsHelper();
     }
 
     @Override

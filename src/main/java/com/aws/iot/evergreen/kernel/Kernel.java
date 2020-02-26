@@ -98,7 +98,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
-        Runtime.getRuntime().addShutdownHook(new Thread(()-> shutdown()));
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
 
     public static void main(String[] args) {
