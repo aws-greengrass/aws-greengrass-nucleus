@@ -29,7 +29,7 @@ public class PackageManager {
     public static PackageManager createInstance() {
         return new PackageManager(new PackageRegistryImpl());
     }
-    
+
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private final PackageRegistry packageRegistry;
@@ -65,16 +65,16 @@ public class PackageManager {
      */
     private Set<Package> resolveDependencies(Set<PackageMetadata> proposedPackages)
             throws PackageVersionConflictException, PackageDownloadException {
-        Map<String, PackageRegistryEntry> activePackageList = packageRegistry.findActivePackages().stream()
+        Map<String, PackageRegistryEntry> activePackages = packageRegistry.findActivePackages().stream()
                 .collect(Collectors.toMap(PackageRegistryEntry::getName, Function.identity()));
-        Set<PackageRegistryEntry> beforePackageSet = new HashSet<>(activePackageList.values());
+        Set<PackageRegistryEntry> beforePackageSet = new HashSet<>(activePackages.values());
 
         for (PackageMetadata proposedPackage : proposedPackages) {
-            resolveDependencies(proposedPackage, activePackageList);
+            resolveDependencies(proposedPackage, activePackages);
         }
 
         Set<PackageRegistryEntry> pendingDownloadPackages =
-                activePackageList.values().stream().filter(p -> !beforePackageSet.contains(p))
+                activePackages.values().stream().filter(p -> !beforePackageSet.contains(p))
                         .collect(Collectors.toSet());
         Set<PackageRegistryEntry> downloadedPackages = downloadPackages(pendingDownloadPackages);
         //TODO this needs to revisit, do we want one fail all or supporting partial download
@@ -82,7 +82,7 @@ public class PackageManager {
             throw new PackageDownloadException("not all the packages have been successfully downloaded");
         }
 
-        packageRegistry.updateActivePackages(new ArrayList<>(activePackageList.values()));
+        packageRegistry.updateActivePackages(new ArrayList<>(activePackages.values()));
 
         return loadPackages(proposedPackages.stream().map(PackageMetadata::getName).collect(Collectors.toSet()));
     }
