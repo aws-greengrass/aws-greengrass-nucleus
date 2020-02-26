@@ -1,0 +1,13 @@
+---
+
+#launchers:
+plain:
+  startup:
+    all: "{platform.invoke} {args}"
+
+
+main:
+  requires: IPCService
+  startup:
+    mvn exec:java -f $EVERGREEN_HOME/pom.xml -Dexec.mainClass="com.aws.iot.evergreen.ipc.ipcawareservices.ServiceMovesToRunning" -Dexec.classpathScope="test" > /dev/null 2>&1
+
