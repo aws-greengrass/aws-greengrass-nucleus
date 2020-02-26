@@ -12,7 +12,8 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.AwsIotJobsMqttMessage;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +29,6 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import javax.inject.Inject;
 
 @ImplementsService(name = "DeploymentService", autostart = true)
 public class DeploymentService extends EvergreenService {
@@ -36,8 +36,7 @@ public class DeploymentService extends EvergreenService {
     private static Long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
     private static String NOTIFY_TOPIC = "$aws/things/{thingName}/jobs/notify";
 
-    @Inject
-    private Log logger;
+    private static Logger logger = LogManager.getLogger(DeploymentService.class);
 
     private IotJobsHelper iotJobsHelper;
     private MqttHelper mqttHelper;
@@ -47,8 +46,8 @@ public class DeploymentService extends EvergreenService {
     private Consumer<AWSIotMessage> awsIotNotifyMessageHandler = new Consumer<AWSIotMessage>() {
         @Override
         public void accept(AWSIotMessage awsIotMessage) {
-            logger.log(Log.Level.Note, "Received mqtt notify message");
-            logger.log(Log.Level.Note, "Payload: " + awsIotMessage.getStringPayload());
+            logger.info("Received mqtt notify message");
+            logger.info("Payload: " + awsIotMessage.getStringPayload());
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -56,7 +55,7 @@ public class DeploymentService extends EvergreenService {
             try {
                 jobsMqttMessage = objectMapper.readValue(awsIotMessage.getStringPayload(), AwsIotJobsMqttMessage.class);
             } catch (JsonProcessingException ex) {
-                logger.log(Log.Level.Error, "Incorrectly formatted message received from AWS Iot", ex);
+                logger.error("Incorrectly formatted message received from AWS Iot", ex);
                 return;
             }
 
@@ -66,8 +65,9 @@ public class DeploymentService extends EvergreenService {
                 }
             } catch (ExecutionException | InterruptedException ex) {
                 //TODO: DA should continue listening for other messages if error in one message
-                errored("Caught exception while handling Mqtt message ", ex);
+                logger.error("Caught exception while handling Mqtt message ", ex);
                 errored = true;
+                reportState(State.ERRORED);
             }
         }
     };
@@ -80,16 +80,16 @@ public class DeploymentService extends EvergreenService {
                         if (response.execution == null) {
                             return;
                         }
-                        logger.log(Log.Level.Note, "Describe Job: " + response.execution.jobId + " version: "
+                        logger.info("Describe Job: " + response.execution.jobId + " version: "
                                 + response.execution.versionNumber);
                         if (response.execution.jobDocument != null) {
                             response.execution.jobDocument.forEach((key, value) -> {
-                                logger.log(Log.Level.Note, "  " + key + ": " + value);
+                                logger.info("  " + key + ": " + value);
                             });
                         }
                         JobExecutionData jobExecutionData = response.execution;
                         String jobId = jobExecutionData.jobId;
-                        logger.log(Log.Level.Note, "JobId is " + jobId);
+                        logger.info("JobId is " + jobId);
                         Map<String, Object> jobDocument = jobExecutionData.jobDocument;
                         HashMap<String, String> statusDetails = new HashMap<String, String>();
                         try {
@@ -99,25 +99,26 @@ public class DeploymentService extends EvergreenService {
                                 return;
                             }
                             jobDocument.forEach((key, value) -> {
-                                logger.log(Log.Level.Note, key, ":", value);
+                                logger.info(key, ":", value);
                             });
-                            logger.log(Log.Level.Note, "JOb status is " + jobExecutionData.status);
+                            logger.info("JOb status is " + jobExecutionData.status);
                             if (jobExecutionData.status == JobStatus.QUEUED) {
-                                logger.log(Log.Level.Note, "Updating the status of JobsId " + jobId + "to in progress");
+                                logger.info("Updating the status of JobsId " + jobId + "to in progress");
                                 iotJobsHelper.updateJobStatus(jobId, JobStatus.IN_PROGRESS, null);
-                                logger.log(Log.Level.Note, "Updated the status of JobsId " + jobId + "to in progress");
+                                logger.info("Updated the status of JobsId " + jobId + "to in progress");
                                 //TODO: Trigger deployment process
                             }
                             //TODO:Check that if job Id is in progress and take appropriate action.
                             // We expect only one JobId to be in progress at a time
 
-                            logger.log(Log.Level.Note, "Updating the status of JobId " + jobId + "to in completed");
+                            logger.info("Updating the status of JobId " + jobId + "to in completed");
                             iotJobsHelper.updateJobStatus(jobId, JobStatus.SUCCEEDED, null);
-                            logger.log(Log.Level.Note, "Updated the status of JobId" + jobId + "to in completed");
+                            logger.info("Updated the status of JobId" + jobId + "to in completed");
                         } catch (ExecutionException | InterruptedException ex) {
                             //TODO: If error in one job then DA should continue listening for other jobs
-                            errored("Caught exception while doing a deployment", ex);
+                            logger.error("Caught exception while doing a deployment", ex);
                             errored = true;
+                            reportState(State.ERRORED);
                         }
                     }
                 }
@@ -130,10 +131,10 @@ public class DeploymentService extends EvergreenService {
 
     @Override
     public void startup() {
-        logger.log(Log.Level.Note, "Starting up the Deployment Service");
+        logger.info("Starting up the Deployment Service");
         String thingName = getStringParameterFromConfig("thingName");
         if (thingName.isEmpty()) {
-            logger.log(Log.Level.Note, "There is no thingName assigned to this device. Cannot communicate with cloud."
+            logger.info("There is no thingName assigned to this device. Cannot communicate with cloud."
                     + " Finishing deployment service");
             reportState(State.FINISHED);
             return;
@@ -149,7 +150,6 @@ public class DeploymentService extends EvergreenService {
                 UUID.randomUUID().toString());
         reportState(State.RUNNING);
 
-
         try {
             // TODO: Move to one SDK.
             // Subscribe to change event does not work well with jobs sdk, so using iot sdk to subscribe to notify topic
@@ -163,22 +163,23 @@ public class DeploymentService extends EvergreenService {
                     new Consumer<RejectedError>() {
                         @Override
                         public void accept(RejectedError rejectedError) {
-                            logger.log(Log.Level.Error, "Job subscription got rejected");
-                            logger.log(Log.Level.Error, rejectedError.message);
+                            logger.error("Job subscription got rejected");
+                            logger.error(rejectedError.message);
                         }
                     });
         } catch (ExecutionException | InterruptedException | AWSIotException ex) {
-            errored("Caught exception in subscribing to topics", ex);
+            logger.error("Caught exception in subscribing to topics", ex);
             errored = true;
+            reportState(State.ERRORED);
         }
-        logger.log(Log.Level.Note, "Running deployment service");
+        logger.info("Running deployment service");
         while (!receivedShutdown.get() && !errored) {
             try {
                 Thread.sleep(DEPLOYMENT_POLLING_FREQUENCY);
             } catch (InterruptedException ex) {
-                logger.log(Log.Level.Error, "Exception encountered: " + ex.toString());
-                errored("Caught exception in deployment service", ex);
+                logger.error("Exception encountered: " + ex.toString());
                 errored = true;
+                reportState(State.ERRORED);
             }
         }
     }
@@ -195,7 +196,7 @@ public class DeploymentService extends EvergreenService {
         if (childTopic != null) {
             paramValue = childTopic.getOnce().toString();
         }
+        logger.info("Returning value: " + paramValue);
         return paramValue;
     }
-
 }

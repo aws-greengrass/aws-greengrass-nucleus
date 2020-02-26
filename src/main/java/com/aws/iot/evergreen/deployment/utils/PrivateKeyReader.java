@@ -4,7 +4,6 @@
 
 package com.aws.iot.evergreen.deployment.utils;
 
-import org.apache.commons.codec.binary.Base64;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -18,11 +17,12 @@ import java.security.PrivateKey;
 import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
-
+import java.util.Base64;
 
 /**
  * This class is derived from Iot SDK samples - https://github.com/aws/aws-iot-device-sdk-java/blob/master/
- * aws-iot-device-sdk-java-samples/src/main/java/com/amazonaws/services/iot/client/sample/sampleUtil/PrivateKeyReader.java
+ * aws-iot-device-sdk-java-samples/src/main/java/com/amazonaws/services/iot/client/sample/sampleUtil
+ * /PrivateKeyReader.java
  */
 public class PrivateKeyReader {
 
@@ -60,7 +60,7 @@ public class PrivateKeyReader {
             }
         }
         KeySpec keySpec = null;
-        byte[] encoded = Base64.decodeBase64(builder.toString());
+        byte[] encoded = Base64.getDecoder().decode(builder.toString());
         if (isRSAKey) {
             keySpec = getRSAKeySpec(encoded);
         } else {
@@ -136,7 +136,6 @@ public class PrivateKeyReader {
      * <p>This parser can only handle one layer. To parse nested constructs, get a new
      * parser for each layer using <code>Asn1Object.getParser()</code>.
      * </p>
-     *
      * There are many DER decoders in JRE but using them will tie this program to a
      * specific JCE/JVM.
      *
@@ -214,9 +213,8 @@ public class PrivateKeyReader {
         /**
          * Decode the length of the field. Can only support length encoding up to 4
          * octets.
-         * <p>
-         * <p/>
-         * In BER/DER encoding, length can be encoded in 2 forms,
+         *
+         * <p>In BER/DER encoding, length can be encoded in 2 forms,
          * <ul>
          * <li>Short form. One octet. Bit 8 has value "0" and bits 7-1 give the
          * length.
@@ -225,7 +223,7 @@ public class PrivateKeyReader {
          * length octets. Second and following octets give the length, base 256,
          * most significant digit first.
          * </ul>
-         *
+         * <p/>
          * @return The length as integer
          * @throws IOException IOException resulted from invalid file IO
          */
@@ -274,10 +272,9 @@ public class PrivateKeyReader {
         /**
          * Construct a ASN.1 TLV. The TLV could be either a constructed or primitive
          * entity.
-         * <p>
-         * <p/>
-         * The first byte in DER encoding is made of following fields,
          *
+         * <p> The first byte in DER encoding is made of following fields,
+         * <p/>
          * <pre>
          * -------------------------------------------------
          * |Bit 8|Bit 7|Bit 6|Bit 5|Bit 4|Bit 3|Bit 2|Bit 1|

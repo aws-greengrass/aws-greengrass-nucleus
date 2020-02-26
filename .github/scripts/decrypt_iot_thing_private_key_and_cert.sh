@@ -10,5 +10,6 @@ gpg --quiet --batch --yes --decrypt --passphrase="$evergreen_test_iot_thing_priv
 --output $HOME/secrets/test_iot_thing_certificate.pem.crt ./.github/scripts/test_iot_thing_certificate.pem.crt.gpg
 
 #Download the Amazon Root CA
-wget -P $HOME/secrets https://www.amazontrust.com/repository/AmazonRootCA1.pem
+cd $HOME/secrets
+curl -o AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
 

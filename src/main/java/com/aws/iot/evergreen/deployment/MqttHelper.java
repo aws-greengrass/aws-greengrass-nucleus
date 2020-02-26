@@ -10,18 +10,17 @@ import com.amazonaws.services.iot.client.AWSIotMqttClient;
 import com.amazonaws.services.iot.client.AWSIotQos;
 import com.amazonaws.services.iot.client.AWSIotTopic;
 import com.aws.iot.evergreen.deployment.utils.SampleUtil;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.logging.api.Logger;
 
 import java.util.function.Consumer;
-import javax.inject.Inject;
 
 /**
  * Helper class to publish/subscribe to AWS Iot mqtt topics.
  */
 public class MqttHelper {
 
-    @Inject
-    private static Log logger;
+    private static Logger logger = LogManager.getLogger(MqttHelper.class);
 
     AWSIotMqttClient client;
 
@@ -39,7 +38,7 @@ public class MqttHelper {
         try {
             this.client.connect();
         } catch (AWSIotException e) {
-            logger.log(Log.Level.Error, "Caught AWS Iot Exception");
+            logger.error( "Caught AWS Iot Exception");
         }
     }
 

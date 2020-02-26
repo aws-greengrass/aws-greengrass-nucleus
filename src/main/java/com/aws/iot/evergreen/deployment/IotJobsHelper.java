@@ -4,6 +4,8 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Log;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.CRT;
@@ -36,7 +38,7 @@ public class IotJobsHelper {
     private static String UPDATE_SPECIFIC_JOB_REJECTED_TOPIC = "$aws/things/{thingName}/jobs/{jobId}/update/rejected";
 
     //IotJobsHelper is not in Context, so initializing a new one here. It will be added to context in later iterations
-    private static Log logger = new Log();
+    private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
     private String thingName;
     private IotJobsClient iotJobsClient;
@@ -46,25 +48,24 @@ public class IotJobsHelper {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             if (errorCode != 0) {
-                logger.log(Log.Level.Error,
-                        "Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
+                logger.error("Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
             }
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.log(Log.Level.Note,
-                    "Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
+            logger.info("Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
         }
     };
 
     /**
      * Constructor.
-     * @param thingName Iot thing name
-     * @param clientEndpoint Custom endpoint for the aws account
+     *
+     * @param thingName       Iot thing name
+     * @param clientEndpoint  Custom endpoint for the aws account
      * @param certificateFile File path for the Iot Thing certificate
-     * @param privateKeyFile File path for the private key for Iot thing
-     * @param rootCaPath File path for the root CA
+     * @param privateKeyFile  File path for the private key for Iot thing
+     * @param rootCaPath      File path for the root CA
      */
     public IotJobsHelper(String thingName, String clientEndpoint, String certificateFile, String privateKeyFile,
                          String rootCaPath, String clientId) {
@@ -119,7 +120,7 @@ public class IotJobsHelper {
         subscriptionRequest.jobId = jobId;
         iotJobsClient.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.log(Log.Level.Note, "Marked job " + jobId + "as " + status);
+                    logger.info("Marked job " + jobId + "as " + status);
                     String topicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);
                     connection.unsubscribe(topicForJobId);
@@ -127,7 +128,7 @@ public class IotJobsHelper {
 
         iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.log(Log.Level.Error, "Job " + jobId + " not updated as " + status);
+                    logger.error("Job " + jobId + " not updated as " + status);
                     String topicForJobId = UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);
                     //TODO: Add retry for updating the job or throw error
@@ -151,7 +152,7 @@ public class IotJobsHelper {
     public void subscribeToGetNextJobDecription(Consumer<DescribeJobExecutionResponse> consumerAccept,
                                                 Consumer<RejectedError> consumerReject)
             throws ExecutionException, InterruptedException {
-        logger.log(Log.Level.Note, "Subscribing to next job description");
+        logger.info("Subscribing to next job description");
 
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
@@ -169,7 +170,8 @@ public class IotJobsHelper {
 
     /**
      * Get the job description of the next available job for this Iot Thing.
-     * @throws ExecutionException {@link ExecutionException}
+     *
+     * @throws ExecutionException   {@link ExecutionException}
      * @throws InterruptedException {@link InterruptedException}
      */
     public void getNextPendingJob() throws ExecutionException, InterruptedException {
@@ -179,8 +181,8 @@ public class IotJobsHelper {
         describeJobExecutionRequest.includeJobDocument = true;
         CompletableFuture<Integer> published =
                 iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
-        logger.log(Log.Level.Note, "Publishing to describe topic");
+        logger.info("Publishing to describe topic");
         published.get();
-        logger.log(Log.Level.Note, "Published to describe topic");
+        logger.info("Published to describe topic");
     }
 }

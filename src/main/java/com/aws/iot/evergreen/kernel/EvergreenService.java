@@ -133,6 +133,11 @@ public class EvergreenService implements InjectionActions, Closeable {
             requestStop();
         }
 
+        if (getState().equals(State.RUNNING) && newState.equals(State.FINISHED)) {
+            // if a service finishes running, request stop on service to clean up DesiredStateList
+            requestStop();
+        }
+
         enqueueStateEvent(newState);
     }
 
