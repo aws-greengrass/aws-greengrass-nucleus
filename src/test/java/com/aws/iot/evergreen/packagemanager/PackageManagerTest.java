@@ -19,7 +19,7 @@ import static org.hamcrest.core.Is.is;
 
 class PackageManagerTest {
 
-    private PackageManager packageManager = new PackageManager();
+    private PackageManager packageManager = new PackageManager(new PackageRegistryImpl());
 
     //   A
     //  / \

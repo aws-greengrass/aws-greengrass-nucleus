@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
@@ -17,7 +18,6 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -26,14 +26,15 @@ import java.util.stream.Collectors;
 
 public final class PackageManager {
 
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final PackageRegistry packageRegistry;
 
-    private PackageRegistry packageRegistry;
+    public PackageManager(PackageRegistry packageRegistry) {
+        this.packageRegistry = packageRegistry;
+    }
 
-    private Set<PackageMetadata> proposedPackages;
-
-    /*
+    /**
      * Given a set of proposed package dependency trees.
      * Return the local resolved dependency tress in the future
      */
@@ -44,18 +45,22 @@ public final class PackageManager {
     public Future<Map<PackageMetadata, Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
 =======
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
+<<<<<<< HEAD
 >>>>>>> change to return set instead of map
         this.proposedPackages = proposedPackages;
 
         return executorService.submit((Callable<Set<Package>>) this::resolvePackages);
+=======
+        return executorService.submit(() -> resolveDependencies(proposedPackages));
+>>>>>>> handle some comments
     }
 
     /*
      * Given a set of proposed package dependency trees,
      * figure out new package dependencies.
      */
-    private Set<Package> resolvePackages() throws
-            PackageVersionConflictException {
+    private Set<Package> resolveDependencies(Set<PackageMetadata> proposedPackages)
+            throws PackageVersionConflictException, PackageDownloadException {
         Map<String, PackageRegistryEntry> activePackageList = packageRegistry.findActivePackages().stream()
                 .collect(Collectors.toMap(PackageRegistryEntry::getName, Function.identity()));
         Set<PackageRegistryEntry> beforePackageSet = new HashSet<>(activePackageList.values());
@@ -67,7 +72,11 @@ public final class PackageManager {
         Set<PackageRegistryEntry> pendingDownloadPackages =
                 activePackageList.values().stream().filter(p -> !beforePackageSet.contains(p))
                         .collect(Collectors.toSet());
-        downloadPackages(pendingDownloadPackages);
+        Set<PackageRegistryEntry> downloadedPackages = downloadPackages(pendingDownloadPackages);
+        //TODO this needs to revisit, do we want one fail all or supporting partial download
+        if (pendingDownloadPackages.size() != downloadedPackages.size()) {
+            throw new PackageDownloadException("not all the packages have been successfully downloaded");
+        }
 
         packageRegistry.updateActivePackages(new ArrayList<>(activePackageList.values()));
 
@@ -99,7 +108,8 @@ public final class PackageManager {
                     // check if proposed version meets existing package dependency constraint
                     for (PackageRegistryEntry.Reference dependsBy : devicePackage.getDependsBy().values()) {
                         if (!proposedPackage.getVersion().satisfies(dependsBy.getConstraint())) {
-                            throw new PackageVersionConflictException("");
+                            throw new PackageVersionConflictException(String.format("proposed package %s doesn't meet"
+                                    + " dependent %s constraint", proposedPackage, dependsBy));
                         }
                     }
                 }
@@ -153,12 +163,15 @@ public final class PackageManager {
      * Return the packages got successfully downloaded
      */
     private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
+<<<<<<< HEAD
 >>>>>>> package manager API definition
         return null;
+=======
+        return pendingDownloadPackages;
+>>>>>>> handle some comments
     }
 
     /*
-     * Given a set of target packages, return their resolved dependency trees and recipe data initialized
      * Given a set of target package names, return their resolved dependency trees with recipe data initialized
      */
     private Set<Package> loadPackages(Set<String> packageNames) {
