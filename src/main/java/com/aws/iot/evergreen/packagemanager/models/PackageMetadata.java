@@ -26,6 +26,13 @@ public class PackageMetadata {
     @EqualsAndHashCode.Exclude
     Set<PackageMetadata> dependsOn;
 
+    /**
+     * Package metadata representing the package details required by package manager for dependency resolution.
+     * @param name Name of the package
+     * @param version Package {@link Semver}
+     * @param versionConstraint Version constraint
+     * @param dependsOn Other packages of type {@link PackageMetadata} which this package depends on
+     */
     public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn) {
         if (Utils.isEmpty(name)) {
             throw new IllegalArgumentException("package name can't be empty");

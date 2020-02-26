@@ -20,7 +20,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionData;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
-import software.amazon.awssdk.iot.iotjobs.model.RejectedError;
 
 import java.time.Duration;
 import java.util.HashMap;
