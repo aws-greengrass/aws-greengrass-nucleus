@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -43,8 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -94,7 +98,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Executor.class, ses);
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown()));
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
 
     }
 
@@ -274,7 +278,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         try {
             EvergreenService main = getMain(); // Trigger boot  (!?!?)
-            autostart.forEach(s -> main.addDependency(s, State.RUNNING));
+            autostart.forEach(s -> {
+                try {
+                    main.addDependency(EvergreenService.locate(context, s), State.RUNNING);
+                } catch (InputValidationException e) {
+                    logger.atError().setCause(e).log("Unable to add auto-starting dependency {} to main", s);
+                }
+            });
         } catch (Throwable ex) {
             logger.atError().setEventType("system-boot-error").setCause(ex)
                     .log("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ");
@@ -302,8 +312,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             return true;
         } catch (IOException ex) {
-            logger.atError().setEventType("file-path-create-error").setCause(ex)
-                    .addKeyValue("filePath", p).log();
+            logger.atError().setEventType("file-path-create-error").setCause(ex).addKeyValue("filePath", p).log();
             return false;
         }
     }
@@ -370,7 +379,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     }
 
     /*
-     * When a config file gets read, it gets woven together from fragmemnts from
+     * When a config file gets read, it gets woven together from fragments from
      * multiple sources.  This writes a fresh copy of the config file, as it is,
      * after the weaving-together process.
      */
@@ -380,8 +389,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             out.commit();
             logger.atInfo().setEventType("effective-config-dump-complete").addKeyValue("file", p).log();
         } catch (Throwable t) {
-            logger.atInfo().setEventType("effective-config-dump-error")
-                    .setCause(t).addKeyValue("file", p).log();
+            logger.atInfo().setEventType("effective-config-dump-error").setCause(t).addKeyValue("file", p).log();
         }
     }
 
@@ -390,8 +398,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return;
         }
         orderedDependencies().forEach(l -> {
-            logger.atInfo().setEventType("service-install")
-                    .addKeyValue("serviceName", l.getName()).log();
+            logger.atInfo().setEventType("service-install").addKeyValue("serviceName", l.getName()).log();
             l.requestStart();
         });
     }
@@ -420,6 +427,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     }
 
     public void shutdown() {
+        shutdown(30);
+    }
+
+    public void shutdown(int timeoutSeconds) {
         if (broken) {
             return;
         }
@@ -431,8 +442,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 try {
                     d[i].close();
                 } catch (Throwable t) {
-                    logger.atError().setEventType("service-shutdown-error").addKeyValue("serviceName",
-                            d[i].getName()).setCause(t).log();
+                    logger.atError().setEventType("service-shutdown-error").addKeyValue("serviceName", d[i].getName())
+                            .setCause(t).log();
                 }
             }
 
@@ -442,12 +453,15 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 executorService.shutdown();
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
-            executorService.awaitTermination(30, TimeUnit.SECONDS);
+            executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
             logger.atInfo().setEventType("executor-service-shutdown-complete").log();
         } catch (Throwable ex) {
             logger.atError().setEventType("system-shutdown-error").setCause(ex).log();
         }
+    }
 
+    public void shutdownNow() {
+        shutdown(0);
     }
 
     public String deTilde(String s) {
@@ -497,5 +511,56 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 serviceServerURLlist.add(u);
             }
         }
+    }
+
+    /**
+     * Merge in new configuration values and new services.
+     *
+     * @param deploymentId give an ID to the task to run
+     * @param timestamp    timestamp for all configuration values to use when merging (newer timestamps win)
+     * @param newConfig    the map of new configuration
+     * @return future which completes only once the config is merged and all the services in the config are running
+     */
+    public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
+        CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
+
+        Map<String, CountDownLatch> latches = new HashMap<>();
+        newConfig.forEach((key, v) -> latches.put((String) key, new CountDownLatch(1)));
+
+        EvergreenService.GlobalStateChangeListener listener = (service, was) -> {
+            if (newConfig.containsKey(service.getName()) && service.getState().equals(State.RUNNING)) {
+                latches.get(service.getName()).countDown();
+            }
+            if (latches.values().stream().allMatch(c -> c.getCount() <= 0)) {
+                totallyCompleteFuture.complete(null);
+            }
+        };
+
+        totallyCompleteFuture.thenRun(() -> {
+            context.removeGlobalStateChangeListener(listener);
+        });
+
+        context.get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
+            context.runOnPublishQueueAndWait(() -> {
+                try {
+                    mergeMap(timestamp, newConfig);
+                    context.addGlobalStateChangeListener(listener);
+
+                    newConfig.keySet().forEach(serviceName -> {
+                        EvergreenService eg = EvergreenService.locate(context, (String) serviceName);
+                        if (eg == null) {
+                            logger.error("Could not locate EvergreenService for modified service {}", serviceName);
+                        } else if (State.NEW.equals(eg.getState())) {
+                            eg.requestStart();
+                        }
+                    });
+
+                } catch (Throwable e) {
+                    totallyCompleteFuture.completeExceptionally(e);
+                }
+            });
+        });
+
+        return totallyCompleteFuture;
     }
 }

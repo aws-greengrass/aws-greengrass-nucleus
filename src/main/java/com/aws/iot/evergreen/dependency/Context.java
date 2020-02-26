@@ -460,6 +460,14 @@ public class Context implements Closeable {
                                         name);
                             } else {
                                 v = Context.this.get(t, name);
+
+                                // if v is an EvergreenService, then make sure to save it into
+                                // the context tagged with its service name so that EvergreenService.locate
+                                // will be able to find it when it looks for it by name (and not by class)
+                                if (v instanceof EvergreenService) {
+                                    Context.this.getv(EvergreenService.class, ((EvergreenService) v).getName()).put(
+                                            (EvergreenService) v);
+                                }
                             }
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);

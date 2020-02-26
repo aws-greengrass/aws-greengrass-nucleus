@@ -27,6 +27,7 @@ jobs:
         path: target/jacoco-report
     - name: cobertura-report
       uses: 5monkeys/cobertura-action@v2
+      continue-on-error: true
       with:
         # The GITHUB_TOKEN for this repo
         repo_token: ${{ github.token }}
