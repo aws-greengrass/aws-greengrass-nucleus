@@ -82,14 +82,8 @@ public class DeploymentService extends EvergreenService {
                         }
                         logger.info("Describe Job: " + response.execution.jobId + " version: "
                                 + response.execution.versionNumber);
-                        if (response.execution.jobDocument != null) {
-                            response.execution.jobDocument.forEach((key, value) -> {
-                                logger.info("  " + key + ": " + value);
-                            });
-                        }
                         JobExecutionData jobExecutionData = response.execution;
                         String jobId = jobExecutionData.jobId;
-                        logger.info("JobId is " + jobId);
                         Map<String, Object> jobDocument = jobExecutionData.jobDocument;
                         HashMap<String, String> statusDetails = new HashMap<String, String>();
                         try {
@@ -101,19 +95,17 @@ public class DeploymentService extends EvergreenService {
                             jobDocument.forEach((key, value) -> {
                                 logger.info(key, ":", value);
                             });
-                            logger.info("JOb status is " + jobExecutionData.status);
+                            logger.info("Job status is " + jobExecutionData.status);
                             if (jobExecutionData.status == JobStatus.QUEUED) {
-                                logger.info("Updating the status of JobsId " + jobId + "to in progress");
                                 iotJobsHelper.updateJobStatus(jobId, JobStatus.IN_PROGRESS, null);
-                                logger.info("Updated the status of JobsId " + jobId + "to in progress");
+                                logger.debug("Updated the status of JobsId " + jobId + "to in progress");
                                 //TODO: Trigger deployment process
                             }
                             //TODO:Check that if job Id is in progress and take appropriate action.
                             // We expect only one JobId to be in progress at a time
 
-                            logger.info("Updating the status of JobId " + jobId + "to in completed");
                             iotJobsHelper.updateJobStatus(jobId, JobStatus.SUCCEEDED, null);
-                            logger.info("Updated the status of JobId" + jobId + "to in completed");
+                            logger.debug("Updated the status of JobId" + jobId + "to in completed");
                         } catch (ExecutionException | InterruptedException ex) {
                             //TODO: If error in one job then DA should continue listening for other jobs
                             logger.error("Caught exception while doing a deployment", ex);
