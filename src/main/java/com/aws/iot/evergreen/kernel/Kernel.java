@@ -317,7 +317,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
-    public EvergreenService getMain() throws Throwable {
+    public EvergreenService getMain() {
         EvergreenService m = mainService;
         if (m == null) {
             m = mainService = EvergreenService.locate(context, mainServiceName);
@@ -401,6 +401,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             logger.atInfo().setEventType("service-install").addKeyValue("serviceName", l.getName()).log();
             l.requestStart();
         });
+    }
+
+    public void writeEffectiveConfigAsTransactionLog(Path transactionLogPath) throws IOException {
+        ConfigurationWriter.logTransactionsTo(this, transactionLogPath)
+                .flushImmediately(true);
     }
 
     public void dump() {

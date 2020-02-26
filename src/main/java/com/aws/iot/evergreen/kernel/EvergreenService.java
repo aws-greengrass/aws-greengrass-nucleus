@@ -839,6 +839,10 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
+    public Map<EvergreenService, State> getDependencies() {
+        return dependencies;
+    }
+
     public boolean satisfiedBy(HashSet<EvergreenService> ready) {
         return ready.containsAll(dependencies.keySet());
     }

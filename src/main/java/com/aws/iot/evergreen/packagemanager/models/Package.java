@@ -1,3 +1,6 @@
+/* Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.packagemanager.models;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -6,17 +9,18 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Value;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-@Value
+@Getter
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Package {
@@ -46,6 +50,7 @@ public class Package {
     // TODO: Needs discussion, this should probably be removed after integration demo
     private final List<String> requires;
 
+    private Set<Package> dependencyPackages;
     /**
      * Constructor for Deserialize.
      *
@@ -66,11 +71,11 @@ public class Package {
                    @JsonProperty("Version") Semver packageVersion,
                    @JsonProperty("Description") String description,
                    @JsonProperty("Publisher") String publisher,
-                   @JsonProperty("Parameters") HashSet<PackageParameter> packageParameters,
-                   @JsonProperty("Lifecycle") HashMap<String, Object> lifecycle,
-                   @JsonProperty("Artifacts") ArrayList<String> artifacts,
-                   @JsonProperty("Dependencies") HashMap<String, String> dependencies,
-                   @JsonProperty("Requires") ArrayList<String> requires) throws SemverException {
+                   @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
+                   @JsonProperty("Lifecycle") Map<String, Object> lifecycle,
+                   @JsonProperty("Artifacts") List<String> artifacts,
+                   @JsonProperty("Dependencies") Map<String, String> dependencies,
+                   @JsonProperty("Requires") List<String> requires) throws SemverException {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -82,5 +87,7 @@ public class Package {
         this.artifacts = artifacts;
         this.dependencies = dependencies;
         this.requires = requires;
+        this.dependencyPackages = new HashSet<>();
     }
+
 }
