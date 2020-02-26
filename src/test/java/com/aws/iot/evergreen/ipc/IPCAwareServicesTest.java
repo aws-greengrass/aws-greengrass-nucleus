@@ -3,9 +3,7 @@ package com.aws.iot.evergreen.ipc;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -16,8 +14,8 @@ public class IPCAwareServicesTest {
 
     public static Kernel kernel;
 
-    @BeforeAll
-    public static void setup() {
+    @BeforeEach
+    public void setup() {
         // starting daemon
         CountDownLatch OK = new CountDownLatch(1);
         kernel = new Kernel();
@@ -26,8 +24,8 @@ public class IPCAwareServicesTest {
         kernel.launch();
     }
 
-    @AfterAll
-    public static void teardown() {
+    @AfterEach
+    public void teardown() {
         kernel.shutdown();
     }
 
@@ -42,8 +40,8 @@ public class IPCAwareServicesTest {
         };
         kernel.context.addGlobalStateChangeListener(listener);
         //waiting for main to transition to running
-        boolean await = serviceRunning.await(10, TimeUnit.SECONDS);
-        assertTrue(await);
+        boolean isRunning = serviceRunning.await(30, TimeUnit.SECONDS);
+        assertTrue(isRunning);
     }
 
 }
