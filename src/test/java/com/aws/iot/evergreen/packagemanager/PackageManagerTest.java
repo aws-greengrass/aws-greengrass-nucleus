@@ -39,7 +39,7 @@ class PackageManagerTest {
 
         assertThat(devicePackages.size(), is(4));
         assertThat(devicePackages.get("A").getVersion().getValue(), is("1.0.0"));
-        assertThat(devicePackages.get("A").getDependsBy().size(), is(0));
+        assertThat(devicePackages.get("A").getDependsOnBy().size(), is(0));
         assertThat(devicePackages.get("A").getDependsOn().size(), is(2));
         assertThat(devicePackages.get("A").getDependsOn(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("B", new Semver("1.0.0"), ">=1.0.0")));
@@ -49,19 +49,19 @@ class PackageManagerTest {
         assertThat(devicePackages.get("B").getVersion().getValue(), is("1.0.0"));
         assertThat(devicePackages.get("B").getDependsOn(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("T", new Semver("2.0.0"), ">=1.0.0")));
-        assertThat(devicePackages.get("B").getDependsBy(),
+        assertThat(devicePackages.get("B").getDependsOnBy(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("A", new Semver("1.0.0"), ">=1.0.0")));
 
         assertThat(devicePackages.get("Q").getVersion().getValue(), is("1.0.0"));
         assertThat(devicePackages.get("Q").getDependsOn(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("T", new Semver("2.0.0"), ">=2.0.0")));
-        assertThat(devicePackages.get("Q").getDependsBy(),
+        assertThat(devicePackages.get("Q").getDependsOnBy(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("A", new Semver("1.0.0"), ">=1.0.0")));
 
         assertThat(devicePackages.get("T").getVersion().getValue(), is("2.0.0"));
-        assertThat(devicePackages.get("T").getDependsBy(),
+        assertThat(devicePackages.get("T").getDependsOnBy(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("B", new Semver("1.0.0"), ">=1.0.0")));
-        assertThat(devicePackages.get("T").getDependsBy(),
+        assertThat(devicePackages.get("T").getDependsOnBy(),
                 IsMapContaining.hasValue(new PackageRegistryEntry.Reference("Q", new Semver("1.0.0"), ">=2.0.0")));
         assertThat(devicePackages.get("T").getDependsOn().size(), is(0));
     }

@@ -24,12 +24,20 @@ public class PackageMetadata {
     private final Set<PackageMetadata> dependsOn;
 
     /**
+<<<<<<< HEAD
      * Constructor for PackageMetadata.
      *
      * @param name package name
      * @param version package version
      * @param versionConstraint package version constraint
      * @param dependsOn dependency package information
+=======
+     * package metadata constructor.
+     * @param name package name
+     * @param version package version
+     * @param versionConstraint dependent version constraint
+     * @param dependsOn package dependencies
+>>>>>>> checkstyle, renaming
      */
     public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn) {
         if (Utils.isEmpty(name)) {
@@ -48,11 +56,18 @@ public class PackageMetadata {
     }
 
     /**
+<<<<<<< HEAD
      * Constructor for PackageMetadata when no dependency information is known.
      *
      * @param name package name
      * @param version package version
      * @param constraint package version constraint
+=======
+     * package metadata constructor.
+     * @param name package name
+     * @param version package version
+     * @param constraint dependent version constraint
+>>>>>>> checkstyle, renaming
      */
     public PackageMetadata(String name, String version, String constraint) {
         this(name, version, constraint, null);
