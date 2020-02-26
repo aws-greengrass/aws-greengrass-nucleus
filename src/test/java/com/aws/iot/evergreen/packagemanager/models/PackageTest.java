@@ -2,6 +2,8 @@ package com.aws.iot.evergreen.packagemanager.models;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Set;
 
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import org.junit.jupiter.api.Test;
@@ -26,7 +28,21 @@ public class PackageTest {
         assertEquals("Me", testPkg.getPublisher());
         assertEquals(RecipeTemplateVersion.JAN_25_2020, testPkg.getRecipeTemplateVersion());
         assertEquals("2020-01-25", testPkg.getRecipeTemplateVersion().getRecipeTemplateVersion());
-        assertNotNull(testPkg.getConfig());
+        assertNotNull(testPkg.getLifecycle());
+
+        // TODO: Check for providers
+        assertNotNull(testPkg.getArtifacts());
+
+        // TODO: Check for dependency nodes
+        assertNotNull(testPkg.getDependencies());
+
+        List<String> requiresList = testPkg.getRequires();
+        assertTrue(requiresList.contains("homebrew"));
+
+        Set<PackageParameter> paramList = testPkg.getPackageParameters();
+        assertFalse(paramList.isEmpty());
+        PackageParameter parameter = new PackageParameter("TestParam", "TestVal", "String");
+        assertTrue(paramList.contains(parameter));
     }
 
     @Test
@@ -94,16 +110,5 @@ public class PackageTest {
         assertThrows(IOException.class,
                              () -> TestHelper.getPackageObject(monitorServiceRecipeContents),
                              "Expected IOException but didn't throw");
-    }
-
-    @Test
-    public void GIVEN_recipe_with_no_default_config_WHEN_try_create_package_recipe_THEN_throws_exception()
-            throws IOException, URISyntaxException {
-        String monitorServiceRecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.NO_DEFAULT_CONFIG_PACKAGE_NAME,
-                                                            "1.0.0");
-        assertThrows(IOException.class,
-                     () -> TestHelper.getPackageObject(monitorServiceRecipeContents),
-                     "Expected IOException but didn't throw");
     }
 }
