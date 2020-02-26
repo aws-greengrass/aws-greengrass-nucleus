@@ -14,8 +14,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Install gpg
       run: sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install gnupg
-    - name: Install wget
-      run: sudo apt-get install wget
     - name: Decrypt the test Iot thing private key
       run: ./.github/scripts/decrypt_iot_thing_private_key_and_cert.sh
       env:
