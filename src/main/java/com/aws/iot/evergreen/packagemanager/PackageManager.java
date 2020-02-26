@@ -24,7 +24,7 @@ import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public final class PackageManager {
+public class PackageManager {
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -93,7 +93,7 @@ public final class PackageManager {
             PackageMetadata proposedPackage = processingQueue.poll();
 
             boolean useProposedPackage = true;
-            // first to resolve package version
+            // first, resolve current processing package version
             // check if package exists on the device
             PackageRegistryEntry devicePackage = devicePackages.get(proposedPackage.getName());
             if (devicePackage != null) {
@@ -108,35 +108,39 @@ public final class PackageManager {
                     // check if proposed version meets existing package dependency constraint
                     for (PackageRegistryEntry.Reference dependsOnBy : devicePackage.getDependsOnBy().values()) {
                         if (!proposedPackage.getVersion().satisfies(dependsOnBy.getConstraint())) {
-                            throw new PackageVersionConflictException(String.format("proposed package %s doesn't meet"
-                                    + " dependent %s constraint", proposedPackage, dependsOnBy));
+                            throw new PackageVersionConflictException(
+                                    String.format("proposed package %s doesn't meet" + " dependent %s constraint",
+                                            proposedPackage, dependsOnBy));
                         }
                     }
                 }
             }
 
-            // second to update its dependencies if necessary
+            // second, if decide to use proposed package version, it needs to further process its dependencies
+            // because it can introduce new dependencies into the tree
             if (useProposedPackage) {
                 devicePackage = new PackageRegistryEntry(proposedPackage.getName(), proposedPackage.getVersion(),
                         devicePackage == null ? new HashMap<>() : devicePackage.getDependsOnBy());
                 devicePackages.put(proposedPackage.getName(), devicePackage);
 
                 for (PackageMetadata proposedDependency : proposedPackage.getDependsOn()) {
+                    // populate current package dependencies, but their versions not decided yet
                     devicePackage.getDependsOn().put(proposedDependency.getName(),
                             new PackageRegistryEntry.Reference(proposedDependency.getName(), null,
                                     proposedDependency.getVersionConstraint()));
 
+                    // update dependency's dependsOn with the current package version, because it's determined
                     PackageRegistryEntry dependencyPackageEntry = devicePackages.get(proposedDependency.getName());
                     if (dependencyPackageEntry == null) {
                         dependencyPackageEntry =
                                 new PackageRegistryEntry(proposedDependency.getName(), null, new HashMap<>());
                         devicePackages.put(proposedDependency.getName(), dependencyPackageEntry);
                     }
-                    PackageRegistryEntry.Reference dependBy =
+                    PackageRegistryEntry.Reference dependOnBy =
                             dependencyPackageEntry.getDependsOnBy().get(proposedPackage.getName());
-                    if (dependBy != null) {
-                        dependBy.setVersion(proposedPackage.getVersion());
-                        dependBy.setConstraint(proposedPackage.getVersionConstraint());
+                    if (dependOnBy != null) {
+                        dependOnBy.setVersion(proposedPackage.getVersion());
+                        dependOnBy.setConstraint(proposedPackage.getVersionConstraint());
                     } else {
                         dependencyPackageEntry.getDependsOnBy().put(proposedPackage.getName(),
                                 new PackageRegistryEntry.Reference(proposedPackage.getName(),
@@ -147,7 +151,7 @@ public final class PackageManager {
                 }
             }
 
-            // third to update its dependent
+            // third, update its dependent
             for (PackageRegistryEntry.Reference dependsOnBy : devicePackage.getDependsOnBy().values()) {
                 PackageRegistryEntry dependent = devicePackages.get(dependsOnBy.getName());
                 PackageRegistryEntry.Reference reference = dependent.getDependsOn().get(devicePackage.getName());

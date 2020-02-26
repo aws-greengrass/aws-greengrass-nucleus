@@ -4,16 +4,11 @@ import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@Getter
-@Setter
-@ToString
+@Data
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class PackageRegistryEntry {
 
