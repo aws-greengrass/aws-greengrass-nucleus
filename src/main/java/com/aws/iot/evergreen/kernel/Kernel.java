@@ -11,10 +11,11 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Exec;
-import com.aws.iot.evergreen.util.Log;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -48,7 +49,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 
 import static com.aws.iot.evergreen.util.Utils.close;
@@ -56,10 +56,11 @@ import static com.aws.iot.evergreen.util.Utils.deepToString;
 import static com.aws.iot.evergreen.util.Utils.homePath;
 
 /**
- * Evergreen-kernel
+ * Evergreen-kernel.
  */
 @SuppressFBWarnings(value = "EQ_DOESNT_OVERRIDE_EQUALS", justification = "We don't need equality")
 public class Kernel extends Configuration /*implements Runnable*/ {
+    private static final Logger logger = LogManager.getLogger(Kernel.class);
     private static final String done = new String(" missing ".toCharArray()); // unique marker
     private final Map<String, Class> serviceImplementors = new HashMap<>();
     private final List<String> serviceServerURLlist = new ArrayList<>();
@@ -75,7 +76,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
     private boolean broken = false;
     private ConfigurationWriter tlog;
-    private Consumer<Log.Entry> logWatcher = null;
     private EvergreenService mainService;
     private Collection<EvergreenService> cachedOD = null;
     private String[] args;
@@ -262,23 +262,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 tlog.flushImmediately(true);
             } catch (Throwable ioe) {
                 // Too early in the boot to log a message
-                context.getLog().error("Couldn't read config", ioe);
+                logger.atError().setEventType("system-config-error").setCause(ioe).log();
                 broken = true;
                 return this;
             }
         }
         //        if (broken)
         //            System.exit(126);
-        final Log log = context.getLog();
-        if (!log.isDraining()) {
-            //lookup("system","logfile").
-            lookup("log", "file").dflt("stdout")
-                    .subscribe((w, nv) -> log.logTo(deTilde(Coerce.toString(nv.getOnce()))));
-            lookup("log", "level").dflt(Log.Level.Note)
-                    .validate((nv, ov) -> Coerce.toEnum(Log.Level.class, nv, Log.Level.Note))
-                    .subscribe((w, nv) -> log.setLogLevel((Log.Level) nv.getOnce()));
-        }
-        log.addWatcher(logWatcher);
         if (!forReal) {
             context.put(ShellRunner.class, context.get(ShellRunner.Dryrun.class));
         }
@@ -286,25 +276,24 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             EvergreenService main = getMain(); // Trigger boot  (!?!?)
             autostart.forEach(s -> main.addDependency(s, State.RUNNING));
         } catch (Throwable ex) {
-            log.error("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ", ex);
+            logger.atError().setEventType("system-boot-error").setCause(ex)
+                    .log("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ");
             mainServiceName = "fallbackMain";
             try {
                 getMain(); // trigger fallback boot
             } catch (Throwable t) {
-                log.error("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ", t);
+                logger.atError().setEventType("system-boot-error").setCause(t)
+                        .log("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ");
             }
         }
         writeEffectiveConfig();
         try {
+            logger.atInfo().setEventType("system-start").addKeyValue("main", getMain()).log();
             startupAllServices();
         } catch (Throwable ex) {
-            context.getLog().error("install", ex);
+            logger.atError().setEventType("service-start-error").setCause(ex).log();
         }
         return this;
-    }
-
-    public void setLogWatcher(Consumer<Log.Entry> lw) {
-        logWatcher = lw;
     }
 
     private boolean ensureCreated(Path p) {
@@ -313,7 +302,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             return true;
         } catch (IOException ex) {
-            context.getLog().error("Could not create", p, ex);
+            logger.atError().setEventType("file-path-create-error").setCause(ex)
+                    .addKeyValue("filePath", p).log();
             return false;
         }
     }
@@ -337,7 +327,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.get(EZTemplates.class).rewrite(resource, dest);
             Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
         } catch (Throwable t) {
-            context.getLog().error("installCliTool", t);
+            logger.atError().setEventType("cli-install-error").setCause(t).log();
         }
     }
 
@@ -369,7 +359,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             }
             return cachedOD = ready;
         } catch (Throwable ex) {
-            context.getLog().error(ex);
+            logger.atError().setEventType("resolve-service-dependency-error").setCause(ex).log();
             return Collections.EMPTY_LIST;
         }
     }
@@ -388,20 +378,20 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try (CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
             writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
             out.commit();
-            context.getLog().note("Wrote effective config", p);
+            logger.atInfo().setEventType("effective-config-dump-complete").addKeyValue("file", p).log();
         } catch (Throwable t) {
-            context.getLog().error("Failed to write effective config", t);
+            logger.atInfo().setEventType("effective-config-dump-error")
+                    .setCause(t).addKeyValue("file", p).log();
         }
     }
 
-    public void startupAllServices() throws Throwable {
+    public void startupAllServices() {
         if (broken) {
             return;
         }
-        Log log = context.getLog();
-        log.significant("Installing software", getMain());
         orderedDependencies().forEach(l -> {
-            log.significant("Starting to install", l);
+            logger.atInfo().setEventType("service-install")
+                    .addKeyValue("serviceName", l.getName()).log();
             l.requestStart();
         });
     }
@@ -425,7 +415,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             JSON.std.with(new YAMLFactory().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)).write(h, w);
         } catch (IOException ex) {
-            context.getLog().error("Couldn't write config file", ex);
+            logger.atError().setEventType("write-config-error").setCause(ex).log();
         }
     }
 
@@ -433,16 +423,16 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (broken) {
             return;
         }
-        Log log = context.getLog();
         close(tlog);
         try {
-            log.significant("Shutting everything down", getMain());
+            logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
             for (int i = d.length; --i >= 0; ) { // shutdown in reverse order
                 try {
                     d[i].close();
                 } catch (Throwable t) {
-                    log.error(d[i], "Failed to shutdown", t);
+                    logger.atError().setEventType("service-shutdown-error").addKeyValue("serviceName",
+                            d[i].getName()).setCause(t).log();
                 }
             }
 
@@ -450,12 +440,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             ExecutorService executorService = context.get(ExecutorService.class);
             this.context.runOnPublishQueueAndWait(() -> {
                 executorService.shutdown();
-                log.note("shutdown on executor service");
+                logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
             executorService.awaitTermination(30, TimeUnit.SECONDS);
-            log.note("executor service terminated");
+            logger.atInfo().setEventType("executor-service-shutdown-complete").log();
         } catch (Throwable ex) {
-            log.error("Shutdown hook failure", ex);
+            logger.atError().setEventType("system-shutdown-error").setCause(ex).log();
         }
 
     }

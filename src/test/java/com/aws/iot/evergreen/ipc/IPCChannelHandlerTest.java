@@ -7,7 +7,7 @@ package com.aws.iot.evergreen.ipc;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -16,6 +16,7 @@ import io.netty.util.Attribute;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -61,7 +62,7 @@ public class IPCChannelHandlerTest {
 
     @BeforeEach
     public void setupMocks() throws Exception {
-        router = new IPCChannelHandler(mock(Log.class), mockAuth, ipcRouter);
+        router = new IPCChannelHandler(mockAuth, ipcRouter);
 
         when(mockCtx.channel()).thenReturn(mockChannel);
         when(mockChannel.attr(any())).thenReturn((Attribute) mockAttr);

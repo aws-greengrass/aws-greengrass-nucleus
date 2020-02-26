@@ -5,11 +5,12 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.Validator;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.util.Log;
+import com.aws.iot.evergreen.logging.api.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -33,15 +34,13 @@ class EvergreenServiceTest {
     @Mock
     private Context context;
 
-    @Mock
-    private Log log;
-
     @Captor
     private ArgumentCaptor<Validator> validatorArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
         Mockito.when(config.createLeafChild(Mockito.any())).thenReturn(stateTopic);
+        Mockito.when(config.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
 
         evergreenService = new EvergreenService(config);
         evergreenService.context = context;

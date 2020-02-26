@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.AuthHandler;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
-import com.aws.iot.evergreen.util.Utils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,7 +39,8 @@ public class GenericExternalService extends EvergreenService {
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
             if (c.parentNeedsToKnow() && !child.childOf("shutdown")) {
-                context.getLog().warn(getName(), "responding to change to", child);
+                logger.atInfo().setEventType("service-config-change")
+                        .addKeyValue("configNode", child.getFullName()).log();
                 if (child.childOf("install")) {
                     requestReinstall();
                 } else {
@@ -93,14 +93,17 @@ public class GenericExternalService extends EvergreenService {
                 if (!inShutdown) {
                     if (exit == 0) {
                         this.requestStop();
-                        context.getLog().significant(getName(), "STOPPING");
+                        logger.atInfo().setEventType("generic-service-stopping")
+                                .log("Service finished running.");
                     } else {
                         reportState(State.ERRORED);
-                        context.getLog().error(getName(), "Failed", exit2String(exit));
+                        logger.atError().setEventType("generic-service-errored")
+                                .addKeyValue("exitCode", exit).log();
                     }
                 }
             }) == RunStatus.NothingDone) {
-                context.getLog().significant(getName(), "run: NothingDone");
+                logger.atInfo().setEventType("generic-service-finished")
+                        .log("Nothing done.");
                 this.requestStop();
             }
         }
@@ -113,12 +116,11 @@ public class GenericExternalService extends EvergreenService {
         Exec e = currentScript;
         if (e != null && e.isRunning()) {
             try {
-                context.getLog().significant(getName(), "shutting down", e);
                 e.close();
                 //e.waitClosed(1000);
-                context.getLog().significant(getName(), "shutting down succeed", e);
+                logger.atInfo().setEventType("generic-service-shutdown").log();
             } catch (IOException ioe) {
-                context.getLog().error(this, "shutdown failure", Utils.getUltimateMessage(ioe));
+                logger.atError().setEventType("generic-service-shutdown-error").setCause(ioe).log();
             }
         }
 
@@ -158,7 +160,7 @@ public class GenericExternalService extends EvergreenService {
         currentScript = exec;
         if (exec != null) { // there's something to run
             addEnv(exec, t.parent);
-            context.getLog().significant(this, "exec", cmd);
+            logger.atDebug().setEventType("generic-service-run").log();
             RunStatus ret = shellRunner.successful(exec, cmd, background) ? RunStatus.OK : RunStatus.Errored;
             if (background == null) {
                 currentScript = null;
@@ -175,11 +177,13 @@ public class GenericExternalService extends EvergreenService {
             if (script instanceof Topic) {
                 return run((Topic) script, background, t);
             } else {
-                errored("Missing script: for ", t.getFullName());
+                logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode",
+                        t.getFullName()).log("Missing script");
+                serviceErrored();
                 return RunStatus.Errored;
             }
         } else {
-            context.getLog().significant("Skipping", t.getFullName());
+            logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
             return RunStatus.OK;
         }
     }
@@ -205,7 +209,9 @@ public class GenericExternalService extends EvergreenService {
                     case "true":
                         return !neg;
                     default:
-                        errored("Unknown operator", m.group(1));
+                        logger.atError().setEventType("generic-service-invalid-config").addKeyValue("operator",
+                                m.group(1)).log("Unknown operator in skipif");
+                        serviceErrored();
                         return false;
                 }
             }

@@ -4,6 +4,8 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -16,6 +18,8 @@ import javax.annotation.Nonnull;
 
 public class Topics extends Node implements Iterable<Node> {
     public final ConcurrentHashMap<String, Node> children = new ConcurrentHashMap<>();
+
+    private static final Logger logger = LogManager.getLogger(Topics.class);
 
     Topics(Context c, String n, Topics p) {
         super(c, n, p);
@@ -197,6 +201,8 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     protected void childChanged(WhatHappened what, Node child) {
+        logger.atDebug().setEventType("config-node-child-update").addKeyValue("configNode",
+                getFullName()).addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
                 try {
@@ -206,7 +212,9 @@ public class Topics extends Node implements Iterable<Node> {
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
-                    context.getLog().error(getFullName(), ex);
+                    logger.atError().setCause(ex).setEventType("config-node-child-update-error")
+                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
+                            .addKeyValue("reason", what.name()).log();
                 }
             }
         }

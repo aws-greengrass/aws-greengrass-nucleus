@@ -7,12 +7,10 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.util.Log;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
@@ -31,13 +29,11 @@ import javax.inject.Singleton;
  * Otherwise, it the update will be processed immediately, assuming that all disruptability
  * checks pass.
  */
-@ImplementsService(name = "update", autostart = true)
+@ImplementsService(name = "SafeSystemUpdate", autostart = true)
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
     private final LinkedHashMap<String, Crashable> pendingActions = new LinkedHashMap<>();
     private final CopyOnWriteArrayList<DisruptableCheck> disruptableChecks = new CopyOnWriteArrayList<>();
-    @Inject
-    Log log;
 
     public UpdateSystemSafelyService(Topics c) {
         super(c);
@@ -62,7 +58,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
      */
     public synchronized void addUpdateAction(String tag, Crashable action) {
         pendingActions.put(tag, action);
-        log.note(getName(), "Adding update action", tag);
+        logger.atDebug().setEventType("register-service-update-action").addKeyValue("action", tag).log();
         if (!isPeriodic()) {
             requestStart();
         }
@@ -72,8 +68,10 @@ public class UpdateSystemSafelyService extends EvergreenService {
         for (Map.Entry<String, Crashable> todo : pendingActions.entrySet()) {
             try {
                 todo.getValue().run();
+                logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
             } catch (Throwable t) {
-                log.error(getName(), "Error processing system update", todo.getKey(), t);
+                logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
+                        .setCause(t).log();
             }
         }
         pendingActions.clear();
@@ -87,14 +85,16 @@ public class UpdateSystemSafelyService extends EvergreenService {
     public void startup() {
         // startup() is invoked on it's own thread
         reportState(State.RUNNING);
-        log.note(getName(), "Checking for updates");
+        logger.atInfo().setEventType("check-available-service-update").log();
+
         while (!pendingActions.isEmpty()) {
             // TODO: should really use an injected clock to support simulation-time
             //      it's a big project and would affect many parts of the system.
             final long now = System.currentTimeMillis();
             long maxt = now;
 
-            log.note(getName(), "updates pending:", pendingActions.size());
+            logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
+                    .log();
             for (DisruptableCheck c : disruptableChecks) {
                 long ct = c.whenIsDisruptionOK();
                 if (ct > maxt) {
@@ -103,18 +103,18 @@ public class UpdateSystemSafelyService extends EvergreenService {
             }
             if (maxt > now) {
                 try {
-                    log.note(getName(), "Holding for", maxt - now, "millis");
+                    logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS",
+                            maxt - now).log();
                     Thread.sleep(maxt - now);
                 } catch (InterruptedException ignored) {
                 }
             } else {
-                log.note(getName(), "Queueing update actions");
+                logger.atDebug().setEventType("service-update-scheduled").log();
                 context.runOnPublishQueueAndWait(() -> {
-                    log.note(getName(), "Starting safe-time update");
+                    logger.atInfo().setEventType("service-update-start").log();
                     runUpdateActions();
-                    log.note(getName(), "Finished read-phase of safe-time update");
+                    logger.atInfo().setEventType("service-update-finish").log();
                 });
-                log.note(getName(), "Back on run Q safe-time update");
             }
         }
         this.requestStop();
