@@ -50,9 +50,6 @@ class PackageManagerTest {
     @Mock
     private PackageStore packageStore;
 
-    @Mock
-    private PackageStore mockRepository;
-
     //   A
     //  / \
     // B  Q
