@@ -42,21 +42,8 @@ public class PackageManager {
      * Given a set of proposed package dependency trees.
      * Return the local resolved dependency tress in the future
      */
-<<<<<<< HEAD
-<<<<<<< HEAD
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
-=======
-    public Future<Map<PackageMetadata, Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
-=======
-    public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
-<<<<<<< HEAD
->>>>>>> change to return set instead of map
-        this.proposedPackages = proposedPackages;
-
-        return executorService.submit((Callable<Set<Package>>) this::resolvePackages);
-=======
         return executorService.submit(() -> resolveDependencies(proposedPackages));
->>>>>>> handle some comments
     }
 
     /*
@@ -171,12 +158,7 @@ public class PackageManager {
      * Return the packages got successfully downloaded
      */
     private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
-<<<<<<< HEAD
->>>>>>> package manager API definition
-        return null;
-=======
         return pendingDownloadPackages;
->>>>>>> handle some comments
     }
 
     /*
