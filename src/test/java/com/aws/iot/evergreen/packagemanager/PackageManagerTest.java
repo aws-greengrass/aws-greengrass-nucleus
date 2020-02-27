@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
 import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.collection.IsMapContaining;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -41,7 +42,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PackageManagerTest {
 
-    @InjectMocks
     private PackageManager packageManager;
 
     @Mock
@@ -49,6 +49,14 @@ class PackageManagerTest {
 
     @Mock
     private PackageStore packageStore;
+
+    @Mock
+    private PackageStore mockRepository;
+
+    @BeforeEach
+    void beforeEach() {
+        this.packageManager = new PackageManager(packageRegistry, packageStore, mockRepository);
+    }
 
     //   A
     //  / \
