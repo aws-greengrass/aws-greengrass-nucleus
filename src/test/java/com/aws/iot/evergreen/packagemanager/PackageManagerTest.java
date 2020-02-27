@@ -1,39 +1,66 @@
 package com.aws.iot.evergreen.packagemanager;
 
+<<<<<<< HEAD
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
+=======
+
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
+import com.aws.iot.evergreen.packagemanager.models.Package;
+>>>>>>> package manager load packages
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
+import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+<<<<<<< HEAD
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+=======
+>>>>>>> package manager load packages
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.core.IsNull.notNullValue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class PackageManagerTest {
 
+    @InjectMocks
     private PackageManager packageManager;
 
-    PackageManagerTest() throws IOException, URISyntaxException {
-        this.packageManager = new PackageManager(new PackageRegistryImpl(),
-                                                 TestHelper.getPathForLocalTestCache(),
-                                                 TestHelper.getPathForMockRepository());
-    }
+    @Mock
+    private PackageRegistry packageRegistry;
+
+    @Mock
+    private PackageStore packageStore;
+
+    @Mock
+    private PackageStore mockRepository;
 
     //   A
     //  / \
@@ -86,6 +113,11 @@ class PackageManagerTest {
     @Test
     void GIVEN_package_entries_WHEN_download_request_THEN_packages_downloaded()
             throws IOException, PackagingException, URISyntaxException {
+
+        this.packageManager = new PackageManager(new PackageRegistryImpl(),
+                TestHelper.getPathForLocalTestCache(),
+                TestHelper.getPathForMockRepository());
+
         PackageRegistryEntry logEntry = new PackageRegistryEntry(TestHelper.LOG_PACKAGE_NAME,
                                                                  new Semver("1.0.0"), null);
         PackageRegistryEntry monitorEntry = new PackageRegistryEntry(TestHelper.COOL_DB_PACKAGE_NAME,
@@ -111,4 +143,81 @@ class PackageManagerTest {
         assertTrue(Files.exists(coolDBOutPath.resolve("recipe.yaml")));
     }
 
+    @Test
+    void GIVEN_packages_in_registry_WHEN_load_package_by_target_name_THEN_decide_package_tree()
+            throws PackagingException, IOException {
+        PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
+        PackageRegistryEntry entryB = new PackageRegistryEntry("B", new Semver("1.0.0"), Collections.emptyMap());
+        PackageRegistryEntry entryC = new PackageRegistryEntry("C", new Semver("1.0.0"), Collections.emptyMap());
+        PackageRegistryEntry entryD = new PackageRegistryEntry("D", new Semver("1.0.0"), Collections.emptyMap());
+
+        entryA.getDependsOn().put("B", new PackageRegistryEntry.Reference("B", new Semver("1.0.0"), ">=1.0.0"));
+        entryA.getDependsOn().put("C", new PackageRegistryEntry.Reference("C", new Semver("1.0.0"), ">=1.0.0"));
+        entryB.getDependsOn().put("D", new PackageRegistryEntry.Reference("D", new Semver("1.0.0"), ">=1.0.0"));
+
+        Map<String, PackageRegistryEntry> activePackages = new HashMap<>();
+        activePackages.put("A", entryA);
+        activePackages.put("B", entryB);
+        activePackages.put("C", entryC);
+        activePackages.put("D", entryD);
+
+        Package pkgA = new Package(null, "A", new Semver("1.0.0"), null, null, null, null, null, null, null);
+        when(packageStore.getPackage("A", new Semver("1.0.0"))).thenReturn(Optional.of(pkgA));
+        Package pkgB = new Package(null, "B", new Semver("1.0.0"), null, null, null, null, null, null, null);
+        when(packageStore.getPackage("B", new Semver("1.0.0"))).thenReturn(Optional.of(pkgB));
+        Package pkgC = new Package(null, "C", new Semver("1.0.0"), null, null, null, null, null, null, null);
+        when(packageStore.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
+        Package pkgD = new Package(null, "D", new Semver("1.0.0"), null, null, null, null, null, null, null);
+        when(packageStore.getPackage("D", new Semver("1.0.0"))).thenReturn(Optional.of(pkgD));
+        Package pkg = packageManager.loadPackage("A", activePackages);
+
+        assertThat(pkg.getPackageName(), is("A"));
+        assertThat(pkg.getDependencyPackages().size(), is(2));
+        assertThat(pkg.getDependencyPackages().contains(pkgB), is(true));
+        assertThat(pkg.getDependencyPackages().contains(pkgC), is(true));
+        pkg = pkg.getDependencyPackages().stream().filter(p -> p.getPackageName().equals("B")).findAny().orElse(null);
+        assertThat(pkg, notNullValue());
+        assertThat(pkg.getDependencyPackages().size(), is(1));
+        assertThat(pkg.getDependencyPackages().contains(pkgD), is(true));
+    }
+
+    @Test
+    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_throw_exception()
+            throws IOException, PackagingException {
+        when(packageStore.getPackage(anyString(), any())).thenThrow(new IOException());
+        PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
+
+        try {
+            packageManager.loadPackage("A", Collections.singletonMap("A", entryA));
+            fail();
+        } catch (PackageLoadingException e) {
+            assertThat(e.getMessage(), is("failed to load package A from package store"));
+        }
+    }
+
+    @Test
+    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_return_nothing()
+            throws IOException, PackagingException {
+        when(packageStore.getPackage(anyString(), any())).thenReturn(Optional.empty());
+        PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
+
+        try {
+            packageManager.loadPackage("A", Collections.singletonMap("A", entryA));
+            fail();
+        } catch (PackageLoadingException e) {
+            assertThat(e.getMessage(), is("package A not found"));
+        }
+    }
+
+    @Test
+    void GIVEN_packages_not_in_registry_WHEN_load_package_THEN_fail_to_proceed() {
+        PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
+
+        try {
+            packageManager.loadPackage("B", Collections.singletonMap("A", entryA));
+            fail();
+        } catch (PackageLoadingException e) {
+            assertThat(e.getMessage(), is("package B not found in registry"));
+        }
+    }
 }

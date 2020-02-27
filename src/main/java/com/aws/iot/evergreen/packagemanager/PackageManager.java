@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
@@ -17,7 +18,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -35,9 +35,8 @@ public class PackageManager {
 
     // TODO: Temporary hard coding, this should be initialized from config
     private static final Path CACHE_DIRECTORY = Paths.get(System.getProperty("user.dir")).resolve("artifact_cache");
-    private static final Path MOCK_PACKAGE_SOURCE = Paths.get(System.getProperty("user.dir"))
-                                                         .resolve("mock_artifact_source");
-
+    private static final Path MOCK_PACKAGE_SOURCE =
+            Paths.get(System.getProperty("user.dir")).resolve("mock_artifact_source");
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -50,27 +49,27 @@ public class PackageManager {
 
     /**
      * Constructor with hardcoded local cache and mock source paths.
-     *
-     * @param packageRegistry Registry object to store active package information
      */
-    public PackageManager(final PackageRegistry packageRegistry) {
+    public PackageManager() {
 
         this.localCache = new LocalPackageStore(CACHE_DIRECTORY);
         this.mockPackageRepository = new LocalPackageStore(MOCK_PACKAGE_SOURCE);
-        this.packageRegistry = packageRegistry;
+        this.packageRegistry = new PackageRegistryImpl();
     }
 
-    /**
-     * Constructor that takes cache/source path as input.
-     *
-     * @param packageRegistry Registry object to store active package information
-     * @param cacheDirPath Path to local cache
-     * @param mockDirPath Path to mock package source
-     */
-    public PackageManager(final PackageRegistry packageRegistry, final Path cacheDirPath, final Path mockDirPath) {
+    //TODO mock package store in unit tests, remove this constructor
+    @Deprecated
+    PackageManager(final PackageRegistry packageRegistry, final Path cacheDirPath, final Path mockDirPath) {
 
         this.localCache = new LocalPackageStore(cacheDirPath);
         this.mockPackageRepository = new LocalPackageStore(mockDirPath);
+        this.packageRegistry = packageRegistry;
+    }
+
+    PackageManager(final PackageRegistry packageRegistry, PackageStore localCache, PackageStore mockRepository) {
+
+        this.localCache = localCache;
+        this.mockPackageRepository = mockRepository;
         this.packageRegistry = packageRegistry;
     }
 
@@ -87,7 +86,7 @@ public class PackageManager {
      * figure out new package dependencies.
      */
     private Set<Package> resolveDependencies(Set<PackageMetadata> proposedPackages)
-            throws PackageVersionConflictException, PackageDownloadException {
+            throws PackageVersionConflictException, PackageDownloadException, PackageLoadingException {
         Map<String, PackageRegistryEntry> activePackages = packageRegistry.findActivePackages().stream()
                 .collect(Collectors.toMap(PackageRegistryEntry::getName, Function.identity()));
         Set<PackageRegistryEntry> beforePackageSet = new HashSet<>(activePackages.values());
@@ -97,8 +96,7 @@ public class PackageManager {
         }
 
         Set<PackageRegistryEntry> pendingDownloadPackages =
-                activePackages.values().stream().filter(p -> !beforePackageSet.contains(p))
-                        .collect(Collectors.toSet());
+                activePackages.values().stream().filter(p -> !beforePackageSet.contains(p)).collect(Collectors.toSet());
         //TODO this needs to revisit, do we want one fail all or supporting partial download
         Set<PackageRegistryEntry> downloadedPackages;
         try {
@@ -112,7 +110,8 @@ public class PackageManager {
 
         packageRegistry.updateActivePackages(new ArrayList<>(activePackages.values()));
 
-        return loadPackages(proposedPackages.stream().map(PackageMetadata::getName).collect(Collectors.toSet()));
+        return loadPackages(proposedPackages.stream().map(PackageMetadata::getName).collect(Collectors.toSet()),
+                activePackages);
     }
 
     void resolveDependencies(PackageMetadata packageMetadata, Map<String, PackageRegistryEntry> devicePackages)
@@ -216,8 +215,33 @@ public class PackageManager {
     /**
      * Given a set of target package names, return their resolved dependency trees with recipe data initialized.
      */
-    private Set<Package> loadPackages(Set<String> packageNames) {
-        return Collections.emptySet();
+    private Set<Package> loadPackages(Set<String> packageNames, Map<String, PackageRegistryEntry> activePackages)
+            throws PackageLoadingException {
+        Set<Package> packages = new HashSet<>();
+        for (String packageName : packageNames) {
+            packages.add(loadPackage(packageName, activePackages));
+        }
+        return packages;
     }
 
+    Package loadPackage(String name, Map<String, PackageRegistryEntry> activePackages) throws PackageLoadingException {
+        PackageRegistryEntry packageEntry = activePackages.get(name);
+        if (packageEntry == null) {
+            throw new PackageLoadingException(String.format("package %s not found in registry", name));
+        }
+        Optional<Package> packageOptional;
+        try {
+            packageOptional = localCache.getPackage(packageEntry.getName(), packageEntry.getVersion());
+        } catch (Exception e) {
+            throw new PackageLoadingException(String.format("failed to load package %s from package store", name), e);
+        }
+
+        Package pkg = packageOptional
+                .orElseThrow(() -> new PackageLoadingException(String.format("package %s not found", name)));
+
+        for (PackageRegistryEntry.Reference dependOn : packageEntry.getDependsOn().values()) {
+            pkg.getDependencyPackages().add(loadPackage(dependOn.getName(), activePackages));
+        }
+        return pkg;
+    }
 }

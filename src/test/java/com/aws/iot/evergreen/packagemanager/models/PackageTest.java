@@ -34,7 +34,7 @@ public class PackageTest {
         assertNotNull(testPkg.getArtifacts());
 
         // TODO: Check for dependency nodes
-        assertNotNull(testPkg.getDependencies());
+        assertNotNull(testPkg.getDependencyPackages());
 
         List<String> requiresList = testPkg.getRequires();
         assertTrue(requiresList.contains("homebrew"));
