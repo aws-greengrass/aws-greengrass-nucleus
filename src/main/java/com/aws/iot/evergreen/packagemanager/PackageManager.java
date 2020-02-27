@@ -221,14 +221,20 @@ public class PackageManager {
     private Set<Package> loadPackages(Set<String> packageNames, Map<String, PackageRegistryEntry> activePackages)
             throws PackageLoadingException {
         Set<Package> packages = new HashSet<>();
+        Map<PackageRegistryEntry, Package> packageCache = new HashMap<>();
         for (String packageName : packageNames) {
-            packages.add(loadPackage(packageName, activePackages));
+            packages.add(loadPackage(packageName, activePackages, packageCache));
         }
         return packages;
     }
 
-    Package loadPackage(String name, Map<String, PackageRegistryEntry> activePackages) throws PackageLoadingException {
+    Package loadPackage(String name, Map<String, PackageRegistryEntry> activePackages,
+                        Map<PackageRegistryEntry, Package> packageCache) throws PackageLoadingException {
         PackageRegistryEntry packageEntry = activePackages.get(name);
+        if (packageCache.containsKey(packageEntry)) {
+            return packageCache.get(packageEntry);
+        }
+
         if (packageEntry == null) {
             throw new PackageLoadingException(String.format("package %s not found in registry", name));
         }
@@ -241,9 +247,10 @@ public class PackageManager {
 
         Package pkg = packageOptional
                 .orElseThrow(() -> new PackageLoadingException(String.format("package %s not found", name)));
+        packageCache.put(packageEntry, pkg);
 
         for (PackageRegistryEntry.Reference dependOn : packageEntry.getDependsOn().values()) {
-            pkg.getDependencyPackages().add(loadPackage(dependOn.getName(), activePackages));
+            pkg.getDependencyPackages().add(loadPackage(dependOn.getName(), activePackages, packageCache));
         }
         return pkg;
     }
