@@ -189,7 +189,6 @@ public class PackageManager {
         }
     }
 
-<<<<<<< HEAD
     /**
      * Given a set of pending refresh packages, download the package recipes and artifacts in background.
      * Return the packages got successfully downloaded
@@ -209,15 +208,6 @@ public class PackageManager {
         return downloadedPackages;
     }
 
-    /**
-     * Given a set of target package names, return their resolved dependency trees with recipe data initialized.
-     */
-=======
-    private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
-        return pendingDownloadPackages;
-    }
-
->>>>>>> add more explanations
     private Set<Package> loadPackages(Set<String> packageNames, Map<String, PackageRegistryEntry> activePackages)
             throws PackageLoadingException {
         Set<Package> packages = new HashSet<>();
