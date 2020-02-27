@@ -66,11 +66,11 @@ public class PackageManager {
         this.packageRegistry = packageRegistry;
     }
 
-    PackageManager(final PackageRegistry packageRegistry, PackageStore localCache) {
+    PackageManager(final PackageRegistry packageRegistry, PackageStore localCache, PackageStore mockRepository) {
 
         this.localCache = localCache;
         this.packageRegistry = packageRegistry;
-        this.mockPackageRepository = null;
+        this.mockPackageRepository = mockRepository;
     }
 
     /**
@@ -80,7 +80,7 @@ public class PackageManager {
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
         return executorService.submit(() -> resolveDependencies(proposedPackages));
     }
-    
+
     private Set<Package> resolveDependencies(Set<PackageMetadata> proposedPackages)
             throws PackageVersionConflictException, PackageDownloadException, PackageLoadingException {
         Map<String, PackageRegistryEntry> activePackages = packageRegistry.findActivePackages().stream()
