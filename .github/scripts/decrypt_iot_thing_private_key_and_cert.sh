@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 # Decrypt the file
 mkdir -p $HOME/secrets
