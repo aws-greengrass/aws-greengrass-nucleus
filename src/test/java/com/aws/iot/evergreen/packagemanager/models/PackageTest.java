@@ -24,7 +24,7 @@ public class PackageTest {
                                                             "1.0.0");
         Package testPkg = TestHelper.getPackageObject(recipeContents);
         assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, testPkg.getPackageName());
-        assertTrue(testPkg.getPackageVersion().isEqualTo("1.0.0"));
+        assertTrue(testPkg.getVersion().isEqualTo("1.0.0"));
         assertEquals("Me", testPkg.getPublisher());
         assertEquals(RecipeTemplateVersion.JAN_25_2020, testPkg.getRecipeTemplateVersion());
         assertEquals("2020-01-25", testPkg.getRecipeTemplateVersion().getRecipeTemplateVersion());

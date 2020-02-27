@@ -5,17 +5,24 @@ package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
+import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
+import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
 import com.vdurmont.semver4j.Semver;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -26,15 +33,44 @@ import java.util.stream.Collectors;
 
 public class PackageManager {
 
+    // TODO: Temporary hard coding, this should be initialized from config
+    private static final Path CACHE_DIRECTORY = Paths.get(System.getProperty("user.dir")).resolve("artifact_cache");
+    private static final Path MOCK_PACKAGE_SOURCE = Paths.get(System.getProperty("user.dir"))
+                                                         .resolve("mock_artifact_source");
+
+
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private final PackageRegistry packageRegistry;
 
-    public PackageManager() {
-        this.packageRegistry = new PackageRegistryImpl();
+    private final PackageStore localCache;
+
+    // TODO: Temporary, should be list of stores
+    private final PackageStore mockPackageRepository;
+
+    /**
+     * Constructor with hardcoded local cache and mock source paths.
+     *
+     * @param packageRegistry Registry object to store active package information
+     */
+    public PackageManager(final PackageRegistry packageRegistry) {
+
+        this.localCache = new LocalPackageStore(CACHE_DIRECTORY);
+        this.mockPackageRepository = new LocalPackageStore(MOCK_PACKAGE_SOURCE);
+        this.packageRegistry = packageRegistry;
     }
 
-    PackageManager(PackageRegistry packageRegistry) {
+    /**
+     * Constructor that takes cache/source path as input.
+     *
+     * @param packageRegistry Registry object to store active package information
+     * @param cacheDirPath Path to local cache
+     * @param mockDirPath Path to mock package source
+     */
+    public PackageManager(final PackageRegistry packageRegistry, final Path cacheDirPath, final Path mockDirPath) {
+
+        this.localCache = new LocalPackageStore(cacheDirPath);
+        this.mockPackageRepository = new LocalPackageStore(mockDirPath);
         this.packageRegistry = packageRegistry;
     }
 
@@ -63,8 +99,13 @@ public class PackageManager {
         Set<PackageRegistryEntry> pendingDownloadPackages =
                 activePackages.values().stream().filter(p -> !beforePackageSet.contains(p))
                         .collect(Collectors.toSet());
-        Set<PackageRegistryEntry> downloadedPackages = downloadPackages(pendingDownloadPackages);
         //TODO this needs to revisit, do we want one fail all or supporting partial download
+        Set<PackageRegistryEntry> downloadedPackages;
+        try {
+            downloadedPackages = downloadPackages(pendingDownloadPackages);
+        } catch (IOException | PackagingException e) {
+            throw new PackageDownloadException("not all the packages have been successfully downloaded");
+        }
         if (pendingDownloadPackages.size() != downloadedPackages.size()) {
             throw new PackageDownloadException("not all the packages have been successfully downloaded");
         }
@@ -153,16 +194,27 @@ public class PackageManager {
         }
     }
 
-    /*
-     * Given a set of pending refresh packages, download the package recipes and artifacts in background
+    /**
+     * Given a set of pending refresh packages, download the package recipes and artifacts in background.
      * Return the packages got successfully downloaded
      */
-    private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
-        return pendingDownloadPackages;
+    public Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages)
+            throws IOException, PackagingException {
+        // TODO: Trying to match provided API but this should be simplified, too many redundant ops across APIs
+        // This can potentially just return packages directly
+        Set<PackageRegistryEntry> downloadedPackages = new HashSet<>();
+        for (PackageRegistryEntry packageEntry : pendingDownloadPackages) {
+            Optional<Package> pkg = mockPackageRepository.getPackage(packageEntry.getName(), packageEntry.getVersion());
+            if (pkg.isPresent()) {
+                localCache.cachePackageRecipeAndArtifacts(pkg.get());
+                downloadedPackages.add(packageEntry);
+            }
+        }
+        return downloadedPackages;
     }
 
-    /*
-     * Given a set of target package names, return their resolved dependency trees with recipe data initialized
+    /**
+     * Given a set of target package names, return their resolved dependency trees with recipe data initialized.
      */
     private Set<Package> loadPackages(Set<String> packageNames) {
         return Collections.emptySet();

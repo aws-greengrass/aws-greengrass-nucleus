@@ -14,7 +14,13 @@ public interface PackageStore {
     Optional<Package> getPackage(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException;
 
+    Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
+            throws PackagingException, IOException;
+
     void cachePackageArtifacts(Package evgPackage) throws PackagingException;
+
+    void cachePackageRecipeAndArtifacts(Package evgPackage)
+            throws PackagingException;
 
     void cachePackageRecipeAndArtifacts(Package evgPackage, final String recipeContents)
             throws PackagingException;

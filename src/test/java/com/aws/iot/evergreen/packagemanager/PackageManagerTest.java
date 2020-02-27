@@ -1,25 +1,39 @@
 package com.aws.iot.evergreen.packagemanager;
 
-
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.Is.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PackageManagerTest {
 
-    private PackageManager packageManager = new PackageManager(new PackageRegistryImpl());
+    private PackageManager packageManager;
+
+    PackageManagerTest() throws IOException, URISyntaxException {
+        this.packageManager = new PackageManager(new PackageRegistryImpl(),
+                                                 TestHelper.getPathForLocalTestCache(),
+                                                 TestHelper.getPathForMockRepository());
+    }
 
     //   A
     //  / \
@@ -67,5 +81,34 @@ class PackageManagerTest {
     }
 
     // To be add more unit tests
+
+    // TODO: This should mock the local/source repositories
+    @Test
+    void GIVEN_package_entries_WHEN_download_request_THEN_packages_downloaded()
+            throws IOException, PackagingException, URISyntaxException {
+        PackageRegistryEntry logEntry = new PackageRegistryEntry(TestHelper.LOG_PACKAGE_NAME,
+                                                                 new Semver("1.0.0"), null);
+        PackageRegistryEntry monitorEntry = new PackageRegistryEntry(TestHelper.COOL_DB_PACKAGE_NAME,
+                                                                     new Semver("1.0.0"), null);
+
+        Set<PackageRegistryEntry> entries = new HashSet<>();
+        entries.add(logEntry);
+        entries.add(monitorEntry);
+
+        Set<PackageRegistryEntry> downloadOut = packageManager.downloadPackages(entries);
+        assertEquals(2, downloadOut.size());
+        assertThat(downloadOut, hasItems(logEntry, monitorEntry));
+
+        Path logOutPath = TestHelper.getPathForLocalTestCache()
+                                    .resolve(TestHelper.LOG_PACKAGE_NAME)
+                                    .resolve("1.0.0");
+        Path coolDBOutPath = TestHelper.getPathForLocalTestCache()
+                                       .resolve(TestHelper.COOL_DB_PACKAGE_NAME)
+                                       .resolve("1.0.0");
+        assertTrue(Files.exists(logOutPath));
+        assertTrue(Files.exists(logOutPath.resolve("recipe.yaml")));
+        assertTrue(Files.exists(coolDBOutPath));
+        assertTrue(Files.exists(coolDBOutPath.resolve("recipe.yaml")));
+    }
 
 }
