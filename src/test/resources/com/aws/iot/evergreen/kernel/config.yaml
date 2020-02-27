@@ -121,31 +121,20 @@ main:
     skipif: true
     all: echo All installed
   requires:
-    macos: jdk11, git, hello-docker, hello-docker-nginx, mqtt, hello, ticktock:INSTALLED
-    linux: jdk11, git, mqtt, hello, ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
+    macos: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock:INSTALLED
+    linux: jdk11, git, mqtt, ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
   xyzzy: localhttp, broken
   setenv:
-      ANSWER: 42
-  main:
-      install:
-          skipif: true
-          all: echo All installed
-      requires:
-        macos: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock:INSTALLED
-        linux: jdk11, git, mqtt, ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
-      xyzzy: localhttp, broken
-      setenv:
-          JUSTME: fancy a spot of tea?
-      run: |-
-        echo $PATH
-        pwd
-        printenv
-        while true; do
-        date; sleep 5; echo RUNNING
-        done
-      download:
-        hw.jar: http://foo/hw.jar
-      args: -jar {hw.jar}
-  system:
-      ServiceSearchList: https://raw.githubusercontent.com/JamesGosling/SailingForecast/master/docs/evg/
-
+    JUSTME: fancy a spot of tea?
+  run: |-
+    echo $PATH
+    pwd
+    printenv
+    while true; do
+    date; sleep 5; echo RUNNING
+    done
+  download:
+    hw.jar: http://foo/hw.jar
+  args: -jar {hw.jar}
+system:
+  ServiceSearchList: https://raw.githubusercontent.com/JamesGosling/SailingForecast/master/docs/evg/
