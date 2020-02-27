@@ -6,7 +6,6 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.Log;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.io.ClientBootstrap;

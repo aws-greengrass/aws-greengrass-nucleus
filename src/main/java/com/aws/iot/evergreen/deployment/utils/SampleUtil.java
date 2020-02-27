@@ -6,7 +6,6 @@ package com.aws.iot.evergreen.deployment.utils;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.Log;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
