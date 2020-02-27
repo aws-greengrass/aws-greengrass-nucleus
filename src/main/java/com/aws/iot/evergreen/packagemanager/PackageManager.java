@@ -26,13 +26,13 @@ import java.util.stream.Collectors;
 
 public class PackageManager {
 
-    public static PackageManager createInstance() {
-        return new PackageManager(new PackageRegistryImpl());
-    }
-
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private final PackageRegistry packageRegistry;
+
+    public PackageManager() {
+        this.packageRegistry = new PackageRegistryImpl();
+    }
 
     PackageManager(PackageRegistry packageRegistry) {
         this.packageRegistry = packageRegistry;
