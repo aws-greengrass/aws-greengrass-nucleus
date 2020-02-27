@@ -53,26 +53,25 @@ public class Package {
 
     @JsonIgnore
     private Set<Package> dependencyPackages;
+
     /**
-     * Constructor for Deserialize.
+     * Constructor for Jackson to deserialize.
      *
      * @param recipeTemplateVersion Template version found in the Recipe file
-     * @param packageName Name of the package
-     * @param version Version of the package
-     * @param description Description metadata
-     * @param publisher Name of the publisher
-     * @param packageParameters Parameters included in the recipe
-     * @param lifecycle Lifecycle definitions
-     * @param artifacts Artifact definitions
-     * @param dependencies List of dependencies
-     * @param requires Package Requires
+     * @param packageName           Name of the package
+     * @param version               Version of the package
+     * @param description           Description metadata
+     * @param publisher             Name of the publisher
+     * @param packageParameters     Parameters included in the recipe
+     * @param lifecycle             Lifecycle definitions
+     * @param artifacts             Artifact definitions
+     * @param dependencies          List of dependencies
+     * @param requires              Package Requires
      */
     @JsonCreator
     public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
-                   @JsonProperty("PackageName") String packageName,
-                   @JsonProperty("Version") Semver version,
-                   @JsonProperty("Description") String description,
-                   @JsonProperty("Publisher") String publisher,
+                   @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
+                   @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
                    @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
                    @JsonProperty("Lifecycle") Map<String, Object> lifecycle,
                    @JsonProperty("Artifacts") List<String> artifacts,

@@ -67,7 +67,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
     private static final String done = new String(" missing ".toCharArray()); // unique marker
     private final Map<String, Class> serviceImplementors = new HashMap<>();
-    private final List<String> serviceServerURLlist = new ArrayList<>();
+    private final List<String> serviceServerURLList = new ArrayList<>();
     public Path rootPath;
     public Path configPath;
     public Path clitoolPath;
@@ -85,9 +85,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String[] args;
     private String arg;
     private int argpos = 0;
-    private boolean serviceServerURLlistIsPopulated;
+    private boolean serviceServerURLListIsPopulated;
 
-    @SuppressWarnings("LeakingThisInConstructor")
+    /**
+     * Construct the Kernel and global Context.
+     */
     public Kernel() {
         super(new Context());
         context.put(Configuration.class, this);
@@ -99,21 +101,17 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(ExecutorService.class, ses);
         context.put(ThreadPoolExecutor.class, ses);
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
-
     }
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
     }
 
-    public static long mtime(Path p) {
-        try {
-            return Files.getLastModifiedTime(p).toMillis();
-        } catch (IOException ex) {
-            return 0;
-        }
-    }
-
+    /**
+     * Parse command line arguments before starting.
+     *
+     * @param args user-provided arguments
+     */
     public Kernel parseArgs(String... args) {
         Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
@@ -209,6 +207,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         return this;
     }
 
+    /**
+     * Startup the Kernel and all services.
+     */
     public Kernel launch() {
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
         installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
@@ -317,6 +318,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
+    /**
+     * Get a reference to the main service.
+     */
     public EvergreenService getMain() {
         EvergreenService m = mainService;
         if (m == null) {
@@ -325,6 +329,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         return m;
     }
 
+    /**
+     * Install the CLI tool from the URL into the home directory.
+     * @param resource URL of the file to install
+     */
     public void installCliTool(URL resource) {
         try {
             String dp = resource.getPath();
@@ -344,6 +352,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         cachedOD = null;
     }
 
+    /**
+     * Get a list of all dependencies in order (with the main service as the last).
+     * @return collection of services in dependency order
+     */
     public synchronized Collection<EvergreenService> orderedDependencies() {
         if (cachedOD != null) {
             return cachedOD;
@@ -378,10 +390,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
     }
 
-    /*
+    /**
      * When a config file gets read, it gets woven together from fragments from
      * multiple sources.  This writes a fresh copy of the config file, as it is,
      * after the weaving-together process.
+     *
+     * @param p Path to write the effective config into
      */
     public void writeEffectiveConfig(Path p) {
         try (CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
@@ -393,30 +407,20 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
-    public void startupAllServices() {
-        if (broken) {
-            return;
-        }
-        orderedDependencies().forEach(l -> {
-            logger.atInfo().setEventType("service-install").addKeyValue("serviceName", l.getName()).log();
-            l.requestStart();
-        });
-    }
-
+    /**
+     * Write the effective config in the transaction log format.
+     * @param transactionLogPath path to write the file into
+     * @throws IOException if writing fails
+     */
     public void writeEffectiveConfigAsTransactionLog(Path transactionLogPath) throws IOException {
         ConfigurationWriter.logTransactionsTo(this, transactionLogPath)
                 .flushImmediately(true);
     }
 
-    public void dump() {
-        orderedDependencies().forEach(l -> {
-            System.out.println(l.getName() + ": " + l.getState());
-            if (l.getState().preceeds(State.RUNNING)) {
-                l.forAllDependencies(d -> System.out.println("    " + d.getName() + ": " + d.getState()));
-            }
-        });
-    }
-
+    /**
+     * Write the effective config into a {@link Writer}.
+     * @param w Writer to write config into
+     */
     public void writeConfig(Writer w) {
         Map<String, Object> h = new LinkedHashMap<>();
         orderedDependencies().forEach(l -> {
@@ -431,10 +435,27 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
+    /**
+     * Make all services startup in order.
+     */
+    public void startupAllServices() {
+        if (broken) {
+            return;
+        }
+        orderedDependencies().forEach(l -> {
+            logger.atInfo().setEventType("service-install").addKeyValue("serviceName", l.getName()).log();
+            l.requestStart();
+        });
+    }
+
     public void shutdown() {
         shutdown(30);
     }
 
+    /**
+     * Shutdown all services and the kernel with given timeout.
+     * @param timeoutSeconds Timeout in seconds
+     */
     public void shutdown(int timeoutSeconds) {
         if (broken) {
             return;
@@ -469,6 +490,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         shutdown(0);
     }
 
+    /**
+     * Take a user-provided string which represents a path and resolve it to an absolute path.
+     *
+     * @param s String to resolve
+     * @return resolved path
+     */
     public String deTilde(String s) {
         if (s.startsWith("~/")) {
             s = homePath.resolve(s.substring(2)).toString();
@@ -489,31 +516,31 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
     }
 
-    public Collection<String> getServiceServerURLlist() {
-        if (!serviceServerURLlistIsPopulated) {
-            serviceServerURLlistIsPopulated = true;
+    Collection<String> getServiceServerURLList() {
+        if (!serviceServerURLListIsPopulated) {
+            serviceServerURLListIsPopulated = true;
             addServiceSearchURLs(System.getProperty("ServiceSearchList"));
             addServiceSearchURLs(System.getenv("ServiceSearchList"));
             addServiceSearchURLs(find("system", "ServiceSearchList"));
             addServiceSearchURL(EvergreenService.class.getResource("/config"));
         }
-        return serviceServerURLlist;
+        return serviceServerURLList;
     }
 
-    public void addServiceSearchURLs(Object urls) {
+    private void addServiceSearchURLs(Object urls) {
         for (String s : Coerce.toStringArray(urls)) {
             addServiceSearchURL(s);
         }
     }
 
-    public void addServiceSearchURL(Object url) {
+    private void addServiceSearchURL(Object url) {
         if (url != null) {
             String u = url.toString();
             if (!u.endsWith("/")) {
                 u += "/";
             }
-            if (!serviceServerURLlist.contains(u)) {
-                serviceServerURLlist.add(u);
+            if (!serviceServerURLList.contains(u)) {
+                serviceServerURLList.add(u);
             }
         }
     }
