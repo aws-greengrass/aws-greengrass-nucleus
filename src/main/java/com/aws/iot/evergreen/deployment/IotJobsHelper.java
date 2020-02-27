@@ -139,7 +139,6 @@ public class IotJobsHelper {
         updateJobRequest.status = status;
         updateJobRequest.statusDetails = statusDetailsMap;
         updateJobRequest.thingName = thingName;
-        //Not waiting on future as it does not work as expected. TODO: resolve with the sdk team
         iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
     }
 
@@ -180,8 +179,6 @@ public class IotJobsHelper {
         describeJobExecutionRequest.includeJobDocument = true;
         CompletableFuture<Integer> published =
                 iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
-        logger.info("Publishing to describe topic");
         published.get();
-        logger.info("Published to describe topic");
     }
 }

@@ -70,7 +70,9 @@ class PackageManagerTest {
         PackageMetadata B = new PackageMetadata("B", "1.0.0", ">=1.0.0", Collections.singleton(T1), Collections.emptySet());
         PackageMetadata T2 = new PackageMetadata("T", "2.0.0", ">=2.0.0");
         PackageMetadata Q = new PackageMetadata("Q", "1.0.0", ">=1.0.0", Collections.singleton(T2), Collections.emptySet());
-        PackageMetadata A = new PackageMetadata("A", "1.0.0", ">=1.0.0", new HashSet<>(Arrays.asList(B, Q)), Collections.emptySet());
+
+        PackageMetadata A = new PackageMetadata("A", "1.0.0", ">=1.0.0", new HashSet<>(Arrays.asList(B, Q)),
+                Collections.emptySet());
 
         Map<String, PackageRegistryEntry> devicePackages = new HashMap<>();
         packageManager.resolveDependencies(A, devicePackages);
