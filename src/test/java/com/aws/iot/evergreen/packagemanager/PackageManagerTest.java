@@ -1,14 +1,9 @@
 package com.aws.iot.evergreen.packagemanager;
 
-<<<<<<< HEAD
-import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
-import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
-=======
-
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
->>>>>>> package manager load packages
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
 import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
@@ -21,27 +16,24 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
-<<<<<<< HEAD
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-=======
->>>>>>> package manager load packages
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -108,20 +100,18 @@ class PackageManagerTest {
 
     // To be add more unit tests
 
-<<<<<<< HEAD
     // TODO: This should mock the local/source repositories
     @Test
     void GIVEN_package_entries_WHEN_download_request_THEN_packages_downloaded()
             throws IOException, PackagingException, URISyntaxException {
 
-        this.packageManager = new PackageManager(new PackageRegistryImpl(),
-                TestHelper.getPathForLocalTestCache(),
+        this.packageManager = new PackageManager(new PackageRegistryImpl(), TestHelper.getPathForLocalTestCache(),
                 TestHelper.getPathForMockRepository());
 
-        PackageRegistryEntry logEntry = new PackageRegistryEntry(TestHelper.LOG_PACKAGE_NAME,
-                                                                 new Semver("1.0.0"), null);
-        PackageRegistryEntry monitorEntry = new PackageRegistryEntry(TestHelper.COOL_DB_PACKAGE_NAME,
-                                                                     new Semver("1.0.0"), null);
+        PackageRegistryEntry logEntry =
+                new PackageRegistryEntry(TestHelper.LOG_PACKAGE_NAME, new Semver("1.0.0"), null);
+        PackageRegistryEntry monitorEntry =
+                new PackageRegistryEntry(TestHelper.COOL_DB_PACKAGE_NAME, new Semver("1.0.0"), null);
 
         Set<PackageRegistryEntry> entries = new HashSet<>();
         entries.add(logEntry);
@@ -131,33 +121,24 @@ class PackageManagerTest {
         assertEquals(2, downloadOut.size());
         assertThat(downloadOut, hasItems(logEntry, monitorEntry));
 
-        Path logOutPath = TestHelper.getPathForLocalTestCache()
-                                    .resolve(TestHelper.LOG_PACKAGE_NAME)
-                                    .resolve("1.0.0");
-        Path coolDBOutPath = TestHelper.getPathForLocalTestCache()
-                                       .resolve(TestHelper.COOL_DB_PACKAGE_NAME)
-                                       .resolve("1.0.0");
+        Path logOutPath = TestHelper.getPathForLocalTestCache().resolve(TestHelper.LOG_PACKAGE_NAME).resolve("1.0.0");
+        Path coolDBOutPath =
+                TestHelper.getPathForLocalTestCache().resolve(TestHelper.COOL_DB_PACKAGE_NAME).resolve("1.0.0");
         assertTrue(Files.exists(logOutPath));
         assertTrue(Files.exists(logOutPath.resolve("recipe.yaml")));
         assertTrue(Files.exists(coolDBOutPath));
         assertTrue(Files.exists(coolDBOutPath.resolve("recipe.yaml")));
     }
 
-=======
     // package tree in registry
     //   A
     //  / \
     // B  c
-<<<<<<< HEAD
-    // |
-    // D
->>>>>>> add more explanations
-=======
     // | /
     //  D
->>>>>>> cache loaded package so not to load again
     @Test
-    void GIVEN_packages_correctly_registered_WHEN_load_package_by_target_name_THEN_return_package_tree() throws Exception {
+    void GIVEN_packages_correctly_registered_WHEN_load_package_by_target_name_THEN_return_package_tree()
+            throws Exception {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
         PackageRegistryEntry entryB = new PackageRegistryEntry("B", new Semver("1.0.0"), Collections.emptyMap());
         PackageRegistryEntry entryC = new PackageRegistryEntry("C", new Semver("1.0.0"), Collections.emptyMap());
