@@ -80,11 +80,7 @@ public class PackageManager {
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
         return executorService.submit(() -> resolveDependencies(proposedPackages));
     }
-
-    /*
-     * Given a set of proposed package dependency trees,
-     * figure out new package dependencies.
-     */
+    
     private Set<Package> resolveDependencies(Set<PackageMetadata> proposedPackages)
             throws PackageVersionConflictException, PackageDownloadException, PackageLoadingException {
         Map<String, PackageRegistryEntry> activePackages = packageRegistry.findActivePackages().stream()
@@ -193,6 +189,7 @@ public class PackageManager {
         }
     }
 
+<<<<<<< HEAD
     /**
      * Given a set of pending refresh packages, download the package recipes and artifacts in background.
      * Return the packages got successfully downloaded
@@ -215,6 +212,12 @@ public class PackageManager {
     /**
      * Given a set of target package names, return their resolved dependency trees with recipe data initialized.
      */
+=======
+    private Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages) {
+        return pendingDownloadPackages;
+    }
+
+>>>>>>> add more explanations
     private Set<Package> loadPackages(Set<String> packageNames, Map<String, PackageRegistryEntry> activePackages)
             throws PackageLoadingException {
         Set<Package> packages = new HashSet<>();
