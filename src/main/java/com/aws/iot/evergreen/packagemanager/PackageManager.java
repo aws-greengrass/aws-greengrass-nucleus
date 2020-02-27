@@ -66,11 +66,11 @@ public class PackageManager {
         this.packageRegistry = packageRegistry;
     }
 
-    PackageManager(final PackageRegistry packageRegistry, PackageStore localCache, PackageStore mockRepository) {
+    PackageManager(final PackageRegistry packageRegistry, PackageStore localCache) {
 
         this.localCache = localCache;
-        this.mockPackageRepository = mockRepository;
         this.packageRegistry = packageRegistry;
+        this.mockPackageRepository = null;
     }
 
     /**
