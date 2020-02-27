@@ -2,11 +2,13 @@ package com.aws.iot.evergreen.packagemanager.models;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@JsonSerialize
 public class PackageParameter {
 
     @EqualsAndHashCode.Include
@@ -24,6 +26,7 @@ public class PackageParameter {
      * @param type Parameter Type
      */
     @JsonCreator
+    //TODO: Json property names should match with other configuration members. They start with capital first letters
     public PackageParameter(@JsonProperty("name") String name,
                             @JsonProperty("value") String value,
                             @JsonProperty("type") String type) {

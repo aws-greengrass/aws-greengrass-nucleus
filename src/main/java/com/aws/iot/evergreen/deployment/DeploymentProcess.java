@@ -3,39 +3,40 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
 import com.aws.iot.evergreen.deployment.state.DownloadedState;
+import com.aws.iot.evergreen.deployment.state.PackageDownloadingState;
+import com.aws.iot.evergreen.deployment.state.ParseAndValidateState;
 import com.aws.iot.evergreen.deployment.state.State;
 import com.aws.iot.evergreen.deployment.state.UpdatingKernelState;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
-import com.aws.iot.evergreen.packagemanager.models.Package;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Deployment as a process that controls state transition and passes context among
  * deployment states.
  */
-public class DeploymentProcess {
+public class DeploymentProcess implements Callable<Boolean> {
 
     // TODO : This object should control all states and transitions
     // and not let itself be modified by other states
-    private static final Logger logger = LogManager.getLogger(DeploymentProcess.class);
 
     private static final long DEPLOYMENT_STATE_CHANGE_WAIT_TIME_SECONDS = 2;
 
-    @Getter
-    private final State downloadedState;
-
-    @Getter
-    private final State updatingKernelState;
+    private static final Logger logger = LogManager.getLogger(DeploymentProcess.class);
+    private ObjectMapper objectMapper;
+    private Kernel kernel;
+    private PackageManager packageManager;
 
     @Getter
     @Setter
@@ -46,52 +47,84 @@ public class DeploymentProcess {
 
     @Getter
     @Setter
-    private Set<Package> packagesToDeploy;
-
-    @Getter
-    @Setter
-    private Set<String> removedTopLevelPackageNames;
-
-    @Getter
-    @Setter
     private Map<Object, Object> resolvedKernelConfig;
 
     /**
      * Constructor to initialize deployment process.
      *
-     * @param packet parsed deployment document
-     * @param kernel running kernel instance
+     * @param deploymentPacket parsed deployment document
      */
-    public DeploymentProcess(DeploymentPacket packet, Kernel kernel) {
-        this.downloadedState = new DownloadedState(this, kernel);
-        this.updatingKernelState = new UpdatingKernelState(this, kernel);
-
-        // TODO : Change this to appropriate initial state when the initial state is implemented
-        this.currentState = this.downloadedState;
-        this.deploymentPacket = packet;
+    public DeploymentProcess(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
+                             PackageManager packageManager) {
+        this.objectMapper = objectMapper;
+        this.currentState = new ParseAndValidateState(deploymentPacket, objectMapper);
+        this.kernel = kernel;
+        this.packageManager = packageManager;
+        deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.VALIDATE_AND_PARSE);
+        this.deploymentPacket = deploymentPacket;
     }
 
     /**
      * Execute deployment.
+     *
+     * @return
      */
-    public void execute() {
+    public Boolean execute() throws DeploymentFailureException {
         // TODO : Letting this state machine be modified by individual states is not very maintainable
         // When the state machine is redesigned, have this class manage passing context to states and
         // control state transitions
-        while (!currentState.isFinalState()) {
-            if (currentState.canProceed()) {
-                currentState.proceed();
-            } else {
-                try {
-                    int duration = 2;
-                    TimeUnit.SECONDS.sleep(2);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
+        try {
+            while (!currentState.isFinalState()) {
+                if (currentState.canProceed()) {
+                    currentState.proceed();
+                    switch (deploymentPacket.getProcessStatus()) {
+                        //TODO: Rename these states
+                        case VALIDATE_AND_PARSE: {
+                            logger.info("Finished validatin and parsing. Going to downloading");
+                            deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADING);
+                            currentState = new PackageDownloadingState(deploymentPacket, objectMapper, packageManager);
+                            break;
+                        }
+                        case PACKAGE_DOWNLOADING: {
+                            logger.info("Package downloaded. Next step is to create config for kernel",
+                                    deploymentPacket.toString());
+                            deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADED);
+                            currentState = new DownloadedState(deploymentPacket, objectMapper, kernel);
+                            break;
+                        }
+                        case PACKAGE_DOWNLOADED: { //TODO: Consider renaming this to Create config
+                            logger.info("Created config for kernel. Next is to update the kernel",
+                                    deploymentPacket.toString());
+                            deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.UPDATING_KERNEL);
+                            currentState = new UpdatingKernelState(deploymentPacket, objectMapper, kernel);
+                            break;
+                        }
+                        case UPDATING_KERNEL: {
+                            logger.info("Updated kernel",
+                                    deploymentPacket.toString());
+                            break;
+                        }
+                        default: {
+                            logger.error("Unexpected status for deployment process with deployment Id {}",
+                                    deploymentPacket.getDeploymentId());
+                            return Boolean.FALSE;
+                        }
+                    }
+                } else {
+                    try {
+                        TimeUnit.SECONDS.sleep(DEPLOYMENT_STATE_CHANGE_WAIT_TIME_SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
             }
+            logger.atInfo().addKeyValue("final_state", currentState.getClass().getSimpleName()).log("final state is");
+            return Boolean.TRUE;
+        } catch (DeploymentFailureException e) {
+            //TODO: Update deployment packet with status details
+            return Boolean.FALSE;
         }
-        logger.atInfo().addKeyValue("final_state", currentState.getClass().getSimpleName()).log("final state is");
     }
 
     /**
@@ -99,5 +132,10 @@ public class DeploymentProcess {
      */
     public void cancel() {
         currentState.cancel();
+    }
+
+    @Override
+    public Boolean call() throws Exception {
+        return execute();
     }
 }
