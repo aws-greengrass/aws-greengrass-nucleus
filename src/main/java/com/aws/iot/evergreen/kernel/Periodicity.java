@@ -82,8 +82,8 @@ public class Periodicity {
             }
             return ret;
         } catch (Throwable t) {
-            s.logger.atError().setCause(t).setEventType("service-invalid-config").addKeyValue("parameter",
-                    Utils.deepToString(n)).addKeyValue("serviceName", s.getName())
+            s.logger.atError().setCause(t).setEventType("service-invalid-config")
+                    .addKeyValue("parameter", Utils.deepToString(n)).addKeyValue("serviceName", s.getName())
                     .log("Unparseable periodic parameter");
             s.serviceErrored(t);
         }
