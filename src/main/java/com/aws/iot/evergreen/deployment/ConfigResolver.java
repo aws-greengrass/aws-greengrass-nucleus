@@ -70,7 +70,7 @@ public class ConfigResolver {
                 pkg.getDependencyPackages().stream().map(Package::getPackageName).collect(Collectors.toSet());
         addServiceDependencies(lifecycle, dependencyServiceNames);
 
-        lifecycle.put(VERSION_CONFIG_KEY, pkg.getPackageVersion());
+        lifecycle.put(VERSION_CONFIG_KEY, pkg.getVersion());
         newConfig.put(pkg.getPackageName(), lifecycle);
 
         // Process dependency packages
