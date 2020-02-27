@@ -12,6 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Install gpg
+      run: sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install gnupg
+    - name: Decrypt the test Iot thing private key
+      run: ./.github/scripts/decrypt_iot_thing_private_key_and_cert.sh
+      env:
+        evergreen_test_iot_thing_private_key_secret_passphrase: ${{secrets.evergreen_test_iot_thing_private_key}}
     - name: Set up JDK 1.8
       uses: actions/setup-java@v1
       with:
