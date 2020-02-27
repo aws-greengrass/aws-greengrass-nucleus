@@ -203,9 +203,7 @@
                     <logViolationsToConsole>true</logViolationsToConsole>
                     <configLocation>checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
-                    <!-- This is the total number of warning at this moment. Set it as the max allowed so that
-                    we don't introduce more violations in new code. -->
-                    <maxAllowedViolations>23</maxAllowedViolations>
+                    <maxAllowedViolations>0</maxAllowedViolations>
                 </configuration>
                 <executions>
                     <execution>
