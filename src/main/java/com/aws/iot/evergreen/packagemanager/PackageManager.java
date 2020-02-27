@@ -219,5 +219,4 @@ public class PackageManager {
     private Set<Package> loadPackages(Set<String> packageNames) {
         return Collections.emptySet();
     }
-
 }
