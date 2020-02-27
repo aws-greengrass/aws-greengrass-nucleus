@@ -7,7 +7,6 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
-import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 >>>>>>> package manager load packages
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
@@ -42,7 +41,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -144,8 +143,7 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_packages_in_registry_WHEN_load_package_by_target_name_THEN_decide_package_tree()
-            throws PackagingException, IOException {
+    void GIVEN_packages_in_registry_WHEN_load_package_by_target_name_THEN_decide_package_tree() throws Exception {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
         PackageRegistryEntry entryB = new PackageRegistryEntry("B", new Semver("1.0.0"), Collections.emptyMap());
         PackageRegistryEntry entryC = new PackageRegistryEntry("C", new Semver("1.0.0"), Collections.emptyMap());
@@ -182,42 +180,31 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_throw_exception()
-            throws IOException, PackagingException {
+    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_throw_exception() throws Exception {
         when(packageStore.getPackage(anyString(), any())).thenThrow(new IOException());
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
-        try {
-            packageManager.loadPackage("A", Collections.singletonMap("A", entryA));
-            fail();
-        } catch (PackageLoadingException e) {
-            assertThat(e.getMessage(), is("failed to load package A from package store"));
-        }
+        assertThrows(PackageLoadingException.class,
+                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA)),
+                "failed to load package A from package store");
     }
 
     @Test
-    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_return_nothing()
-            throws IOException, PackagingException {
+    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_return_nothing() throws Exception {
         when(packageStore.getPackage(anyString(), any())).thenReturn(Optional.empty());
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
-        try {
-            packageManager.loadPackage("A", Collections.singletonMap("A", entryA));
-            fail();
-        } catch (PackageLoadingException e) {
-            assertThat(e.getMessage(), is("package A not found"));
-        }
+        assertThrows(PackageLoadingException.class,
+                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA)),
+                "package A not found");
     }
 
     @Test
     void GIVEN_packages_not_in_registry_WHEN_load_package_THEN_fail_to_proceed() {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
-        try {
-            packageManager.loadPackage("B", Collections.singletonMap("A", entryA));
-            fail();
-        } catch (PackageLoadingException e) {
-            assertThat(e.getMessage(), is("package B not found in registry"));
-        }
+        assertThrows(PackageLoadingException.class,
+                () -> packageManager.loadPackage("B", Collections.singletonMap("A", entryA)),
+                "package B not found in registry");
     }
 }
