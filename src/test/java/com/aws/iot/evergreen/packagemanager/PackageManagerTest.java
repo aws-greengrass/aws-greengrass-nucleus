@@ -108,6 +108,7 @@ class PackageManagerTest {
 
     // To be add more unit tests
 
+<<<<<<< HEAD
     // TODO: This should mock the local/source repositories
     @Test
     void GIVEN_package_entries_WHEN_download_request_THEN_packages_downloaded()
@@ -142,8 +143,16 @@ class PackageManagerTest {
         assertTrue(Files.exists(coolDBOutPath.resolve("recipe.yaml")));
     }
 
+=======
+    // package tree in registry
+    //   A
+    //  / \
+    // B  c
+    // |
+    // D
+>>>>>>> add more explanations
     @Test
-    void GIVEN_packages_in_registry_WHEN_load_package_by_target_name_THEN_decide_package_tree() throws Exception {
+    void GIVEN_packages_correctly_registered_WHEN_load_package_by_target_name_THEN_return_package_tree() throws Exception {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
         PackageRegistryEntry entryB = new PackageRegistryEntry("B", new Semver("1.0.0"), Collections.emptyMap());
         PackageRegistryEntry entryC = new PackageRegistryEntry("C", new Semver("1.0.0"), Collections.emptyMap());
@@ -180,7 +189,7 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_throw_exception() throws Exception {
+    void GIVEN_packages_registered_WHEN_load_package_from_store_THEN_store_throw_exception() throws Exception {
         when(packageStore.getPackage(anyString(), any())).thenThrow(new IOException());
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
@@ -190,7 +199,7 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_packages_in_registry_WHEN_load_package_from_store_THEN_store_return_nothing() throws Exception {
+    void GIVEN_packages_registered_WHEN_load_package_from_store_THEN_store_return_nothing() throws Exception {
         when(packageStore.getPackage(anyString(), any())).thenReturn(Optional.empty());
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
@@ -200,7 +209,7 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_packages_not_in_registry_WHEN_load_package_THEN_fail_to_proceed() {
+    void GIVEN_packages_not_registered_WHEN_load_package_THEN_fail_to_proceed() {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
