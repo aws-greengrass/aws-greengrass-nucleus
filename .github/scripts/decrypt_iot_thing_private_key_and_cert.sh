@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e # Exit immediately if anything fails
+
 # Decrypt the file
 mkdir -p $HOME/secrets
 # --batch to prevent interactive command --yes to assume "yes" for questions
