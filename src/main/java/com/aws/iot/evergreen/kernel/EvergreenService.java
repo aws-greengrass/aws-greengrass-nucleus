@@ -175,7 +175,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                             kernel.read(configUrl, false);
                             if (!topics.isEmpty()) {
                                 staticLogger.atInfo().setEventType("service-config-found")
-                                        .addKeyValue("configURL", configUrl).log("Found external service definition.");
+                                        .addKeyValue("configURL", configUrl).log("Found external service definition");
                             }
                         } catch (IOException ignored) {
                         }
@@ -185,12 +185,12 @@ public class EvergreenService implements InjectionActions, Closeable {
                 }
                 if (topics.isEmpty()) {
                     topics.createLeafChild("run").dflt("echo No definition found for " + name + ";exit -1");
-                    staticLogger.atError().setEventType("service-config-not-found").addKeyValue("serviceName", name)
+                    staticLogger.atWarn().setEventType("service-config-not-found").addKeyValue("serviceName", name)
                             .log();
                 }
             } else {
                 staticLogger.atInfo().setEventType("service-config-found").addKeyValue("serviceName", name)
-                        .log("Found service definition in configuration file.");
+                        .log("Found service definition in configuration file");
             }
             EvergreenService ret;
             Class<?> clazz = null;
@@ -201,7 +201,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                     clazz = Class.forName(cn);
                 } catch (Throwable ex) {
                     staticLogger.atError().setEventType("service-load-error").setCause(ex)
-                            .addKeyValue("serviceName", name).log("Can't load service class.");
+                            .addKeyValue("serviceName", name).log("Can't load service class");
                     return errNode(context, name, "Can't load service class from " + cn, ex);
                 }
             }
@@ -210,7 +210,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                 Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
                 if (si != null) {
                     staticLogger.atDebug().addKeyValue("serviceName", name)
-                            .log("Attempt to load service from plugins.");
+                            .log("Attempt to load service from plugins");
                     clazz = si.get(name);
                 }
             }
@@ -285,7 +285,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                 return;
             }
 
-            logger.atError().log("Setting up dependencies again", requiresTopic.getOnce());
+            logger.atInfo().log("Setting up dependencies again", requiresTopic.getOnce());
             try {
                 setupDependencies((String) requiresTopic.getOnce());
             } catch (Exception e) {
@@ -693,7 +693,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
                 if (!dependencyReady(dependentEvergreenService)) {
                     this.requestRestart();
-                    logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies.");
+                    logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
                 }
             }
 

@@ -94,7 +94,7 @@ public class GenericExternalService extends EvergreenService {
                     if (exit == 0) {
                         this.requestStop();
                         logger.atInfo().setEventType("generic-service-stopping")
-                                .log("Service finished running.");
+                                .log("Service finished running");
                     } else {
                         reportState(State.ERRORED);
                         logger.atError().setEventType("generic-service-errored")
@@ -103,7 +103,7 @@ public class GenericExternalService extends EvergreenService {
                 }
             }) == RunStatus.NothingDone) {
                 logger.atInfo().setEventType("generic-service-finished")
-                        .log("Nothing done.");
+                        .log("Nothing done");
                 this.requestStop();
             }
         }

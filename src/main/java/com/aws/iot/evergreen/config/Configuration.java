@@ -158,7 +158,7 @@ public class Configuration {
      */
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         logger.atInfo().addKeyValue("url", url).setEventType("config-loading")
-                .log("Read configuration from a URL.");
+                .log("Read configuration from a URL");
         URLConnection u = url.openConnection();
         return read(u.getInputStream(), extension(url.getPath()),
                 useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
@@ -230,10 +230,10 @@ public class Configuration {
          * all together */
         return context.runOnPublishQueueAndWait(() -> {
             logger.atDebug().setEventType("config-merge-start").addKeyValue("url", u)
-                    .log("Start merging configuration.");
+                    .log("Start merging configuration");
             read(u, sourceTimestamp);
             logger.atDebug().setEventType("config-merge-finish").addKeyValue("url", u)
-                    .log("Finish merging configuration.");
+                    .log("Finish merging configuration");
         });
     }
 
