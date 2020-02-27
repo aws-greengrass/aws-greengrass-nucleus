@@ -4,7 +4,9 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
@@ -12,9 +14,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +31,7 @@ public class Package {
     private final String packageName;
 
     @EqualsAndHashCode.Include
-    private Semver packageVersion;
+    private Semver version;
 
     private final String description;
 
@@ -50,13 +49,14 @@ public class Package {
     // TODO: Needs discussion, this should probably be removed after integration demo
     private final List<String> requires;
 
+    @JsonIgnore
     private Set<Package> dependencyPackages;
     /**
      * Constructor for Deserialize.
      *
      * @param recipeTemplateVersion Template version found in the Recipe file
      * @param packageName Name of the package
-     * @param packageVersion Version of the package
+     * @param version Version of the package
      * @param description Description metadata
      * @param publisher Name of the publisher
      * @param packageParameters Parameters included in the recipe
@@ -68,7 +68,7 @@ public class Package {
     @JsonCreator
     public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
                    @JsonProperty("PackageName") String packageName,
-                   @JsonProperty("Version") Semver packageVersion,
+                   @JsonProperty("Version") Semver version,
                    @JsonProperty("Description") String description,
                    @JsonProperty("Publisher") String publisher,
                    @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
@@ -79,7 +79,8 @@ public class Package {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
-        this.packageVersion = new Semver(packageVersion.toString(), Semver.SemverType.NPM);
+        //TODO: Validate SemverType.STRICT before creating this
+        this.version = new Semver(version.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
         this.packageParameters = packageParameters;
@@ -90,4 +91,8 @@ public class Package {
         this.dependencyPackages = new HashSet<>();
     }
 
+    @JsonSerialize(using = SemverSerializer.class)
+    public Semver getVersion() {
+        return version;
+    }
 }

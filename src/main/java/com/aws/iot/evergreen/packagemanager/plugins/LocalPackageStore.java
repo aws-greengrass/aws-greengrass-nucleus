@@ -20,11 +20,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
@@ -50,7 +48,7 @@ public class LocalPackageStore implements PackageStore {
 
     private static Path getPackageVersionStorageRoot(final Package curPackageRecipe, final Path cacheFolder) {
         return getPackageVersionStorageRoot(curPackageRecipe.getPackageName(),
-                                            curPackageRecipe.getPackageVersion().toString(),
+                                            curPackageRecipe.getVersion().toString(),
                                             cacheFolder);
     }
 
@@ -64,7 +62,7 @@ public class LocalPackageStore implements PackageStore {
      * @return Optional containing package recipe as a String
      */
     @Override
-    public Optional<Package> getPackage(final String packageName, final Semver packageVersion)
+    public Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
         Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(),
                                                        cacheFolder);
@@ -80,9 +78,22 @@ public class LocalPackageStore implements PackageStore {
             // TODO Take some corrective actions before throwing
         }
 
-        String packageRecipeContent = new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8);
+        return Optional.of(new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Get package from cache if it exists.
+     * @return Optional containing package recipe as a String
+     */
+    @Override
+    public Optional<Package> getPackage(final String packageName, final Semver packageVersion)
+            throws PackagingException, IOException {
+        Optional<String> packageRecipeContent = getPackageRecipe(packageName, packageVersion);
+        if (!packageRecipeContent.isPresent()) {
+            return Optional.empty();
+        }
         try {
-            Package pkgRecipe = OBJECT_MAPPER.readValue(packageRecipeContent, Package.class);
+            Package pkgRecipe = OBJECT_MAPPER.readValue(packageRecipeContent.get(), Package.class);
             return Optional.ofNullable(pkgRecipe);
         } catch (IOException e) {
             throw new UnsupportedRecipeFormatException(Constants.UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG, e);
@@ -145,6 +156,9 @@ public class LocalPackageStore implements PackageStore {
 
             // TODO: HACK HACK HACK This should get artifact providers based on key words, not just local
             List<String> artifacts = curPackageRecipe.getArtifacts();
+            if (artifacts == null) {
+                return;
+            }
             for (String artifact : artifacts) {
                 LocalArtifactProvider artifactProvider = new LocalArtifactProvider(artifact);
                 artifactProvider.downloadArtifactToPath(destRootPkgPath);
@@ -158,10 +172,25 @@ public class LocalPackageStore implements PackageStore {
      * Cache all artifacts for a given Package.
      */
     @Override
+    public void cachePackageRecipeAndArtifacts(final Package curPackage)
+            throws PackagingException {
+        Objects.requireNonNull(curPackage, "Package Recipe cannot be null");
+        try {
+            String recipeContents = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(curPackage);
+            cachePackageRecipeAndArtifacts(curPackage, recipeContents);
+        } catch (IOException e) {
+            throw new UnsupportedRecipeFormatException(Constants.UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG, e);
+        }
+    }
+
+    /**
+     * Cache all artifacts for a given Package.
+     */
+    @Override
     public void cachePackageRecipeAndArtifacts(final Package curPackageRecipe, final String recipeContents)
             throws PackagingException {
         Objects.requireNonNull(curPackageRecipe, "Package Recipe cannot be null");
-        Objects.requireNonNull(curPackageRecipe, "Package Recipe raw string cannot be null");
+        Objects.requireNonNull(recipeContents, "Package Recipe raw string cannot be null");
 
         Path destRootPkgPath = getPackageVersionStorageRoot(curPackageRecipe, cacheFolder);
         Path pkgRecipePath = destRootPkgPath.resolve(Constants.RECIPE_FILE_NAME);
