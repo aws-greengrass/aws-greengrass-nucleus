@@ -148,9 +148,14 @@ class PackageManagerTest {
     //   A
     //  / \
     // B  c
+<<<<<<< HEAD
     // |
     // D
 >>>>>>> add more explanations
+=======
+    // | /
+    //  D
+>>>>>>> cache loaded package so not to load again
     @Test
     void GIVEN_packages_correctly_registered_WHEN_load_package_by_target_name_THEN_return_package_tree() throws Exception {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
@@ -161,6 +166,7 @@ class PackageManagerTest {
         entryA.getDependsOn().put("B", new PackageRegistryEntry.Reference("B", new Semver("1.0.0"), ">=1.0.0"));
         entryA.getDependsOn().put("C", new PackageRegistryEntry.Reference("C", new Semver("1.0.0"), ">=1.0.0"));
         entryB.getDependsOn().put("D", new PackageRegistryEntry.Reference("D", new Semver("1.0.0"), ">=1.0.0"));
+        entryC.getDependsOn().put("D", new PackageRegistryEntry.Reference("D", new Semver("1.0.0"), ">=1.0.0"));
 
         Map<String, PackageRegistryEntry> activePackages = new HashMap<>();
         activePackages.put("A", entryA);
@@ -176,7 +182,7 @@ class PackageManagerTest {
         when(packageStore.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
         Package pkgD = new Package(null, "D", new Semver("1.0.0"), null, null, null, null, null, null, null);
         when(packageStore.getPackage("D", new Semver("1.0.0"))).thenReturn(Optional.of(pkgD));
-        Package pkg = packageManager.loadPackage("A", activePackages);
+        Package pkg = packageManager.loadPackage("A", activePackages, new HashMap<>());
 
         assertThat(pkg.getPackageName(), is("A"));
         assertThat(pkg.getDependencyPackages().size(), is(2));
@@ -194,7 +200,7 @@ class PackageManagerTest {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
-                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA)),
+                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA), new HashMap<>()),
                 "failed to load package A from package store");
     }
 
@@ -204,7 +210,7 @@ class PackageManagerTest {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
-                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA)),
+                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA), new HashMap<>()),
                 "package A not found");
     }
 
@@ -213,7 +219,7 @@ class PackageManagerTest {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
-                () -> packageManager.loadPackage("B", Collections.singletonMap("A", entryA)),
+                () -> packageManager.loadPackage("B", Collections.singletonMap("A", entryA), new HashMap<>()),
                 "package B not found in registry");
     }
 }
