@@ -395,7 +395,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * multiple sources.  This writes a fresh copy of the config file, as it is,
      * after the weaving-together process.
      *
-     * @param p Path to write teh effective config into
+     * @param p Path to write the effective config into
      */
     public void writeEffectiveConfig(Path p) {
         try (CommitableWriter out = CommitableWriter.abandonOnClose(p)) {

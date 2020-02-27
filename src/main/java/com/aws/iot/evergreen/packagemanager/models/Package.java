@@ -53,7 +53,7 @@ public class Package {
     private Set<Package> dependencyPackages;
 
     /**
-     * Constructor for Deserialize.
+     * Constructor for Jackson to deserialize.
      *
      * @param recipeTemplateVersion Template version found in the Recipe file
      * @param packageName           Name of the package
