@@ -83,7 +83,11 @@ public class EvergreenService implements InjectionActions, Closeable {
     // Service logger instance
     protected final Logger logger;
 
-    @SuppressWarnings("LeakingThisInConstructor")
+    /**
+     * Constructor for EvergreenService.
+     *
+     * @param topics root Configuration topic for this service
+     */
     public EvergreenService(Topics topics) {
         this.config = topics;
         this.context = topics.context;
@@ -117,8 +121,8 @@ public class EvergreenService implements InjectionActions, Closeable {
     /**
      * public API for service to report state. Allowed state are RUNNING, FINISHED, ERRORED.
      *
-     * @param newState
-     * @return
+     * @param newState reported state from the service which should eventually be set as the service's
+     *                 actual state
      */
     public synchronized void reportState(State newState) {
         logger.atInfo().setEventType("service-report-state").addKeyValue("newState", newState).log();
@@ -162,7 +166,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                 // No definition of this service was found in the config file.
                 // weave config fragments in from elsewhere...
                 Kernel kernel = context.get(Kernel.class);
-                for (String serverUrl : kernel.getServiceServerURLlist()) {
+                for (String serverUrl : kernel.getServiceServerURLList()) {
                     if (topics.isEmpty()) {
                         try {
                             // TODO: should probably think hard about what file extension to use
@@ -243,6 +247,15 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
+    /**
+     * Creates a GenericExternalService without a service definition. Creates it just to report an error.
+     *
+     * @param context static Context
+     * @param name name of the service which could not be constructed
+     * @param message message for reason why there is an error
+     * @param ex exception which caused the error node to be used
+     * @return Error service
+     */
     public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
         try {
             return new GenericExternalService(Topics.errorNode(context, name,
@@ -578,6 +591,11 @@ public class EvergreenService implements InjectionActions, Closeable {
         setBackingTask(null, null);
     }
 
+    /**
+     * Report that the service has hit an error.
+     *
+     * @param e Throwable issue that caused the error
+     */
     public void serviceErrored(Throwable e) {
         e = getUltimateCause(e);
         error = e;
