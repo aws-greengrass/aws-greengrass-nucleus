@@ -1,53 +1,47 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
 import com.vdurmont.semver4j.Semver;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
-import lombok.experimental.FieldDefaults;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
-@Getter
-@ToString
-@FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
+@Data
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class PackageRegistryEntry {
 
     @EqualsAndHashCode.Include
-    String name;
+    private final String name;
 
     @EqualsAndHashCode.Include
-    Semver version;
+    private Semver version;
 
-    Set<Reference> dependBy;
+    private final Map<String, Reference> dependsOnBy;
 
-    Set<Reference> dependOn;
+    private final Map<String, Reference> dependsOn;
 
-    public PackageRegistryEntry(String name, String version) {
+    /**
+     * package registry entry constructor.
+     * @param name package name
+     * @param version package version
+     * @param dependsOnBy package dependents
+     */
+    public PackageRegistryEntry(String name, Semver version, Map<String, Reference> dependsOnBy) {
         this.name = name;
-        this.version = new Semver(version, Semver.SemverType.NPM);
-        this.dependBy = new HashSet<>();
-        this.dependOn = new HashSet<>();
+        this.version = version;
+        this.dependsOnBy = dependsOnBy;
+        this.dependsOn = new HashMap<>();
     }
 
-    @Getter
-    @ToString
-    @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
-    @EqualsAndHashCode
+    @Data
+    @AllArgsConstructor
     public static class Reference {
-        String name;
+        private final String name;
 
-        Semver version;
+        private Semver version;
 
-        String constraint;
-
-        public Reference(String name, String version, String constraint) {
-            this.name = name;
-            this.version = new Semver(version, Semver.SemverType.NPM);
-            this.constraint = constraint;
-        }
+        private String constraint;
     }
 }
