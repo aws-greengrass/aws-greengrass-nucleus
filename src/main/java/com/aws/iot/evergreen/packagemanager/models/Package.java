@@ -14,6 +14,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,11 +85,11 @@ public class Package {
         this.version = new Semver(version.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
-        this.packageParameters = packageParameters;
-        this.lifecycle = lifecycle;
-        this.artifacts = artifacts;
-        this.dependencies = dependencies;
-        this.requires = requires;
+        this.packageParameters = packageParameters != null ? packageParameters : Collections.emptySet();
+        this.lifecycle = lifecycle != null ? lifecycle : Collections.emptyMap();
+        this.artifacts = artifacts != null ? artifacts : Collections.emptyList();
+        this.dependencies = dependencies != null ? dependencies : Collections.emptyMap();
+        this.requires = requires != null ? requires : Collections.emptyList();
         this.dependencyPackages = new HashSet<>();
     }
 

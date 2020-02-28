@@ -106,8 +106,7 @@ public class PackageManager {
 
         packageRegistry.updateActivePackages(new ArrayList<>(activePackages.values()));
 
-        return loadPackages(proposedPackages.stream().map(PackageMetadata::getName).collect(Collectors.toSet()),
-                activePackages);
+        return loadPackages(proposedPackages, activePackages);
     }
 
     void resolveDependencies(PackageMetadata packageMetadata, Map<String, PackageRegistryEntry> devicePackages)
@@ -208,17 +207,17 @@ public class PackageManager {
         return downloadedPackages;
     }
 
-    private Set<Package> loadPackages(Set<String> packageNames, Map<String, PackageRegistryEntry> activePackages)
-            throws PackageLoadingException {
+    private Set<Package> loadPackages(Set<PackageMetadata> proposedPackages,
+                                      Map<String, PackageRegistryEntry> activePackages) throws PackageLoadingException {
         Set<Package> packages = new HashSet<>();
         Map<PackageRegistryEntry, Package> packageCache = new HashMap<>();
-        for (String packageName : packageNames) {
-            packages.add(loadPackage(packageName, activePackages, packageCache));
+        for (PackageMetadata proposedPackage : proposedPackages) {
+            packages.add(loadPackage(proposedPackage.getName(), proposedPackage, activePackages, packageCache));
         }
         return packages;
     }
 
-    Package loadPackage(String name, Map<String, PackageRegistryEntry> activePackages,
+    Package loadPackage(String name, PackageMetadata packageMetadata, Map<String, PackageRegistryEntry> activePackages,
                         Map<PackageRegistryEntry, Package> packageCache) throws PackageLoadingException {
         PackageRegistryEntry packageEntry = activePackages.get(name);
         if (packageCache.containsKey(packageEntry)) {
@@ -237,11 +236,42 @@ public class PackageManager {
 
         Package pkg = packageOptional
                 .orElseThrow(() -> new PackageLoadingException(String.format("package %s not found", name)));
+        pluginParameterValues(pkg, packageMetadata);
         packageCache.put(packageEntry, pkg);
 
         for (PackageRegistryEntry.Reference dependOn : packageEntry.getDependsOn().values()) {
-            pkg.getDependencyPackages().add(loadPackage(dependOn.getName(), activePackages, packageCache));
+            pkg.getDependencyPackages().add(loadPackage(dependOn.getName(),
+                    getDependencyPackageMetadata(dependOn.getName(), packageMetadata), activePackages, packageCache));
         }
         return pkg;
+    }
+
+    private void pluginParameterValues(Package pkg, PackageMetadata packageMetadata) {
+        if (packageMetadata != null) {
+            packageMetadata.getParameters().forEach(parameterFromDeployment -> {
+                if (pkg.getPackageParameters().contains(parameterFromDeployment)) {
+                    pkg.getPackageParameters().remove(parameterFromDeployment);
+                    pkg.getPackageParameters().add(parameterFromDeployment);
+                }
+            });
+        }
+    }
+
+    private PackageMetadata getDependencyPackageMetadata(String dependencyName, PackageMetadata packageMetadata) {
+        // Check if we can find this dependency in deployment info
+        PackageMetadata dependencyPackageMetadata = null;
+        if (packageMetadata != null) {
+            for (PackageMetadata dependencyFromDeployment : packageMetadata.getDependsOn()) {
+                if (dependencyName.equals(dependencyFromDeployment.getName())) {
+                    dependencyPackageMetadata = dependencyFromDeployment;
+                    break;
+                }
+            }
+        } else {
+            // Resolved depdency subtree is different from the proposed one in deployment,
+            // hence dependency package was not found in deployment info
+            // TODO : Handle this scenario, where will previously set parameter values come from?
+        }
+        return dependencyPackageMetadata;
     }
 }

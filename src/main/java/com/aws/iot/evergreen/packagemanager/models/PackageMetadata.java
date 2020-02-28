@@ -20,6 +20,8 @@ public class PackageMetadata {
     @EqualsAndHashCode.Exclude
     Set<PackageMetadata> dependsOn;
 
+    Set<PackageParameter> parameters;
+
     /**
      * Constructor for PackageMetadata.
      *
@@ -28,7 +30,8 @@ public class PackageMetadata {
      * @param versionConstraint package version constraint
      * @param dependsOn dependency package information
      */
-    public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn) {
+    public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn,
+                           Set<PackageParameter> parameters) {
         if (Utils.isEmpty(name)) {
             throw new IllegalArgumentException("package name can't be empty");
         }
@@ -42,6 +45,8 @@ public class PackageMetadata {
         this.version = new Semver(version, Semver.SemverType.NPM);
         this.versionConstraint = versionConstraint;
         this.dependsOn = dependsOn == null ? Collections.emptySet() : Collections.unmodifiableSet(dependsOn);
+        this.parameters = parameters == null ? Collections.emptySet()
+                : Collections.unmodifiableSet(parameters);
     }
 
     /**
@@ -52,7 +57,7 @@ public class PackageMetadata {
      * @param constraint package version constraint
      */
     public PackageMetadata(String name, String version, String constraint) {
-        this(name, version, constraint, null);
+        this(name, version, constraint, null, null);
     }
 
 }

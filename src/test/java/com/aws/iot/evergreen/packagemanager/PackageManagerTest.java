@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictExc
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
+import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
 import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
 import com.vdurmont.semver4j.Semver;
@@ -12,7 +13,6 @@ import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -66,10 +67,10 @@ class PackageManagerTest {
     @Test
     void GIVEN_proposed_tree_WHEN_new_device_THEN_decide_package_version() throws PackageVersionConflictException {
         PackageMetadata T1 = new PackageMetadata("T", "2.0.0", ">=1.0.0");
-        PackageMetadata B = new PackageMetadata("B", "1.0.0", ">=1.0.0", Collections.singleton(T1));
+        PackageMetadata B = new PackageMetadata("B", "1.0.0", ">=1.0.0", Collections.singleton(T1), Collections.emptySet());
         PackageMetadata T2 = new PackageMetadata("T", "2.0.0", ">=2.0.0");
-        PackageMetadata Q = new PackageMetadata("Q", "1.0.0", ">=1.0.0", Collections.singleton(T2));
-        PackageMetadata A = new PackageMetadata("A", "1.0.0", ">=1.0.0", new HashSet<>(Arrays.asList(B, Q)));
+        PackageMetadata Q = new PackageMetadata("Q", "1.0.0", ">=1.0.0", Collections.singleton(T2), Collections.emptySet());
+        PackageMetadata A = new PackageMetadata("A", "1.0.0", ">=1.0.0", new HashSet<>(Arrays.asList(B, Q)), Collections.emptySet());
 
         Map<String, PackageRegistryEntry> devicePackages = new HashMap<>();
         packageManager.resolveDependencies(A, devicePackages);
@@ -168,7 +169,7 @@ class PackageManagerTest {
         when(packageStore.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
         Package pkgD = new Package(null, "D", new Semver("1.0.0"), null, null, null, null, null, null, null);
         when(packageStore.getPackage("D", new Semver("1.0.0"))).thenReturn(Optional.of(pkgD));
-        Package pkg = packageManager.loadPackage("A", activePackages, new HashMap<>());
+        Package pkg = packageManager.loadPackage("A", null, activePackages, new HashMap<>());
 
         assertThat(pkg.getPackageName(), is("A"));
         assertThat(pkg.getDependencyPackages().size(), is(2));
@@ -186,7 +187,7 @@ class PackageManagerTest {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
-                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA), new HashMap<>()),
+                () -> packageManager.loadPackage("A", null, Collections.singletonMap("A", entryA), new HashMap<>()),
                 "failed to load package A from package store");
     }
 
@@ -196,7 +197,7 @@ class PackageManagerTest {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
-                () -> packageManager.loadPackage("A", Collections.singletonMap("A", entryA), new HashMap<>()),
+                () -> packageManager.loadPackage("A", null, Collections.singletonMap("A", entryA), new HashMap<>()),
                 "package A not found");
     }
 
@@ -205,7 +206,84 @@ class PackageManagerTest {
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
-                () -> packageManager.loadPackage("B", Collections.singletonMap("A", entryA), new HashMap<>()),
+                () -> packageManager.loadPackage("B", null, Collections.singletonMap("A", entryA), new HashMap<>()),
                 "package B not found in registry");
+    }
+
+    @Test
+    void GIVEN_deployment_sets_parameters_WHEN_load_package_invoked_THEN_plug_in_new_parameter_values()
+            throws Exception {
+        // GIVEN
+        PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
+        PackageRegistryEntry entryB = new PackageRegistryEntry("B", new Semver("1.0.0"), Collections.emptyMap());
+        PackageRegistryEntry entryC = new PackageRegistryEntry("C", new Semver("1.0.0"), Collections.emptyMap());
+
+        entryA.getDependsOn().put("B", new PackageRegistryEntry.Reference("B", new Semver("1.0.0"), "1.0.0"));
+        entryA.getDependsOn().put("C", new PackageRegistryEntry.Reference("C", new Semver("1.0.0"), "1.0.0"));
+        List<PackageRegistryEntry> activePackages = Arrays.asList(entryA, entryB, entryC);
+        when(packageRegistry.findActivePackages()).thenReturn(activePackages);
+
+
+        Set<PackageParameter> packageAParams = new HashSet<>(
+                Arrays.asList(new PackageParameter("PackageA_param1", "PackageA_param1_default", "String"),
+                        new PackageParameter("PackageA_param2", "PackageA_param2_default", "String")));
+        Set<PackageParameter> packageBParams = new HashSet<>(
+                Arrays.asList(new PackageParameter("PackageB_param1", "PackageB_param1_default", "String"),
+                        new PackageParameter("PackageB_param2", "PackageB_param2_default", "String")));
+        Set<PackageParameter> packageCParams = new HashSet<>(
+                Arrays.asList(new PackageParameter("PackageC_param1", "PackageC_param1_default", "String"),
+                        new PackageParameter("PackageC_param2", "PackageC_param2_default", "String")));
+
+        Package pkgA = new Package(null, "A", new Semver("1.0.0"), null, null, packageAParams, null, null, null, null);
+        when(packageStore.getPackage("A", new Semver("1.0.0"))).thenReturn(Optional.of(pkgA));
+        Package pkgB = new Package(null, "B", new Semver("1.0.0"), null, null, packageBParams, null, null, null, null);
+        when(packageStore.getPackage("B", new Semver("1.0.0"))).thenReturn(Optional.of(pkgB));
+        Package pkgC = new Package(null, "C", new Semver("1.0.0"), null, null, packageCParams, null, null, null, null);
+        when(packageStore.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
+
+        PackageMetadata pkgMetadatsB = new PackageMetadata("B", "1.0.0", "1.0.0", Collections.emptySet(),
+                Collections.singleton(new PackageParameter("PackageB_param1", "PackageB_param1_value", "String")));
+        PackageMetadata pkgMetadatsC =
+                new PackageMetadata("C", "1.0.0", "1.0.0", Collections.emptySet(), Collections.emptySet());
+        PackageMetadata pkgMetadatsA =
+                new PackageMetadata("A", "1.0.0", "1.0.0", new HashSet<>(Arrays.asList(pkgMetadatsB, pkgMetadatsC)),
+                        new HashSet<>(Arrays.asList(
+                                new PackageParameter("PackageA_param1", "PackageA_param1_value", "String"),
+                                new PackageParameter("PackageA_param2", "PackageA_param2_value", "String"))));
+
+        // WHEN
+        Set<Package> resolvedPackages = packageManager.resolvePackages(Collections.singleton(pkgMetadatsA)).get();
+        Package resultPackageA = findPackageInSet(resolvedPackages, "A");
+        Package resultPackageB = findPackageInSet(resultPackageA.getDependencyPackages(), "B");
+        Package resultPackageC = findPackageInSet(resultPackageA.getDependencyPackages(), "C");
+
+        // THEN
+        assertThat("If all param values were overridden, all should be loaded into package",
+                findPackageParameterValue(resultPackageA.getPackageParameters(), "PackageA_param1")
+                        .equals("PackageA_param1_value"));
+        assertThat("If all param values were overridden, all should be loaded into package",
+                findPackageParameterValue(resultPackageA.getPackageParameters(), "PackageA_param2")
+                        .equals("PackageA_param2_value"));
+        assertThat("If some param values were overridden, only those should be loaded into package",
+                findPackageParameterValue(resultPackageB.getPackageParameters(), "PackageB_param1")
+                        .equals("PackageB_param1_value"));
+        assertThat("If some param values were overridden, rest should retain defaults",
+                findPackageParameterValue(resultPackageB.getPackageParameters(), "PackageB_param2")
+                        .equals("PackageB_param2_default"));
+        assertThat("If no param values were overridden, defaults should be retained",
+                findPackageParameterValue(resultPackageC.getPackageParameters(), "PackageC_param1")
+                        .equals("PackageC_param1_default"));
+        assertThat("If no param values were overridden, defaults should be retained",
+                findPackageParameterValue(resultPackageC.getPackageParameters(), "PackageC_param2")
+                        .equals("PackageC_param2_default"));
+    }
+
+    private Package findPackageInSet(Set<Package> packages, String name) {
+        return packages.stream().filter(pkg -> pkg.getPackageName().equals(name)).findAny().orElse(null);
+    }
+
+    private String findPackageParameterValue(Set<PackageParameter> params, String name) {
+        PackageParameter match = params.stream().filter(param -> param.getName().equals(name)).findAny().orElse(null);
+        return match.getValue();
     }
 }
