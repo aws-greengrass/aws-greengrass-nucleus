@@ -92,7 +92,7 @@ public class LifecycleIPCService extends EvergreenService {
                     .payload(mapper.writeValueAsBytes(lifecycleGenericResponse)).build();
             fut.complete(new Message(responseMessage.toByteArray()));
         } catch (Throwable e) {
-            logger.atError().setEventType("lifecycle-error").setCause(e).log("Failed to handle message.");
+            logger.atError().setEventType("lifecycle-error").setCause(e).log("Failed to handle message");
             try {
                 LifecycleGenericResponse response = LifecycleGenericResponse.builder()
                         .status(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
@@ -102,7 +102,7 @@ public class LifecycleIPCService extends EvergreenService {
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
                 logger.atError().setEventType("lifecycle-error").setCause(ex)
-                        .log("Failed to send error response.");
+                        .log("Failed to send error response");
             }
         }
         if (!fut.isDone()) {

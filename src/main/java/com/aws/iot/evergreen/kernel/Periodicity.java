@@ -82,9 +82,9 @@ public class Periodicity {
             }
             return ret;
         } catch (Throwable t) {
-            s.logger.atError().setCause(t).setEventType("service-invalid-config").addKeyValue("parameter",
-                    Utils.deepToString(n)).addKeyValue("serviceName", s.getName())
-                    .log("Unparseable periodic parameter.");
+            s.logger.atError().setCause(t).setEventType("service-invalid-config")
+                    .addKeyValue("parameter", Utils.deepToString(n)).addKeyValue("serviceName", s.getName())
+                    .log("Unparseable periodic parameter");
             s.serviceErrored(t);
         }
         return null;
@@ -159,7 +159,7 @@ public class Periodicity {
             }
         } catch (Throwable t) {
             service.logger.atWarn().addKeyValue("factor", Coerce.toString(fuzz)).setCause(t)
-                    .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default.");
+                    .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default");
             fuzzFactor = DEFAULT_FUZZ_FACTOR;
         }
 
