@@ -22,7 +22,7 @@ public class DeploymentPacket {
     private HashMap<String, Object> jobDocument;
     private String deploymentId;
     private long deploymentCreationTimestamp;
-    private Set<Package> packagesToDeploy;
+    private Set<Package> resolvedPackagesToDeploy;
     private Set<PackageMetadata> proposedPackagesFromDeployment;
     private Set<String> removedTopLevelPackageNames;
     private Map<Object, Object> resolvedKernelConfig;

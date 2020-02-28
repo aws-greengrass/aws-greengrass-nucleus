@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
-import com.aws.iot.evergreen.deployment.model.Parameter;
 import com.aws.iot.evergreen.util.Utils;
 import com.vdurmont.semver4j.Semver;
 import lombok.EqualsAndHashCode;
