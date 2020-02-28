@@ -27,7 +27,7 @@ public class UpdatingKernelState extends BaseState {
 
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
 
-    private Kernel kernel;
+    private final Kernel kernel;
 
     private boolean updateFinished = false;
 

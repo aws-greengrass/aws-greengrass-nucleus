@@ -54,7 +54,7 @@ public class PackageDownloadingState extends BaseState {
         try {
             Set<Package> packages =
                     packageManager.resolvePackages(deploymentPacket.getProposedPackagesFromDeployment()).get();
-            deploymentPacket.setPackagesToDeploy(packages);
+            deploymentPacket.setResolvedPackagesToDeploy(packages);
             //TODO: Clean up the proposed packages from deployment packet, if not needed after this point
         } catch (InterruptedException | ExecutionException e) {
             logger.error("Caught exception while downloading packages", e);

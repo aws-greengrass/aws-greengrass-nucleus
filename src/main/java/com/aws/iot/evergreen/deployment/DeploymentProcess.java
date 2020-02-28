@@ -50,21 +50,6 @@ public class DeploymentProcess implements Callable<Boolean> {
     private Map<Object, Object> resolvedKernelConfig;
 
     /**
-     * Constructor to initialize deployment process.
-     *
-     * @param deploymentPacket parsed deployment document
-     */
-    public DeploymentProcess(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
-                             PackageManager packageManager) {
-        this.objectMapper = objectMapper;
-        this.currentState = new ParseAndValidateState(deploymentPacket, objectMapper);
-        this.kernel = kernel;
-        this.packageManager = packageManager;
-        deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.VALIDATE_AND_PARSE);
-        this.deploymentPacket = deploymentPacket;
-    }
-
-    /**
      * Execute deployment.
      *
      * @return
@@ -124,8 +109,26 @@ public class DeploymentProcess implements Callable<Boolean> {
             return Boolean.TRUE;
         } catch (DeploymentFailureException e) {
             //TODO: Update deployment packet with status details
+            logger.atError().setCause(e).addKeyValue("deploymentPacket", deploymentPacket).log("Deployment failed");
             return Boolean.FALSE;
         }
+    }
+
+    /**
+     * Constructor to initialize deployment process.
+     * @param deploymentPacket packet containing the deployment context
+     * @param objectMapper Object mapper
+     * @param kernel Evergreen kernel {@link Kernel}
+     * @param packageManager Package manager {@link PackageManager}
+     */
+    public DeploymentProcess(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
+                             PackageManager packageManager) {
+        this.objectMapper = objectMapper;
+        this.currentState = new ParseAndValidateState(deploymentPacket, objectMapper);
+        this.kernel = kernel;
+        this.packageManager = packageManager;
+        deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.VALIDATE_AND_PARSE);
+        this.deploymentPacket = deploymentPacket;
     }
 
     /**

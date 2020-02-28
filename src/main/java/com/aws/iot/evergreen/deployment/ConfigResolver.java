@@ -92,11 +92,9 @@ public class ConfigResolver {
             String value = (String) lifecycle.get(lifecycleKey);
 
             // Handle package parameters
-            if (packageParameters != null) {
-                for (final PackageParameter parameter : packageParameters) {
-                    value = value.replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()),
-                            parameter.getValue());
-                }
+            for (final PackageParameter parameter : packageParameters) {
+                value = value.replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()),
+                        parameter.getValue());
             }
             lifecycle.put(lifecycleKey, value);
 

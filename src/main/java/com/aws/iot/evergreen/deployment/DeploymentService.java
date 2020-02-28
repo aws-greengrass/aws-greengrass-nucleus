@@ -92,8 +92,9 @@ public class DeploymentService extends EvergreenService {
 
             JobExecutionData jobExecutionData = response.execution;
             currentJobId = jobExecutionData.jobId;
-            logger.atInfo().log("Received job description for job id : {} and status {}", currentJobId,
-                    jobExecutionData.status);
+            logger.atInfo().log("Received job description for job id : {} and "
+                            + "status {}", currentJobId, jobExecutionData.status);
+            logger.addDefaultKeyValue("JobId", currentJobId);
             if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
                 //TODO: Check the currently runnign process,
                 // if it is same as this jobId then do nothing. If not then there is something wrong
@@ -104,7 +105,7 @@ public class DeploymentService extends EvergreenService {
 
                 logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
                 currentDeploymentPacket = DeploymentPacket.builder().jobDocument(response.execution.jobDocument)
-                        .proposedPackagesFromDeployment(new HashSet<>()).packagesToDeploy(new HashSet<>())
+                        .proposedPackagesFromDeployment(new HashSet<>()).resolvedPackagesToDeploy(new HashSet<>())
                         .removedTopLevelPackageNames(new HashSet<>()).build();
                 //Starting the job processing in another thread
                 currentProcessStatus = executorService
