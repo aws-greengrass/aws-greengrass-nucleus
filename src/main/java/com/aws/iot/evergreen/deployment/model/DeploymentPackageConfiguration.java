@@ -7,11 +7,9 @@ package com.aws.iot.evergreen.deployment.model;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.Getter;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,15 +35,4 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("Dependencies")
     List<NameVersionPair> listOfDependentPackages;
 
-    @JsonSerialize
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class NameVersionPair {
-        @JsonProperty("Name")
-        @Getter
-        String packageName;
-
-        @JsonProperty("Version")
-        @Getter
-        String version;
-    }
 }

@@ -11,7 +11,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.AwsIotJobsMqttMessage;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -49,7 +49,7 @@ public class DeploymentService extends EvergreenService {
     private final ExecutorService executorService = context.get(ExecutorService.class);
     private Future<Boolean> currentProcessStatus = null;
     private String currentJobId;
-    private DeploymentPacket currentDeploymentPacket;
+    private DeploymentContext currentDeploymentContext;
 
     private final Consumer<AWSIotMessage> awsIotNotifyMessageHandler = awsIotMessage -> {
         /*
@@ -104,12 +104,13 @@ public class DeploymentService extends EvergreenService {
                 iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
 
                 logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
-                currentDeploymentPacket = DeploymentPacket.builder().jobDocument(response.execution.jobDocument)
+                currentDeploymentContext = DeploymentContext.builder().jobDocument(response.execution.jobDocument)
                         .proposedPackagesFromDeployment(new HashSet<>()).resolvedPackagesToDeploy(new HashSet<>())
                         .removedTopLevelPackageNames(new HashSet<>()).build();
                 //Starting the job processing in another thread
                 currentProcessStatus = executorService
-                        .submit(new DeploymentProcess(currentDeploymentPacket, OBJECT_MAPPER, context.get(Kernel.class),
+                        .submit(new DeploymentProcess(currentDeploymentContext, OBJECT_MAPPER,
+                                context.get(Kernel.class),
                                 context.get(PackageManager.class), logger));
                 logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
             }
@@ -120,14 +121,14 @@ public class DeploymentService extends EvergreenService {
         }
     };
 
-    private void updateJobAsSucceded(String jobId, DeploymentPacket currentDeploymentPacket)
+    private void updateJobAsSucceded(String jobId, DeploymentContext currentDeploymentContext)
             throws ExecutionException, InterruptedException {
         //TODO: Fill in status details from the deployment packet
         iotJobsHelper.updateJobStatus(jobId, JobStatus.SUCCEEDED, null);
         logger.addDefaultKeyValue("JobId", "");
     }
 
-    private void updateJobAsFailed(String jobId, DeploymentPacket deploymentPacket)
+    private void updateJobAsFailed(String jobId, DeploymentContext deploymentContext)
             throws ExecutionException, InterruptedException {
         //TODO: Fill in status details from the deployment packet
         iotJobsHelper.updateJobStatus(jobId, JobStatus.FAILED, null);
@@ -180,12 +181,12 @@ public class DeploymentService extends EvergreenService {
                     logger.info("Getting the status of the current process");
                     Boolean deploymentStatus = currentProcessStatus.get();
                     if (deploymentStatus) {
-                        updateJobAsSucceded(currentJobId, currentDeploymentPacket);
+                        updateJobAsSucceded(currentJobId, currentDeploymentContext);
                     } else {
-                        updateJobAsFailed(currentJobId, currentDeploymentPacket);
+                        updateJobAsFailed(currentJobId, currentDeploymentContext);
                     }
                     currentProcessStatus = null;
-                    currentDeploymentPacket = null;
+                    currentDeploymentContext = null;
                 }
                 Thread.sleep(DEPLOYMENT_POLLING_FREQUENCY);
             } catch (InterruptedException ex) {

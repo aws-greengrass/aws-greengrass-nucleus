@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.deployment.state.DownloadedState;
 import com.aws.iot.evergreen.deployment.state.PackageDownloadingState;
 import com.aws.iot.evergreen.deployment.state.ParseAndValidateState;
@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.deployment.state.State;
 import com.aws.iot.evergreen.deployment.state.UpdatingKernelState;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -43,7 +42,7 @@ public class DeploymentProcess implements Callable<Boolean> {
     private volatile State currentState;
 
     @Getter
-    private final DeploymentPacket deploymentPacket;
+    private final DeploymentContext deploymentContext;
 
     @Getter
     @Setter
@@ -62,36 +61,36 @@ public class DeploymentProcess implements Callable<Boolean> {
             while (!currentState.isFinalState()) {
                 if (currentState.canProceed()) {
                     currentState.proceed();
-                    switch (deploymentPacket.getProcessStatus()) {
+                    switch (deploymentContext.getProcessStatus()) {
                         //TODO: Rename these states
                         case VALIDATE_AND_PARSE: {
-                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
+                            logger.atInfo().addKeyValue("deploymentContext", deploymentContext)
                                     .log("Finished validating and parsing. Going to downloading");
-                            deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADING);
-                            currentState = new PackageDownloadingState(deploymentPacket, objectMapper, packageManager,
+                            deploymentContext.setProcessStatus(DeploymentContext.ProcessStatus.PACKAGE_DOWNLOADING);
+                            currentState = new PackageDownloadingState(deploymentContext, objectMapper, packageManager,
                                     logger);
                             break;
                         }
                         case PACKAGE_DOWNLOADING: {
-                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
+                            logger.atInfo().addKeyValue("deploymentContext", deploymentContext)
                                     .log("Package downloaded. Next step is to create config for kernel");
-                            deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADED);
-                            currentState = new DownloadedState(deploymentPacket, objectMapper, kernel, logger);
+                            deploymentContext.setProcessStatus(DeploymentContext.ProcessStatus.PACKAGE_DOWNLOADED);
+                            currentState = new DownloadedState(deploymentContext, objectMapper, kernel, logger);
                             break;
                         }
                         case PACKAGE_DOWNLOADED: { //TODO: Consider renaming this to Create config
-                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
+                            logger.atInfo().addKeyValue("deploymentContext", deploymentContext)
                                     .log("Created config for kernel. Next is to update the kernel");
-                            deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.UPDATING_KERNEL);
-                            currentState = new UpdatingKernelState(deploymentPacket, objectMapper, kernel, logger);
+                            deploymentContext.setProcessStatus(DeploymentContext.ProcessStatus.UPDATING_KERNEL);
+                            currentState = new UpdatingKernelState(deploymentContext, objectMapper, kernel, logger);
                             break;
                         }
                         case UPDATING_KERNEL: {
-                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket).log("Updated kernel");
+                            logger.atInfo().addKeyValue("deploymentContext", deploymentContext).log("Updated kernel");
                             break;
                         }
                         default: {
-                            logger.atError().addKeyValue("deploymentPacket", deploymentPacket)
+                            logger.atError().addKeyValue("deploymentContext", deploymentContext)
                                     .log("Unexpected status for deployment process");
                             return Boolean.FALSE;
                         }
@@ -110,26 +109,26 @@ public class DeploymentProcess implements Callable<Boolean> {
             return Boolean.TRUE;
         } catch (DeploymentFailureException e) {
             //TODO: Update deployment packet with status details
-            logger.atError().setCause(e).addKeyValue("deploymentPacket", deploymentPacket).log("Deployment failed");
+            logger.atError().setCause(e).addKeyValue("deploymentContext", deploymentContext).log("Deployment failed");
             return Boolean.FALSE;
         }
     }
 
     /**
      * Constructor to initialize deployment process.
-     * @param deploymentPacket packet containing the deployment context
+     * @param deploymentContext packet containing the deployment context
      * @param objectMapper Object mapper
      * @param kernel Evergreen kernel {@link Kernel}
      * @param packageManager Package manager {@link PackageManager}
      */
-    public DeploymentProcess(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
+    public DeploymentProcess(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
                              PackageManager packageManager, Logger logger) {
         this.objectMapper = objectMapper;
-        this.currentState = new ParseAndValidateState(deploymentPacket, objectMapper, logger);
+        this.currentState = new ParseAndValidateState(deploymentContext, objectMapper, logger);
         this.kernel = kernel;
         this.packageManager = packageManager;
-        deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.VALIDATE_AND_PARSE);
-        this.deploymentPacket = deploymentPacket;
+        deploymentContext.setProcessStatus(DeploymentContext.ProcessStatus.VALIDATE_AND_PARSE);
+        this.deploymentContext = deploymentContext;
         this.logger = logger;
     }
 

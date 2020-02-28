@@ -5,9 +5,8 @@
 package com.aws.iot.evergreen.deployment.state;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,16 +24,14 @@ public class PackageDownloadingState extends BaseState {
 
     /**
      * Constructor for PackageDownloadingState.
-     * @param deploymentPacket Deployment packet containing deployment configuration
+     * @param deploymentContext Deployment packet containing deployment configuration
      * @param objectMapper Object mapper
      * @param packageManager Package manager {@link PackageManager}
      */
-    public PackageDownloadingState(DeploymentPacket deploymentPacket,
+    public PackageDownloadingState(DeploymentContext deploymentContext,
                                    ObjectMapper objectMapper, PackageManager packageManager, Logger logger) {
-        this.deploymentPacket = deploymentPacket;
-        this.objectMapper = objectMapper;
+        super(deploymentContext, objectMapper, logger);
         this.packageManager = packageManager;
-        this.logger = logger;
     }
 
 
@@ -48,12 +45,12 @@ public class PackageDownloadingState extends BaseState {
     public void proceed() throws DeploymentFailureException {
         logger.info("Downloading the packages");
         logger.atInfo().log("PackageMetadata received: {}",
-                deploymentPacket.getProposedPackagesFromDeployment());
+                deploymentContext.getProposedPackagesFromDeployment());
         //call package manager withe proposed packages
         try {
             Set<Package> packages =
-                    packageManager.resolvePackages(deploymentPacket.getProposedPackagesFromDeployment()).get();
-            deploymentPacket.setResolvedPackagesToDeploy(packages);
+                    packageManager.resolvePackages(deploymentContext.getProposedPackagesFromDeployment()).get();
+            deploymentContext.setResolvedPackagesToDeploy(packages);
             //TODO: Clean up the proposed packages from deployment packet, if not needed after this point
         } catch (InterruptedException | ExecutionException e) {
             logger.error("Caught exception while downloading packages", e);

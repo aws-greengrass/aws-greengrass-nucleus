@@ -3,24 +3,20 @@
 
 package com.aws.iot.evergreen.deployment.state;
 
-import com.aws.iot.evergreen.deployment.DeploymentProcess;
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.util.Map;
-import javax.inject.Inject;
 
 /**
  * Deployment state for updating kernel config.
  * Checks for update conditions, performs updates and handles result.
  */
-@RequiredArgsConstructor
 public class UpdatingKernelState extends BaseState {
 
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
@@ -31,16 +27,14 @@ public class UpdatingKernelState extends BaseState {
 
     /**
      * Constructor for UpdatingKernelState.
-     * @param deploymentPacket Deployment packet with deployment configuration
+     * @param deploymentContext Deployment packet with deployment configuration
      * @param objectMapper Object mapper
      * @param kernel Evergreen kernel {@link Kernel}
      */
-    public UpdatingKernelState(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
+    public UpdatingKernelState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
                                Logger logger) {
-        this.deploymentPacket = deploymentPacket;
-        this.objectMapper = objectMapper;
+        super(deploymentContext, objectMapper, logger);
         this.kernel = kernel;
-        this.logger = logger;
     }
 
     @Override
@@ -55,7 +49,7 @@ public class UpdatingKernelState extends BaseState {
 
         // TODO : After taking this snapshot, deployment can wait for some time before performing a safe update
         // so consider moving this to Kernel
-        String rollbackSnapshotPath = String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentPacket.getDeploymentId());
+        String rollbackSnapshotPath = String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentContext.getDeploymentId());
         // record kernel snapshot
         try {
             kernel.writeEffectiveConfigAsTransactionLog(kernel.configPath.resolve(rollbackSnapshotPath));
@@ -64,11 +58,11 @@ public class UpdatingKernelState extends BaseState {
         }
 
         // merge config
-        Map<Object, Object> resolvedConfig = deploymentPacket.getResolvedKernelConfig();
+        Map<Object, Object> resolvedConfig = deploymentContext.getResolvedKernelConfig();
         logger.atInfo().addKeyValue("resolved_config", resolvedConfig).log("Resolved config :" + resolvedConfig);
         try {
-            kernel.mergeInNewConfig(deploymentPacket.getDeploymentId(),
-                    deploymentPacket.getDeploymentCreationTimestamp(), resolvedConfig).get();
+            kernel.mergeInNewConfig(deploymentContext.getDeploymentId(),
+                    deploymentContext.getDeploymentCreationTimestamp(), resolvedConfig).get();
             logger.atInfo().log("Kernel updated");
         } catch (Exception e) {
             logger.atError().setEventType("config-update-error").setCause(e).log("Deployment failed, rolling back");

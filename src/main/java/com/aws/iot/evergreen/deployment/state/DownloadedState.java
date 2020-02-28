@@ -5,10 +5,9 @@ package com.aws.iot.evergreen.deployment.state;
 
 import com.aws.iot.evergreen.deployment.ConfigResolver;
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 
@@ -18,22 +17,20 @@ import java.util.Map;
  * Deployment state after package dependencies have been resolved and packages have been downloaded.
  * Generates config to be merged when appropriate.
  */
-@RequiredArgsConstructor
 public class DownloadedState extends BaseState {
 
     private Kernel kernel;
 
     /**
      * Constructor for Downloaded state.
-     * @param deploymentPacket Deployment packet containing deployment configuration details
+     * @param deploymentContext Deployment packet containing deployment configuration details
      * @param objectMapper Object mapper
      * @param kernel Evergreen kernel {@link Kernel}
      */
-    public DownloadedState(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel, Logger logger) {
-        this.deploymentPacket = deploymentPacket;
-        this.objectMapper = objectMapper;
+    public DownloadedState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
+                           Logger logger) {
+        super(deploymentContext, objectMapper, logger);
         this.kernel = kernel;
-        this.logger = logger;
     }
 
     @Override
@@ -50,10 +47,10 @@ public class DownloadedState extends BaseState {
         // resolve kernel config
         try {
             logger.atInfo().log("Packages to deploy are {}",
-                    deploymentPacket.getResolvedPackagesToDeploy().toString());
-            deploymentPacket.setResolvedKernelConfig(resolveKernelConfig());
+                    deploymentContext.getResolvedPackagesToDeploy().toString());
+            deploymentContext.setResolvedKernelConfig(resolveKernelConfig());
             //Cleaning up the data which is no longer needed
-            deploymentPacket.getResolvedPackagesToDeploy().clear();
+            deploymentContext.getResolvedPackagesToDeploy().clear();
         } catch (Exception e) {
             // TODO : Mark the deployment failed
             logger.atError().setEventType("donwloaded-state-error").setCause(e).log("Error in downloaded state");
@@ -69,8 +66,8 @@ public class DownloadedState extends BaseState {
     private Map<Object, Object> resolveKernelConfig() {
         // TODO : Make ConfigResolver singlton and iniaitalize using DI when the state machine
         // made singleton
-        ConfigResolver configResolver = new ConfigResolver(kernel, deploymentPacket.getResolvedPackagesToDeploy(),
-                deploymentPacket.getRemovedTopLevelPackageNames());
+        ConfigResolver configResolver = new ConfigResolver(kernel, deploymentContext.getResolvedPackagesToDeploy(),
+                deploymentContext.getRemovedTopLevelPackageNames());
         return configResolver.resolveConfig();
     }
 
