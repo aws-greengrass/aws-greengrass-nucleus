@@ -34,9 +34,9 @@ public class DeploymentProcess implements Callable<Boolean> {
     private static final long DEPLOYMENT_STATE_CHANGE_WAIT_TIME_SECONDS = 2;
 
     private static final Logger logger = LogManager.getLogger(DeploymentProcess.class);
-    private ObjectMapper objectMapper;
-    private Kernel kernel;
-    private PackageManager packageManager;
+    private final ObjectMapper objectMapper;
+    private final Kernel kernel;
+    private final PackageManager packageManager;
 
     @Getter
     @Setter
@@ -80,33 +80,33 @@ public class DeploymentProcess implements Callable<Boolean> {
                     switch (deploymentPacket.getProcessStatus()) {
                         //TODO: Rename these states
                         case VALIDATE_AND_PARSE: {
-                            logger.info("Finished validatin and parsing. Going to downloading");
+                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
+                                    .log("Finished validating and parsing. Going to downloading");
                             deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADING);
                             currentState = new PackageDownloadingState(deploymentPacket, objectMapper, packageManager);
                             break;
                         }
                         case PACKAGE_DOWNLOADING: {
-                            logger.info("Package downloaded. Next step is to create config for kernel",
-                                    deploymentPacket.toString());
+                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
+                                    .log("Package downloaded. Next step is to create config for kernel");
                             deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADED);
                             currentState = new DownloadedState(deploymentPacket, objectMapper, kernel);
                             break;
                         }
                         case PACKAGE_DOWNLOADED: { //TODO: Consider renaming this to Create config
-                            logger.info("Created config for kernel. Next is to update the kernel",
-                                    deploymentPacket.toString());
+                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
+                                    .log("Created config for kernel. Next is to update the kernel");
                             deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.UPDATING_KERNEL);
                             currentState = new UpdatingKernelState(deploymentPacket, objectMapper, kernel);
                             break;
                         }
                         case UPDATING_KERNEL: {
-                            logger.info("Updated kernel",
-                                    deploymentPacket.toString());
+                            logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket).log("Updated kernel");
                             break;
                         }
                         default: {
-                            logger.error("Unexpected status for deployment process with deployment Id {}",
-                                    deploymentPacket.getDeploymentId());
+                            logger.atError().addKeyValue("deploymentPacket", deploymentPacket)
+                                    .log("Unexpected status for deployment process");
                             return Boolean.FALSE;
                         }
                     }
@@ -119,7 +119,8 @@ public class DeploymentProcess implements Callable<Boolean> {
                     }
                 }
             }
-            logger.atInfo().addKeyValue("final_state", currentState.getClass().getSimpleName()).log("final state is");
+            logger.atInfo().setEventType("deployment-state-machine-end")
+                    .addKeyValue("finalState", currentState.getClass().getSimpleName()).log();
             return Boolean.TRUE;
         } catch (DeploymentFailureException e) {
             //TODO: Update deployment packet with status details

@@ -11,11 +11,9 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Getter;
 
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import javax.inject.Inject;
 
 /**
  * Class representing the package downloading state.
@@ -60,7 +58,6 @@ public class PackageDownloadingState extends BaseState {
             //TODO: Clean up the proposed packages from deployment packet, if not needed after this point
         } catch (InterruptedException | ExecutionException e) {
             logger.error("Caught exception while downloading packages", e);
-            logger.error(e.getMessage());
             throw new DeploymentFailureException(e);
         }
 
