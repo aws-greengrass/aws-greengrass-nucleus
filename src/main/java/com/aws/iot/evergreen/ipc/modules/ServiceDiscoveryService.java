@@ -102,7 +102,7 @@ public class ServiceDiscoveryService extends EvergreenService {
                     .payload(mapper.writeValueAsBytes(response)).build();
             fut.complete(new Message(applicationMessage.toByteArray()));
         } catch (Throwable e) {
-            logger.atError().setEventType("service-discovery-error").setCause(e).log("Failed to handle message.");
+            logger.atError().setEventType("service-discovery-error").setCause(e).log("Failed to handle message");
             try {
                 ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse(
                         ServiceDiscoveryResponseStatus.InternalError, e.getMessage());
@@ -111,7 +111,7 @@ public class ServiceDiscoveryService extends EvergreenService {
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
                 logger.atError().setEventType("service-discovery-error").setCause(ex)
-                        .log("Failed to send error response.");
+                        .log("Failed to send error response");
             }
         }
 

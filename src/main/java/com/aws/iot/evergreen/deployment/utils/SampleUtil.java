@@ -62,7 +62,7 @@ public class SampleUtil {
             logger.info("Certificate or private key file missing");
             return null;
         }
-        logger.info("Cert file:" + certificateFile + " Private key: " + privateKeyFile);
+        logger.info("Cert file: {} Private key: {}", certificateFile, privateKeyFile);
 
         final PrivateKey privateKey = loadPrivateKeyFromFile(privateKeyFile, keyAlgorithm);
 
@@ -107,7 +107,7 @@ public class SampleUtil {
     private static List<Certificate> loadCertificatesFromFile(final String filename) {
         File file = new File(filename);
         if (!file.exists()) {
-            logger.info("Certificate file: " + filename + " is not found.");
+            logger.info("Certificate file: {} is not found", filename);
             return null;
         }
 
@@ -115,7 +115,7 @@ public class SampleUtil {
             final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
             return new ArrayList<>(certFactory.generateCertificates(stream));
         } catch (IOException | CertificateException e) {
-            logger.info("Failed to load certificate file " + filename);
+            logger.info("Failed to load certificate file {}", filename);
         }
         return null;
     }
@@ -125,13 +125,13 @@ public class SampleUtil {
 
         File file = new File(filename);
         if (!file.exists()) {
-            logger.info("Private key file not found: " + filename);
+            logger.info("Private key file not found: {}", filename);
             return null;
         }
         try (DataInputStream stream = new DataInputStream(new FileInputStream(file))) {
             privateKey = PrivateKeyReader.getPrivateKey(stream, algorithm);
         } catch (IOException | GeneralSecurityException e) {
-            logger.info("Failed to load private key from file " + filename);
+            logger.info("Failed to load private key from file {}", filename);
         }
 
         return privateKey;
