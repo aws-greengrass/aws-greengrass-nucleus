@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 
-public class BaseState implements State {
+public abstract class BaseState implements State {
 
     @Getter
     @Setter

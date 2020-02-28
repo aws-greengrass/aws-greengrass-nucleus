@@ -14,8 +14,6 @@ import com.aws.iot.evergreen.deployment.model.AwsIotJobsMqttMessage;
 import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -41,98 +39,85 @@ public class DeploymentService extends EvergreenService {
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
     private static final String NOTIFY_TOPIC = "$aws/things/{thingName}/jobs/notify";
-    private static ObjectMapper objectMapper;
 
     @Inject
     private IotJobsHelper iotJobsHelper;
     private MqttHelper mqttHelper;
-    private AtomicBoolean receivedShutdown = new AtomicBoolean(false);
+    private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
     private boolean errored;
     //Thread safe?
-    private ExecutorService executorService = context.get(ExecutorService.class);
+    private final ExecutorService executorService = context.get(ExecutorService.class);
     private Future<Boolean> currentProcessStatus = null;
     private String currentJobId;
     private DeploymentPacket currentDeploymentPacket;
 
+    private final Consumer<AWSIotMessage> awsIotNotifyMessageHandler = awsIotMessage -> {
+        /*
+         * This message is received when either of these things happen
+         * 1. Last job completed (successful/failed)
+         * 2. A new job was queued
+         * 3. A job was cancelled
+         * This message receives the list of Queued and InProgress jobs at the time of this message
+         */
+        logger.info("Received mqtt notify message with payload {}", awsIotMessage.getStringPayload());
 
-    private Consumer<AWSIotMessage> awsIotNotifyMessageHandler = new Consumer<AWSIotMessage>() {
-        @Override
-        public void accept(AWSIotMessage awsIotMessage) {
-            /*
-             * This message is received when either of these things happen
-             * 1. Last job completed (successful/failed)
-             * 2. A new job was queued
-             * 3. A job was cancelled
-             * This message receives the list of Queued and InProgress jobs at the time of this message
-             */
-            logger.info("Received mqtt notify message");
-            logger.info("Payload: " + awsIotMessage.getStringPayload());
+        AwsIotJobsMqttMessage jobsMqttMessage;
+        try {
+            jobsMqttMessage = OBJECT_MAPPER.readValue(awsIotMessage.getStringPayload(), AwsIotJobsMqttMessage.class);
+        } catch (JsonProcessingException ex) {
+            logger.error("Incorrectly formatted message received from AWS Iot", ex);
+            return;
+        }
 
-            AwsIotJobsMqttMessage jobsMqttMessage;
-            try {
-                jobsMqttMessage = objectMapper.readValue(awsIotMessage.getStringPayload(), AwsIotJobsMqttMessage.class);
-            } catch (JsonProcessingException ex) {
-                logger.error("Incorrectly formatted message received from AWS Iot", ex);
-                return;
+        try {
+            //TODO: Check that if there is a current job runnign by the device then thats
+            // coming in the inProgress list. If its not there then it will be an indication that
+            // it was cancelled.
+            if (!jobsMqttMessage.getJobs().getQueued().isEmpty()) {
+                iotJobsHelper.getNextPendingJob();
             }
-
-            try {
-                //TODO: Check that if there is a current job runnign by the device then thats
-                // coming in the inProgress list. If its not there then it will be an indication that
-                // it was cancelled.
-                if (!jobsMqttMessage.getJobs().getQueued().isEmpty()) {
-                    iotJobsHelper.getNextPendingJob();
-                }
-            } catch (ExecutionException | InterruptedException ex) {
-                //TODO: DA should continue listening for other messages if error in one message
-                logger.error("Caught exception while handling Mqtt message ", ex);
-                errored = true;
-                reportState(State.ERRORED);
-            }
+        } catch (ExecutionException | InterruptedException ex) {
+            //TODO: DA should continue listening for other messages if error in one message
+            logger.error("Caught exception while handling Mqtt message", ex);
+            errored = true;
+            reportState(State.ERRORED);
         }
     };
 
-    private Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer =
-            new Consumer<DescribeJobExecutionResponse>() {
-                @Override
-                public void accept(DescribeJobExecutionResponse response) {
-                    try {
-                        if (response.execution == null) {
-                            return;
-                        }
+    private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
+        try {
+            if (response.execution == null) {
+                return;
+            }
 
-                        JobExecutionData jobExecutionData = response.execution;
-                        currentJobId = jobExecutionData.jobId;
-                        logger.atInfo().log("Received job description for job id : {} and status {}", currentJobId,
-                                jobExecutionData.status);
-                        if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
-                            //TODO: Check the currently runnign process,
-                            // if it is same as this jobId then do nothing. If not then there is something wrong
-                            return;
-                        } else if (jobExecutionData.status == JobStatus.QUEUED) {
-                            //There should be no job runnign at this point of time
-                            iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
+            JobExecutionData jobExecutionData = response.execution;
+            currentJobId = jobExecutionData.jobId;
+            logger.atInfo().log("Received job description for job id : {} and status {}", currentJobId,
+                    jobExecutionData.status);
+            if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
+                //TODO: Check the currently runnign process,
+                // if it is same as this jobId then do nothing. If not then there is something wrong
+                return;
+            } else if (jobExecutionData.status == JobStatus.QUEUED) {
+                //There should be no job runnign at this point of time
+                iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
 
-                            logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
-                            currentDeploymentPacket =
-                                    DeploymentPacket.builder().jobDocument(response.execution.jobDocument)
-                                            .proposedPackagesFromDeployment(new HashSet<>())
-                                            .packagesToDeploy(new HashSet<>())
-                                            .removedTopLevelPackageNames(new HashSet<>())
-                                            .build();
-                            //Starting the job processing in another thread
-                            currentProcessStatus = executorService
-                                    .submit(new DeploymentProcess(currentDeploymentPacket, objectMapper,
-                                            context.get(Kernel.class), context.get(PackageManager.class)));
-                            logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
-                        }
+                logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
+                currentDeploymentPacket = DeploymentPacket.builder().jobDocument(response.execution.jobDocument)
+                        .proposedPackagesFromDeployment(new HashSet<>()).packagesToDeploy(new HashSet<>())
+                        .removedTopLevelPackageNames(new HashSet<>()).build();
+                //Starting the job processing in another thread
+                currentProcessStatus = executorService
+                        .submit(new DeploymentProcess(currentDeploymentPacket, OBJECT_MAPPER, context.get(Kernel.class),
+                                context.get(PackageManager.class)));
+                logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
+            }
 
-                    } catch (InterruptedException | ExecutionException e) {
-                        logger.error("Caught exception in callback to handle describe job response {}", e);
-                        //TODO:Exception handling in callbacks
-                    }
-                }
-            };
+        } catch (InterruptedException | ExecutionException e) {
+            logger.error("Caught exception in callback to handle describe job response {}", e);
+            //TODO:Exception handling in callbacks
+        }
+    };
 
     private void updateJobAsSucceded(String jobId, DeploymentPacket currentDeploymentPacket)
             throws ExecutionException, InterruptedException {
@@ -157,7 +142,6 @@ public class DeploymentService extends EvergreenService {
         this.receivedShutdown.set(false);
 
         logger.info("Starting up the Deployment Service");
-        receivedShutdown.set(false);
         String thingName = getStringParameterFromConfig("thingName");
         if (thingName.isEmpty()) {
             logger.info("There is no thingName assigned to this device. Cannot communicate with cloud."
@@ -165,7 +149,6 @@ public class DeploymentService extends EvergreenService {
             reportState(State.FINISHED);
             return;
         }
-
 
         try {
             initialize(thingName);
@@ -207,9 +190,8 @@ public class DeploymentService extends EvergreenService {
                 errored = true;
                 reportState(State.ERRORED);
             } catch (ExecutionException e) {
-                logger.error("Caught exception while getting the status of the Job jobId {}, error : {}", currentJobId,
-                        e);
-                logger.atError().setCause(e).log("Caught exception while getting the status of the");
+                logger.atError().setCause(e).addKeyValue("jobId", currentJobId)
+                        .log("Caught exception while getting the status of the Job");
                 //Do not stop the thread as it should go on to process other incoming messages
             }
         }
@@ -232,10 +214,6 @@ public class DeploymentService extends EvergreenService {
         mqttHelper = new MqttHelper(clientEndpoint, UUID.randomUUID().toString(), certificateFilePath, privateKeyPath);
         iotJobsHelper = new IotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
                 UUID.randomUUID().toString());
-
-        objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     private String getStringParameterFromConfig(String parameterName) {
