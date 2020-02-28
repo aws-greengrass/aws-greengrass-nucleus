@@ -82,6 +82,8 @@ public class EZPlugins {
     /**
      * Don't call loadCache until after all of the implementing/annotated
      * matchers have been registered.
+     *
+     * @throws IOException if loading the cache fails
      */
     public EZPlugins loadCache() throws IOException {
         AtomicReference<IOException> e1 = new AtomicReference<>(null);
@@ -210,7 +212,9 @@ public class EZPlugins {
      *
      * @param c Class that the plugin should implement
      * @param m Callback to do something if a matching plugin is found
+     * @param <T> the class type to lookup
      * @return this
+     * @throws IllegalStateException if plugins are not yet loaded
      */
     public <T> EZPlugins implementing(Class<T> c, ImplementingClassMatchProcessor<T> m) {
         if (doneFirstLoad) {
@@ -225,7 +229,9 @@ public class EZPlugins {
      *
      * @param c Annotation to search for
      * @param m Callback if a match is found
+     * @param <T> the class type to lookup
      * @return this
+     * @throws IllegalStateException if plugins are not yet loaded
      */
     public <T extends Annotation> EZPlugins annotated(Class<T> c, ClassAnnotationMatchProcessor m) {
         if (doneFirstLoad) {

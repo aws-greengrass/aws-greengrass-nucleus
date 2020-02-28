@@ -85,40 +85,35 @@ public class DeploymentService extends EvergreenService {
     };
 
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
-        try {
-            if (response.execution == null) {
-                return;
-            }
-
-            JobExecutionData jobExecutionData = response.execution;
-            currentJobId = jobExecutionData.jobId;
-            logger.atInfo().log("Received job description for job id : {} and "
-                            + "status {}", currentJobId, jobExecutionData.status);
-            logger.addDefaultKeyValue("JobId", currentJobId);
-            if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
-                //TODO: Check the currently runnign process,
-                // if it is same as this jobId then do nothing. If not then there is something wrong
-                return;
-            } else if (jobExecutionData.status == JobStatus.QUEUED) {
-                //There should be no job runnign at this point of time
-                iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
-
-                logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
-                currentDeploymentContext = DeploymentContext.builder().jobDocument(response.execution.jobDocument)
-                        .proposedPackagesFromDeployment(new HashSet<>()).resolvedPackagesToDeploy(new HashSet<>())
-                        .removedTopLevelPackageNames(new HashSet<>()).build();
-                //Starting the job processing in another thread
-                currentProcessStatus = executorService
-                        .submit(new DeploymentProcess(currentDeploymentContext,
-                                OBJECT_MAPPER, context.get(Kernel.class),
-                                context.get(PackageManager.class), logger));
-                logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
-            }
-
-        } catch (InterruptedException | ExecutionException e) {
-            logger.error("Caught exception in callback to handle describe job response {}", e);
-            //TODO:Exception handling in callbacks
+        if (response.execution == null) {
+            return;
         }
+
+        JobExecutionData jobExecutionData = response.execution;
+        currentJobId = jobExecutionData.jobId;
+        logger.atInfo().log("Received job description for job id : {} and "
+                        + "status {}", currentJobId, jobExecutionData.status);
+        logger.addDefaultKeyValue("JobId", currentJobId);
+        if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
+            //TODO: Check the currently runnign process,
+            // if it is same as this jobId then do nothing. If not then there is something wrong
+            return;
+        } else if (jobExecutionData.status == JobStatus.QUEUED) {
+            //There should be no job runnign at this point of time
+            iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
+
+            logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
+            currentDeploymentContext = DeploymentContext.builder().jobDocument(response.execution.jobDocument)
+                    .proposedPackagesFromDeployment(new HashSet<>()).resolvedPackagesToDeploy(new HashSet<>())
+                    .removedTopLevelPackageNames(new HashSet<>()).build();
+            //Starting the job processing in another thread
+            currentProcessStatus = executorService
+                    .submit(new DeploymentProcess(currentDeploymentContext,
+                            OBJECT_MAPPER, context.get(Kernel.class),
+                            context.get(PackageManager.class), logger));
+            logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
+        }
+
     };
 
     private void updateJobAsSucceded(String jobId, DeploymentContext currentDeploymentContext)

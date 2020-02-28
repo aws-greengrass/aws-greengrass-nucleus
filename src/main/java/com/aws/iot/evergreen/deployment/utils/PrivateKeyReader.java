@@ -171,7 +171,7 @@ public class PrivateKeyReader {
          *
          * @param in The DER encoded stream
          */
-        public DerParser(InputStream in) throws IOException {
+        public DerParser(InputStream in) {
             this.in = in;
         }
 

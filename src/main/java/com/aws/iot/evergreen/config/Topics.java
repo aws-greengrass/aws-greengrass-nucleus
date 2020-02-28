@@ -121,6 +121,8 @@ public class Topics extends Node implements Iterable<Node> {
     /**
      * Find, and create if missing, a topic (a name/value pair) in the config
      * file. Never returns null.
+     *
+     * @param path String[] of node names to traverse to find or create the Topic
      */
     public Topic lookup(String... path) {
         int limit = path.length - 1;

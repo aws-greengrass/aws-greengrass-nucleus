@@ -11,7 +11,6 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
@@ -115,6 +114,7 @@ public class Context implements Closeable {
      *
      * @param cl class to lookup
      * @param tag tag of the instance of the class to get
+     * @param <T> the class type to lookup
      * @return null if it could not be found, returns the class otherwise
      */
     public <T> T getIfExists(Class<T> cl, String tag) {
@@ -135,6 +135,7 @@ public class Context implements Closeable {
      *
      * @param cl type of class to be stored
      * @param v instance of class to store
+     * @param <T> the class type to put
      * @return this
      */
     public <T> Context put(Class<T> cl, T v) {
@@ -154,6 +155,7 @@ public class Context implements Closeable {
      *
      * @param cl type of class to be stored
      * @param v value instance of class to store
+     * @param <T> the class type to put
      * @return this
      */
     public <T> Context put(Class<T> cl, Value<T> v) {
