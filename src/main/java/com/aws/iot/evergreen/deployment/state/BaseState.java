@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.deployment.state;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.logging.api.Logger;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,6 +20,8 @@ public abstract class BaseState implements State {
     @Getter
     @Setter
     protected ObjectMapper objectMapper;
+
+    protected Logger logger;
 
     @Override
     public boolean canProceed() {

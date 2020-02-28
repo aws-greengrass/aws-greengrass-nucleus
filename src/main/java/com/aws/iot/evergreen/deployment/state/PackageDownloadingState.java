@@ -21,8 +21,6 @@ import java.util.concurrent.ExecutionException;
  */
 public class PackageDownloadingState extends BaseState {
 
-    private static Logger logger = LogManager.getLogger(PackageDownloadingState.class);
-
     private PackageManager packageManager;
 
     /**
@@ -32,10 +30,11 @@ public class PackageDownloadingState extends BaseState {
      * @param packageManager Package manager {@link PackageManager}
      */
     public PackageDownloadingState(DeploymentPacket deploymentPacket,
-                                   ObjectMapper objectMapper, PackageManager packageManager) {
+                                   ObjectMapper objectMapper, PackageManager packageManager, Logger logger) {
         this.deploymentPacket = deploymentPacket;
         this.objectMapper = objectMapper;
         this.packageManager = packageManager;
+        this.logger = logger;
     }
 
 
