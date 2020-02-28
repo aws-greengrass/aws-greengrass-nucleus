@@ -5,11 +5,11 @@
 package com.aws.iot.evergreen.deployment.state;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentConfiguration;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
+import com.aws.iot.evergreen.deployment.model.NameVersionPair;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,14 +24,12 @@ public class ParseAndValidateState extends BaseState {
 
     /**
      * Constructor for ParseAndValidateState.
-     * @param packet The deployment packet containing the deployment context
+     * @param deploymentContext The deployment packet containing the deployment context
      * @param objectMapper Object Mapper {@link ObjectMapper}
      * @param logger Logger {@link Logger}
      */
-    public ParseAndValidateState(DeploymentPacket packet, ObjectMapper objectMapper, Logger logger) {
-        this.deploymentPacket = packet;
-        this.objectMapper = objectMapper;
-        this.logger = logger;
+    public ParseAndValidateState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Logger logger) {
+        super(deploymentContext, objectMapper, logger);
     }
 
     @Override
@@ -42,23 +40,23 @@ public class ParseAndValidateState extends BaseState {
     @Override
     public void proceed() throws DeploymentFailureException {
         logger.info("Parsing and validating the job document");
-        DeploymentConfiguration deploymentConfiguration =
-                parseAndValidateJobDocument(deploymentPacket.getJobDocument());
+        DeploymentDocument deploymentDocument =
+                parseAndValidateJobDocument(deploymentContext.getJobDocument());
         logger.atInfo().log("Deployment configuration received in the job is {}",
-                deploymentConfiguration.toString());
-        deploymentPacket.setDeploymentId(deploymentConfiguration.getDeploymentId());
-        deploymentPacket.setDeploymentCreationTimestamp(deploymentConfiguration.getTimestamp());
-        Set<PackageMetadata> proposedPackages = getPackageMetadata(deploymentConfiguration);
-        deploymentPacket.setProposedPackagesFromDeployment(proposedPackages);
+                deploymentDocument.toString());
+        deploymentContext.setDeploymentId(deploymentDocument.getDeploymentId());
+        deploymentContext.setDeploymentCreationTimestamp(deploymentDocument.getTimestamp());
+        Set<PackageMetadata> proposedPackages = getPackageMetadata(deploymentDocument);
+        deploymentContext.setProposedPackagesFromDeployment(proposedPackages);
         //cleaning up the space since this is no longer needed in the process
-        deploymentPacket.getJobDocument().clear();
+        deploymentContext.getJobDocument().clear();
     }
 
     //Unnecessary?
-    private Set<PackageMetadata> getPackageMetadata(DeploymentConfiguration deploymentConfiguration) {
+    private Set<PackageMetadata> getPackageMetadata(DeploymentDocument deploymentDocument) {
         logger.info("Getting package metadata");
         Map<String, DeploymentPackageConfiguration> nameToPackageConfig =
-                deploymentConfiguration.getDeploymentPackageConfigurationList().stream()
+                deploymentDocument.getDeploymentPackageConfigurationList().stream()
                         .collect(Collectors.toMap(pkgConfig -> pkgConfig.getPackageName(), pkgConfig -> pkgConfig));
         Map<String, PackageMetadata> nameToPackageMetadata = new HashMap<>();
         nameToPackageConfig.forEach((pkgName, configuration) -> {
@@ -74,7 +72,7 @@ public class ParseAndValidateState extends BaseState {
             if (nameToPackageConfig.containsKey(packageName)) {
                 DeploymentPackageConfiguration deploymentPackageConfiguration = nameToPackageConfig.get(packageName);
                 if (deploymentPackageConfiguration.getListOfDependentPackages() != null) {
-                    for (DeploymentPackageConfiguration.NameVersionPair dependencyNameVersion :
+                    for (NameVersionPair dependencyNameVersion :
                             deploymentPackageConfiguration.getListOfDependentPackages()) {
                         if (nameToPackageMetadata.containsKey(dependencyNameVersion.getPackageName())) {
                             currentPackageMetdata.getDependsOn()
@@ -84,7 +82,7 @@ public class ParseAndValidateState extends BaseState {
                     }
                 }
             }
-            if (deploymentConfiguration.getListOfPackagesToDeploy().contains(packageName)) {
+            if (deploymentDocument.getListOfPackagesToDeploy().contains(packageName)) {
                 packageMetadata.add(currentPackageMetdata);
             }
         }
@@ -93,17 +91,17 @@ public class ParseAndValidateState extends BaseState {
         return packageMetadata;
     }
 
-    private DeploymentConfiguration parseAndValidateJobDocument(HashMap<String, Object> jobDocument)
+    private DeploymentDocument parseAndValidateJobDocument(HashMap<String, Object> jobDocument)
             throws DeploymentFailureException {
         if (jobDocument == null) {
             String errorMessage = "Job document cannot be empty";
             throw new DeploymentFailureException(errorMessage);
         }
-        DeploymentConfiguration deploymentConfiguration = null;
+        DeploymentDocument deploymentDocument = null;
         try {
             String jobDocumentString = objectMapper.writeValueAsString(jobDocument);
-            deploymentConfiguration = objectMapper.readValue(jobDocumentString, DeploymentConfiguration.class);
-            return deploymentConfiguration;
+            deploymentDocument = objectMapper.readValue(jobDocumentString, DeploymentDocument.class);
+            return deploymentDocument;
         } catch (JsonProcessingException e) {
             String errorMessage = "Unable to parse the job document";
             logger.error(errorMessage, e);

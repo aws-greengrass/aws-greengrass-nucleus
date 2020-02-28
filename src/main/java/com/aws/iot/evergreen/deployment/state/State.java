@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.deployment.state;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentPacket;
 
 public interface State {
 

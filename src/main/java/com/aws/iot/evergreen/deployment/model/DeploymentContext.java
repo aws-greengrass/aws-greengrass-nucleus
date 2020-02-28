@@ -18,7 +18,7 @@ import java.util.Set;
 @Setter
 @Builder
 @ToString
-public class DeploymentPacket {
+public class DeploymentContext {
     private HashMap<String, Object> jobDocument;
     private String deploymentId;
     private long deploymentCreationTimestamp;
