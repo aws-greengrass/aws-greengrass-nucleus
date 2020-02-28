@@ -110,7 +110,7 @@ public class DeploymentService extends EvergreenService {
                 //Starting the job processing in another thread
                 currentProcessStatus = executorService
                         .submit(new DeploymentProcess(currentDeploymentPacket, OBJECT_MAPPER, context.get(Kernel.class),
-                                context.get(PackageManager.class)));
+                                context.get(PackageManager.class), logger));
                 logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
             }
 
@@ -124,12 +124,14 @@ public class DeploymentService extends EvergreenService {
             throws ExecutionException, InterruptedException {
         //TODO: Fill in status details from the deployment packet
         iotJobsHelper.updateJobStatus(jobId, JobStatus.SUCCEEDED, null);
+        logger.addDefaultKeyValue("JobId", "");
     }
 
     private void updateJobAsFailed(String jobId, DeploymentPacket deploymentPacket)
             throws ExecutionException, InterruptedException {
         //TODO: Fill in status details from the deployment packet
         iotJobsHelper.updateJobStatus(jobId, JobStatus.FAILED, null);
+        logger.addDefaultKeyValue("JobId", "");
     }
 
     public DeploymentService(Topics topics) {

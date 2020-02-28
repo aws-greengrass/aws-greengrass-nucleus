@@ -33,7 +33,7 @@ public class DeploymentProcess implements Callable<Boolean> {
 
     private static final long DEPLOYMENT_STATE_CHANGE_WAIT_TIME_SECONDS = 2;
 
-    private static final Logger logger = LogManager.getLogger(DeploymentProcess.class);
+    private final Logger logger;
     private final ObjectMapper objectMapper;
     private final Kernel kernel;
     private final PackageManager packageManager;
@@ -68,21 +68,22 @@ public class DeploymentProcess implements Callable<Boolean> {
                             logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
                                     .log("Finished validating and parsing. Going to downloading");
                             deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADING);
-                            currentState = new PackageDownloadingState(deploymentPacket, objectMapper, packageManager);
+                            currentState = new PackageDownloadingState(deploymentPacket, objectMapper, packageManager,
+                                    logger);
                             break;
                         }
                         case PACKAGE_DOWNLOADING: {
                             logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
                                     .log("Package downloaded. Next step is to create config for kernel");
                             deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.PACKAGE_DOWNLOADED);
-                            currentState = new DownloadedState(deploymentPacket, objectMapper, kernel);
+                            currentState = new DownloadedState(deploymentPacket, objectMapper, kernel, logger);
                             break;
                         }
                         case PACKAGE_DOWNLOADED: { //TODO: Consider renaming this to Create config
                             logger.atInfo().addKeyValue("deploymentPacket", deploymentPacket)
                                     .log("Created config for kernel. Next is to update the kernel");
                             deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.UPDATING_KERNEL);
-                            currentState = new UpdatingKernelState(deploymentPacket, objectMapper, kernel);
+                            currentState = new UpdatingKernelState(deploymentPacket, objectMapper, kernel, logger);
                             break;
                         }
                         case UPDATING_KERNEL: {
@@ -122,13 +123,14 @@ public class DeploymentProcess implements Callable<Boolean> {
      * @param packageManager Package manager {@link PackageManager}
      */
     public DeploymentProcess(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
-                             PackageManager packageManager) {
+                             PackageManager packageManager, Logger logger) {
         this.objectMapper = objectMapper;
-        this.currentState = new ParseAndValidateState(deploymentPacket, objectMapper);
+        this.currentState = new ParseAndValidateState(deploymentPacket, objectMapper, logger);
         this.kernel = kernel;
         this.packageManager = packageManager;
         deploymentPacket.setProcessStatus(DeploymentPacket.ProcessStatus.VALIDATE_AND_PARSE);
         this.deploymentPacket = deploymentPacket;
+        this.logger = logger;
     }
 
     /**

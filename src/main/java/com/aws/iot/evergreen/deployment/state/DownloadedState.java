@@ -21,8 +21,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DownloadedState extends BaseState {
 
-    private static final Logger logger = LogManager.getLogger(DownloadedState.class);
-
     private Kernel kernel;
 
     /**
@@ -31,10 +29,11 @@ public class DownloadedState extends BaseState {
      * @param objectMapper Object mapper
      * @param kernel Evergreen kernel {@link Kernel}
      */
-    public DownloadedState(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel) {
+    public DownloadedState(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel, Logger logger) {
         this.deploymentPacket = deploymentPacket;
         this.objectMapper = objectMapper;
         this.kernel = kernel;
+        this.logger = logger;
     }
 
     @Override

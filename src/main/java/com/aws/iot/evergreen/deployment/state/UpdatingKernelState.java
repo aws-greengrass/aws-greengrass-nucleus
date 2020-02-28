@@ -23,8 +23,6 @@ import javax.inject.Inject;
 @RequiredArgsConstructor
 public class UpdatingKernelState extends BaseState {
 
-    private static final Logger logger = LogManager.getLogger(UpdatingKernelState.class);
-
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
 
     private final Kernel kernel;
@@ -37,10 +35,12 @@ public class UpdatingKernelState extends BaseState {
      * @param objectMapper Object mapper
      * @param kernel Evergreen kernel {@link Kernel}
      */
-    public UpdatingKernelState(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel) {
+    public UpdatingKernelState(DeploymentPacket deploymentPacket, ObjectMapper objectMapper, Kernel kernel,
+                               Logger logger) {
         this.deploymentPacket = deploymentPacket;
         this.objectMapper = objectMapper;
         this.kernel = kernel;
+        this.logger = logger;
     }
 
     @Override

@@ -22,11 +22,16 @@ import java.util.stream.Collectors;
 
 public class ParseAndValidateState extends BaseState {
 
-    private Logger logger = LogManager.getLogger(ParseAndValidateState.class);
-
-    public ParseAndValidateState(DeploymentPacket packet, ObjectMapper objectMapper) {
+    /**
+     * Constructor for ParseAndValidateState.
+     * @param packet The deployment packet containing the deployment context
+     * @param objectMapper Object Mapper {@link ObjectMapper}
+     * @param logger Logger {@link Logger}
+     */
+    public ParseAndValidateState(DeploymentPacket packet, ObjectMapper objectMapper, Logger logger) {
         this.deploymentPacket = packet;
         this.objectMapper = objectMapper;
+        this.logger = logger;
     }
 
     @Override
