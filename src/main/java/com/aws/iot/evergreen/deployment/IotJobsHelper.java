@@ -65,6 +65,7 @@ public class IotJobsHelper {
      * @param certificateFile File path for the Iot Thing certificate
      * @param privateKeyFile  File path for the private key for Iot thing
      * @param rootCaPath      File path for the root CA
+     * @param clientId        Unique client ID
      */
     public IotJobsHelper(String thingName, String clientEndpoint, String certificateFile, String privateKeyFile,
                          String rootCaPath, String clientId) {
@@ -107,13 +108,11 @@ public class IotJobsHelper {
      * Subscribes to the topic which recevies confirmation message of Job update for a given JobId.
      * Updates the status of an Iot Job with given JobId to a given status.
      *
-     * @param jobId  The jobId to be updated
-     * @param status The {@link JobStatus} to which to update
-     * @return
+     * @param jobId            The jobId to be updated
+     * @param status           The {@link JobStatus} to which to update
+     * @param statusDetailsMap map with job status details
      */
-    public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
-            throws ExecutionException, InterruptedException {
-
+    public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap) {
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
@@ -146,6 +145,11 @@ public class IotJobsHelper {
      * Subscribes to the describe job topic to get the job details for the next available pending job
      * It also publishes a message to get the next pending job.
      * It returns an empty message if nothing is available
+     *
+     * @param consumerAccept Consumer for when the job is accepted
+     * @param consumerReject Consumer for when the job is rejected
+     * @throws ExecutionException   if subscribing fails
+     * @throws InterruptedException if the thread gets interrupted
      */
     public void subscribeToGetNextJobDecription(Consumer<DescribeJobExecutionResponse> consumerAccept,
                                                 Consumer<RejectedError> consumerReject)
@@ -169,8 +173,8 @@ public class IotJobsHelper {
     /**
      * Get the job description of the next available job for this Iot Thing.
      *
-     * @throws ExecutionException   {@link ExecutionException}
-     * @throws InterruptedException {@link InterruptedException}
+     * @throws ExecutionException   if publishing to the topic fails
+     * @throws InterruptedException if the thread gets interrupted
      */
     public void getNextPendingJob() throws ExecutionException, InterruptedException {
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();

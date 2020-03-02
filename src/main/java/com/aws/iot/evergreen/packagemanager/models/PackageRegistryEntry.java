@@ -24,8 +24,9 @@ public class PackageRegistryEntry {
 
     /**
      * package registry entry constructor.
-     * @param name package name
-     * @param version package version
+     *
+     * @param name        package name
+     * @param version     package version
      * @param dependsOnBy package dependents
      */
     public PackageRegistryEntry(String name, Semver version, Map<String, Reference> dependsOnBy) {

@@ -209,8 +209,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             if (clazz == null) {
                 Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
                 if (si != null) {
-                    staticLogger.atDebug().addKeyValue("serviceName", name)
-                            .log("Attempt to load service from plugins");
+                    staticLogger.atDebug().addKeyValue("serviceName", name).log("Attempt to load service from plugins");
                     clazz = si.get(name);
                 }
             }
@@ -251,9 +250,9 @@ public class EvergreenService implements InjectionActions, Closeable {
      * Creates a GenericExternalService without a service definition. Creates it just to report an error.
      *
      * @param context static Context
-     * @param name name of the service which could not be constructed
+     * @param name    name of the service which could not be constructed
      * @param message message for reason why there is an error
-     * @param ex exception which caused the error node to be used
+     * @param ex      exception which caused the error node to be used
      * @return Error service
      */
     public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {

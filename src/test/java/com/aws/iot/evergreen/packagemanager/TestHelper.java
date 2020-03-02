@@ -21,26 +21,23 @@ public class TestHelper {
     public static final String LOG_PACKAGE_NAME = "Log";
     public static final String COOL_DB_PACKAGE_NAME = "Cool-Database";
 
-    public static Path getPathForLocalWorkingDirectory()
-            throws URISyntaxException, IOException {
+    public static Path getPathForLocalWorkingDirectory() throws URISyntaxException, IOException {
         Path path = Paths.get(TestHelper.class.getResource("plugins").toURI()).resolve("test_cache_working");
-        if(Files.notExists(path)) {
+        if (Files.notExists(path)) {
             Files.createDirectories(path);
         }
         return path;
     }
 
-    public static Path getPathForLocalTestCache()
-            throws URISyntaxException, IOException {
+    public static Path getPathForLocalTestCache() throws URISyntaxException, IOException {
         Path path = Paths.get(TestHelper.class.getResource("plugins").toURI()).resolve("test_cache_local");
-        if(Files.notExists(path)) {
+        if (Files.notExists(path)) {
             Files.createDirectories(path);
         }
         return path;
     }
 
-    public static Path getPathForMockRepository()
-            throws URISyntaxException {
+    public static Path getPathForMockRepository() throws URISyntaxException {
         return Paths.get(TestHelper.class.getResource("mock_artifact_source").toURI());
     }
 

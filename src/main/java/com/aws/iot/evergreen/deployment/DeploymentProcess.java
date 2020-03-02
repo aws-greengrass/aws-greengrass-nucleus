@@ -51,7 +51,8 @@ public class DeploymentProcess implements Callable<Boolean> {
     /**
      * Execute deployment.
      *
-     * @return
+     * @return boolean true if the deployment succeeds
+     * @throws DeploymentFailureException for deployment errors
      */
     public Boolean execute() throws DeploymentFailureException {
         // TODO : Letting this state machine be modified by individual states is not very maintainable
@@ -116,10 +117,12 @@ public class DeploymentProcess implements Callable<Boolean> {
 
     /**
      * Constructor to initialize deployment process.
+     *
      * @param deploymentContext packet containing the deployment context
-     * @param objectMapper Object mapper
-     * @param kernel Evergreen kernel {@link Kernel}
-     * @param packageManager Package manager {@link PackageManager}
+     * @param objectMapper      Object mapper
+     * @param kernel            Evergreen kernel {@link Kernel}
+     * @param packageManager    Package manager {@link PackageManager}
+     * @param logger            Evergreen logger to use
      */
     public DeploymentProcess(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
                              PackageManager packageManager, Logger logger) {

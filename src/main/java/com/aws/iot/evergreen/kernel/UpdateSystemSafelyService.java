@@ -103,8 +103,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
             }
             if (maxt > now) {
                 try {
-                    logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS",
-                            maxt - now).log();
+                    logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", maxt - now).log();
                     Thread.sleep(maxt - now);
                 } catch (InterruptedException ignored) {
                 }

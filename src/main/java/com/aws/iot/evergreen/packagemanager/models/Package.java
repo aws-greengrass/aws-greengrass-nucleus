@@ -68,6 +68,7 @@ public class Package {
      * @param artifacts             Artifact definitions
      * @param dependencies          List of dependencies
      * @param requires              Package Requires
+     * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
     public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,

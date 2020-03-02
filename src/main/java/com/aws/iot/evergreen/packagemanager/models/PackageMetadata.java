@@ -29,6 +29,8 @@ public class PackageMetadata {
      * @param version           package version
      * @param versionConstraint package version constraint
      * @param dependsOn         dependency package information
+     * @param parameters        parameters for the package
+     * @throws IllegalArgumentException if any of the inputs is improper
      */
     public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn,
                            Set<PackageParameter> parameters) {
@@ -45,8 +47,7 @@ public class PackageMetadata {
         this.version = new Semver(version, Semver.SemverType.NPM);
         this.versionConstraint = versionConstraint;
         this.dependsOn = dependsOn == null ? Collections.emptySet() : dependsOn;
-        this.parameters = parameters == null ? Collections.emptySet()
-                : Collections.unmodifiableSet(parameters);
+        this.parameters = parameters == null ? Collections.emptySet() : Collections.unmodifiableSet(parameters);
     }
 
     /**

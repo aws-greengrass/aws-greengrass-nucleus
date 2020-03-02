@@ -4,8 +4,6 @@
 
 package com.aws.iot.evergreen.deployment.exceptions;
 
-import java.util.Map;
-
 public class InvalidRequestException extends Exception {
 
     public InvalidRequestException(String message, Throwable e) {

@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.KernelTest;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.TestUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -30,8 +29,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
-import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -74,15 +73,13 @@ public class IPCServicesTest {
 
     @Test
     public void registerResourceTest() throws Exception {
-        KernelIPCClientConfig config =
-                KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find("mqtt",
-                        SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.find("mqtt", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
-        KernelIPCClientConfig config2 =
-                KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
-                        "ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+        KernelIPCClientConfig config2 = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.find("ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client2 = new IPCClientImpl(config2);
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
 
@@ -107,7 +104,8 @@ public class IPCServicesTest {
 
         // Try updating the resource
         UpdateResourceRequest updateRequest =
-                UpdateResourceRequest.builder().resource(resource.toBuilder().uri(new URI("file://ABC.txt")).build()).build();
+                UpdateResourceRequest.builder().resource(resource.toBuilder().uri(new URI("file://ABC.txt")).build())
+                        .build();
         c.updateResource(updateRequest);
         assertEquals(updateRequest.getResource().getUri(), c.lookupResources(lookup).get(0).getUri());
 
@@ -133,15 +131,14 @@ public class IPCServicesTest {
 
     @Test
     public void registerResourcePermissionTest() throws Exception {
-        KernelIPCClientConfig config =
-                KernelIPCClientConfig.builder().hostAddress(address).port(port).token((String) kernel.find(
-                        "ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.find("ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
-        RegisterResourceRequest req = RegisterResourceRequest.builder().resource(Resource.builder().name("evergreen_1" +
-                "._mqtt") // Claimed by mqtt (which our client is not)
-                .build()).build();
+        RegisterResourceRequest req = RegisterResourceRequest.builder()
+                .resource(Resource.builder().name("evergreen_1" + "._mqtt") // Claimed by mqtt (which our client is not)
+                        .build()).build();
 
         assertThrows(ResourceNotOwnedException.class, () -> c.registerResource(req));
         client.disconnect();

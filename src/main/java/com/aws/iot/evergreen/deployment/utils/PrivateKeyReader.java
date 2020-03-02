@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -43,7 +44,7 @@ public class PrivateKeyReader {
         PrivateKey key = null;
         boolean isRSAKey = false;
 
-        BufferedReader br = new BufferedReader(new InputStreamReader(stream, "UTF-8"));
+        BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
         StringBuilder builder = new StringBuilder();
         boolean inKey = false;
         for (String line = br.readLine(); line != null; line = br.readLine()) {
@@ -171,7 +172,7 @@ public class PrivateKeyReader {
          *
          * @param in The DER encoded stream
          */
-        public DerParser(InputStream in) throws IOException {
+        public DerParser(InputStream in) {
             this.in = in;
         }
 
@@ -227,6 +228,7 @@ public class PrivateKeyReader {
          * most significant digit first.
          * </ul>
          * <p/>
+         *
          * @return The length as integer
          * @throws IOException IOException resulted from invalid file IO
          */

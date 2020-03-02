@@ -525,7 +525,10 @@ public class Utils {
      * @param k1            first key
      * @param v1            first value
      * @param keyValuePairs remaining keys and values
+     * @param <K>           Map key type
+     * @param <V>           Map value type
      * @return immutable map with the provided key-values
+     * @throws IllegalArgumentException if the key-value pairs are not evenly matched
      */
     public static <K, V> Map<K, V> immutableMap(K k1, V v1, Object... keyValuePairs) {
         if (keyValuePairs.length % 2 != 0) {

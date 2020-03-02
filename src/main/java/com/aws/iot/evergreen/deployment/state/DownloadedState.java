@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
@@ -18,14 +17,15 @@ import java.util.Map;
  * Generates config to be merged when appropriate.
  */
 public class DownloadedState extends BaseState {
-
     private Kernel kernel;
 
     /**
      * Constructor for Downloaded state.
+     *
      * @param deploymentContext Deployment packet containing deployment configuration details
-     * @param objectMapper Object mapper
-     * @param kernel Evergreen kernel {@link Kernel}
+     * @param objectMapper      Object mapper
+     * @param kernel            Evergreen kernel {@link Kernel}
+     * @param logger            Evergreen logger to use
      */
     public DownloadedState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
                            Logger logger) {
@@ -46,8 +46,8 @@ public class DownloadedState extends BaseState {
         logger.atInfo().log("<Downloaded>: proceed");
         // resolve kernel config
         try {
-            logger.atInfo().log("Packages to deploy are {}",
-                    deploymentContext.getResolvedPackagesToDeploy().toString());
+            logger.atInfo()
+                    .log("Packages to deploy are {}", deploymentContext.getResolvedPackagesToDeploy().toString());
             deploymentContext.setResolvedKernelConfig(resolveKernelConfig());
             //Cleaning up the data which is no longer needed
             deploymentContext.getResolvedPackagesToDeploy().clear();

@@ -21,14 +21,14 @@ public class PackageParameter {
 
     /**
      * Create a Package Param object.
-     * @param name Name of the parameter
+     *
+     * @param name  Name of the parameter
      * @param value Default value for the parameter
-     * @param type Parameter Type
+     * @param type  Parameter Type
      */
     @JsonCreator
     //TODO: Json property names should match with other configuration members. They start with capital first letters
-    public PackageParameter(@JsonProperty("name") String name,
-                            @JsonProperty("value") String value,
+    public PackageParameter(@JsonProperty("name") String name, @JsonProperty("value") String value,
                             @JsonProperty("type") String type) {
         this.name = name;
         // TODO: Quick fix to get this working, probably can be simplified
@@ -39,9 +39,7 @@ public class PackageParameter {
     }
 
     public enum ParameterType {
-        NUMBER("Number"),
-        STRING("String"),
-        BOOLEAN("Boolean");
+        NUMBER("Number"), STRING("String"), BOOLEAN("Boolean");
 
         private String parameterType;
 

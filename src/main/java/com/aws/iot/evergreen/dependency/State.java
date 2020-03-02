@@ -12,7 +12,6 @@ public enum State {
     /**
      * TODO Remove this?
      * Object does not have a state (not a Lifecycle).
-     *
      */
     STATELESS(true, false, false),
 

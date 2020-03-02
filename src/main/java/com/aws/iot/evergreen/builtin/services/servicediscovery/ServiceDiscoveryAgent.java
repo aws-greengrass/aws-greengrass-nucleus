@@ -78,7 +78,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * Register a resource with Service Discovery. Will throw if the resource is already registered.
      *
      * @param registerResourceRequest incoming request
-     * @param serviceName name of the calling service
+     * @param serviceName             name of the calling service
      * @return
      */
     public RegisterResourceResponse registerResource(RegisterResourceRequest registerResourceRequest,
@@ -118,10 +118,8 @@ public class ServiceDiscoveryAgent implements InjectionActions {
                 return registerResourceResponse;
             }
 
-            SDAResource sdaResource = SDAResource.builder()
-                    .resource(registerResourceRequest.getResource())
-                    .publishedToDNSSD(registerResourceRequest.isPublishToDNSSD())
-                    .owningService(serviceName).build();
+            SDAResource sdaResource = SDAResource.builder().resource(registerResourceRequest.getResource())
+                    .publishedToDNSSD(registerResourceRequest.isPublishToDNSSD()).owningService(serviceName).build();
             config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
 
             registerResourceResponse.setResponseStatus(ServiceDiscoveryResponseStatus.Success);
@@ -135,7 +133,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * it is published to DNS-SD or not.
      *
      * @param updateResourceRequest incoming request
-     * @param serviceName calling service name
+     * @param serviceName           calling service name
      */
     public ServiceDiscoveryGenericResponse updateResource(UpdateResourceRequest updateResourceRequest,
                                                           String serviceName) {
@@ -173,7 +171,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * Remove an existing resource.
      *
      * @param removeResourceRequest incoming removeResourceRequest
-     * @param serviceName calling service name
+     * @param serviceName           calling service name
      */
     public ServiceDiscoveryGenericResponse removeResource(RemoveResourceRequest removeResourceRequest,
                                                           String serviceName) {
@@ -208,10 +206,9 @@ public class ServiceDiscoveryAgent implements InjectionActions {
      * will be treated as a wildcard, so any value will match it.
      *
      * @param lookupResourceRequest incoming lookupResourceRequest
-     * @param serviceName calling service name
+     * @param serviceName           calling service name
      */
-    public LookupResourceResponse lookupResources(
-            LookupResourceRequest lookupResourceRequest, String serviceName) {
+    public LookupResourceResponse lookupResources(LookupResourceRequest lookupResourceRequest, String serviceName) {
         String resourcePath = resourceToPath(lookupResourceRequest.getResource());
         LookupResourceResponse lookupResourceResponse = new LookupResourceResponse();
 

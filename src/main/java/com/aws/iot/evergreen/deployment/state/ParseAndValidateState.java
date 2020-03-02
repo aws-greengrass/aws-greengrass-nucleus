@@ -24,9 +24,10 @@ public class ParseAndValidateState extends BaseState {
 
     /**
      * Constructor for ParseAndValidateState.
+     *
      * @param deploymentContext The deployment packet containing the deployment context
-     * @param objectMapper Object Mapper {@link ObjectMapper}
-     * @param logger Logger {@link Logger}
+     * @param objectMapper      Object Mapper {@link ObjectMapper}
+     * @param logger            Logger {@link Logger}
      */
     public ParseAndValidateState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Logger logger) {
         super(deploymentContext, objectMapper, logger);
@@ -40,10 +41,8 @@ public class ParseAndValidateState extends BaseState {
     @Override
     public void proceed() throws DeploymentFailureException {
         logger.info("Parsing and validating the job document");
-        DeploymentDocument deploymentDocument =
-                parseAndValidateJobDocument(deploymentContext.getJobDocument());
-        logger.atInfo().log("Deployment configuration received in the job is {}",
-                deploymentDocument.toString());
+        DeploymentDocument deploymentDocument = parseAndValidateJobDocument(deploymentContext.getJobDocument());
+        logger.atInfo().log("Deployment configuration received in the job is {}", deploymentDocument.toString());
         deploymentContext.setDeploymentId(deploymentDocument.getDeploymentId());
         deploymentContext.setDeploymentCreationTimestamp(deploymentDocument.getTimestamp());
         Set<PackageMetadata> proposedPackages = getPackageMetadata(deploymentDocument);
@@ -72,8 +71,8 @@ public class ParseAndValidateState extends BaseState {
             if (nameToPackageConfig.containsKey(packageName)) {
                 DeploymentPackageConfiguration deploymentPackageConfiguration = nameToPackageConfig.get(packageName);
                 if (deploymentPackageConfiguration.getListOfDependentPackages() != null) {
-                    for (NameVersionPair dependencyNameVersion :
-                            deploymentPackageConfiguration.getListOfDependentPackages()) {
+                    for (NameVersionPair dependencyNameVersion : deploymentPackageConfiguration
+                            .getListOfDependentPackages()) {
                         if (nameToPackageMetadata.containsKey(dependencyNameVersion.getPackageName())) {
                             currentPackageMetdata.getDependsOn()
                                     .add(nameToPackageMetadata.get(dependencyNameVersion.getPackageName()));

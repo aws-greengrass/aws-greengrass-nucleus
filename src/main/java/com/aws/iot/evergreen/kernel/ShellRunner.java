@@ -89,8 +89,8 @@ public interface ShellRunner {
 
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
-            logger.atInfo().setEventType("shell-dryrun").addKeyValue("name", note)
-                    .addKeyValue("command", command).log();
+            logger.atInfo().setEventType("shell-dryrun").addKeyValue("name", note).addKeyValue("command", command)
+                    .log();
             return OK;
         }
 

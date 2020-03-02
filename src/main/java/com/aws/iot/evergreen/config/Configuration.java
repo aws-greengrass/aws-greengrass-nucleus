@@ -53,6 +53,8 @@ public class Configuration {
     /**
      * Find, and create if missing, a topic (a name/value pair) in the config
      * file. Never returns null.
+     *
+     * @param path String[] of node names to traverse to find or create the Topic
      */
     public Topic lookup(String... path) {
         int limit = path.length - 1;
@@ -66,6 +68,8 @@ public class Configuration {
     /**
      * Find, and create if missing, a list of topics (name/value pairs) in the
      * config file. Never returns null.
+     *
+     * @param path String[] of node names to traverse to find or create the Topics
      */
     public Topics lookupTopics(String... path) {
         Topics n = root;
@@ -78,6 +82,8 @@ public class Configuration {
     /**
      * Find, but do not create if missing, a topic (a name/value pair) in the
      * config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find the Topic
      */
     public Topic find(String... path) {
         int limit = path.length - 1;
@@ -91,6 +97,8 @@ public class Configuration {
     /**
      * Find, but do not create if missing, a topic (a name/value pair) in the
      * config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find the Topics
      */
     public Topics findTopics(String... path) {
         int limit = path.length;
@@ -126,7 +134,8 @@ public class Configuration {
      * with any other supported parser.
      *
      * @param timestamp last modified time for the configuration values
-     * @param map map to merge
+     * @param map       map to merge
+     * @throws IllegalArgumentException Should not be possible
      */
     public void mergeMap(long timestamp, Map<Object, Object> map) throws IllegalArgumentException {
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
@@ -151,14 +160,13 @@ public class Configuration {
     /**
      * Read and merge configuration from a URL.
      *
-     * @param url configuration source URL
+     * @param url                configuration source URL
      * @param useSourceTimestamp true if the modified time should be set based on the value from the server (if any)
      * @return this with the new configuration merged in
      * @throws IOException if the reading fails
      */
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
-        logger.atInfo().addKeyValue("url", url).setEventType("config-loading")
-                .log("Read configuration from a URL");
+        logger.atInfo().addKeyValue("url", url).setEventType("config-loading").log("Read configuration from a URL");
         URLConnection u = url.openConnection();
         return read(u.getInputStream(), extension(url.getPath()),
                 useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
@@ -184,13 +192,15 @@ public class Configuration {
     /**
      * Read in a configuration from a Reader and merge it with the current configuration.
      *
-     * @param in reader to read new configuration from
+     * @param in        reader to read new configuration from
      * @param extension extension of the file we're reading in (changes how we deserialize the input data)
      * @param timestamp timestamp to use as the last modified time
      * @return this with the merged in configuration
-     * @throws IOException if reading fails
+     * @throws IOException              if reading fails
+     * @throws IllegalArgumentException if the file extension is not supported
      */
-    public Configuration read(Reader in, String extension, long timestamp) throws IOException {
+    public Configuration read(Reader in, String extension, long timestamp)
+            throws IOException, IllegalArgumentException {
         try {
             switch (extension) {
                 case "json":
@@ -218,7 +228,7 @@ public class Configuration {
     /**
      * Read in a new configuration from a URL and merge it into the current config.
      *
-     * @param u URL to read in the configuration from
+     * @param u               URL to read in the configuration from
      * @param sourceTimestamp true if the URL source timestamp should be used as the last modified time
      * @return any throwable that occurs from the merge or read
      */

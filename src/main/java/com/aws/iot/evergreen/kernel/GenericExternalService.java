@@ -39,8 +39,8 @@ public class GenericExternalService extends EvergreenService {
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
             if (c.parentNeedsToKnow() && !child.childOf("shutdown")) {
-                logger.atInfo().setEventType("service-config-change")
-                        .addKeyValue("configNode", child.getFullName()).log();
+                logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child.getFullName())
+                        .log();
                 if (child.childOf("install")) {
                     requestReinstall();
                 } else {
@@ -93,17 +93,14 @@ public class GenericExternalService extends EvergreenService {
                 if (!inShutdown) {
                     if (exit == 0) {
                         this.requestStop();
-                        logger.atInfo().setEventType("generic-service-stopping")
-                                .log("Service finished running");
+                        logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                     } else {
                         reportState(State.ERRORED);
-                        logger.atError().setEventType("generic-service-errored")
-                                .addKeyValue("exitCode", exit).log();
+                        logger.atError().setEventType("generic-service-errored").addKeyValue("exitCode", exit).log();
                     }
                 }
             }) == RunStatus.NothingDone) {
-                logger.atInfo().setEventType("generic-service-finished")
-                        .log("Nothing done");
+                logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
                 this.requestStop();
             }
         }
@@ -130,7 +127,7 @@ public class GenericExternalService extends EvergreenService {
     /**
      * Run one of the commands defined in the config on the command line.
      *
-     * @param name name of the command to run ("run", "install", "start").
+     * @param name       name of the command to run ("run", "install", "start").
      * @param background IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
      * @return the status of the run.
      */
@@ -177,8 +174,8 @@ public class GenericExternalService extends EvergreenService {
             if (script instanceof Topic) {
                 return run((Topic) script, background, t);
             } else {
-                logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode",
-                        t.getFullName()).log("Missing script");
+                logger.atError().setEventType("generic-service-invalid-config")
+                        .addKeyValue("configNode", t.getFullName()).log("Missing script");
                 serviceErrored();
                 return RunStatus.Errored;
             }
@@ -209,8 +206,8 @@ public class GenericExternalService extends EvergreenService {
                     case "true":
                         return !neg;
                     default:
-                        logger.atError().setEventType("generic-service-invalid-config").addKeyValue("operator",
-                                m.group(1)).log("Unknown operator in skipif");
+                        logger.atError().setEventType("generic-service-invalid-config")
+                                .addKeyValue("operator", m.group(1)).log("Unknown operator in skipif");
                         serviceErrored();
                         return false;
                 }

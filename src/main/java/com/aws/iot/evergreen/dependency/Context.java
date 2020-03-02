@@ -11,7 +11,6 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
@@ -113,8 +112,9 @@ public class Context implements Closeable {
     /**
      * Get the class with the provided tag, if it exists.
      *
-     * @param cl class to lookup
+     * @param cl  class to lookup
      * @param tag tag of the instance of the class to get
+     * @param <T> the class type to lookup
      * @return null if it could not be found, returns the class otherwise
      */
     public <T> T getIfExists(Class<T> cl, String tag) {
@@ -133,8 +133,9 @@ public class Context implements Closeable {
     /**
      * Put a class into the Context.
      *
-     * @param cl type of class to be stored
-     * @param v instance of class to store
+     * @param cl  type of class to be stored
+     * @param v   instance of class to store
+     * @param <T> the class type to put
      * @return this
      */
     public <T> Context put(Class<T> cl, T v) {
@@ -152,8 +153,9 @@ public class Context implements Closeable {
     /**
      * Put a class into the Context.
      *
-     * @param cl type of class to be stored
-     * @param v value instance of class to store
+     * @param cl  type of class to be stored
+     * @param v   value instance of class to store
+     * @param <T> the class type to put
      * @return this
      */
     public <T> Context put(Class<T> cl, Value<T> v) {
@@ -172,7 +174,7 @@ public class Context implements Closeable {
      * Put object into the context with a provided tag.
      *
      * @param tag tag
-     * @param v value
+     * @param v   value
      * @return this
      */
     public Context put(String tag, Object v) {
@@ -204,12 +206,11 @@ public class Context implements Closeable {
             try {
                 if (vv instanceof Closeable) {
                     ((Closeable) vv).close();
-                    logger.atDebug().setEventType("context-shutdown").addKeyValue("class",
-                            Coerce.toString(vv)).log();
+                    logger.atDebug().setEventType("context-shutdown").addKeyValue("class", Coerce.toString(vv)).log();
                 }
             } catch (Throwable t) {
-                logger.atError().setEventType("context-shutdown-error").setCause(t).addKeyValue("class",
-                        Coerce.toString(vv)).log();
+                logger.atError().setEventType("context-shutdown-error").setCause(t)
+                        .addKeyValue("class", Coerce.toString(vv)).log();
             }
         });
     }
@@ -249,7 +250,7 @@ public class Context implements Closeable {
      * Serially send an event to the global state change listeners.
      *
      * @param changedService the service which had a state change
-     * @param previousState the previous state of the service
+     * @param previousState  the previous state of the service
      */
     public synchronized void globalNotifyStateChanged(EvergreenService changedService, final State previousState) {
         if (listeners != null) {
@@ -425,11 +426,10 @@ public class Context implements Closeable {
             if (injectionActions != null) {
                 try {
                     injectionActions.preInject();
-                    logger.atTrace().addKeyValue("class", className)
-                            .setEventType("class-pre-inject-complete").log();
+                    logger.atTrace().addKeyValue("class", className).setEventType("class-pre-inject-complete").log();
                 } catch (Throwable e) {
-                    logger.atError().setCause(e).addKeyValue("class", className)
-                            .setEventType("class-pre-inject-error").log();
+                    logger.atError().setCause(e).addKeyValue("class", className).setEventType("class-pre-inject-error")
+                            .log();
                     if (asService != null) {
                         asService.serviceErrored(e);
                     }
@@ -465,8 +465,8 @@ public class Context implements Closeable {
                                 // the context tagged with its service name so that EvergreenService.locate
                                 // will be able to find it when it looks for it by name (and not by class)
                                 if (v instanceof EvergreenService) {
-                                    Context.this.getv(EvergreenService.class, ((EvergreenService) v).getName()).put(
-                                            (EvergreenService) v);
+                                    Context.this.getv(EvergreenService.class, ((EvergreenService) v).getName())
+                                            .put((EvergreenService) v);
                                 }
                             }
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
@@ -479,8 +479,8 @@ public class Context implements Closeable {
                                 asService.addDependency((EvergreenService) v,
                                         startWhen == null ? State.RUNNING : startWhen.value());
                             }
-                            logger.atTrace().addKeyValue("class", f.getName())
-                                    .setEventType("class-inject-complete").log();
+                            logger.atTrace().addKeyValue("class", f.getName()).setEventType("class-inject-complete")
+                                    .log();
                         } catch (Throwable ex) {
                             logger.atError().setCause(ex).addKeyValue("class", f.getName())
                                     .setEventType("class-inject-error").log();
@@ -496,8 +496,8 @@ public class Context implements Closeable {
             if (injectionActions != null && (asService == null || !asService.isErrored())) {
                 try {
                     injectionActions.postInject();
-                    logger.atTrace().addKeyValue("class", value.getClass())
-                            .setEventType("class-post-inject-complete").log();
+                    logger.atTrace().addKeyValue("class", value.getClass()).setEventType("class-post-inject-complete")
+                            .log();
                 } catch (Throwable e) {
                     logger.atError().setCause(e).addKeyValue("class", value.getClass())
                             .setEventType("class-post-inject-error").log();

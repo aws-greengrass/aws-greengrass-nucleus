@@ -3,8 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
@@ -53,7 +51,6 @@ public class PackageManager {
      * Constructor with hardcoded local cache and mock source paths.
      */
     public PackageManager() {
-
         this.localCache = new LocalPackageStore(CACHE_DIRECTORY);
         this.mockPackageRepository = new LocalPackageStore(MOCK_PACKAGE_SOURCE);
         this.packageRegistry = new PackageRegistryImpl();
@@ -77,7 +74,9 @@ public class PackageManager {
 
     /**
      * Given a set of proposed package dependency trees.
-     * Return the local resolved dependency tress in the future
+     *
+     * @param proposedPackages The set of proposed packages to resolve dependencies for
+     * @return the local resolved dependency tress in the future
      */
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
         return executorService.submit(() -> resolveDependencies(proposedPackages));
@@ -192,7 +191,11 @@ public class PackageManager {
 
     /**
      * Given a set of pending refresh packages, download the package recipes and artifacts in background.
-     * Return the packages got successfully downloaded
+     *
+     * @param pendingDownloadPackages The set of packages to download
+     * @return the packages got successfully downloaded
+     * @throws IOException        if downloading fails
+     * @throws PackagingException if something else fails with packages
      */
     public Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages)
             throws IOException, PackagingException {

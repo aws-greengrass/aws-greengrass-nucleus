@@ -178,6 +178,7 @@ public class Coerce {
      * @param clazz enum class to convert into.
      * @param o object to be converted.
      * @param dflt default value if the conversion fails.
+     * @param <T> Enum type to coerce to.
      * @return enum value or default.
      */
     public static <T extends Enum<?>> T toEnum(Class<T> clazz, Object o, T dflt) {

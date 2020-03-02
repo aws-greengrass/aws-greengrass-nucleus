@@ -1,12 +1,12 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
+import com.aws.iot.evergreen.packagemanager.TestHelper;
+import org.junit.jupiter.api.Test;
+
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Set;
-
-import com.aws.iot.evergreen.packagemanager.TestHelper;
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -19,9 +19,8 @@ public class PackageTest {
     @Test
     public void GIVEN_valid_package_recipe_WHEN_attempt_package_recipe_create_THEN_valid_package_recipe_created()
             throws IOException, URISyntaxException {
-        String recipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                            "1.0.0");
+        String recipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         Package testPkg = TestHelper.getPackageObject(recipeContents);
         assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, testPkg.getPackageName());
         assertTrue(testPkg.getVersion().isEqualTo("1.0.0"));
@@ -52,9 +51,8 @@ public class PackageTest {
         // for coverage of both
 
         // Packages are same
-        String monitorServiceRecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                            "1.0.0");
+        String monitorServiceRecipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
         Package monitorServicePkgCopy = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
@@ -65,15 +63,13 @@ public class PackageTest {
     @Test
     public void GIVEN_valid_package_recipe_WHEN_compare_to_different_version_THEN_compare_returns_not_equal()
             throws IOException, URISyntaxException {
-        String monitorServiceRecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                            "1.0.0");
+        String monitorServiceRecipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         // Same package different versions
-        String monitorService11RecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                            "1.1.0");
+        String monitorService11RecipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0");
         Package monitorService11Pkg = TestHelper.getPackageObject(monitorService11RecipeContents);
 
         assertFalse(monitorServicePkg.equals(monitorService11Pkg));
@@ -83,15 +79,13 @@ public class PackageTest {
     @Test
     public void GIVEN_valid_package_recipe_WHEN_compare_to_different_recipe_THEN_compare_returns_not_equal()
             throws IOException, URISyntaxException {
-        String monitorServiceRecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                            "1.0.0");
+        String monitorServiceRecipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         // Different packages
-        String conveyorBeltRecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.CONVEYOR_BELT_PACKAGE_NAME,
-                                                            "1.0.0");
+        String conveyorBeltRecipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.CONVEYOR_BELT_PACKAGE_NAME, "1.0.0");
         Package conveyorBeltPkg = TestHelper.getPackageObject(conveyorBeltRecipeContents);
 
         assertFalse(monitorServicePkg.equals(conveyorBeltPkg));
@@ -104,11 +98,9 @@ public class PackageTest {
     @Test
     public void GIVEN_invalid_recipe_version_WHEN_try_create_package_recipe_THEN_throws_exception()
             throws IOException, URISyntaxException {
-        String monitorServiceRecipeContents
-                = TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_VERSION_PACKAGE_NAME,
-                                                            "1.0.0");
-        assertThrows(IOException.class,
-                             () -> TestHelper.getPackageObject(monitorServiceRecipeContents),
-                             "Expected IOException but didn't throw");
+        String monitorServiceRecipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_VERSION_PACKAGE_NAME, "1.0.0");
+        assertThrows(IOException.class, () -> TestHelper.getPackageObject(monitorServiceRecipeContents),
+                "Expected IOException but didn't throw");
     }
 }
