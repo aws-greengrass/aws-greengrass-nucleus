@@ -145,8 +145,24 @@
                             <value>TEXT</value>
                         </property>
                     </systemProperties>
+                    <argLine>${surefire.argLine} -Xms1m</argLine>
+                    <excludes>
+                        <exclude>**/InitTestSuite.java</exclude>
+                    </excludes>
                 </configuration>
                 <executions>
+                    <execution>
+                        <id>default-test</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <test>InitTestSuite</test>
+                            <skipTests>false</skipTests>
+                        </configuration>
+                    </execution>
+
                     <execution>
                         <id>unit-tests</id>
                         <phase>test</phase>
@@ -169,7 +185,8 @@
                             <skipTests>false</skipTests>
                             <excludedGroups>*</excludedGroups>
                             <groups>Integration</groups>
-                            <reuseForks>false</reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
+                            <reuseForks>false
+                            </reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
                         </configuration>
                     </execution>
                 </executions>
@@ -234,6 +251,7 @@
                     <excludes>
                         <exclude>**/*Exception*</exclude>
                     </excludes>
+                    <propertyName>surefire.argLine</propertyName>
                 </configuration>
                 <executions>
                     <execution>

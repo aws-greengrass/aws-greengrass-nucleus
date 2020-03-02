@@ -1,11 +1,13 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.extension.PerformanceReporting;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +21,7 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(PerformanceReporting.class)
 @Tag("Integration")
 public class ServiceConfigMergingTest {
     private Kernel kernel;
