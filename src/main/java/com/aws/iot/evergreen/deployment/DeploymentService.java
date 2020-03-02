@@ -109,8 +109,8 @@ public class DeploymentService extends EvergreenService {
                         .removedTopLevelPackageNames(new HashSet<>()).build();
                 //Starting the job processing in another thread
                 currentProcessStatus = executorService
-                        .submit(new DeploymentProcess(currentDeploymentContext, OBJECT_MAPPER,
-                                context.get(Kernel.class),
+                        .submit(new DeploymentProcess(currentDeploymentContext,
+                                OBJECT_MAPPER, context.get(Kernel.class),
                                 context.get(PackageManager.class), logger));
                 logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
             }
@@ -209,10 +209,11 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void initialize(String thingName) throws AWSIotException {
-        String envHome = System.getenv("HOME");
-        String privateKeyPath = envHome + getStringParameterFromConfig("privateKeyPath");
-        String certificateFilePath = envHome + getStringParameterFromConfig("certificateFilePath");
-        String rootCAPath = envHome + getStringParameterFromConfig("rootCaPath");
+        //TODO: Get it from bootstrap config. Path of Bootstrap config should be taken as argument to kernel?
+        Kernel kernel = context.get(Kernel.class);
+        String privateKeyPath = kernel.deTilde(getStringParameterFromConfig("privateKeyPath"));
+        String certificateFilePath = kernel.deTilde(getStringParameterFromConfig("certificateFilePath"));
+        String rootCAPath = kernel.deTilde(getStringParameterFromConfig("rootCaPath"));
         String clientEndpoint = getStringParameterFromConfig("mqttClientEndpoint");
 
         mqttHelper = new MqttHelper(clientEndpoint, UUID.randomUUID().toString(), certificateFilePath, privateKeyPath);
