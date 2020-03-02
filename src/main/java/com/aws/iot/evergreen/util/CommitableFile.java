@@ -38,6 +38,9 @@ public class CommitableFile extends FileOutputStream implements Commitable {
      * Strangely enough, abandonOnClose is usually the best choice: it interacts
      * well with the implicit close() that happens in a try-with-resources where
      * files are closed if an exception is tossed.
+     *
+     * @param t Path to write to
+     * @throws IOException if writing fails
      */
     public static CommitableFile abandonOnClose(Path t) throws IOException {
         return of(t, false);

@@ -66,8 +66,9 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
 
         // Match up the version, if it doesn't match then return an error and close the connection
         if (message.version != FrameReader.VERSION) {
-            logger.atWarn().setEventType("request-version-mismatch").addKeyValue("clientAddress",
-                    ctx.channel().remoteAddress()).addKeyValue("clientMessageVersion", message.version)
+            logger.atWarn().setEventType("request-version-mismatch")
+                    .addKeyValue("clientAddress", ctx.channel().remoteAddress())
+                    .addKeyValue("clientMessageVersion", message.version)
                     .addKeyValue("supportedVersion", FrameReader.VERSION).log(UNSUPPORTED_PROTOCOL_VERSION);
             sendResponse(new FrameReader.Message(UNSUPPORTED_PROTOCOL_VERSION.getBytes(StandardCharsets.UTF_8)),
                     message.requestId, BuiltInServiceDestinationCode.ERROR.getValue(), ctx, true);
@@ -88,9 +89,9 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
         // Get the callback for a destination. If it doesn't exist, then send back an error message.
         IPCCallback cb = router.getCallbackForDestination(message.destination);
         if (cb == null) {
-            logger.atWarn().setEventType("request-destination-not-found").addKeyValue("clientAddress",
-                    ctx.channel().remoteAddress()).addKeyValue("destination", message.destination)
-                    .log(DEST_NOT_FOUND_ERROR);
+            logger.atWarn().setEventType("request-destination-not-found")
+                    .addKeyValue("clientAddress", ctx.channel().remoteAddress())
+                    .addKeyValue("destination", message.destination).log(DEST_NOT_FOUND_ERROR);
             sendResponse(new FrameReader.Message(DEST_NOT_FOUND_ERROR.getBytes(StandardCharsets.UTF_8)),
                     message.requestId, BuiltInServiceDestinationCode.ERROR.getValue(), ctx, false);
             return;

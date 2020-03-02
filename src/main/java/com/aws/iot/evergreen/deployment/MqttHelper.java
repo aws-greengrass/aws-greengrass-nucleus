@@ -26,10 +26,12 @@ public class MqttHelper {
 
     /**
      * Constructor for MqttHelper.
-     * @param clientEndpoint Custom endpoint for the aws account
-     * @param clientId ClientId for the connection
+     *
+     * @param clientEndpoint  Custom endpoint for the aws account
+     * @param clientId        ClientId for the connection
      * @param certificateFile File path of the Iot thing certificate
-     * @param privateKeyFile File path of the Iot thing private key
+     * @param privateKeyFile  File path of the Iot thing private key
+     * @throws AWSIotException if constructing the MQTT client fails
      */
     public MqttHelper(String clientEndpoint, String clientId, String certificateFile, String privateKeyFile)
             throws AWSIotException {

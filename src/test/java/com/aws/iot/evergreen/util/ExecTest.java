@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 
 @Tag("Integration")
@@ -41,22 +40,19 @@ public class ExecTest {
         //        assertFalse(Exec.successful("java --version|egrep -i -q '(jdk|jre) *17\\.'"));
         //        assertTrue(Exec.successful("java --version|egrep -i -q '(jdk|jre) *11\\.'"));
         assertFalse(Exec.successful(false, "echo openjdk 11.0|egrep -i -q '(jdk|jre) *18\\.'"));
-        assertTrue(new Exec().withShell("echo openjdk 11.0|egrep -i -q '(jdk|jre) *11\\.'").withDumpOut().successful(false));
+        assertTrue(new Exec().withShell("echo openjdk 11.0|egrep -i -q '(jdk|jre) *11\\.'").withDumpOut()
+                .successful(false));
     }
 
     @Test
-    public void test3() {
+    public void test3() throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         List<String> o = new ArrayList<>();
         List<String> e = new ArrayList<>();
 
-        new Exec().withShell("pwd").withOut(str -> o.add(str.toString())).withErr(str -> e.add(str.toString())).background(exc -> done.countDown());
-        try {
-            done.await(10, TimeUnit.SECONDS);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace(System.out);
-            fail();
-        }
+        new Exec().withShell("pwd").withOut(str -> o.add(str.toString())).withErr(str -> e.add(str.toString()))
+                .background(exc -> done.countDown());
+        assertTrue(done.await(10, TimeUnit.SECONDS));
         //        System.out.println("O: "+deepToString(o));
         //        System.out.println("E: "+deepToString(e));
         assertEquals(0, e.size());

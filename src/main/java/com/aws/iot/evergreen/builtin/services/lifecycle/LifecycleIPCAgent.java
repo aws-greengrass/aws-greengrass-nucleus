@@ -58,12 +58,11 @@ public class LifecycleIPCAgent implements InjectionActions {
     /**
      * Report the state of the service which the request is coming from.
      *
-     * @param stateChangeRequest  incoming request
-     * @param context caller context
+     * @param stateChangeRequest incoming request
+     * @param context            caller context
      * @return response for setting state
      */
-    public LifecycleGenericResponse reportState(StateChangeRequest stateChangeRequest,
-                                                                      ConnectionContext context) {
+    public LifecycleGenericResponse reportState(StateChangeRequest stateChangeRequest, ConnectionContext context) {
         State s = State.valueOf(stateChangeRequest.getState());
         Optional<EvergreenService> service =
                 Optional.ofNullable(kernel.context.get(EvergreenService.class, context.getServiceName()));
@@ -85,7 +84,7 @@ public class LifecycleIPCAgent implements InjectionActions {
      * service's lifecycle changes).
      *
      * @param lifecycleListenRequest incoming listen request
-     * @param context       caller context
+     * @param context                caller context
      * @return response
      */
     public LifecycleGenericResponse listenToStateChanges(LifecycleListenRequest lifecycleListenRequest,
@@ -110,14 +109,14 @@ public class LifecycleIPCAgent implements InjectionActions {
                 // Synchronize on context so that we only try to send 1 update at a time to a given client
                 synchronized (context) {
                     StateTransitionEvent stateTransitionEvent =
-                            StateTransitionEvent.builder().newState(newState.toString())
-                                    .oldState(oldState.toString()).service(listenRequest.getServiceName()).build();
+                            StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
+                                    .service(listenRequest.getServiceName()).build();
 
                     try {
-                        ApplicationMessage applicationMessage = ApplicationMessage.builder()
-                                .version(LifecycleImpl.API_VERSION)
-                                .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
-                                .payload(IPCUtil.encode(stateTransitionEvent)).build();
+                        ApplicationMessage applicationMessage =
+                                ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
+                                        .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
+                                        .payload(IPCUtil.encode(stateTransitionEvent)).build();
                         // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
                         context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
                                 new FrameReader.Message(applicationMessage.toByteArray())).get();

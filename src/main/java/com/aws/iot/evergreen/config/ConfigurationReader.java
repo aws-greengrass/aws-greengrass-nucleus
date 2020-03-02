@@ -22,7 +22,7 @@ public class ConfigurationReader {
     /**
      * Merge the given transaction log into the given configuration.
      *
-     * @param c configuration to merge into
+     * @param c  configuration to merge into
      * @param r0 reader of the transaction log to read from
      * @throws IOException if reading fails
      */
@@ -46,7 +46,7 @@ public class ConfigurationReader {
      * Create a Configuration based on a transaction log's path.
      *
      * @param context root context for the configuration
-     * @param p path to the transaction log
+     * @param p       path to the transaction log
      * @return Configuration from the transaction log
      * @throws IOException if reading the transaction log fails
      */

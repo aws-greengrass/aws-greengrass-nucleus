@@ -1,11 +1,8 @@
 package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
-import com.aws.iot.evergreen.logging.api.Logger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Answers;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.concurrent.CountDownLatch;

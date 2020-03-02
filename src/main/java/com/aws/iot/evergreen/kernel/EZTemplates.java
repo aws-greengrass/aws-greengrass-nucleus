@@ -57,7 +57,7 @@ public class EZTemplates {
     /**
      * Write a string to a path.
      *
-     * @param cs string to write.
+     * @param cs   string to write.
      * @param dest path to write to.
      * @throws IOException if writing fails.
      */

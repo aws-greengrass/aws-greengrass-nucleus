@@ -19,17 +19,18 @@ import java.util.concurrent.ExecutionException;
  * Dependency resolution and download of package recipes, artifacts will happen.
  */
 public class PackageDownloadingState extends BaseState {
-
     private PackageManager packageManager;
 
     /**
      * Constructor for PackageDownloadingState.
+     *
      * @param deploymentContext Deployment packet containing deployment configuration
-     * @param objectMapper Object mapper
-     * @param packageManager Package manager {@link PackageManager}
+     * @param objectMapper      Object mapper
+     * @param packageManager    Package manager {@link PackageManager}
+     * @param logger            Evergreen logger to use
      */
-    public PackageDownloadingState(DeploymentContext deploymentContext,
-                                   ObjectMapper objectMapper, PackageManager packageManager, Logger logger) {
+    public PackageDownloadingState(DeploymentContext deploymentContext, ObjectMapper objectMapper,
+                                   PackageManager packageManager, Logger logger) {
         super(deploymentContext, objectMapper, logger);
         this.packageManager = packageManager;
     }
@@ -44,8 +45,7 @@ public class PackageDownloadingState extends BaseState {
     @Override
     public void proceed() throws DeploymentFailureException {
         logger.info("Downloading the packages");
-        logger.atInfo().log("PackageMetadata received: {}",
-                deploymentContext.getProposedPackagesFromDeployment());
+        logger.atInfo().log("PackageMetadata received: {}", deploymentContext.getProposedPackagesFromDeployment());
         //call package manager withe proposed packages
         try {
             Set<Package> packages =

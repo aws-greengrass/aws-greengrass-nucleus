@@ -15,14 +15,13 @@ import java.util.Set;
 public class PlatformResolver {
 
     private static final Set<String> SUPPORTED_PLATFORMS = new HashSet<String>() {{
-        addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora",
-                "ubuntu", "macos", "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
+        addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora", "ubuntu", "macos",
+                "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
     }};
 
     private static final Map<String, Integer> RANKS = initializeRanks();
 
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
-            value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
     @SuppressWarnings({"checkstyle:emptycatchblock"})
     private static Map<String, Integer> initializeRanks() {
         Map<String, Integer> ranks = new HashMap<>();

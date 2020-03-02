@@ -9,12 +9,15 @@ public interface State {
 
     /**
      * Checks configured conditions if any to decide if the task can be done.
+     *
      * @return flag indicating if the task can proceed.
      */
     boolean canProceed();
 
     /**
      * Perform the tasks for the state.
+     *
+     * @throws DeploymentFailureException if the deployment fails at this step
      */
     void proceed() throws DeploymentFailureException;
 
@@ -25,6 +28,7 @@ public interface State {
 
     /**
      * Denotes if the state is the last state, i.e. end of all tasks.
+     *
      * @return flag indicating if it is the end of deployment tasks
      */
     default boolean isFinalState() {

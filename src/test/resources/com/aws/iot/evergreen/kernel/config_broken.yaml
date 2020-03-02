@@ -1,14 +1,14 @@
 installErrorRetry:
   install: |-
-      sleep 1
-      if [ -f "/tmp/egInstallErrorRetry" ]; then
-        echo "INSTALL_SUCCEED"
-        rm /tmp/egInstallErrorRetry
-      else
-        echo "INSTALL_FAIL"
-        touch /tmp/egInstallErrorRetry
-        exit 1
-      fi
+    sleep 1
+    if [ -f "/tmp/egInstallErrorRetry" ]; then
+      echo "INSTALL_SUCCEED"
+      rm /tmp/egInstallErrorRetry
+    else
+      echo "INSTALL_FAIL"
+      touch /tmp/egInstallErrorRetry
+      exit 1
+    fi
   shutdown:
     rm -f /tmp/egInstallErrorRetry
 
