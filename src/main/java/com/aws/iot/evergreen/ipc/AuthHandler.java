@@ -91,34 +91,38 @@ public class AuthHandler implements InjectionActions {
             try {
                 ConnectionContext context = doAuth(message.message, ctx.channel().remoteAddress());
                 ctx.channel().attr(IPCChannelHandler.CONNECTION_CONTEXT_KEY).set(context);
-                logger.atInfo().setEventType("ipc-client-authenticated").addKeyValue("clientContext",
-                        context).log();
+                logger.atInfo().setEventType("ipc-client-authenticated").addKeyValue("clientContext", context).log();
 
                 router.clientConnected(context, ctx.channel());
-                AuthResponse authResponse = AuthResponse.builder()
-                        .serviceName(context.getServiceName()).clientId(context.getClientId()).build();
-                ApplicationMessage applicationMessage = ApplicationMessage.builder()
-                        .version(AUTH_API_VERSION).payload(IPCUtil.encode(authResponse)).build();
-                sendResponse(new FrameReader.Message(applicationMessage.toByteArray()),
-                        message.requestId, message.destination, ctx, false);
+                AuthResponse authResponse =
+                        AuthResponse.builder().serviceName(context.getServiceName()).clientId(context.getClientId())
+                                .build();
+                ApplicationMessage applicationMessage =
+                        ApplicationMessage.builder().version(AUTH_API_VERSION).payload(IPCUtil.encode(authResponse))
+                                .build();
+                sendResponse(new FrameReader.Message(applicationMessage.toByteArray()), message.requestId,
+                        message.destination, ctx, false);
             } catch (Throwable t) {
-                logger.atError().setEventType("ipc-client-auth-error").setCause(t).addKeyValue("clientAddress",
-                        ctx.channel().remoteAddress()).log();
-                AuthResponse authResponse = AuthResponse.builder()
-                        .errorMessage("Error while authenticating client").build();
-                ApplicationMessage applicationMessage = ApplicationMessage.builder()
-                        .version(AUTH_API_VERSION).payload(IPCUtil.encode(authResponse)).build();
+                logger.atError().setEventType("ipc-client-auth-error").setCause(t)
+                        .addKeyValue("clientAddress", ctx.channel().remoteAddress()).log();
+                AuthResponse authResponse =
+                        AuthResponse.builder().errorMessage("Error while authenticating client").build();
+                ApplicationMessage applicationMessage =
+                        ApplicationMessage.builder().version(AUTH_API_VERSION).payload(IPCUtil.encode(authResponse))
+                                .build();
                 sendResponse(new FrameReader.Message(applicationMessage.toByteArray()), message.requestId,
                         message.destination, ctx, true);
             }
         } else {
-            logger.atError().setEventType("ipc-client-auth-error").addKeyValue("clientAddress",
-                    ctx.channel().remoteAddress()).addKeyValue("destination", message.destination)
+            logger.atError().setEventType("ipc-client-auth-error")
+                    .addKeyValue("clientAddress", ctx.channel().remoteAddress())
+                    .addKeyValue("destination", message.destination)
                     .log("First request from client should be destined for Auth");
-            AuthResponse authResponse = AuthResponse.builder()
-                    .errorMessage("Error while authenticating client").build();
-            ApplicationMessage applicationMessage = ApplicationMessage.builder()
-                    .version(AUTH_API_VERSION).payload(IPCUtil.encode(authResponse)).build();
+            AuthResponse authResponse =
+                    AuthResponse.builder().errorMessage("Error while authenticating client").build();
+            ApplicationMessage applicationMessage =
+                    ApplicationMessage.builder().version(AUTH_API_VERSION).payload(IPCUtil.encode(authResponse))
+                            .build();
             sendResponse(new FrameReader.Message(applicationMessage.toByteArray()), message.requestId,
                     message.destination, ctx, true);
         }

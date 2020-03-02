@@ -19,16 +19,13 @@ public interface PackageStore {
 
     void cachePackageArtifacts(Package evgPackage) throws PackagingException;
 
-    void cachePackageRecipeAndArtifacts(Package evgPackage)
-            throws PackagingException;
+    void cachePackageRecipeAndArtifacts(Package evgPackage) throws PackagingException;
 
-    void cachePackageRecipeAndArtifacts(Package evgPackage, final String recipeContents)
-            throws PackagingException;
+    void cachePackageRecipeAndArtifacts(Package evgPackage, final String recipeContents) throws PackagingException;
 
     void copyPackageArtifactsToPath(Package curPackage, Path destPath) throws PackagingException;
 
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException;
 
-    Optional<Semver> getLatestPackageVersionIfExists(final String packageName)
-            throws UnexpectedPackagingException;
+    Optional<Semver> getLatestPackageVersionIfExists(final String packageName) throws UnexpectedPackagingException;
 }

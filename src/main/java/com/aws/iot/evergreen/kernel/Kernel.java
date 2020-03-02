@@ -331,6 +331,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
     /**
      * Install the CLI tool from the URL into the home directory.
+     *
      * @param resource URL of the file to install
      */
     public void installCliTool(URL resource) {
@@ -354,6 +355,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
     /**
      * Get a list of all dependencies in order (with the main service as the last).
+     *
      * @return collection of services in dependency order
      */
     public synchronized Collection<EvergreenService> orderedDependencies() {
@@ -409,16 +411,17 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
     /**
      * Write the effective config in the transaction log format.
+     *
      * @param transactionLogPath path to write the file into
      * @throws IOException if writing fails
      */
     public void writeEffectiveConfigAsTransactionLog(Path transactionLogPath) throws IOException {
-        ConfigurationWriter.logTransactionsTo(this, transactionLogPath)
-                .flushImmediately(true);
+        ConfigurationWriter.logTransactionsTo(this, transactionLogPath).flushImmediately(true);
     }
 
     /**
      * Write the effective config into a {@link Writer}.
+     *
      * @param w Writer to write config into
      */
     public void writeConfig(Writer w) {
@@ -454,6 +457,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
     /**
      * Shutdown all services and the kernel with given timeout.
+     *
      * @param timeoutSeconds Timeout in seconds
      */
     public void shutdown(int timeoutSeconds) {

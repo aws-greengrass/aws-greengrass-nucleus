@@ -8,7 +8,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,14 +21,15 @@ public class UpdatingKernelState extends BaseState {
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
 
     private final Kernel kernel;
-
     private boolean updateFinished = false;
 
     /**
      * Constructor for UpdatingKernelState.
+     *
      * @param deploymentContext Deployment packet with deployment configuration
-     * @param objectMapper Object mapper
-     * @param kernel Evergreen kernel {@link Kernel}
+     * @param objectMapper      Object mapper
+     * @param kernel            Evergreen kernel {@link Kernel}
+     * @param logger            Evergreen logger to use
      */
     public UpdatingKernelState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
                                Logger logger) {

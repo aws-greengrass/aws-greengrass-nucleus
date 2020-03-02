@@ -43,17 +43,15 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     /**
      * Dump the configuration into a file given by the path.
      *
-     * @param c configuration to write out
+     * @param c    configuration to write out
      * @param file path to write to
      */
     public static void dump(Configuration c, Path file) {
         try (ConfigurationWriter cs = new ConfigurationWriter(c, CommitableWriter.abandonOnClose(file))) {
             cs.writeAll();
-            logger.atInfo().setEventType("config-dump").addKeyValue("path",
-                    file).log();
+            logger.atInfo().setEventType("config-dump").addKeyValue("path", file).log();
         } catch (IOException ex) {
-            logger.atError().setEventType("config-dump-error").setCause(ex).addKeyValue("path",
-                    file).log();
+            logger.atError().setEventType("config-dump-error").setCause(ex).addKeyValue("path", file).log();
         }
     }
 
@@ -112,8 +110,8 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 Coerce.toParseableString(n.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
-                logger.atError().setEventType("config-dump-error").addKeyValue("configNode",
-                        n.getFullName()).setCause(ex).log();
+                logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
+                        .setCause(ex).log();
             }
         }
         if (flushImmediately) {

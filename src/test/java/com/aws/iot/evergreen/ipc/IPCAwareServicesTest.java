@@ -22,7 +22,8 @@ public class IPCAwareServicesTest {
         CountDownLatch OK = new CountDownLatch(1);
         kernel = new Kernel();
         String tdir = System.getProperty("user.dir");
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCServicesTest.class.getResource("ipc_aware_main.yaml").toString());
+        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
+                IPCServicesTest.class.getResource("ipc_aware_main.yaml").toString());
         kernel.launch();
     }
 

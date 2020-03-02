@@ -29,7 +29,8 @@ public class PlatformResolverTest {
         platformResolveInternalMethod.setAccessible(true);
     }
 
-    private Object invokePlatformResolve(Map<String, Integer> ranks, Map<Object, Object> input) throws IllegalAccessException, InvocationTargetException {
+    private Object invokePlatformResolve(Map<String, Integer> ranks, Map<Object, Object> input)
+            throws IllegalAccessException, InvocationTargetException {
         return platformResolveInternalMethod.invoke(null, ranks, input);
     }
 
@@ -37,18 +38,18 @@ public class PlatformResolverTest {
     public void testPlatformResolve() throws Exception {
         InputStream inputStream = getClass().getResourceAsStream("testPlatformResolv.yaml");
         assertNotNull(inputStream);
-        Object resolvedConfig = invokePlatformResolve(new HashMap<String, Integer>(){{
-                    put("macos", 99);
-                    put("linux", 1);
-                }}, //forcing platform to resolve to macos
-            (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream)
-        );
+        Object resolvedConfig = invokePlatformResolve(new HashMap<String, Integer>() {{
+                                                          put("macos", 99);
+                                                          put("linux", 1);
+                                                      }}, //forcing platform to resolve to macos
+                (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
 
         inputStream = getClass().getResourceAsStream("testPlatformResolvExpected.yaml");
         assertNotNull(inputStream);
         Object expectedResolved = JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
 
         String prettyPrintJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(resolvedConfig);
-        assertEquals((Map<Object, Object>) resolvedConfig, (Map<Object, Object>) expectedResolved, "actual resolved config: \n" + prettyPrintJson);
+        assertEquals(resolvedConfig, expectedResolved,
+                "actual resolved config: \n" + prettyPrintJson);
     }
 }

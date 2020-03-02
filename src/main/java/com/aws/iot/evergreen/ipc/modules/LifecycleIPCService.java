@@ -49,8 +49,9 @@ public class LifecycleIPCService extends EvergreenService {
             logger.atInfo().setEventType("ipc-register-request-handler").addKeyValue("destination", destination.name())
                     .log();
         } catch (IPCException e) {
-            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e).addKeyValue("destination",
-                    destination.name()).log("Failed to register service callback to destination");
+            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e)
+                    .addKeyValue("destination", destination.name())
+                    .log("Failed to register service callback to destination");
         }
     }
 
@@ -83,8 +84,8 @@ public class LifecycleIPCService extends EvergreenService {
                     break;
                 default:
                     lifecycleGenericResponse.setStatus(LifecycleResponseStatus.InvalidRequest);
-                    lifecycleGenericResponse.setErrorMessage("Unknown request type "
-                            + lifecycleServiceOpCodes.toString());
+                    lifecycleGenericResponse
+                            .setErrorMessage("Unknown request type " + lifecycleServiceOpCodes.toString());
                     break;
             }
 
@@ -94,15 +95,15 @@ public class LifecycleIPCService extends EvergreenService {
         } catch (Throwable e) {
             logger.atError().setEventType("lifecycle-error").setCause(e).log("Failed to handle message");
             try {
-                LifecycleGenericResponse response = LifecycleGenericResponse.builder()
-                        .status(LifecycleResponseStatus.InternalError).errorMessage(e.getMessage()).build();
-                ApplicationMessage responseMessage = ApplicationMessage.builder()
-                        .version(applicationMessage.getVersion())
-                        .payload(mapper.writeValueAsBytes(response)).build();
+                LifecycleGenericResponse response =
+                        LifecycleGenericResponse.builder().status(LifecycleResponseStatus.InternalError)
+                                .errorMessage(e.getMessage()).build();
+                ApplicationMessage responseMessage =
+                        ApplicationMessage.builder().version(applicationMessage.getVersion())
+                                .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
-                logger.atError().setEventType("lifecycle-error").setCause(ex)
-                        .log("Failed to send error response");
+                logger.atError().setEventType("lifecycle-error").setCause(ex).log("Failed to send error response");
             }
         }
         if (!fut.isDone()) {

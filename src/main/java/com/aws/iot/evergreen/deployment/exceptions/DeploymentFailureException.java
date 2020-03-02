@@ -4,8 +4,6 @@
 
 package com.aws.iot.evergreen.deployment.exceptions;
 
-import java.util.Map;
-
 public class DeploymentFailureException extends Exception {
 
     public DeploymentFailureException(String message, Throwable e) {

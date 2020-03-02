@@ -3,8 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
@@ -196,7 +194,7 @@ public class PackageManager {
      *
      * @param pendingDownloadPackages The set of packages to download
      * @return the packages got successfully downloaded
-     * @throws IOException if downloading fails
+     * @throws IOException        if downloading fails
      * @throws PackagingException if something else fails with packages
      */
     public Set<PackageRegistryEntry> downloadPackages(Set<PackageRegistryEntry> pendingDownloadPackages)

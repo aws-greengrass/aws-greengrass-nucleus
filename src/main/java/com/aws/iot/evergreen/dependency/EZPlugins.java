@@ -167,7 +167,7 @@ public class EZPlugins {
      * Load a jar from a URL into the plugin cache.
      *
      * @param trusted true if the plugin should be set as trusted
-     * @param u URL to load the jar from
+     * @param u       URL to load the jar from
      * @return this
      * @throws IOException if loading fails
      */
@@ -186,7 +186,7 @@ public class EZPlugins {
      * Move a jar from the path into the plugin cache.
      *
      * @param trusted true if it should be moved into the trusted plugin cache
-     * @param u path to the jar to move
+     * @param u       path to the jar to move
      * @return this
      * @throws IOException if moving fails
      */
@@ -210,8 +210,8 @@ public class EZPlugins {
     /**
      * Find plugins implementing the given class.
      *
-     * @param c Class that the plugin should implement
-     * @param m Callback to do something if a matching plugin is found
+     * @param c   Class that the plugin should implement
+     * @param m   Callback to do something if a matching plugin is found
      * @param <T> the class type to lookup
      * @return this
      * @throws IllegalStateException if plugins are not yet loaded
@@ -227,8 +227,8 @@ public class EZPlugins {
     /**
      * Find plugin annotated with a given class.
      *
-     * @param c Annotation to search for
-     * @param m Callback if a match is found
+     * @param c   Annotation to search for
+     * @param m   Callback if a match is found
      * @param <T> the class type to lookup
      * @return this
      * @throws IllegalStateException if plugins are not yet loaded

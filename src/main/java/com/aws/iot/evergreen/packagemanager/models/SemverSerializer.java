@@ -10,8 +10,7 @@ import java.io.IOException;
 // Force semver to serialize as a single string to match recipe format
 public class SemverSerializer extends JsonSerializer<Semver> {
     @Override
-    public void serialize(Semver semver, JsonGenerator generator, SerializerProvider provider)
-            throws IOException {
+    public void serialize(Semver semver, JsonGenerator generator, SerializerProvider provider) throws IOException {
         generator.writeString(semver.toString());
     }
 }

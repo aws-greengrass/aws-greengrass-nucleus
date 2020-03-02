@@ -51,8 +51,9 @@ public class ServiceDiscoveryService extends EvergreenService {
             logger.atInfo().setEventType("ipc-register-request-handler").addKeyValue("destination", destination.name())
                     .log();
         } catch (IPCException e) {
-            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e).addKeyValue("destination",
-                    destination.name()).log("Failed to register service callback to destination");
+            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e)
+                    .addKeyValue("destination", destination.name())
+                    .log("Failed to register service callback to destination");
         }
     }
 
@@ -104,8 +105,9 @@ public class ServiceDiscoveryService extends EvergreenService {
         } catch (Throwable e) {
             logger.atError().setEventType("service-discovery-error").setCause(e).log("Failed to handle message");
             try {
-                ServiceDiscoveryGenericResponse response = new ServiceDiscoveryGenericResponse(
-                        ServiceDiscoveryResponseStatus.InternalError, e.getMessage());
+                ServiceDiscoveryGenericResponse response =
+                        new ServiceDiscoveryGenericResponse(ServiceDiscoveryResponseStatus.InternalError,
+                                e.getMessage());
                 ApplicationMessage responseMessage = ApplicationMessage.builder().version(message.getVersion())
                         .payload(mapper.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));

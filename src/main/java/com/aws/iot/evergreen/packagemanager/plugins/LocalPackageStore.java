@@ -41,31 +41,29 @@ public class LocalPackageStore implements PackageStore {
 
     private final Path cacheFolder;
 
-    private static Path getPackageStorageRoot(final String packageName,
-                                             final Path cacheFolder) {
+    private static Path getPackageStorageRoot(final String packageName, final Path cacheFolder) {
         return cacheFolder.resolve(packageName);
     }
 
     private static Path getPackageVersionStorageRoot(final Package curPackageRecipe, final Path cacheFolder) {
-        return getPackageVersionStorageRoot(curPackageRecipe.getPackageName(),
-                                            curPackageRecipe.getVersion().toString(),
-                                            cacheFolder);
+        return getPackageVersionStorageRoot(curPackageRecipe.getPackageName(), curPackageRecipe.getVersion().toString(),
+                cacheFolder);
     }
 
     private static Path getPackageVersionStorageRoot(final String packageName, final String packageVersion,
-                                              final Path cacheFolder) {
+                                                     final Path cacheFolder) {
         return getPackageStorageRoot(packageName, cacheFolder).resolve(packageVersion);
     }
 
     /**
      * Get package from cache if it exists.
+     *
      * @return Optional containing package recipe as a String
      */
     @Override
     public Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
-        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(),
-                                                       cacheFolder);
+        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), cacheFolder);
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
             return Optional.empty();
@@ -83,6 +81,7 @@ public class LocalPackageStore implements PackageStore {
 
     /**
      * Get package from cache if it exists.
+     *
      * @return Optional containing package recipe as a String
      */
     @Override
@@ -104,8 +103,7 @@ public class LocalPackageStore implements PackageStore {
      * Get package from cache if it exists.
      */
     @Override
-    public List<Semver> getPackageVersionsIfExists(final String packageName)
-            throws UnexpectedPackagingException {
+    public List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
         Path srcPkgRoot = getPackageStorageRoot(packageName, cacheFolder);
         List<Semver> versions = new ArrayList<>();
 
@@ -172,8 +170,7 @@ public class LocalPackageStore implements PackageStore {
      * Cache all artifacts for a given Package.
      */
     @Override
-    public void cachePackageRecipeAndArtifacts(final Package curPackage)
-            throws PackagingException {
+    public void cachePackageRecipeAndArtifacts(final Package curPackage) throws PackagingException {
         Objects.requireNonNull(curPackage, "Package Recipe cannot be null");
         try {
             String recipeContents = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(curPackage);
@@ -198,8 +195,8 @@ public class LocalPackageStore implements PackageStore {
         try {
             Files.createDirectories(destRootPkgPath);
         } catch (IOException e) {
-            throw new DirectoryCreationFailedForPackageException("Failed to create folder for "
-                                                                         + destRootPkgPath.toString(), e);
+            throw new DirectoryCreationFailedForPackageException(
+                    "Failed to create folder for " + destRootPkgPath.toString(), e);
         }
 
         try {
@@ -228,8 +225,8 @@ public class LocalPackageStore implements PackageStore {
     /**
      * Copy all artifacts to a path.
      */
-    private void copyPackageArtifactsToPath(Package curPackageRecipe, Path srcRootPkgPath,
-                                            Path destRootPkgPath) throws PackagingException {
+    private void copyPackageArtifactsToPath(Package curPackageRecipe, Path srcRootPkgPath, Path destRootPkgPath)
+            throws PackagingException {
         if (!Files.exists(srcRootPkgPath) || !Files.isDirectory(srcRootPkgPath)) {
             // TODO: This is may not be the best choice? Maybe throw an exception and die?
             cachePackageArtifacts(curPackageRecipe);
@@ -242,23 +239,18 @@ public class LocalPackageStore implements PackageStore {
         }
 
         try {
-            Files.walk(srcRootPkgPath)
-                 .forEach(source -> {
-                     try {
-                         if (Files.isDirectory(source) && Files.notExists(source)) {
-                             Files.copy(source,
-                                        destRootPkgPath.resolve(source.getFileName()));
-                         } else {
-                             Files.copy(source,
-                                        destRootPkgPath.resolve(source.getFileName()),
-                                        REPLACE_EXISTING);
-                         }
-                     } catch (IOException e) {
-                         // TODO: Needs better handling
-                         throw new RuntimeException("Failed to copy artifacts for "
-                                                            + curPackageRecipe.getPackageName(), e);
-                     }
-                 });
+            Files.walk(srcRootPkgPath).forEach(source -> {
+                try {
+                    if (Files.isDirectory(source) && Files.notExists(source)) {
+                        Files.copy(source, destRootPkgPath.resolve(source.getFileName()));
+                    } else {
+                        Files.copy(source, destRootPkgPath.resolve(source.getFileName()), REPLACE_EXISTING);
+                    }
+                } catch (IOException e) {
+                    // TODO: Needs better handling
+                    throw new RuntimeException("Failed to copy artifacts for " + curPackageRecipe.getPackageName(), e);
+                }
+            });
         } catch (IOException | RuntimeException e) {
             // TODO: Needs better handling
             throw new PackagingException("Failed to copy artifacts for " + curPackageRecipe.getPackageName(), e);

@@ -9,7 +9,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.nio.file.Path;
@@ -21,7 +20,6 @@ import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 public class ConfigurationTest {
     final Configuration config = new Configuration(new Context());
@@ -75,7 +73,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void T4() {
+    public void T4() throws Exception {
         T1();
         T2();
         T3();
@@ -86,16 +84,11 @@ public class ConfigurationTest {
         Path p = Paths.get("/tmp/c.log");
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
-        try {
-            Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
-            //            System.out.println(c2.hashCode() + " " + config.hashCode());
-            //            System.out.println("Read: " + deepToString(c2.getRoot(), 99));
-            assertEquals(44, c2.lookup("x", "z").getOnce());
-            assertEquals(config, c2);
-        } catch (IOException ex) {
-            ex.printStackTrace(System.out);
-            fail();
-        }
+        Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
+        //            System.out.println(c2.hashCode() + " " + config.hashCode());
+        //            System.out.println("Read: " + deepToString(c2.getRoot(), 99));
+        assertEquals(44, c2.lookup("x", "z").getOnce());
+        assertEquals(config, c2);
         //        config.lookupTopics("services").forEach(s -> System.out.println("Found service " + s.name));
         Topic nv = config.lookup("number");
     }

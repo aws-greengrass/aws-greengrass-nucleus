@@ -29,7 +29,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Create an errorNode with a given message.
      *
      * @param context context
-     * @param name name of the topics node
+     * @param name    name of the topics node
      * @param message error message
      * @return node
      */
@@ -141,7 +141,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Add the given map to this Topics tree.
      *
      * @param lastModified last modified time
-     * @param map map to merge in
+     * @param map          map to merge in
      */
     public void mergeMap(long lastModified, Map<Object, Object> map) {
         map.forEach((okey, value) -> {
@@ -203,8 +203,8 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     protected void childChanged(WhatHappened what, Node child) {
-        logger.atDebug().setEventType("config-node-child-update").addKeyValue("configNode",
-                getFullName()).addKeyValue("reason", what.name()).log();
+        logger.atDebug().setEventType("config-node-child-update").addKeyValue("configNode", getFullName())
+                .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
                 try {

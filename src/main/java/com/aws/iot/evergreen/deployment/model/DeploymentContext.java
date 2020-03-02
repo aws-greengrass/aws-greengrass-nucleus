@@ -28,10 +28,7 @@ public class DeploymentContext {
     private Map<Object, Object> resolvedKernelConfig;
     private ProcessStatus processStatus;
 
-    public static enum ProcessStatus {
-        VALIDATE_AND_PARSE,
-        PACKAGE_DOWNLOADING,
-        PACKAGE_DOWNLOADED,
-        UPDATING_KERNEL;
+    public enum ProcessStatus {
+        VALIDATE_AND_PARSE, PACKAGE_DOWNLOADING, PACKAGE_DOWNLOADED, UPDATING_KERNEL
     }
 }

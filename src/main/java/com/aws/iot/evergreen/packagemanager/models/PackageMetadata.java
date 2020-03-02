@@ -47,8 +47,7 @@ public class PackageMetadata {
         this.version = new Semver(version, Semver.SemverType.NPM);
         this.versionConstraint = versionConstraint;
         this.dependsOn = dependsOn == null ? Collections.emptySet() : dependsOn;
-        this.parameters = parameters == null ? Collections.emptySet()
-                : Collections.unmodifiableSet(parameters);
+        this.parameters = parameters == null ? Collections.emptySet() : Collections.unmodifiableSet(parameters);
     }
 
     /**

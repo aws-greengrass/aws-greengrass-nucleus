@@ -73,9 +73,9 @@ public class ConfigResolverTest {
 
         // THEN
         // service config
-        assertThat("Must contain main service", resolvedConfig.keySet().contains("main"));
-        assertThat("Must contain top level package service", resolvedConfig.keySet().contains(TEST_INPUT_PACKAGE_A));
-        assertThat("Must contain dependency service", resolvedConfig.keySet().contains(TEST_INPUT_PACKAGE_B));
+        assertThat("Must contain main service", resolvedConfig.containsKey("main"));
+        assertThat("Must contain top level package service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain dependency service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_B));
 
         // dependencies
         assertThat("Main service must depend on new service",
@@ -108,8 +108,8 @@ public class ConfigResolverTest {
 
         // THEN
         // service config
-        assertThat("Must contain main service", resolvedConfig.keySet().contains("main"));
-        assertThat("Must contain updated service", resolvedConfig.keySet().contains(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain main service", resolvedConfig.containsKey("main"));
+        assertThat("Must contain updated service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
 
         // dependencies
         assertThat("Main service must depend on updated service",
@@ -137,8 +137,8 @@ public class ConfigResolverTest {
 
         // THEN
         // service config
-        assertThat("Must contain main service", resolvedConfig.keySet().contains("main"));
-        assertThat("Must contain top level package service", resolvedConfig.keySet().contains(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain main service", resolvedConfig.containsKey("main"));
+        assertThat("Must contain top level package service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
 
         // dependencies
         assertThat("Main service must depend on updated service",
@@ -168,8 +168,8 @@ public class ConfigResolverTest {
 
         // THEN
         // service config
-        assertThat("Must contain main service", resolvedConfig.keySet().contains("main"));
-        assertThat("Must contain top level package service", resolvedConfig.keySet().contains(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain main service", resolvedConfig.containsKey("main"));
+        assertThat("Must contain top level package service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
 
         // parameter interpolation
         assertThat("If parameter value was set in deployment, it should be used",
@@ -189,7 +189,7 @@ public class ConfigResolverTest {
                 .map(entry -> new PackageParameter(entry.getKey(), entry.getValue(), "STRING"))
                 .collect(Collectors.toSet());
 
-        Semver version = new Semver(packageVersion.toString(), Semver.SemverType.NPM);
+        Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new Package(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
                 parameters, getSimplePackageLifecycle(packageName), Collections.emptyList(), dependencies,
                 Collections.emptyList());

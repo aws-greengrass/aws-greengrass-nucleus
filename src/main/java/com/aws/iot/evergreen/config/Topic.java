@@ -97,7 +97,7 @@ public class Topic extends Node {
      * Set the value of this topic to a new value.
      *
      * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value.
-     * @param proposed new value.
+     * @param proposed        new value.
      * @return this.
      */
     public synchronized Topic setValue(long proposedModtime, final Object proposed) {
@@ -123,8 +123,8 @@ public class Topic extends Node {
 
     @Override
     public void fire(WhatHappened what) {
-        logger.atDebug().setEventType("config-node-update").addKeyValue("configNode",
-                getFullName()).addKeyValue("reason", what.name()).log();
+        logger.atDebug().setEventType("config-node-update").addKeyValue("configNode", getFullName())
+                .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
                 try {
@@ -134,9 +134,9 @@ public class Topic extends Node {
                 } catch (Throwable ex) {
                     /* TODO if a subscriber fails, we should do more than just log a
                        message.  Possibly unsubscribe it if the fault is persistent */
-                    logger.atError().setCause(ex).setEventType("config-node-update-error").addKeyValue(
-                            "configNode", getFullName()).addKeyValue("subscriber", s.toString()).addKeyValue("reason",
-                            what.name()).log();
+                    logger.atError().setCause(ex).setEventType("config-node-update-error")
+                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
+                            .addKeyValue("reason", what.name()).log();
                 }
             }
         }
