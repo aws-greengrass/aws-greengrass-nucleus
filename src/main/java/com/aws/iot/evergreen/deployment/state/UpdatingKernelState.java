@@ -3,10 +3,11 @@
 
 package com.aws.iot.evergreen.deployment.state;
 
-import com.aws.iot.evergreen.deployment.DeploymentProcess;
+import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
+import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
@@ -16,18 +17,25 @@ import java.util.Map;
  * Deployment state for updating kernel config.
  * Checks for update conditions, performs updates and handles result.
  */
-@RequiredArgsConstructor
-public class UpdatingKernelState implements State {
-
-    private static final Logger logger = LogManager.getLogger(UpdatingKernelState.class);
+public class UpdatingKernelState extends BaseState {
 
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
-
-    private final DeploymentProcess deploymentProcess;
 
     private final Kernel kernel;
 
     private boolean updateFinished = false;
+
+    /**
+     * Constructor for UpdatingKernelState.
+     * @param deploymentContext Deployment packet with deployment configuration
+     * @param objectMapper Object mapper
+     * @param kernel Evergreen kernel {@link Kernel}
+     */
+    public UpdatingKernelState(DeploymentContext deploymentContext, ObjectMapper objectMapper, Kernel kernel,
+                               Logger logger) {
+        super(deploymentContext, objectMapper, logger);
+        this.kernel = kernel;
+    }
 
     @Override
     public boolean canProceed() {
@@ -36,13 +44,12 @@ public class UpdatingKernelState implements State {
     }
 
     @Override
-    public void proceed() {
+    public void proceed() throws DeploymentFailureException {
         logger.atInfo().log("<Updating>: updating kernel");
 
         // TODO : After taking this snapshot, deployment can wait for some time before performing a safe update
         // so consider moving this to Kernel
-        String rollbackSnapshotPath =
-                String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentProcess.getDeploymentPacket().getDeploymentId());
+        String rollbackSnapshotPath = String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentContext.getDeploymentId());
         // record kernel snapshot
         try {
             kernel.writeEffectiveConfigAsTransactionLog(kernel.configPath.resolve(rollbackSnapshotPath));
@@ -51,11 +58,12 @@ public class UpdatingKernelState implements State {
         }
 
         // merge config
-        Map<Object, Object> resolvedConfig = deploymentProcess.getResolvedKernelConfig();
+        Map<Object, Object> resolvedConfig = deploymentContext.getResolvedKernelConfig();
         logger.atInfo().addKeyValue("resolved_config", resolvedConfig).log("Resolved config :" + resolvedConfig);
         try {
-            kernel.mergeInNewConfig(deploymentProcess.getDeploymentPacket().getDeploymentId(),
-                    deploymentProcess.getDeploymentPacket().getDeploymentCreationTimestamp(), resolvedConfig).get();
+            kernel.mergeInNewConfig(deploymentContext.getDeploymentId(),
+                    deploymentContext.getDeploymentCreationTimestamp(), resolvedConfig).get();
+            logger.atInfo().log("Kernel updated");
         } catch (Exception e) {
             logger.atError().setEventType("config-update-error").setCause(e).log("Deployment failed, rolling back");
             // TODO : Rollback handling should be more sophisticated,
@@ -68,9 +76,11 @@ public class UpdatingKernelState implements State {
                 kernel.read(kernel.configPath.resolve(rollbackSnapshotPath));
                 // TODO : Set deployment status to RolledBack?
                 logger.atInfo().log("Deployment rolled back");
+                throw new DeploymentFailureException(e);
             } catch (IOException re) {
                 // TODO : Set deployment status to Failed_RolledBack?
                 logger.atError().setEventType("config-update-error").setCause(re).log("Failed to rollback deployment");
+                throw new DeploymentFailureException(re);
             }
         } finally {
             updateFinished = true;

@@ -43,7 +43,9 @@ public class ConfigResolver {
     public Map<Object, Object> resolveConfig() {
         Map<Object, Object> newConfig = new HashMap<>();
 
-        packagesToDeploy.forEach(pkg -> processPackage(newConfig, pkg));
+        packagesToDeploy.forEach(pkg -> {
+            processPackage(newConfig, pkg);
+        });
 
         newConfig.put(kernel.getMain().getName(), getUpdatedMainConfig());
 
@@ -109,7 +111,6 @@ public class ConfigResolver {
     /**
      * Recompute main service dependencies for deployment.
      *
-     * @param targetPackages top level packages
      * @return main service with updated dependencies
      */
     private Map<Object, Object> getUpdatedMainConfig() {

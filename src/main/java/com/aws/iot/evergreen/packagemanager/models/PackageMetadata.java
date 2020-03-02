@@ -25,10 +25,10 @@ public class PackageMetadata {
     /**
      * Constructor for PackageMetadata.
      *
-     * @param name package name
-     * @param version package version
+     * @param name              package name
+     * @param version           package version
      * @param versionConstraint package version constraint
-     * @param dependsOn dependency package information
+     * @param dependsOn         dependency package information
      */
     public PackageMetadata(String name, String version, String versionConstraint, Set<PackageMetadata> dependsOn,
                            Set<PackageParameter> parameters) {
@@ -44,7 +44,7 @@ public class PackageMetadata {
         this.name = name;
         this.version = new Semver(version, Semver.SemverType.NPM);
         this.versionConstraint = versionConstraint;
-        this.dependsOn = dependsOn == null ? Collections.emptySet() : Collections.unmodifiableSet(dependsOn);
+        this.dependsOn = dependsOn == null ? Collections.emptySet() : dependsOn;
         this.parameters = parameters == null ? Collections.emptySet()
                 : Collections.unmodifiableSet(parameters);
     }
@@ -52,8 +52,8 @@ public class PackageMetadata {
     /**
      * Constructor for PackageMetadata when no dependency information is known.
      *
-     * @param name package name
-     * @param version package version
+     * @param name       package name
+     * @param version    package version
      * @param constraint package version constraint
      */
     public PackageMetadata(String name, String version, String constraint) {

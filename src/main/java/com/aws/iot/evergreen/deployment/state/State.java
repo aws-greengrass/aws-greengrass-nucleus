@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.deployment.state;
 
+import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
+
 public interface State {
 
     /**
@@ -14,7 +16,7 @@ public interface State {
     /**
      * Perform the tasks for the state.
      */
-    void proceed();
+    void proceed() throws DeploymentFailureException;
 
     /**
      * Cancel the ongoing tasks for the state.
