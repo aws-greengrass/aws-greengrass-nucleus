@@ -26,7 +26,10 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final Pattern skipcmd = Pattern.compile("(exists|onpath) +(.+)");
     private boolean inShutdown;
+    // currentScript is the Exec that's currently under executing
     private Exec currentScript;
+    // runScript is the Exec to run the service and is currently under executing.
+    private Exec runScript;
 
     /**
      * Create a new GenericExternalService.
@@ -63,33 +66,29 @@ public class GenericExternalService extends EvergreenService {
             System.err.println("install errored: " + getName());
             reportState(State.ERRORED);
         }
-        super.install();
-    }
-
-    @Override
-    public void awaitingStartup() {
-        run("awaitingStartup", null);
-        super.awaitingStartup();
     }
 
     @Override
     public void startup() {
         RunStatus result = run("startup", exit -> {
+            runScript = null;
             if (getState() == State.INSTALLED) {
                 if (exit == 0) {
-                    super.startup();
+                    reportState(State.RUNNING);
                 } else {
                     reportState(State.ERRORED);
                 }
             }
         });
+
+        runScript = currentScript;
         if (result == RunStatus.Errored) {
             reportState(State.ERRORED);
         } else if (result == RunStatus.NothingDone) {
-            super.startup();
+            reportState(State.RUNNING);
 
-            if (run("run", exit -> {
-                currentScript = null;
+            result = run("run", exit -> {
+                runScript = null;
                 if (!inShutdown) {
                     if (exit == 0) {
                         this.requestStop();
@@ -99,9 +98,14 @@ public class GenericExternalService extends EvergreenService {
                         logger.atError().setEventType("generic-service-errored").addKeyValue("exitCode", exit).log();
                     }
                 }
-            }) == RunStatus.NothingDone) {
-                logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
+            });
+            runScript = currentScript;
+
+            if (result == RunStatus.NothingDone) {
                 this.requestStop();
+                logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
+            } else if (result == RunStatus.Errored) {
+                serviceErrored();
             }
         }
     }
@@ -110,11 +114,10 @@ public class GenericExternalService extends EvergreenService {
     public void shutdown() {
         inShutdown = true;
         run("shutdown", null);
-        Exec e = currentScript;
+        Exec e = runScript;
         if (e != null && e.isRunning()) {
             try {
                 e.close();
-                //e.waitClosed(1000);
                 logger.atInfo().setEventType("generic-service-shutdown").log();
             } catch (IOException ioe) {
                 logger.atError().setEventType("generic-service-shutdown-error").setCause(ioe).log();
@@ -122,6 +125,12 @@ public class GenericExternalService extends EvergreenService {
         }
 
         inShutdown = false;
+    }
+
+    @Override
+    public void handleError() {
+        // A placeholder for error handling in GenericExternalService
+        run("handleError", null);
     }
 
     /**
@@ -149,39 +158,33 @@ public class GenericExternalService extends EvergreenService {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         final EZTemplates templateEngine = context.get(EZTemplates.class);
         cmd = templateEngine.rewrite(cmd).toString();
-        setStatus(cmd);
-        if (background == null) {
-            setStatus(null);
-        }
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
-        currentScript = exec;
-        if (exec != null) { // there's something to run
-            addEnv(exec, t.parent);
-            logger.atDebug().setEventType("generic-service-run").log();
-            RunStatus ret = shellRunner.successful(exec, cmd, background) ? RunStatus.OK : RunStatus.Errored;
-            if (background == null) {
-                currentScript = null;
-            }
-            return ret;
-        } else {
+        if (exec == null) {
             return RunStatus.NothingDone;
         }
+        currentScript = exec;
+        addEnv(exec, t.parent);
+        logger.atDebug().setEventType("generic-service-run").log();
+        RunStatus ret = shellRunner.successful(exec, cmd, background) ? RunStatus.OK : RunStatus.Errored;
+        if (background == null) {
+            currentScript = null;
+        }
+        return ret;
     }
 
     protected RunStatus run(Topics t, IntConsumer background) {
-        if (!shouldSkip(t)) {
-            Node script = t.getChild("script");
-            if (script instanceof Topic) {
-                return run((Topic) script, background, t);
-            } else {
-                logger.atError().setEventType("generic-service-invalid-config")
-                        .addKeyValue("configNode", t.getFullName()).log("Missing script");
-                serviceErrored();
-                return RunStatus.Errored;
-            }
-        } else {
+        if (shouldSkip(t)) {
             logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
             return RunStatus.OK;
+        }
+
+        Node script = t.getChild("script");
+        if (script instanceof Topic) {
+            return run((Topic) script, background, t);
+        } else {
+            logger.atError().setEventType("generic-service-invalid-config")
+                    .addKeyValue("configNode", t.getFullName()).log("Missing script");
+            return RunStatus.Errored;
         }
     }
 
@@ -220,17 +223,19 @@ public class GenericExternalService extends EvergreenService {
     }
 
     private void addEnv(Exec exec, Topics src) {
-        if (src != null) {
-            addEnv(exec, src.parent); // add parents contributions first
-            Node env = src.getChild("setenv");
-            if (env instanceof Topics) {
-                EZTemplates templateEngine = context.get(EZTemplates.class);
-                ((Topics) env).forEach(n -> {
-                    if (n instanceof Topic) {
-                        exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic) n).getOnce())));
-                    }
-                });
-            }
+        if (src == null) {
+            return;
+        }
+
+        addEnv(exec, src.parent); // add parents contributions first
+        Node env = src.getChild("setenv");
+        if (env instanceof Topics) {
+            EZTemplates templateEngine = context.get(EZTemplates.class);
+            ((Topics) env).forEach(n -> {
+                if (n instanceof Topic) {
+                    exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic) n).getOnce())));
+                }
+            });
         }
     }
 }

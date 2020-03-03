@@ -92,7 +92,7 @@ public class Exec implements Closeable {
     private String[] cmds;
     private File dir = userdir;
     private Process process;
-    private long timeout = 120;
+    private long timeout = -1;
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private IntConsumer whenDone;
     private Consumer<CharSequence> stdout = NOP;
@@ -314,9 +314,13 @@ public class Exec implements Closeable {
             stdoutc.start();
             if (whenDone == null) {
                 try {
-                    if (!process.waitFor(timeout, timeunit)) {
-                        (stderr != null ? stderr : stdout).accept("\n[TIMEOUT]\n");
-                        process.destroyForcibly();
+                    if (timeout < 0) {
+                        process.waitFor();
+                    } else {
+                        if (!process.waitFor(timeout, timeunit)) {
+                            (stderr != null ? stderr : stdout).accept("\n[TIMEOUT]\n");
+                            process.destroyForcibly();
+                        }
                     }
                 } catch (InterruptedException ie) {
                     // We just got interrupted by something like the cancel(true) in setBackingTask
