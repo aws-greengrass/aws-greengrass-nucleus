@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.extension.PerformanceReporting;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.net.URI;
 import java.util.List;
@@ -35,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(PerformanceReporting.class)
 @Tag("Integration")
 public class IPCServicesTest {
 
