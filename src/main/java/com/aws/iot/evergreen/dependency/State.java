@@ -3,9 +3,6 @@
 
 package com.aws.iot.evergreen.dependency;
 
-import javax.print.attribute.standard.Finishings;
-import java.util.concurrent.BrokenBarrierException;
-
 /**
  * The states in the lifecycle of a service.
  */
@@ -96,7 +93,7 @@ public enum State {
         return ordinal() <= other.ordinal();
     }
 
-    public boolean isTerminalState(){
+    public boolean isTerminalState() {
         return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED);
     }
 }

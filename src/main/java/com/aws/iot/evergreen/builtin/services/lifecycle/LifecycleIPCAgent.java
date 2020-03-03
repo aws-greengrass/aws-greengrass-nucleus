@@ -118,8 +118,8 @@ public class LifecycleIPCAgent implements InjectionActions {
                             StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
                                     .service(listenRequest.getServiceName()).build();
 
-                    log.info("Pushing state change notification to  " + listenRequest.getServiceName() +
-                            " from " + oldState.toString() + " to " + newState.toString());
+                    log.info("Pushing state change notification to  " + listenRequest.getServiceName()
+                            + " from " + oldState.toString() + " to " + newState.toString());
                     try {
                         ApplicationMessage applicationMessage =
                                 ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)

@@ -467,13 +467,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         if (broken) {
             return;
         }
-        if(!isShutdownInitiated.compareAndSet(false,true)){
+        if (!isShutdownInitiated.compareAndSet(false, true)) {
             logger.info("Shutdown already initiated, returning...");
             return;
         }
         close(tlog);
         try {
-
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
             CountDownLatch allServicesExitedLatch = new CountDownLatch(d.length);
@@ -482,7 +481,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 try {
                     d[i].close();
                     d[i].getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-                        if(((State) t.getOnce()).isTerminalState()){
+                        if (((State) t.getOnce()).isTerminalState()) {
                             allServicesExitedLatch.countDown();
                         }
                     });

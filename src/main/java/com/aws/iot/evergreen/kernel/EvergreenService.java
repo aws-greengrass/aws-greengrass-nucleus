@@ -568,6 +568,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             }
         }
     }
+
     /**
      * Custom handler to handle error.
      */
@@ -664,7 +665,10 @@ public class EvergreenService implements InjectionActions, Closeable {
         requestStop();
     }
 
-    public void shutDownStateMachine(){
+    /**
+     * Shutdown the thread executing startStateTransition().
+     */
+    public void shutDownStateMachine() {
         closed.set(true);
     }
 
@@ -712,11 +716,11 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
-    public void addDepender(EvergreenService dependerEvergreenService){
+    private void addDepender(EvergreenService dependerEvergreenService) {
         dependers.add(dependerEvergreenService);
         dependerEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
             synchronized (dependersExitedLock) {
-                if(dependersExited()){
+                if (dependersExited()) {
                     dependersExitedLock.notifyAll();
                 }
             }
@@ -730,7 +734,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private void waitForDependersToExit() throws InterruptedException {
         synchronized (dependersExitedLock) {
-            while(!dependersExited()){
+            while (!dependersExited()) {
                 logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
                 dependersExitedLock.wait();
             }
