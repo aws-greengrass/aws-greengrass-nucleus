@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,8 +56,6 @@ public class EvergreenService implements InjectionActions, Closeable {
     public Context context;
     // Services that this service depend on
     protected final ConcurrentHashMap<EvergreenService, State> dependencies = new ConcurrentHashMap<>();
-    // Services that depend on this service
-    protected final List<EvergreenService> dependers = new CopyOnWriteArrayList<>();
     private final Object dependencyReadyLock = new Object();
     private final Object dependersExitedLock = new Object();
     private final Topic state;
@@ -697,7 +696,6 @@ public class EvergreenService implements InjectionActions, Closeable {
 
         context.get(Kernel.class).clearODcache();
         dependencies.put(dependentEvergreenService, when);
-        dependentEvergreenService.addDepender(this);
         String ser = serializeDependencyList(dependencies);
         requiresTopic.setValue(ser);
 
@@ -716,23 +714,38 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
-    private void addDepender(EvergreenService dependerEvergreenService) {
-        dependers.add(dependerEvergreenService);
-        dependerEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-            synchronized (dependersExitedLock) {
-                if (dependersExited()) {
-                    dependersExitedLock.notifyAll();
-                }
-            }
-        });
-    }
-
     private String serializeDependencyList(ConcurrentHashMap<EvergreenService, State> dependencies) {
         return dependencies.entrySet().stream().map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
                 .collect(Collectors.joining(","));
     }
 
+    private List<EvergreenService> getDependers() {
+        List<EvergreenService> dependers = new ArrayList<>();
+        Kernel kernel = context.get(Kernel.class);
+        for (EvergreenService evergreenService : kernel.orderedDependencies()) {
+            boolean isDepender = evergreenService.dependencies.keySet().stream().anyMatch(d -> d.equals(this));
+            if (isDepender) {
+                dependers.add(evergreenService);
+            }
+            // orderedDependencies sorts services based on dependency order with main as last,
+            // therefore all dependers will be present before the service itself in the list of orderedDependencies
+            if (evergreenService.equals(this)) {
+                break;
+            }
+        }
+        return dependers;
+    }
+
     private void waitForDependersToExit() throws InterruptedException {
+        getDependers().forEach(dependerEvergreenService ->
+                dependerEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+                    synchronized (dependersExitedLock) {
+                        if (dependersExited()) {
+                            dependersExitedLock.notifyAll();
+                        }
+                    }
+                })
+        );
         synchronized (dependersExitedLock) {
             while (!dependersExited()) {
                 logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
@@ -743,7 +756,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private boolean dependersExited() {
         Optional<EvergreenService> dependerService =
-                dependers.stream().filter(d -> !dependerExited(d)).findAny();
+                getDependers().stream().filter(d -> !dependerExited(d)).findAny();
         if (dependerService.isPresent()) {
             logger.atDebug().setEventType("continue-waiting-for-dependencies")
                     .addKeyValue("waitingFor", dependerService.get().getName()).log();
