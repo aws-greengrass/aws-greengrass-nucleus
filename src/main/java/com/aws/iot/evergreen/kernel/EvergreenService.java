@@ -53,10 +53,12 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     public final Topics config;
     public Context context;
-
+    // Services that this service depend on
     protected final ConcurrentHashMap<EvergreenService, State> dependencies = new ConcurrentHashMap<>();
-
+    // Services that depend on this service
+    protected final List<EvergreenService> dependers = new CopyOnWriteArrayList<>();
     private final Object dependencyReadyLock = new Object();
+    private final Object dependersExitedLock = new Object();
     private final Topic state;
     private Throwable error;
     private Future backingTask;
@@ -566,7 +568,6 @@ public class EvergreenService implements InjectionActions, Closeable {
             }
         }
     }
-
     /**
      * Custom handler to handle error.
      */
@@ -651,12 +652,19 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void close() {
-        requestStop();
         Periodicity t = periodicityInformation;
         if (t != null) {
             t.shutdown();
         }
+        try {
+            waitForDependersToExit();
+        } catch (InterruptedException e) {
+            logger.error("Interrupted waiting for dependers to exit");
+        }
+        requestStop();
+    }
 
+    public void shutDownStateMachine(){
         closed.set(true);
     }
 
@@ -685,6 +693,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
         context.get(Kernel.class).clearODcache();
         dependencies.put(dependentEvergreenService, when);
+        dependentEvergreenService.addDepender(this);
         String ser = serializeDependencyList(dependencies);
         requiresTopic.setValue(ser);
 
@@ -695,7 +704,6 @@ public class EvergreenService implements InjectionActions, Closeable {
                     logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
                 }
             }
-
             synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
                     dependencyReadyLock.notifyAll();
@@ -704,9 +712,44 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
+    public void addDepender(EvergreenService dependerEvergreenService){
+        dependers.add(dependerEvergreenService);
+        dependerEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+            synchronized (dependersExitedLock) {
+                if(dependersExited()){
+                    dependersExitedLock.notifyAll();
+                }
+            }
+        });
+    }
+
     private String serializeDependencyList(ConcurrentHashMap<EvergreenService, State> dependencies) {
         return dependencies.entrySet().stream().map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
                 .collect(Collectors.joining(","));
+    }
+
+    private void waitForDependersToExit() throws InterruptedException {
+        synchronized (dependersExitedLock) {
+            while(!dependersExited()){
+                logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
+                dependersExitedLock.wait();
+            }
+        }
+    }
+
+    private boolean dependersExited() {
+        Optional<EvergreenService> dependerService =
+                dependers.stream().filter(d -> !dependerExited(d)).findAny();
+        if (dependerService.isPresent()) {
+            logger.atDebug().setEventType("continue-waiting-for-dependencies")
+                    .addKeyValue("waitingFor", dependerService.get().getName()).log();
+            return false;
+        }
+        return true;
+    }
+
+    private boolean dependerExited(EvergreenService dependerService) {
+        return dependerService.getState().isTerminalState();
     }
 
     private boolean dependencyReady() {

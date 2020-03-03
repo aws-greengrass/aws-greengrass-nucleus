@@ -53,6 +53,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 
 import static com.aws.iot.evergreen.util.Utils.close;
@@ -86,6 +87,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String arg;
     private int argpos = 0;
     private boolean serviceServerURLListIsPopulated;
+    private AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
 
     /**
      * Construct the Kernel and global Context.
@@ -460,23 +462,37 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param timeoutSeconds Timeout in seconds
      */
+    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED")
     public void shutdown(int timeoutSeconds) {
         if (broken) {
             return;
         }
+        if(!isShutdownInitiated.compareAndSet(false,true)){
+            logger.info("Shutdown already initiated, returning...");
+            return;
+        }
         close(tlog);
         try {
+
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
+            CountDownLatch allServicesExitedLatch = new CountDownLatch(d.length);
+
             for (int i = d.length; --i >= 0; ) { // shutdown in reverse order
                 try {
                     d[i].close();
+                    d[i].getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+                        if(((State) t.getOnce()).isTerminalState()){
+                            allServicesExitedLatch.countDown();
+                        }
+                    });
                 } catch (Throwable t) {
                     logger.atError().setEventType("service-shutdown-error").addKeyValue("serviceName", d[i].getName())
                             .setCause(t).log();
                 }
             }
 
+            allServicesExitedLatch.await(timeoutSeconds, TimeUnit.SECONDS);
             // Wait for tasks in the executor to end.
             ExecutorService executorService = context.get(ExecutorService.class);
             this.context.runOnPublishQueueAndWait(() -> {
@@ -484,6 +500,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
             executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
+            //TODO: this needs to be changed once state machine thread is using the shared executor
+            orderedDependencies().forEach(e -> e.shutDownStateMachine());
             logger.atInfo().setEventType("executor-service-shutdown-complete").log();
         } catch (Throwable ex) {
             logger.atError().setEventType("system-shutdown-error").setCause(ex).log();
