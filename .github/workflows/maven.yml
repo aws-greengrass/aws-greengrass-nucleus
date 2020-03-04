@@ -20,6 +20,12 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
+        aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
+        aws-region: us-west-2
     - name: Build with Maven
       run: mvn -ntp -q verify
     - name: Convert Jacoco to Cobertura
@@ -47,6 +53,8 @@ jobs:
         show_branch: true
         # Use class names instead of the filename
         show_class_names: true
+    - name: Upload to CloudWatch
+      run: pip3 -q install boto3 setuptools wheel && pip3 -q install retryable PyGithub && python3 .github/scripts/cwUpload.py ${{ github.token }}
     - name: Publish with Maven
       run: mvn -ntp --settings settings.xml clean deploy -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
       if: github.event_name == 'push'

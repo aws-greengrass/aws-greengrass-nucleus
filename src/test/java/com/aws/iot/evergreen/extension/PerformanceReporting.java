@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.extension;
 
-import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -21,6 +20,7 @@ import java.io.FileWriter;
 import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -69,10 +69,15 @@ public class PerformanceReporting
                 infoList.stream().mapToLong(x -> x.nonHeapMemory).average().getAsDouble() / 1024.0 / 1024.0;
         double avgLoadedClassCount = infoList.stream().mapToLong(x -> x.loadedClassCount).average().getAsDouble();
 
-        Map<String, String> perfValueMap = Utils.immutableMap("name", context.getRequiredTestMethod().getName(), "classname",
-                context.getRequiredTestClass().getName(), "maxHeapMemoryMB", maxHeapMemoryMB, "maxNonHeapMemoryMB",
-                maxNonHeapMemoryMB, "maxLoadedClassCount", maxLoadedClassCount, "avgHeapMemoryMB", avgHeapMemoryMB,
-                "avgNonHeapMemoryMB", avgNonHeapMemoryMB, "avgLoadedClassCount", avgLoadedClassCount);
+        Map<String, String> perfValueMap = new LinkedHashMap<>();
+        perfValueMap.put("name", context.getRequiredTestMethod().getName());
+        perfValueMap.put("classname", context.getRequiredTestClass().getName());
+        perfValueMap.put("avgHeapMemoryMB", String.valueOf(avgHeapMemoryMB));
+        perfValueMap.put("maxHeapMemoryMB", String.valueOf(maxHeapMemoryMB));
+        perfValueMap.put("avgNonHeapMemoryMB", String.valueOf(avgNonHeapMemoryMB));
+        perfValueMap.put("maxNonHeapMemoryMB", String.valueOf(maxNonHeapMemoryMB));
+        perfValueMap.put("avgLoadedClassCount", String.valueOf(avgLoadedClassCount));
+        perfValueMap.put("maxLoadedClassCount", String.valueOf(maxLoadedClassCount));
 
         ValueIterator<?> existing = null;
         try {
