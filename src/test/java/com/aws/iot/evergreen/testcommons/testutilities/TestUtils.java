@@ -1,4 +1,9 @@
-package com.aws.iot.evergreen.util;
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
+package com.aws.iot.evergreen.testcommons.testutilities;
+
+import com.aws.iot.evergreen.util.Pair;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;

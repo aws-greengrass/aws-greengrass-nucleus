@@ -1,15 +1,16 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.kernel;
+package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.extension.PerformanceReporting;
+import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -28,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(PerformanceReporting.class)
-@Tag("Integration")
 public class KernelTest {
     static final int[] gc = new int[10];
     static final CountDownLatch[] OK = new CountDownLatch[10];
@@ -76,7 +76,8 @@ public class KernelTest {
     public void testErrorRetry() throws InterruptedException {
         String tdir = System.getProperty("user.home") + "/kernelTest";
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", Kernel.class.getResource("config_broken.yaml").toString());
+        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
+                KernelTest.class.getResource("config_broken.yaml").toString());
 
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
@@ -189,7 +190,7 @@ public class KernelTest {
 
         String tdir = System.getProperty("user.home") + "/kernelTest";
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", Kernel.class.getResource("config.yaml").toString());
+        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", KernelTest.class.getResource("config.yaml").toString());
         kernel.launch();
         boolean ok = OK[0].await(200, TimeUnit.SECONDS);
         assertTrue(ok);
@@ -203,7 +204,8 @@ public class KernelTest {
 
         System.out.println("Now merging delta.yaml");
         kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
-                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(Kernel.class.getResource("delta.yaml")))
+                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(KernelTest.class.getResource("delta"
+                        + ".yaml")))
                 .get(60, TimeUnit.SECONDS);
         testGroup(2);
         kernel.shutdown();
