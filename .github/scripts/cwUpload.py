@@ -7,7 +7,7 @@ Script to upload test metrics to CloudWatch and comment on GitHub pull request
 import json
 import os
 import sys
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from datetime import datetime, timedelta
 
 import boto3
@@ -40,13 +40,13 @@ def comment_on_pr(comment, pr_number):
 
 def main():
     with open("target/surefire-reports/junitReport.json", "r") as f:
-        report = json.load(f)
+        report = json.load(f, object_pairs_hook=OrderedDict)
     with open(os.getenv("GITHUB_EVENT_PATH"), "r") as f:
         github_event = json.load(f)
 
     cw = boto3.client("cloudwatch")
     datapoints = []
-    current_metrics = defaultdict(dict)
+    current_metrics = defaultdict(OrderedDict)
     event_type = os.getenv("GITHUB_EVENT_NAME", "pull_request")
 
     # For each test in the report
