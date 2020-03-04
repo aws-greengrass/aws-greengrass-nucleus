@@ -92,4 +92,8 @@ public enum State {
     public boolean preceedsOrEqual(State other) {
         return ordinal() <= other.ordinal();
     }
+
+    public boolean isClosable() {
+        return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED);
+    }
 }

@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
@@ -22,6 +23,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,17 +54,17 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     public final Topics config;
     public Context context;
-
+    // Services that this service depend on
     protected final ConcurrentHashMap<EvergreenService, State> dependencies = new ConcurrentHashMap<>();
-
     private final Object dependencyReadyLock = new Object();
+    private final Object dependersExitedLock = new Object();
     private final Topic state;
     private Throwable error;
     private Future backingTask;
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
     private String status;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
@@ -382,9 +384,8 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
-        while (!closed.get()) {
+        while (!(isClosed.get() && getState().isClosable())) {
             Optional<State> desiredState;
-
             State current = getState();
             logger.atInfo().setEventType("service-state-transition-start").addKeyValue("currentState", current).log();
 
@@ -650,13 +651,19 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void close() {
-        requestStop();
         Periodicity t = periodicityInformation;
         if (t != null) {
             t.shutdown();
         }
-
-        closed.set(true);
+        //TODO: make close block till the service exits or make close non blocking
+        // currently close blocks till dependers exit which neither the above
+        try {
+            waitForDependersToExit();
+        } catch (InterruptedException e) {
+            logger.error("Interrupted waiting for dependers to exit");
+        }
+        requestStop();
+        isClosed.set(true);
     }
 
     public Context getContext() {
@@ -694,7 +701,6 @@ public class EvergreenService implements InjectionActions, Closeable {
                     logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
                 }
             }
-
             synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
                     dependencyReadyLock.notifyAll();
@@ -706,6 +712,59 @@ public class EvergreenService implements InjectionActions, Closeable {
     private String serializeDependencyList(ConcurrentHashMap<EvergreenService, State> dependencies) {
         return dependencies.entrySet().stream().map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
                 .collect(Collectors.joining(","));
+    }
+
+    private List<EvergreenService> getDependers() {
+        List<EvergreenService> dependers = new ArrayList<>();
+        Kernel kernel = context.get(Kernel.class);
+        for (EvergreenService evergreenService : kernel.orderedDependencies()) {
+            boolean isDepender = evergreenService.dependencies.keySet().stream().anyMatch(d -> d.equals(this));
+            if (isDepender) {
+                dependers.add(evergreenService);
+            }
+            // orderedDependencies sorts services based on dependency order with main as last,
+            // therefore all dependers will be present before the service itself in the list of orderedDependencies
+            if (evergreenService.equals(this)) {
+                break;
+            }
+        }
+        return dependers;
+    }
+
+    private void waitForDependersToExit() throws InterruptedException {
+
+        List<EvergreenService> dependers = getDependers();
+        Subscriber dependerExitWatcher = (WhatHappened what, Topic t) -> {
+            synchronized (dependersExitedLock) {
+                if (dependersExited(dependers)) {
+                    dependersExitedLock.notifyAll();
+                }
+            }
+        };
+        // subscribing to depender state changes
+        dependers.forEach(dependerEvergreenService ->
+                dependerEvergreenService.getStateTopic().subscribe(dependerExitWatcher));
+
+        synchronized (dependersExitedLock) {
+            while (!dependersExited(dependers)) {
+                logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
+                dependersExitedLock.wait();
+            }
+        }
+        // removing state change watchers
+        dependers.forEach(dependerEvergreenService ->
+                dependerEvergreenService.getStateTopic().remove(dependerExitWatcher));
+    }
+
+    private boolean dependersExited(List<EvergreenService> dependers) {
+        Optional<EvergreenService> dependerService =
+                dependers.stream().filter(d -> !d.getState().isClosable()).findAny();
+        if (dependerService.isPresent()) {
+            logger.atDebug().setEventType("continue-waiting-for-dependencies")
+                    .addKeyValue("waitingFor", dependerService.get().getName()).log();
+            return false;
+        }
+        return true;
     }
 
     private boolean dependencyReady() {
@@ -753,7 +812,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         initRequiresTopic();
         //TODO: Use better threadPool mechanism
         new Thread(() -> {
-            while (!closed.get()) {
+            while (!isClosed.get()) {
                 try {
                     startStateTransition();
                     return;
