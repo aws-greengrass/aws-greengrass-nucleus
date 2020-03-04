@@ -18,8 +18,6 @@ public class IPCAwareServicesTest {
 
     @BeforeEach
     public void setup() {
-        // starting daemon
-        CountDownLatch OK = new CountDownLatch(1);
         kernel = new Kernel();
         String tdir = System.getProperty("user.dir");
         kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
