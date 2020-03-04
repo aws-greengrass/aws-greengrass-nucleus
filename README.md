@@ -1,7 +1,7 @@
 # Evergreen Kernel
 ![Java CI](https://github.com/aws/aws-greengrass-kernel/workflows/Java%20CI/badge.svg?branch=master)
 
-### *Copyright &copy; 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.*
+### *Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #### *SPDX-License-Identifier: Apache-2.0*
 
 This is the kernel of AWS's Evergreen IoT device management framework.  It manages the model that describes the software running on the device.  The model is a dependency graph of *services*.  Services have three primary aspects:
