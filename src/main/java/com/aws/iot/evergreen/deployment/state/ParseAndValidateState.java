@@ -80,7 +80,7 @@ public class ParseAndValidateState extends BaseState {
                     }
                 }
             }
-            if (deploymentDocument.getListOfPackagesToDeploy().contains(packageName)) {
+            if (deploymentDocument.getRootPackages().contains(packageName)) {
                 packageMetadata.add(currentPackageMetdata);
             }
         }
