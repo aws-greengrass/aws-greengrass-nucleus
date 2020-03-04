@@ -4,12 +4,14 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.extension.PerformanceReporting;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+@ExtendWith(PerformanceReporting.class)
 @Tag("Integration")
 public class KernelTest {
     static final int[] gc = new int[10];

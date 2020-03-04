@@ -4,8 +4,10 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.extension.PerformanceReporting;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-
+@ExtendWith(PerformanceReporting.class)
 @Tag("Integration")
 public class ExecTest {
     @Test
