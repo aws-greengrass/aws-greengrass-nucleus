@@ -481,7 +481,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 try {
                     d[i].close();
                     d[i].getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-                        if (((State) t.getOnce()).isTerminalState()) {
+                        if (((State) t.getOnce()).isClosable()) {
                             allServicesExitedLatch.countDown();
                         }
                     });

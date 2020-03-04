@@ -43,7 +43,7 @@ public class KernelShutdownTest {
         List<EvergreenService> genericExternalServices = kernel.orderedDependencies().stream()
                 .filter(e -> e instanceof GenericExternalService).collect(Collectors.toList());
 
-        assertTrue(genericExternalServices.stream().allMatch(e -> e.getState().isTerminalState()));
+        assertTrue(genericExternalServices.stream().allMatch(e -> e.getState().isClosable()));
 
         //sorting genericExternalServices in descending order based on when they reached terminal state
         Collections.sort(genericExternalServices, (s1, s2) ->

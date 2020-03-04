@@ -385,7 +385,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
-        while (!(isClosed.get() && getState().isTerminalState())) {
+        while (!(isClosed.get() && getState().isClosable())) {
             Optional<State> desiredState;
             State current = getState();
             logger.atInfo().setEventType("service-state-transition-start").addKeyValue("currentState", current).log();
@@ -656,6 +656,8 @@ public class EvergreenService implements InjectionActions, Closeable {
         if (t != null) {
             t.shutdown();
         }
+        //TODO: make close block till the service exits or make close non blocking
+        // currently close blocks till dependers exit which neither the above
         try {
             waitForDependersToExit();
         } catch (InterruptedException e) {
@@ -757,7 +759,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private boolean dependersExited(List<EvergreenService> dependers) {
         Optional<EvergreenService> dependerService =
-                dependers.stream().filter(d -> !d.getState().isTerminalState()).findAny();
+                dependers.stream().filter(d -> !d.getState().isClosable()).findAny();
         if (dependerService.isPresent()) {
             logger.atDebug().setEventType("continue-waiting-for-dependencies")
                     .addKeyValue("waitingFor", dependerService.get().getName()).log();

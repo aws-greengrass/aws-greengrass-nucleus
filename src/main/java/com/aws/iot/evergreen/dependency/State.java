@@ -93,7 +93,7 @@ public enum State {
         return ordinal() <= other.ordinal();
     }
 
-    public boolean isTerminalState() {
+    public boolean isClosable() {
         return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED);
     }
 }
