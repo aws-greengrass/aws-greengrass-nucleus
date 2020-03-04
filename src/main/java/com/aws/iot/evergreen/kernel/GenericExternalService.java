@@ -85,8 +85,6 @@ public class GenericExternalService extends EvergreenService {
         if (result == RunStatus.Errored) {
             reportState(State.ERRORED);
         } else if (result == RunStatus.NothingDone) {
-            reportState(State.RUNNING);
-
             result = run("run", exit -> {
                 runScript = null;
                 if (!inShutdown) {
@@ -100,6 +98,7 @@ public class GenericExternalService extends EvergreenService {
                 }
             });
             runScript = currentScript;
+            reportState(State.RUNNING);
 
             if (result == RunStatus.NothingDone) {
                 this.requestStop();
@@ -154,6 +153,7 @@ public class GenericExternalService extends EvergreenService {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
 
+    // TODO: return Exec along with RunStatus instead of setting currentScript in this function
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         final EZTemplates templateEngine = context.get(EZTemplates.class);
