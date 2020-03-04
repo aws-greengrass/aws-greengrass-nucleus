@@ -731,30 +731,33 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     private void waitForDependersToExit() throws InterruptedException {
+
+        List<EvergreenService> dependers = getDependers();
         Subscriber dependerExitWatcher = (WhatHappened what, Topic t) -> {
             synchronized (dependersExitedLock) {
-                if (dependersExited()) {
+                if (dependersExited(dependers)) {
                     dependersExitedLock.notifyAll();
                 }
             }
         };
         // subscribing to depender state changes
-        getDependers().forEach(dependerEvergreenService ->
+        dependers.forEach(dependerEvergreenService ->
                 dependerEvergreenService.getStateTopic().subscribe(dependerExitWatcher));
+
         synchronized (dependersExitedLock) {
-            while (!dependersExited()) {
+            while (!dependersExited(dependers)) {
                 logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
                 dependersExitedLock.wait();
             }
         }
         // removing state change watchers
-        getDependers().forEach(dependerEvergreenService ->
+        dependers.forEach(dependerEvergreenService ->
                 dependerEvergreenService.getStateTopic().remove(dependerExitWatcher));
     }
 
-    private boolean dependersExited() {
+    private boolean dependersExited(List<EvergreenService> dependers) {
         Optional<EvergreenService> dependerService =
-                getDependers().stream().filter(d -> !d.getState().isTerminalState()).findAny();
+                dependers.stream().filter(d -> !d.getState().isTerminalState()).findAny();
         if (dependerService.isPresent()) {
             logger.atDebug().setEventType("continue-waiting-for-dependencies")
                     .addKeyValue("waitingFor", dependerService.get().getName()).log();
