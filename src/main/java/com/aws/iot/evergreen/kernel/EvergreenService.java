@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
@@ -730,21 +731,25 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     private void waitForDependersToExit() throws InterruptedException {
+        Subscriber dependerExitWatcher = (WhatHappened what, Topic t) -> {
+            synchronized (dependersExitedLock) {
+                if (dependersExited()) {
+                    dependersExitedLock.notifyAll();
+                }
+            }
+        };
+        // subscribing to depender state changes
         getDependers().forEach(dependerEvergreenService ->
-                dependerEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-                    synchronized (dependersExitedLock) {
-                        if (dependersExited()) {
-                            dependersExitedLock.notifyAll();
-                        }
-                    }
-                })
-        );
+                dependerEvergreenService.getStateTopic().subscribe(dependerExitWatcher));
         synchronized (dependersExitedLock) {
             while (!dependersExited()) {
                 logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
                 dependersExitedLock.wait();
             }
         }
+        // removing state change watchers
+        getDependers().forEach(dependerEvergreenService ->
+                dependerEvergreenService.getStateTopic().remove(dependerExitWatcher));
     }
 
     private boolean dependersExited() {
