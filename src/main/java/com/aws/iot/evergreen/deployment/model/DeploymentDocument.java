@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.deployment.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
 import lombok.Getter;
 
 import java.util.List;
@@ -15,13 +16,14 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
+@Builder
 public class DeploymentDocument {
 
     @JsonProperty("DeploymentId")
     String deploymentId;
 
-    @JsonProperty("ListOfPackagesToDeploy")
-    List<String> listOfPackagesToDeploy;
+    @JsonProperty("rootPackages")
+    List<String> rootPackages;
 
     @JsonProperty("Packages")
     List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
