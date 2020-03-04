@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class KernelShutdownTest {
 
-    public static Kernel kernel;
+    private static Kernel kernel;
 
     @BeforeEach
     public void setup() {

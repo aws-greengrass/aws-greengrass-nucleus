@@ -500,7 +500,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             });
             executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
             //TODO: this needs to be changed once state machine thread is using the shared executor
-            orderedDependencies().forEach(e -> e.shutDownStateMachine());
             logger.atInfo().setEventType("executor-service-shutdown-complete").log();
         } catch (Throwable ex) {
             logger.atError().setEventType("system-shutdown-error").setCause(ex).log();

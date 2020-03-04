@@ -64,7 +64,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
     private String status;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
@@ -384,9 +384,8 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
-        while (!closed.get()) {
+        while (!(isClosed.get() && getState().isTerminalState())) {
             Optional<State> desiredState;
-
             State current = getState();
             logger.atInfo().setEventType("service-state-transition-start").addKeyValue("currentState", current).log();
 
@@ -662,13 +661,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             logger.error("Interrupted waiting for dependers to exit");
         }
         requestStop();
-    }
-
-    /**
-     * Shutdown the thread executing startStateTransition().
-     */
-    public void shutDownStateMachine() {
-        closed.set(true);
+        isClosed.set(true);
     }
 
     public Context getContext() {
@@ -756,17 +749,13 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private boolean dependersExited() {
         Optional<EvergreenService> dependerService =
-                getDependers().stream().filter(d -> !dependerExited(d)).findAny();
+                getDependers().stream().filter(d -> !d.getState().isTerminalState()).findAny();
         if (dependerService.isPresent()) {
             logger.atDebug().setEventType("continue-waiting-for-dependencies")
                     .addKeyValue("waitingFor", dependerService.get().getName()).log();
             return false;
         }
         return true;
-    }
-
-    private boolean dependerExited(EvergreenService dependerService) {
-        return dependerService.getState().isTerminalState();
     }
 
     private boolean dependencyReady() {
@@ -814,7 +803,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         initRequiresTopic();
         //TODO: Use better threadPool mechanism
         new Thread(() -> {
-            while (!closed.get()) {
+            while (!isClosed.get()) {
                 try {
                     startStateTransition();
                     return;

@@ -72,7 +72,7 @@ public class LifecycleIPCAgent implements InjectionActions {
         Optional<EvergreenService> service =
                 Optional.ofNullable(kernel.context.get(EvergreenService.class, context.getServiceName()));
 
-        log.info("{} reported state : {}", service.get().getName(), s.toString());
+        log.info("{} reported state : {}", service.get().getName(), s);
         LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
         if (service.isPresent()) {
             service.get().reportState(s);
@@ -119,7 +119,7 @@ public class LifecycleIPCAgent implements InjectionActions {
                                     .service(listenRequest.getServiceName()).build();
 
                     log.info("Pushing state change notification to {} from {} to {}",
-                            listenRequest.getServiceName(), oldState.toString(), newState.toString());
+                            listenRequest.getServiceName(), oldState, newState);
                     try {
                         ApplicationMessage applicationMessage =
                                 ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
