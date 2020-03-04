@@ -16,6 +16,8 @@ import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateTransitionEvent;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,6 +42,8 @@ public class LifecycleIPCAgent implements InjectionActions {
     @Inject
     private ExecutorService executor;
 
+    private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
+
     private EvergreenService.GlobalStateChangeListener onServiceChange = (service, prev) -> {
         Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
         if (callbacks != null) {
@@ -63,12 +67,14 @@ public class LifecycleIPCAgent implements InjectionActions {
      * @return response for setting state
      */
     public LifecycleGenericResponse reportState(StateChangeRequest stateChangeRequest, ConnectionContext context) {
+
         State s = State.valueOf(stateChangeRequest.getState());
         Optional<EvergreenService> service =
                 Optional.ofNullable(kernel.context.get(EvergreenService.class, context.getServiceName()));
 
         LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
         if (service.isPresent()) {
+            log.info("{} reported state : {}", service.get().getName(), s);
             service.get().reportState(s);
             lifecycleGenericResponse.setStatus(LifecycleResponseStatus.Success);
         } else {
@@ -112,6 +118,8 @@ public class LifecycleIPCAgent implements InjectionActions {
                             StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
                                     .service(listenRequest.getServiceName()).build();
 
+                    log.info("Pushing state change notification to {} from {} to {}",
+                            listenRequest.getServiceName(), oldState, newState);
                     try {
                         ApplicationMessage applicationMessage =
                                 ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)

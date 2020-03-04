@@ -1,0 +1,26 @@
+---
+
+#launchers:
+plain:
+  startup:
+    all: "{platform.invoke} {args}"
+
+sleeperB:
+  run: |-
+    while true; do
+    date; echo sleeperB_running; sleep 5
+    done
+
+sleeperA:
+  requires: sleeperB
+  run: |-
+    while true; do
+    date; echo sleeperA_running; sleep 5
+    done
+
+main:
+  requires: sleeperA, sleeperB
+  run: |-
+    while true; do
+    date; echo main_running; sleep 5
+    done
