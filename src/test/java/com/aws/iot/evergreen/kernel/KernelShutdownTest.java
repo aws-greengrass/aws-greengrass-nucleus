@@ -6,10 +6,11 @@ import com.aws.iot.evergreen.dependency.State;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -37,17 +38,20 @@ public class KernelShutdownTest {
         });
         //wait for main to run
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
-        Queue<EvergreenService> servicesInFinishedOrder = new LinkedList<>();
-        EvergreenService.GlobalStateChangeListener listener = (service, state) -> {
-            if (State.FINISHED.equals(service.getState()) && (service instanceof GenericExternalService)) {
-                servicesInFinishedOrder.offer(service);
-            }
-        };
-        kernel.context.addGlobalStateChangeListener(listener);
         kernel.shutdown(60);
-        // service should moved to finished based on dependency order
-        assertEquals("main", servicesInFinishedOrder.remove().getName());
-        assertEquals("sleeperA", servicesInFinishedOrder.remove().getName());
-        assertEquals("sleeperB", servicesInFinishedOrder.remove().getName());
+
+        List<EvergreenService> genericExternalServices = kernel.orderedDependencies().stream()
+                .filter(e -> e instanceof GenericExternalService).collect(Collectors.toList());
+
+        assertTrue(genericExternalServices.stream().allMatch(e -> e.getState().isTerminalState()));
+
+        //sorting genericExternalServices in descending order based on when they reached terminal state
+        Collections.sort(genericExternalServices, (s1, s2) ->
+                Long.compare(s1.getStateTopic().getModtime(), s1.getStateTopic().getModtime()));
+
+        // service should moved to terminal state based on dependency order
+        assertEquals("main", genericExternalServices.get(2).getName());
+        assertEquals("sleeperA", genericExternalServices.get(1).getName());
+        assertEquals("sleeperB", genericExternalServices.get(0).getName());
     }
 }
