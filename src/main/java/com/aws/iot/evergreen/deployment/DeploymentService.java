@@ -3,26 +3,27 @@
 
 package com.aws.iot.evergreen.deployment;
 
-import com.amazonaws.services.iot.client.AWSIotException;
-import com.amazonaws.services.iot.client.AWSIotMessage;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.model.AwsIotJobsMqttMessage;
 import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionData;
+import software.amazon.awssdk.iot.iotjobs.model.JobExecutionSummary;
+import software.amazon.awssdk.iot.iotjobs.model.JobExecutionsChangedEvent;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.time.Duration;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -37,20 +38,32 @@ public class DeploymentService extends EvergreenService {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
-    private static final String NOTIFY_TOPIC = "$aws/things/{thingName}/jobs/notify";
 
+    public static final String DEVICE_PARAM_THING_NAME = "thingName";
+    public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
+    public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
+    public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
+    public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     @Inject
+    @Setter
+    private IotJobsHelperFactory iotJobsHelperFactory;
+    @Inject
+    @Setter
+    private ExecutorService executorService;
+    @Inject
+    @Setter
+    private Kernel kernel;
+
     private IotJobsHelper iotJobsHelper;
-    private MqttHelper mqttHelper;
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
     private boolean errored;
-    //Thread safe?
-    private final ExecutorService executorService = context.get(ExecutorService.class);
     private Future<Boolean> currentProcessStatus = null;
     private String currentJobId;
     private DeploymentContext currentDeploymentContext;
+    @Setter
+    private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
 
-    private final Consumer<AWSIotMessage> awsIotNotifyMessageHandler = awsIotMessage -> {
+    private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
          * 1. Last job completed (successful/failed)
@@ -58,28 +71,14 @@ public class DeploymentService extends EvergreenService {
          * 3. A job was cancelled
          * This message receives the list of Queued and InProgress jobs at the time of this message
          */
-        logger.info("Received mqtt notify message with payload {}", awsIotMessage.getStringPayload());
-
-        AwsIotJobsMqttMessage jobsMqttMessage;
-        try {
-            jobsMqttMessage = OBJECT_MAPPER.readValue(awsIotMessage.getStringPayload(), AwsIotJobsMqttMessage.class);
-        } catch (JsonProcessingException ex) {
-            logger.error("Incorrectly formatted message received from AWS Iot", ex);
-            return;
-        }
-
-        try {
-            //TODO: Check that if there is a current job runnign by the device then thats
-            // coming in the inProgress list. If its not there then it will be an indication that
-            // it was cancelled.
-            if (!jobsMqttMessage.getJobs().getQueued().isEmpty()) {
-                iotJobsHelper.getNextPendingJob();
+        Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
+        if (!jobs.isEmpty()) {
+            if (!jobs.get(JobStatus.QUEUED).isEmpty()) {
+                //Do not wait on the future in this async handler,
+                //as it will block the thread which establishes
+                // the MQTT connection. This will result in frozen MQTT connection
+                iotJobsHelper.requestNextPendingJobDocument();
             }
-        } catch (ExecutionException | InterruptedException ex) {
-            //TODO: DA should continue listening for other messages if error in one message
-            logger.error("Caught exception while handling Mqtt message", ex);
-            errored = true;
-            reportState(State.ERRORED);
         }
     };
 
@@ -90,15 +89,20 @@ public class DeploymentService extends EvergreenService {
 
         JobExecutionData jobExecutionData = response.execution;
         currentJobId = jobExecutionData.jobId;
-        logger.atInfo().log("Received job description for job id : {} and "
-                        + "status {}", currentJobId, jobExecutionData.status);
+        logger.atInfo().log("Received job description for job id : {} and status {}", currentJobId,
+                jobExecutionData.status);
         logger.addDefaultKeyValue("JobId", currentJobId);
         if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
             //TODO: Check the currently runnign process,
             // if it is same as this jobId then do nothing. If not then there is something wrong
             return;
         } else if (jobExecutionData.status == JobStatus.QUEUED) {
-            //There should be no job runnign at this point of time
+            //If there is a job running at this time, then it has been canceled in cloud and should be attempted to
+            // be canceled here
+            if (currentProcessStatus != null && !currentProcessStatus.cancel(true)) {
+                //If the cancel is not successful
+                return;
+            }
             iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
 
             logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
@@ -107,8 +111,7 @@ public class DeploymentService extends EvergreenService {
                     .removedTopLevelPackageNames(new HashSet<>()).build();
             //Starting the job processing in another thread
             currentProcessStatus = executorService
-                    .submit(new DeploymentProcess(currentDeploymentContext,
-                            OBJECT_MAPPER, context.get(Kernel.class),
+                    .submit(new DeploymentProcess(currentDeploymentContext, OBJECT_MAPPER, kernel,
                             context.get(PackageManager.class), logger));
             logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
         }
@@ -133,14 +136,13 @@ public class DeploymentService extends EvergreenService {
         super(topics);
     }
 
-
     @Override
     public void startup() {
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
 
         logger.info("Starting up the Deployment Service");
-        String thingName = getStringParameterFromConfig("thingName");
+        String thingName = getStringParameterFromConfig(DEVICE_PARAM_THING_NAME);
         if (thingName.isEmpty()) {
             logger.info("There is no thingName assigned to this device. Cannot communicate with cloud."
                     + " Finishing deployment service");
@@ -149,21 +151,13 @@ public class DeploymentService extends EvergreenService {
         }
 
         try {
-            initialize(thingName);
+            initializeIotJobsHelper(thingName);
             reportState(State.RUNNING);
-
-            // TODO: Move to one SDK.
-            // Subscribe to change event does not work well with jobs sdk, so using iot sdk to subscribe to notify topic
-            // The Jobs SDK is flaky with its Future responses. When SubscribeToJobExecutionsChangedEvents
-            // call is used in Jobs SDK, then PublishDescribeJobExecution is not able to publish the message.
-            // Tried using different client connections for different subscriptions
-            String topic = NOTIFY_TOPIC.replace("{thingName}", thingName);
-            mqttHelper.subscribe(topic, awsIotNotifyMessageHandler);
-
+            iotJobsHelper.subscribeToEventNotifications(eventHandler);
             iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer, rejectedError -> {
                 logger.error("Job subscription got rejected", rejectedError);
             });
-        } catch (ExecutionException | InterruptedException | AWSIotException ex) {
+        } catch (ExecutionException | InterruptedException ex) {
             logger.error("Caught exception in subscribing to topics", ex);
             errored = true;
             reportState(State.ERRORED);
@@ -182,7 +176,7 @@ public class DeploymentService extends EvergreenService {
                     currentProcessStatus = null;
                     currentDeploymentContext = null;
                 }
-                Thread.sleep(DEPLOYMENT_POLLING_FREQUENCY);
+                Thread.sleep(pollingFrequency);
             } catch (InterruptedException ex) {
                 logger.atError().setCause(ex).log("Exception encountered while sleeping in DA");
                 errored = true;
@@ -202,18 +196,18 @@ public class DeploymentService extends EvergreenService {
         iotJobsHelper.closeConnection();
     }
 
-    private void initialize(String thingName) throws AWSIotException {
+    private void initializeIotJobsHelper(String thingName) {
         //TODO: Get it from bootstrap config. Path of Bootstrap config should be taken as argument to kernel?
-        Kernel kernel = context.get(Kernel.class);
-        String privateKeyPath = kernel.deTilde(getStringParameterFromConfig("privateKeyPath"));
-        String certificateFilePath = kernel.deTilde(getStringParameterFromConfig("certificateFilePath"));
-        String rootCAPath = kernel.deTilde(getStringParameterFromConfig("rootCaPath"));
-        String clientEndpoint = getStringParameterFromConfig("mqttClientEndpoint");
+        String privateKeyPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
+        String certificateFilePath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_CERTIFICATE_FILE_PATH));
+        String rootCAPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
+        String clientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
 
-        mqttHelper = new MqttHelper(clientEndpoint, UUID.randomUUID().toString(), certificateFilePath, privateKeyPath);
-        iotJobsHelper = new IotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
-                UUID.randomUUID().toString());
+        iotJobsHelper = iotJobsHelperFactory
+                .getIotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
+                        UUID.randomUUID().toString());
     }
+
 
     private String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
@@ -222,5 +216,13 @@ public class DeploymentService extends EvergreenService {
             paramValue = childTopic.getOnce().toString();
         }
         return paramValue;
+    }
+
+    public static class IotJobsHelperFactory {
+        public IotJobsHelper getIotJobsHelper(String thingName, String clientEndpoint, String certificateFilePath,
+                                              String privateKeyPath, String rootCAPath, String clientId) {
+            return new IotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
+                    clientId);
+        }
     }
 }
