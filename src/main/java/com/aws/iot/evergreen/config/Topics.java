@@ -262,4 +262,8 @@ public class Topics extends Node implements Iterable<Node> {
     public boolean isEmpty() {
         return children.isEmpty();
     }
+
+    public Context getContext() {
+        return this.context;
+    }
 }
