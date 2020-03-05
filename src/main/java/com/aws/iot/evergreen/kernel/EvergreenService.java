@@ -63,7 +63,6 @@ public class EvergreenService implements InjectionActions, Closeable {
     private Future backingTask;
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
-    private String status;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
@@ -617,15 +616,6 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     /**
-     * Called when this service is known to be needed, and is AwaitingStartup.
-     * This is a good place to do any preconfiguration.  It is seperate from "install"
-     * because there are situations (like factory preflight setup) where there's a
-     * certain amount of setup to be done, but we're not actually going to start the app.
-     */
-    protected void awaitingStartup() {
-    }
-
-    /**
      * Called when all dependencies are RUNNING. If there are no dependencies,
      * it is called right after postInject.  The service doesn't transition to RUNNING
      * until *after* this state is complete.
@@ -793,14 +783,6 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     public void forAllDependencies(Consumer<? super EvergreenService> f) {
         dependencies.keySet().forEach(f);
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String s) {
-        status = s;
     }
 
     public String getName() {
