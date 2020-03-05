@@ -69,15 +69,15 @@ public class PerformanceReporting
                 infoList.stream().mapToLong(x -> x.nonHeapMemory).average().getAsDouble() / 1024.0 / 1024.0;
         double avgLoadedClassCount = infoList.stream().mapToLong(x -> x.loadedClassCount).average().getAsDouble();
 
-        Map<String, String> perfValueMap = new LinkedHashMap<>();
+        Map<String, Object> perfValueMap = new LinkedHashMap<>();
         perfValueMap.put("name", context.getRequiredTestMethod().getName());
         perfValueMap.put("classname", context.getRequiredTestClass().getName());
-        perfValueMap.put("avgHeapMemoryMB", String.valueOf(avgHeapMemoryMB));
-        perfValueMap.put("maxHeapMemoryMB", String.valueOf(maxHeapMemoryMB));
-        perfValueMap.put("avgNonHeapMemoryMB", String.valueOf(avgNonHeapMemoryMB));
-        perfValueMap.put("maxNonHeapMemoryMB", String.valueOf(maxNonHeapMemoryMB));
-        perfValueMap.put("avgLoadedClassCount", String.valueOf(avgLoadedClassCount));
-        perfValueMap.put("maxLoadedClassCount", String.valueOf(maxLoadedClassCount));
+        perfValueMap.put("avgHeapMemoryMB", avgHeapMemoryMB);
+        perfValueMap.put("maxHeapMemoryMB", maxHeapMemoryMB);
+        perfValueMap.put("avgNonHeapMemoryMB", avgNonHeapMemoryMB);
+        perfValueMap.put("maxNonHeapMemoryMB", maxNonHeapMemoryMB);
+        perfValueMap.put("avgLoadedClassCount", avgLoadedClassCount);
+        perfValueMap.put("maxLoadedClassCount", maxLoadedClassCount);
 
         ValueIterator<?> existing = null;
         try {
