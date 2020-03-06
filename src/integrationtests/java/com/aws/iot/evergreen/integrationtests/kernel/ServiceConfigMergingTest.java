@@ -1,10 +1,14 @@
-package com.aws.iot.evergreen.kernel;
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
+package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.extension.PerformanceReporting;
+import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-@Tag("Integration")
 public class ServiceConfigMergingTest {
     private Kernel kernel;
 
@@ -115,7 +118,7 @@ public class ServiceConfigMergingTest {
         });
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("main", new HashMap<Object, Object>() {{
-                put("requires", kernel.getMain().dependencies.keySet().stream().map(EvergreenService::getName)
+                put("requires", kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
                         .collect(Collectors.joining(",")) + ",new_service");
             }});
 
@@ -172,7 +175,7 @@ public class ServiceConfigMergingTest {
         });
 
         List<String> originalRunningServices =
-                kernel.getMain().dependencies.keySet().stream().map(EvergreenService::getName)
+                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
                         .collect(Collectors.toList());
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("main", new HashMap<Object, Object>() {{
