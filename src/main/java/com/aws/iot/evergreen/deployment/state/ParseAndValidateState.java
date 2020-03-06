@@ -7,8 +7,8 @@ import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentContext;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
-import com.aws.iot.evergreen.deployment.model.NameVersionPair;
 import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,12 +69,12 @@ public class ParseAndValidateState extends BaseState {
             PackageMetadata currentPackageMetdata = entry.getValue();
             if (nameToPackageConfig.containsKey(packageName)) {
                 DeploymentPackageConfiguration deploymentPackageConfiguration = nameToPackageConfig.get(packageName);
-                if (deploymentPackageConfiguration.getListOfDependentPackages() != null) {
-                    for (NameVersionPair dependencyNameVersion : deploymentPackageConfiguration
-                            .getListOfDependentPackages()) {
-                        if (nameToPackageMetadata.containsKey(dependencyNameVersion.getPackageName())) {
+                if (deploymentPackageConfiguration.getListOfDependencies() != null) {
+                    for (PackageIdentifier dependencyPackageIdentifier : deploymentPackageConfiguration
+                            .getListOfDependencies()) {
+                        if (nameToPackageMetadata.containsKey(dependencyPackageIdentifier.getName())) {
                             currentPackageMetdata.getDependsOn()
-                                    .add(nameToPackageMetadata.get(dependencyNameVersion.getPackageName()));
+                                    .add(nameToPackageMetadata.get(dependencyPackageIdentifier.getName()));
                         }
                         //TODO: Handle case when package does not exist for a specified dependency
                     }

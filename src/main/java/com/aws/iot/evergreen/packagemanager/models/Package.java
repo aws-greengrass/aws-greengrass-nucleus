@@ -50,7 +50,7 @@ public class Package {
     // TODO: Needs discussion, this should probably be removed after integration demo
     private final List<String> requires;
 
-    // TODO clean up this field
+    // TODO: clean up this field
     @Deprecated
     @JsonIgnore
     private Set<Package> dependencyPackages;
