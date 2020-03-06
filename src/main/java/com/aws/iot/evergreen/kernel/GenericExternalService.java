@@ -63,7 +63,6 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void install() {
         if (run("install", null) == RunStatus.Errored) {
-            System.err.println("install errored: " + getName());
             reportState(State.ERRORED);
         }
     }
@@ -233,7 +232,7 @@ public class GenericExternalService extends EvergreenService {
             EZTemplates templateEngine = context.get(EZTemplates.class);
             ((Topics) env).forEach(n -> {
                 if (n instanceof Topic) {
-                    exec.setenv(n.name, templateEngine.rewrite(Coerce.toString(((Topic) n).getOnce())));
+                    exec.setenv(n.getName(), templateEngine.rewrite(Coerce.toString(((Topic) n).getOnce())));
                 }
             });
         }

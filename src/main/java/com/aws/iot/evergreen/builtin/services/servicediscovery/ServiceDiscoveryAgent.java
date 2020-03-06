@@ -2,7 +2,6 @@ package com.aws.iot.evergreen.builtin.services.servicediscovery;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceResponse;
@@ -89,17 +88,15 @@ public class ServiceDiscoveryAgent implements InjectionActions {
         // TODO input validation. https://sim.amazon.com/issues/P32540011
 
         boolean pathIsReserved = kernel.orderedDependencies().parallelStream()
-                .map(service -> config.find(service.getName(), SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY))
-                .filter(Objects::nonNull).anyMatch(t -> {
-                    Object o = t.getOnce();
+                .anyMatch(service -> {
+                    Topic c = kernel.findServiceTopic(service.getName())
+                            .findLeafChild(SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY);
+                    if (c == null) {
+                        return false;
+                    }
+                    Object o = c.getOnce();
                     if (o instanceof Collection) {
-                        String name = t.name;
-                        Topics p = t.parent;
-                        while (p.name != null) {
-                            name = p.name;
-                            p = p.parent;
-                        }
-                        return ((Collection) o).contains(resourcePath) && !serviceName.equals(name);
+                        return ((Collection) o).contains(resourcePath) && !serviceName.equals(service.getName());
                     }
                     return false;
                 });

@@ -61,9 +61,9 @@ public class Topics extends Node implements Iterable<Node> {
             ((Topics) from).forEach(n -> {
                 assert (n != null);
                 if (n instanceof Topic) {
-                    createLeafChild(n.name).copyFrom(n);
+                    createLeafChild(n.getName()).copyFrom(n);
                 } else {
-                    createInteriorChild(n.name).copyFrom(n);
+                    createInteriorChild(n.getName()).copyFrom(n);
                 }
             });
         } else {
@@ -195,8 +195,8 @@ public class Topics extends Node implements Iterable<Node> {
      * @param n node to remove
      */
     public void remove(Node n) {
-        if (!children.remove(n.name, n)) {
-            System.err.println("remove: Missing node " + n.name + " from " + toString());
+        if (!children.remove(n.getName(), n)) {
+            System.err.println("remove: Missing node " + n.getName() + " from " + toString());
         }
         n.fire(WhatHappened.removed);
         childChanged(WhatHappened.childRemoved, n);
@@ -251,9 +251,9 @@ public class Topics extends Node implements Iterable<Node> {
     public Map<String, Object> toPOJO() {
         Map<String, Object> map = new TreeMap(String.CASE_INSENSITIVE_ORDER);
         children.values().forEach((n) -> {
-            if (!n.name.startsWith("_")) {
+            if (!n.getName().startsWith("_")) {
                 // Don't save entries whose name starts in '_'
-                map.put(n.name, n.toPOJO());
+                map.put(n.getName(), n.toPOJO());
             }
         });
         return map;

@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -22,7 +23,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -50,6 +50,8 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
+    public static final String SERVICES_NAMESPACE_TOPIC = "services";
+
     private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
 
     public final Topics config;
@@ -113,9 +115,12 @@ public class EvergreenService implements InjectionActions, Closeable {
         // TODO: Add validation
         logger.atInfo().setEventType("service-set-state").addKeyValue("currentState", currentState)
                 .addKeyValue("newState", newState).log();
-        prevState = currentState;
-        this.state.setValue(newState);
-        context.globalNotifyStateChanged(this, prevState, newState);
+
+        synchronized (this.state) {
+            prevState = currentState;
+            this.state.setValue(newState);
+            context.globalNotifyStateChanged(this, prevState, newState);
+        }
     }
 
     /**
@@ -155,115 +160,85 @@ public class EvergreenService implements InjectionActions, Closeable {
      * @param context context to lookup the name in
      * @param name    name of the service to find
      * @return found service or null
+     * @throws ServiceLoadException if service cannot load
      */
     @SuppressWarnings({"checkstyle:emptycatchblock"})
-    public static EvergreenService locate(Context context, String name) {
+    public static EvergreenService locate(Context context, String name) throws ServiceLoadException {
         return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
             Configuration configuration = context.get(Configuration.class);
-            Topics topics = configuration.lookupTopics(Configuration.splitPath(name));
-            assert (topics != null);
-            if (topics.isEmpty()) {
-                // No definition of this service was found in the config file.
-                // weave config fragments in from elsewhere...
-                Kernel kernel = context.get(Kernel.class);
-                for (String serverUrl : kernel.getServiceServerURLList()) {
-                    if (topics.isEmpty()) {
-                        try {
-                            // TODO: should probably think hard about what file extension to use
-                            // TODO: allow the file to be a zip package?
-                            URL configUrl = new URL(serverUrl + name + ".evg");
-                            kernel.read(configUrl, false);
-                            if (!topics.isEmpty()) {
-                                staticLogger.atInfo().setEventType("service-config-found")
-                                        .addKeyValue("configURL", configUrl).log("Found external service definition");
-                            }
-                        } catch (IOException ignored) {
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                if (topics.isEmpty()) {
-                    topics.createLeafChild("run").dflt("echo No definition found for " + name + ";exit -1");
-                    staticLogger.atWarn().setEventType("service-config-not-found").addKeyValue("serviceName", name)
-                            .log();
-                }
+            Topics serviceRootTopics = configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
+            if (serviceRootTopics == null || serviceRootTopics.isEmpty()) {
+                staticLogger.atWarn().setEventType("service-config-not-found").addKeyValue("serviceName", name);
             } else {
                 staticLogger.atInfo().setEventType("service-config-found").addKeyValue("serviceName", name)
                         .log("Found service definition in configuration file");
             }
             EvergreenService ret;
+
+            // try to find service implementation class from plugins.
             Class<?> clazz = null;
-            Node n = topics.getChild("class");
+            Node n = null;
+
+            if (serviceRootTopics != null) {
+                n = serviceRootTopics.findLeafChild("class");
+            }
+
             if (n != null) {
                 String cn = Coerce.toString(n);
                 try {
                     clazz = Class.forName(cn);
                 } catch (Throwable ex) {
-                    staticLogger.atError().setEventType("service-load-error").setCause(ex)
-                            .addKeyValue("serviceName", name).log("Can't load service class");
-                    return errNode(context, name, "Can't load service class from " + cn, ex);
+                    staticLogger.atError().setEventType("service-load-error")
+                            .addKeyValue("serviceName", name)
+                            .addKeyValue("className", cn).log("Can't load service class");
+                    throw new ServiceLoadException("Can't load service class from " + cn, ex);
                 }
             }
 
             if (clazz == null) {
                 Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
                 if (si != null) {
-                    staticLogger.atDebug().addKeyValue("serviceName", name).log("Attempt to load service from plugins");
+                    staticLogger.atDebug().addKeyValue("serviceName", name)
+                            .log("Attempt to load service from plugins");
                     clazz = si.get(name);
                 }
             }
+            // If found class, try to load service class from plugins.
             if (clazz != null) {
                 try {
                     Constructor<?> ctor = clazz.getConstructor(Topics.class);
-                    ret = (EvergreenService) ctor.newInstance(topics);
+                    ret = (EvergreenService) ctor.newInstance(serviceRootTopics);
                     if (clazz.getAnnotation(Singleton.class) != null) {
                         context.put(ret.getClass(), v);
                     }
                     staticLogger.atInfo().setEventType("evergreen-service-loaded")
                             .addKeyValue("serviceName", ret.getName()).log();
                 } catch (Throwable ex) {
-                    staticLogger.atError().setCause(ex).setEventType("evergreen-service-load-error")
-                            .addKeyValue("className", clazz.getName()).log("Can't create Evergreen Service instance");
-                    ret = errNode(context, name, "Can't create code-backed service from " + clazz.getSimpleName(), ex);
+                    staticLogger.atError().setEventType("evergreen-service-load-error")
+                            .addKeyValue("className", clazz.getName())
+                            .log("Can't create Evergreen Service instance");
+                    throw new ServiceLoadException("Can't create code-backed service from " + clazz.getSimpleName(),
+                            ex);
                 }
-            } else if (topics.isEmpty()) {
+            } else if (serviceRootTopics.isEmpty()) {
                 staticLogger.atError().setEventType("service-load-error").addKeyValue("serviceName", name)
                         .log("No matching definition in system model");
-                ret = errNode(context, name, "No matching definition in system model", null);
+                throw new ServiceLoadException("No matching definition in system model");
             } else {
+                // if not found, initialize GenericExternalService
                 try {
-                    ret = new GenericExternalService(topics);
+                    ret = new GenericExternalService(serviceRootTopics);
                     staticLogger.atInfo().setEventType("generic-service-loaded")
                             .addKeyValue("serviceName", ret.getName()).log();
                 } catch (Throwable ex) {
-                    staticLogger.atError().setCause(ex).setEventType("generic-service-load-error")
-                            .addKeyValue("serviceName", Coerce.toString(topics)).log("Can't create generic instance");
-                    ret = errNode(context, name, "Can't create generic service", ex);
+                    staticLogger.atError().setEventType("generic-service-load-error")
+                            .addKeyValue("serviceName", name)
+                            .log("Can't create generic instance");
+                    throw new ServiceLoadException("Can't create generic service", ex);
                 }
             }
             return ret;
         });
-    }
-
-    /**
-     * Creates a GenericExternalService without a service definition. Creates it just to report an error.
-     *
-     * @param context static Context
-     * @param name    name of the service which could not be constructed
-     * @param message message for reason why there is an error
-     * @param ex      exception which caused the error node to be used
-     * @return Error service
-     */
-    public static EvergreenService errNode(Context context, String name, String message, Throwable ex) {
-        try {
-            return new GenericExternalService(Topics.errorNode(context, name,
-                    "Error locating service " + name + ": " + message + (ex == null ? "" : "\n\t" + ex)));
-        } catch (Throwable ex1) {
-            staticLogger.atError().setCause(ex1).setEventType("service-error-report-error")
-                    .addKeyValue("serviceName", name).addKeyValue("errorReport", message).log();
-            return null;
-        }
     }
 
     private Topic initStateTopic(final Topics topics) {
@@ -786,7 +761,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     public String getName() {
-        return config == null ? getClass().getSimpleName() : config.getFullName();
+        return config == null ? getClass().getSimpleName() : config.getName();
     }
 
     @Override

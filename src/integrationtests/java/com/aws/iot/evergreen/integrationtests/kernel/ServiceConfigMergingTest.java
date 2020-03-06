@@ -38,6 +38,8 @@ class ServiceConfigMergingTest {
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
+        System.setProperty("log.store", "CONSOLE");
+        System.setProperty("log.fmt", "TEXT");
         kernel = new Kernel();
     }
 
@@ -73,17 +75,19 @@ class ServiceConfigMergingTest {
             }
         });
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
-            put("main", new HashMap<Object, Object>() {{
-                put("setenv", new HashMap<Object, Object>() {{
-                    put("HELLO", "redefined");
+            put("services", new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
+                    put("setenv", new HashMap<Object, Object>() {{
+                        put("HELLO", "redefined");
+                    }});
                 }});
             }});
         }}).get(60, TimeUnit.SECONDS);
 
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
-        assertEquals("redefined", kernel.find("main", "setenv", "HELLO").getOnce());
-        assertThat((String) kernel.find("main", "run").getOnce(), containsString("echo \"Running main\""));
+        assertEquals("redefined", kernel.find("services", "main", "setenv", "HELLO").getOnce());
+        assertThat((String) kernel.find("services", "main", "run").getOnce(), containsString("echo \"Running main\""));
     }
 
     @Test
@@ -121,13 +125,15 @@ class ServiceConfigMergingTest {
             }
         });
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
-            put("main", new HashMap<Object, Object>() {{
-                put("requires", kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                        .collect(Collectors.joining(",")) + ",new_service");
-            }});
+            put("services", new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
+                    put("requires", kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                            .collect(Collectors.joining(",")) + ",new_service");
+                }});
 
-            put("new_service", new HashMap<Object, Object>() {{
-                put("run", "sleep 60");
+                put("new_service", new HashMap<Object, Object>() {{
+                    put("run", "sleep 60");
+                }});
             }});
         }}).get(60, TimeUnit.SECONDS);
 
@@ -181,17 +187,19 @@ class ServiceConfigMergingTest {
                 kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
                         .collect(Collectors.toList());
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
-            put("main", new HashMap<Object, Object>() {{
-                put("requires", String.join(",", originalRunningServices) + ",new_service");
-            }});
+            put("services", new HashMap<Object, Object>() {{
+                put("main",new HashMap<Object, Object>() {{
+                    put("requires", String.join(",", originalRunningServices) + ",new_service");
+                }});
 
-            put("new_service", new HashMap<Object, Object>() {{
-                put("run", "sleep 60");
-                put("requires", "new_service2");
-            }});
+                put("new_service",new HashMap<Object, Object>() {{
+                    put("run", "sleep 60");
+                    put("requires", "new_service2");
+                }});
 
-            put("new_service2", new HashMap<Object, Object>() {{
-                put("run", "sleep 60");
+                put("new_service2",new HashMap<Object, Object>() {{
+                    put("run", "sleep 60");
+                }});
             }});
         }}).get(60, TimeUnit.SECONDS);
 

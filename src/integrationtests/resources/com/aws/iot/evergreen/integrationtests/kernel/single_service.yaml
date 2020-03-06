@@ -1,5 +1,6 @@
-main:
-  run:
-    echo "Running main" && sleep 100
-  setenv:
-    HELLO: "Hi"
+services:
+  main:
+    run:
+      echo "Running main" && sleep 100
+    setenv:
+      HELLO: "Hi"

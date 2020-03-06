@@ -78,7 +78,8 @@ public class AuthHandler implements InjectionActions {
 
         String authToken = authRequest.getAuthToken();
         // Lookup the provided auth token to associate it with a service (or reject it)
-        String serviceName = (String) config.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
+        String serviceName = (String) config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
 
         if (serviceName == null) {
             throw new IPCClientNotAuthorizedException("Auth token not found");
