@@ -13,11 +13,13 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -29,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(PerformanceReporting.class)
-public class KernelTest {
+class KernelTest {
     static final int[] gc = new int[10];
     static final CountDownLatch[] OK = new CountDownLatch[10];
     private static final Expected[] expectations = {new Expected(0, "\"stdout\":\"RUNNING\"", "Main service"),
@@ -50,8 +52,11 @@ public class KernelTest {
         }
     }
 
+    @TempDir
+    Path tempRootDir;
+
     @BeforeAll
-    public static void setup() {
+    static void setup() {
         System.setProperty("log.fmt", "JSON");
         System.setProperty("log.storeName", LogFileName);
         System.setProperty("log.store", "FILE");
@@ -64,7 +69,7 @@ public class KernelTest {
     }
 
     @AfterAll
-    public static void cleanup() {
+    static void cleanup() {
         try {
             Files.deleteIfExists(Paths.get(LogFileName));
         } catch (IOException e) {
@@ -73,11 +78,10 @@ public class KernelTest {
     }
 
     @Test
-    public void testErrorRetry() throws InterruptedException {
-        String tdir = System.getProperty("user.home") + "/kernelTest";
+    void testErrorRetry() throws InterruptedException {
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
-                KernelTest.class.getResource("config_broken.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                getClass().getResource("config_broken.yaml").toString());
 
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
@@ -137,7 +141,7 @@ public class KernelTest {
     }
 
     @Test
-    public void testSomeMethod() throws Exception {
+    void testSomeMethod() throws Exception {
         Runnable runnable = () -> {
             File fileToWatch = new File(LogFileName);
             long lastKnownPosition = 0;
@@ -188,9 +192,9 @@ public class KernelTest {
         Thread thread = new Thread(runnable);
         thread.start();
 
-        String tdir = System.getProperty("user.home") + "/kernelTest";
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", KernelTest.class.getResource("config.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                KernelTest.class.getResource("config.yaml").toString());
         kernel.launch();
         boolean ok = OK[0].await(200, TimeUnit.SECONDS);
         assertTrue(ok);
@@ -204,7 +208,7 @@ public class KernelTest {
 
         System.out.println("Now merging delta.yaml");
         kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
-                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(KernelTest.class.getResource("delta"
+                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta"
                         + ".yaml")))
                 .get(60, TimeUnit.SECONDS);
         testGroup(2);

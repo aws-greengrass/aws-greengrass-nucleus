@@ -27,8 +27,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -44,28 +46,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(PerformanceReporting.class)
 public class IPCServicesTest {
 
-    public static int port;
-    public static String address;
-    public static Kernel kernel;
+    private static int port;
+    private static String address;
+    private static Kernel kernel;
+
+    @TempDir
+    static Path tempRootDir;
 
     @BeforeAll
     public static void setup() throws Exception {
         // starting daemon
-        CountDownLatch OK = new CountDownLatch(1);
-        String tdir = System.getProperty("user.home") + "/gg2ktest";
-        System.out.println("tdir = " + tdir);
+        CountDownLatch AwaitIpcServiceLatch = new CountDownLatch(1);
         kernel = new Kernel();
 
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                IPCServicesTest.class.getResource("ipc.yaml").toString());
 
         kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
             if (service.getName().equals("IPCService") && service.getState().equals(State.RUNNING)) {
-                OK.countDown();
+                AwaitIpcServiceLatch.countDown();
             }
         });
 
         kernel.launch();
-        OK.await(10, TimeUnit.SECONDS);
+
+        assertTrue(AwaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
+
         Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
