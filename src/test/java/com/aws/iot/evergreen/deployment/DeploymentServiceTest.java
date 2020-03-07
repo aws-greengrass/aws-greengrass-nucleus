@@ -10,14 +10,18 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionData;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionSummary;
@@ -54,6 +58,11 @@ public class DeploymentServiceTest {
     private static final String MOCK_DEVICE_PARAMETER = "mockDeviceParameter";
     private static final String EVERGREEN_SERVICE_FULL_NAME = "DeploymentService";
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
+    private static final String MOCK_THING_NAME = "MockThingName";
+    private static final String MOCK_CLIENT_ENDPOINT = "MockClientEndpoint";
+    private static final String MOCK_CERTIFICATE_PATH = "/home/secrets/certificate.pem.cert";
+    private static final String MOCK_PRIVATE_KEY_PATH = "/home/secrets/privateKey.pem.key";
+    private static final String MOCK_ROOTCA_PATH = "/home/secrets/rootCA.pem";
 
     @Mock
     Topic stateTopic;
@@ -93,114 +102,143 @@ public class DeploymentServiceTest {
 
     DeploymentService deploymentService;
 
-    @BeforeEach
-    public void setup() {
-        //Evergreen service specific mocks
-        when(mockConfig.createLeafChild(eq("_State"))).thenReturn(stateTopic);
-        when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
-        when(mockConfig.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
-        when(mockConfig.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
-        when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
-        when(mockConfig.findLeafChild(Mockito.any())).thenReturn(mockTopic);
-        when(mockConfig.getFullName()).thenReturn("DeploymentService");
-        when(mockConfig.getContext()).thenReturn(mockContext);
+    @Nested
+    class DeploymentServiceInitializedWithMocks {
 
-        //Deployment service specific mocks
-        when(mockTopic.getOnce()).thenReturn(MOCK_DEVICE_PARAMETER);
-        when(mockKernel.deTilde(anyString())).thenAnswer(invocationOnMock -> {
-            return (String) invocationOnMock.getArguments()[0];
-        });
-        when(mockIotJobsHelperFactory
-                .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
-                .thenReturn(mockIotJobsHelper);
+        @BeforeEach
+        public void setup() {
+            //Evergreen service specific mocks
+            when(mockConfig.createLeafChild(eq("_State"))).thenReturn(stateTopic);
+            when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
+            when(mockConfig.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
+            when(mockConfig.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
+            when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
 
-        //Creating the class to be tested
-        deploymentService = new DeploymentService(mockConfig);
-        deploymentService.setIotJobsHelperFactory(mockIotJobsHelperFactory);
-        deploymentService.setExecutorService(mockExecutorService);
-        deploymentService.setKernel(mockKernel);
-    }
+            when(mockConfig.findLeafChild(Mockito.any())).thenAnswer(invocationOnMock -> {
+                String parameterName = invocationOnMock.getArguments()[0].toString();
+                if (parameterName.equals(DeploymentService.DEVICE_PARAM_THING_NAME)) {
+                    when(mockTopic.getOnce()).thenReturn(MOCK_THING_NAME);
+                    return mockTopic;
+                } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT)) {
+                    when(mockTopic.getOnce()).thenReturn(MOCK_CLIENT_ENDPOINT);
+                    return mockTopic;
+                } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_PRIVATE_KEY_PATH)) {
+                    when(mockTopic.getOnce()).thenReturn(MOCK_PRIVATE_KEY_PATH);
+                    return mockTopic;
+                } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_CERTIFICATE_FILE_PATH)) {
+                    when(mockTopic.getOnce()).thenReturn(MOCK_CERTIFICATE_PATH);
+                    return mockTopic;
+                } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_ROOT_CA_PATH)) {
+                    when(mockTopic.getOnce()).thenReturn(MOCK_ROOTCA_PATH);
+                    return mockTopic;
+                }
 
-    @AfterEach
-    public void tearDown() {
-        deploymentService.shutdown();
-    }
+                return mockTopic;
+            });
+            when(mockConfig.getFullName()).thenReturn("DeploymentService");
+            when(mockConfig.getContext()).thenReturn(mockContext);
 
-    @Test
-    public void GIVEN_DeviceConfiguration_THEN_StartDeploymentService()
-            throws ExecutionException, InterruptedException {
-        startDeploymentServiceInAnotherThread();
+            //Deployment service specific mocks
+            when(mockKernel.deTilde(anyString())).thenAnswer(invocationOnMock -> {
+                return invocationOnMock.getArguments()[0].toString();
+            });
+            when(mockIotJobsHelperFactory.getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString()))
+                    .thenReturn(mockIotJobsHelper);
 
-        verify(mockIotJobsHelper).subscribeToEventNotifications(any());
-        verify(mockIotJobsHelper).subscribeToGetNextJobDecription(any(), any());
-    }
+            //Creating the class to be tested
+            deploymentService =
+                    new DeploymentService(mockConfig, mockIotJobsHelperFactory, mockExecutorService, mockKernel);
+        }
 
-    @Test
-    public void GIVEN_EventNotification_WHEN_NewJobQueued_THEN_ProcessNotification()
-            throws ExecutionException, InterruptedException {
-        startDeploymentServiceInAnotherThread();
+        @Test
+        public void GIVEN_DescribeJobNotification_WHEN_NewJob_THEN_ProcessNotificationSuccessfully()
+                throws ExecutionException, InterruptedException {
+            CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
+            when(mockBooleanFuture.get()).thenReturn(Boolean.TRUE);
+            when(mockExecutorService.submit(any(DeploymentProcess.class))).thenReturn(mockBooleanFuture);
+            deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
+            startDeploymentServiceInAnotherThread();
 
-        verify(mockIotJobsHelper).subscribeToEventNotifications(jobEventConsumerCaptor.capture());
-        Consumer<JobExecutionsChangedEvent> consumer = jobEventConsumerCaptor.getValue();
-        JobExecutionsChangedEvent response = new JobExecutionsChangedEvent();
-        response.jobs = getTestJobs();
-        consumer.accept(response);
-        verify(mockIotJobsHelper).requestNextPendingJobDocument();
-    }
+            verify(mockIotJobsHelper).subscribeToGetNextJobDecription(describeJobConsumerCaptor.capture(), any());
+            Consumer<DescribeJobExecutionResponse> consumer = describeJobConsumerCaptor.getValue();
+            DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
+            response.execution = getTestJobExecutionData();
+            consumer.accept(response);
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
+            verify(mockExecutorService).submit(any(DeploymentProcess.class));
+            //Wait for the deploymentFrequency after which deployment service will check for the status of future
+            Thread.sleep(Duration.ofSeconds(1).toMillis());
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
+        }
 
-    @Test
-    public void GIVEN_EventNotification_WHEN_JobFinishedNoNewJob_THEN_ProcessNotification()
-            throws ExecutionException, InterruptedException {
-        startDeploymentServiceInAnotherThread();
+        @Test
+        public void GIVEN_DescribeJobNotification_WHEN_NewJob_THEN_ProcessNotificationUnSuccessfully()
+                throws ExecutionException, InterruptedException {
+            CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
+            when(mockBooleanFuture.get()).thenReturn(Boolean.FALSE);
+            when(mockExecutorService.submit(any(DeploymentProcess.class))).thenReturn(mockBooleanFuture);
+            deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
+            startDeploymentServiceInAnotherThread();
 
-        verify(mockIotJobsHelper).subscribeToEventNotifications(jobEventConsumerCaptor.capture());
-        Consumer<JobExecutionsChangedEvent> consumer = jobEventConsumerCaptor.getValue();
-        JobExecutionsChangedEvent response = new JobExecutionsChangedEvent();
-        response.jobs = new HashMap<>();
-        consumer.accept(response);
-        verify(mockIotJobsHelper, times(0)).requestNextPendingJobDocument();
-    }
+            verify(mockIotJobsHelper).subscribeToGetNextJobDecription(describeJobConsumerCaptor.capture(), any());
+            Consumer<DescribeJobExecutionResponse> consumer = describeJobConsumerCaptor.getValue();
+            DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
+            response.execution = getTestJobExecutionData();
+            consumer.accept(response);
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
+            verify(mockExecutorService).submit(any(DeploymentProcess.class));
+            //Wait for the deploymentFrequency after which deployment service will check for the status of future
+            Thread.sleep(Duration.ofSeconds(1).toMillis());
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), any());
+        }
 
-    @Test
-    public void GIVEN_DescribeJobNotification_WHEN_NewJob_THEN_ProcessNotificationSuccessfully()
-            throws ExecutionException, InterruptedException {
-        CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
-        when(mockBooleanFuture.get()).thenReturn(Boolean.TRUE);
-        when(mockExecutorService.submit(any(DeploymentProcess.class))).thenReturn(mockBooleanFuture);
-        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
-        startDeploymentServiceInAnotherThread();
+        @Nested
+        public class WithDefaultServiceRunning {
 
-        verify(mockIotJobsHelper).subscribeToGetNextJobDecription(describeJobConsumerCaptor.capture(), any());
-        Consumer<DescribeJobExecutionResponse> consumer = describeJobConsumerCaptor.getValue();
-        DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
-        response.execution = getTestJobExecutionData();
-        consumer.accept(response);
-        verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
-        verify(mockExecutorService).submit(any(DeploymentProcess.class));
-        //Wait for the deploymentFrequency after which deployment service will check for the status of future
-        Thread.sleep(Duration.ofSeconds(1).toMillis());
-        verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
-    }
+            @BeforeEach
+            public void startService() throws InterruptedException {
+                startDeploymentServiceInAnotherThread();
+            }
 
-    @Test
-    public void GIVEN_DescribeJobNotification_WHEN_NewJob_THEN_ProcessNotificationUnSuccessfully()
-            throws ExecutionException, InterruptedException {
-        CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
-        when(mockBooleanFuture.get()).thenReturn(Boolean.FALSE);
-        when(mockExecutorService.submit(any(DeploymentProcess.class))).thenReturn(mockBooleanFuture);
-        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
-        startDeploymentServiceInAnotherThread();
+            @AfterEach
+            public void tearDown() {
+                deploymentService.shutdown();
+            }
 
-        verify(mockIotJobsHelper).subscribeToGetNextJobDecription(describeJobConsumerCaptor.capture(), any());
-        Consumer<DescribeJobExecutionResponse> consumer = describeJobConsumerCaptor.getValue();
-        DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
-        response.execution = getTestJobExecutionData();
-        consumer.accept(response);
-        verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
-        verify(mockExecutorService).submit(any(DeploymentProcess.class));
-        //Wait for the deploymentFrequency after which deployment service will check for the status of future
-        Thread.sleep(Duration.ofSeconds(1).toMillis());
-        verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), any());
+            @Test
+            public void GIVEN_DeviceConfiguration_THEN_StartDeploymentService()
+                    throws ExecutionException, InterruptedException {
+
+                verify(mockIotJobsHelper).subscribeToEventNotifications(any());
+                verify(mockIotJobsHelper).subscribeToGetNextJobDecription(any(), any());
+            }
+
+            @Test
+            public void GIVEN_EventNotification_WHEN_NewJobQueued_THEN_ProcessNotification()
+                    throws ExecutionException, InterruptedException {
+
+                verify(mockIotJobsHelper).subscribeToEventNotifications(jobEventConsumerCaptor.capture());
+                Consumer<JobExecutionsChangedEvent> consumer = jobEventConsumerCaptor.getValue();
+                JobExecutionsChangedEvent response = new JobExecutionsChangedEvent();
+                response.jobs = getTestJobs();
+                consumer.accept(response);
+                verify(mockIotJobsHelper).requestNextPendingJobDocument();
+            }
+
+            @Test
+            public void GIVEN_EventNotification_WHEN_JobFinishedNoNewJob_THEN_ProcessNotification()
+                    throws ExecutionException, InterruptedException {
+
+                verify(mockIotJobsHelper).subscribeToEventNotifications(jobEventConsumerCaptor.capture());
+                Consumer<JobExecutionsChangedEvent> consumer = jobEventConsumerCaptor.getValue();
+                JobExecutionsChangedEvent response = new JobExecutionsChangedEvent();
+                response.jobs = new HashMap<>();
+                consumer.accept(response);
+                verify(mockIotJobsHelper, times(0)).requestNextPendingJobDocument();
+            }
+
+        }
+
     }
 
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {

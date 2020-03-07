@@ -13,7 +13,16 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.io.ClientBootstrap;
+import software.amazon.awssdk.crt.io.EventLoopGroup;
+import software.amazon.awssdk.crt.io.HostResolver;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
+import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionData;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionSummary;
@@ -44,6 +53,7 @@ public class DeploymentService extends EvergreenService {
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
+
     @Inject
     @Setter
     private IotJobsHelperFactory iotJobsHelperFactory;
@@ -63,6 +73,20 @@ public class DeploymentService extends EvergreenService {
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
 
+    private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+        @Override
+        public void onConnectionInterrupted(int errorCode) {
+            if (errorCode != 0) {
+                logger.error("Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
+            }
+        }
+
+        @Override
+        public void onConnectionResumed(boolean sessionPresent) {
+            logger.info("Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
+        }
+    };
+
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
@@ -72,13 +96,11 @@ public class DeploymentService extends EvergreenService {
          * This message receives the list of Queued and InProgress jobs at the time of this message
          */
         Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
-        if (!jobs.isEmpty()) {
-            if (jobs.containsKey(JobStatus.QUEUED)) {
-                //Do not wait on the future in this async handler,
-                //as it will block the thread which establishes
-                // the MQTT connection. This will result in frozen MQTT connection
-                iotJobsHelper.requestNextPendingJobDocument();
-            }
+        if (jobs.containsKey(JobStatus.QUEUED)) {
+            //Do not wait on the future in this async handler,
+            //as it will block the thread which establishes
+            // the MQTT connection. This will result in frozen MQTT connection
+            this.iotJobsHelper.requestNextPendingJobDocument();
         }
     };
 
@@ -89,8 +111,8 @@ public class DeploymentService extends EvergreenService {
 
         JobExecutionData jobExecutionData = response.execution;
         currentJobId = jobExecutionData.jobId;
-        logger.atInfo().log("Received job description for job id : {} and status {}", currentJobId,
-                jobExecutionData.status);
+        logger.atInfo()
+                .log("Received job description for job id : {} and status {}", currentJobId, jobExecutionData.status);
         logger.addDefaultKeyValue("JobId", currentJobId);
         if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
             //TODO: Check the currently runnign process,
@@ -132,8 +154,29 @@ public class DeploymentService extends EvergreenService {
         logger.addDefaultKeyValue("JobId", "");
     }
 
+    /**
+     * Constructor.
+     *
+     * @param topics the configuration coming from kernel
+     */
     public DeploymentService(Topics topics) {
         super(topics);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param topics               The configuration coming from  kernel
+     * @param iotJobsHelperFactory Factory object for creating IotJobHelper
+     * @param executorService      Executor service coming from kernel
+     * @param kernel               The evergreen kernel
+     */
+    public DeploymentService(Topics topics, IotJobsHelperFactory iotJobsHelperFactory, ExecutorService executorService,
+                             Kernel kernel) {
+        super(topics);
+        this.iotJobsHelperFactory = iotJobsHelperFactory;
+        this.executorService = executorService;
+        this.kernel = kernel;
     }
 
     @Override
@@ -143,6 +186,7 @@ public class DeploymentService extends EvergreenService {
 
         logger.info("Starting up the Deployment Service");
         String thingName = getStringParameterFromConfig(DEVICE_PARAM_THING_NAME);
+        //TODO: Add any other checks to verify device provisioned to communicate with Iot Cloud
         if (thingName.isEmpty()) {
             logger.info("There is no thingName assigned to this device. Cannot communicate with cloud."
                     + " Finishing deployment service");
@@ -152,6 +196,7 @@ public class DeploymentService extends EvergreenService {
 
         try {
             initializeIotJobsHelper(thingName);
+            iotJobsHelper.connectToAwsIot();
             reportState(State.RUNNING);
             iotJobsHelper.subscribeToEventNotifications(eventHandler);
             iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer, rejectedError -> {
@@ -193,7 +238,9 @@ public class DeploymentService extends EvergreenService {
     @Override
     public void shutdown() {
         receivedShutdown.set(true);
-        iotJobsHelper.closeConnection();
+        if (iotJobsHelper != null) {
+            iotJobsHelper.closeConnection();
+        }
     }
 
     private void initializeIotJobsHelper(String thingName) {
@@ -203,13 +250,11 @@ public class DeploymentService extends EvergreenService {
         String rootCAPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
         String clientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
 
-        iotJobsHelper = iotJobsHelperFactory
-                .getIotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
-                        UUID.randomUUID().toString());
+        this.iotJobsHelper = iotJobsHelperFactory
+                .getIotJobsHelper(thingName, certificateFilePath, privateKeyPath, rootCAPath, clientEndpoint);
     }
 
-
-    private String getStringParameterFromConfig(String parameterName) {
+    protected String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
         Topic childTopic = config.findLeafChild(parameterName);
         if (childTopic != null) {
@@ -218,11 +263,32 @@ public class DeploymentService extends EvergreenService {
         return paramValue;
     }
 
-    public static class IotJobsHelperFactory {
-        public IotJobsHelper getIotJobsHelper(String thingName, String clientEndpoint, String certificateFilePath,
-                                              String privateKeyPath, String rootCAPath, String clientId) {
-            return new IotJobsHelper(thingName, clientEndpoint, certificateFilePath, privateKeyPath, rootCAPath,
-                    clientId);
+    public class IotJobsHelperFactory {
+
+        /**
+         * Returns IotJobsHelper {@link IotJobsHelper}.
+         * @param thingName Iot thing name
+         * @param certificateFilePath Device certificate file path
+         * @param privateKeyPath Device private key file path
+         * @param rootCAPath Root CA file path
+         * @param clientEndpoint Mqtt endpoint for the customer account
+         * @return
+         */
+        public IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
+                                              String rootCAPath, String clientEndpoint) {
+            try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
+                 HostResolver resolver = new HostResolver(eventLoopGroup);
+                 ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
+                 AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
+                         .newMtlsBuilderFromPath(certificateFilePath, privateKeyPath)) {
+                builder.withCertificateAuthorityFromPath(null, rootCAPath).withEndpoint(clientEndpoint)
+                        .withClientId(UUID.randomUUID().toString()).withCleanSession(true)
+                        .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks);
+
+                MqttClientConnection connection = builder.build();
+                IotJobsClient iotJobsClient = new IotJobsClient(connection);
+                return new IotJobsHelper(thingName, connection, iotJobsClient);
+            }
         }
     }
 }

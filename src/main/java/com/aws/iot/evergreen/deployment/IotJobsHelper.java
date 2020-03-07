@@ -26,7 +26,6 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
 import java.util.HashMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -34,10 +33,10 @@ import java.util.function.Consumer;
 @NoArgsConstructor
 public class IotJobsHelper {
 
-    public static final String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC = "$aws/things/{thingName}/jobs/{jobId}/update"
-            + "/accepted";
-    public static final String UPDATE_SPECIFIC_JOB_REJECTED_TOPIC = "$aws/things/{thingName}/jobs/{jobId}/update"
-            + "/rejected";
+    public static final String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC =
+            "$aws/things/{thingName}/jobs/{jobId}/update" + "/accepted";
+    public static final String UPDATE_SPECIFIC_JOB_REJECTED_TOPIC =
+            "$aws/things/{thingName}/jobs/{jobId}/update" + "/rejected";
 
     //IotJobsHelper is not in Context, so initializing a new one here. It will be added to context in later iterations
     private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
@@ -61,48 +60,18 @@ public class IotJobsHelper {
     };
 
     /**
-     * Sets up the IotJobsClient client over Mqtt.
+     * Connects to AWS Iot Cloud.
      */
-    private void setupConnectionToAWSIot(String certificateFile, String privateKeyFile, String clientEndpoint,
-                                         String rootCaPath, String clientId) {
-        try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
-             HostResolver resolver = new HostResolver(eventLoopGroup);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-             AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
-                     .newMtlsBuilderFromPath(certificateFile, privateKeyFile)) {
-
-            builder.withCertificateAuthorityFromPath(null, rootCaPath).withEndpoint(clientEndpoint)
-                    .withClientId(clientId).withCleanSession(true).withBootstrap(clientBootstrap)
-                    .withConnectionEventCallbacks(callbacks);
-
-            connection = builder.build();
-            builder.withClientId(UUID.randomUUID().toString());
-            iotJobsClient = new IotJobsClient(connection);
-            connection.connect();
-        }
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param thingName       Iot thing name
-     * @param clientEndpoint  Custom endpoint for the aws account
-     * @param certificateFile File path for the Iot Thing certificate
-     * @param privateKeyFile  File path for the private key for Iot thing
-     * @param rootCaPath      File path for the root CA
-     * @param clientId        Unique client ID
-     */
-    public IotJobsHelper(String thingName, String clientEndpoint, String certificateFile, String privateKeyFile,
-                         String rootCaPath, String clientId) {
-        this.thingName = thingName;
-        setupConnectionToAWSIot(certificateFile, privateKeyFile, clientEndpoint, rootCaPath, clientId);
+    public void connectToAwsIot() {
+        connection.connect();
     }
 
     /**
      * Constructor to be used in unit tests.
-     * @param thingName The Iot thing name
+     *
+     * @param thingName            The Iot thing name
      * @param mqttClientConnection Mqtt client connection already setup
-     * @param iotJobsClient Iot Jobs client using the mqtt connection
+     * @param iotJobsClient        Iot Jobs client using the mqtt connection
      */
     public IotJobsHelper(String thingName, MqttClientConnection mqttClientConnection, IotJobsClient iotJobsClient) {
         this.thingName = thingName;
@@ -202,17 +171,17 @@ public class IotJobsHelper {
 
     /**
      * Subscribe to $aws/things/{thingName}/jobs/notify topic.
+     *
      * @param eventHandler The handler which run when an event is received
-     * @throws ExecutionException When subscribe failed with an exception
+     * @throws ExecutionException   When subscribe failed with an exception
      * @throws InterruptedException When this thread was interrupted
      */
     public void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
             throws ExecutionException, InterruptedException {
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
         request.thingName = thingName;
-        CompletableFuture<Integer> subscribed = iotJobsClient.SubscribeToJobExecutionsChangedEvents(request,
-                QualityOfService.AT_LEAST_ONCE,
-                eventHandler);
+        CompletableFuture<Integer> subscribed = iotJobsClient
+                .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get();
     }
 
