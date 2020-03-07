@@ -13,7 +13,6 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -55,14 +54,11 @@ public class DeploymentService extends EvergreenService {
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
 
     @Inject
-    @Setter
-    private IotJobsHelperFactory iotJobsHelperFactory;
-    @Inject
-    @Setter
     private ExecutorService executorService;
     @Inject
-    @Setter
     private Kernel kernel;
+    @Inject
+    private IotJobsHelperFactory iotJobsHelperFactory;
 
     private IotJobsHelper iotJobsHelper;
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -251,7 +247,8 @@ public class DeploymentService extends EvergreenService {
         String clientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
 
         this.iotJobsHelper = iotJobsHelperFactory
-                .getIotJobsHelper(thingName, certificateFilePath, privateKeyPath, rootCAPath, clientEndpoint);
+                .getIotJobsHelper(thingName, certificateFilePath, privateKeyPath, rootCAPath, clientEndpoint,
+                        callbacks);
     }
 
     protected String getStringParameterFromConfig(String parameterName) {
@@ -263,19 +260,22 @@ public class DeploymentService extends EvergreenService {
         return paramValue;
     }
 
-    public class IotJobsHelperFactory {
+    public static class IotJobsHelperFactory {
 
         /**
          * Returns IotJobsHelper {@link IotJobsHelper}.
-         * @param thingName Iot thing name
+         *
+         * @param thingName           Iot thing name
          * @param certificateFilePath Device certificate file path
-         * @param privateKeyPath Device private key file path
-         * @param rootCAPath Root CA file path
-         * @param clientEndpoint Mqtt endpoint for the customer account
+         * @param privateKeyPath      Device private key file path
+         * @param rootCAPath          Root CA file path
+         * @param clientEndpoint      Mqtt endpoint for the customer account
+         * @param callbacks           Callback for handling Mqtt connection events
          * @return
          */
         public IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
-                                              String rootCAPath, String clientEndpoint) {
+                                              String rootCAPath, String clientEndpoint,
+                                              MqttClientConnectionEvents callbacks) {
             try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
                  HostResolver resolver = new HostResolver(eventLoopGroup);
                  ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);

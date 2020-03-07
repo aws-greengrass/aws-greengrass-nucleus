@@ -21,6 +21,7 @@ import org.mockito.Spy;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionData;
@@ -142,7 +143,8 @@ public class DeploymentServiceTest {
             when(mockKernel.deTilde(anyString())).thenAnswer(invocationOnMock -> {
                 return invocationOnMock.getArguments()[0].toString();
             });
-            when(mockIotJobsHelperFactory.getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString()))
+            when(mockIotJobsHelperFactory.getIotJobsHelper(anyString(), anyString(), anyString(), anyString(),
+                    anyString(), any(MqttClientConnectionEvents.class)))
                     .thenReturn(mockIotJobsHelper);
 
             //Creating the class to be tested
