@@ -18,9 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-public class ExecTest {
+class ExecTest {
     @Test
-    public void test() {
+    void test() {
         if (Exec.isWindows) {
             return;
         }
@@ -35,7 +35,7 @@ public class ExecTest {
     }
 
     @Test
-    public void test2() {
+    void test2() {
         //        System.out.println(Exec.sh("printenv;java --version"));
         //        assertFalse(Exec.successful("java --version|egrep -i -q '(jdk|jre) *17\\.'"));
         //        assertTrue(Exec.successful("java --version|egrep -i -q '(jdk|jre) *11\\.'"));
@@ -45,7 +45,7 @@ public class ExecTest {
     }
 
     @Test
-    public void test3() throws Exception {
+    void test3() throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         List<String> o = new ArrayList<>();
         List<String> e = new ArrayList<>();

@@ -54,7 +54,7 @@ public class IPCServicesTest {
     static Path tempRootDir;
 
     @BeforeAll
-    public static void setup() throws Exception {
+    static void setup() throws Exception {
         // starting daemon
         CountDownLatch AwaitIpcServiceLatch = new CountDownLatch(1);
         kernel = new Kernel();
@@ -79,12 +79,12 @@ public class IPCServicesTest {
     }
 
     @AfterAll
-    public static void teardown() {
+    static void teardown() {
         kernel.shutdownNow();
     }
 
     @Test
-    public void registerResourceTest() throws Exception {
+    void registerResourceTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.find("mqtt", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
@@ -142,7 +142,7 @@ public class IPCServicesTest {
     }
 
     @Test
-    public void registerResourcePermissionTest() throws Exception {
+    void registerResourcePermissionTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.find("ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
@@ -157,7 +157,7 @@ public class IPCServicesTest {
     }
 
     @Test
-    public void lifecycleTest() throws Exception {
+    void lifecycleTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.find("ServiceName", "_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
