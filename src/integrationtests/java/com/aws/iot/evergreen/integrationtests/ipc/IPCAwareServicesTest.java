@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(PerformanceReporting.class)
 class IPCAwareServicesTest {
 
-    private static final String SAMPLE_IPC_AWARE_SERVICE_NAME = "sample_ipc_aware_service";
+    private static final String SAMPLE_IPC_AWARE_SERVICE_NAME = "main";
 
     @TempDir
     static Path tempRootDir;
