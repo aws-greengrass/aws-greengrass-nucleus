@@ -573,7 +573,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * @param newConfig    the map of new configuration
      * @return future which completes only once the config is merged and all the services in the config are running
      */
-    // TODO: mergeInNewConfig should also commit a state to indicate the deployment succeeds.
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
