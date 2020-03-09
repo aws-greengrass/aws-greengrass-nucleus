@@ -55,8 +55,8 @@ class ServiceConfigMergingTest {
                 getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
         });
@@ -66,8 +66,8 @@ class ServiceConfigMergingTest {
 
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING) && prevState
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
                     .equals(State.INSTALLED)) {
                 mainRestarted.countDown();
             }
@@ -94,8 +94,8 @@ class ServiceConfigMergingTest {
                 getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
         });
@@ -108,16 +108,15 @@ class ServiceConfigMergingTest {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service starts and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("new_service") && service.getState().equals(State.RUNNING)) {
                 newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
-            // TODO change to use new state from event instead of getState()
             if (newServiceStarted.getCount() == 0) {
                 if (service.getName().equals("main")
-                        && (service.getState().equals(State.RUNNING) || service.getState().equals(State.FINISHED))
-                        && prevState.equals(State.INSTALLED)) {
+                        && (service.getState().equals(State.RUNNING) || newState.equals(State.FINISHED))
+                        && oldState.equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
             }
@@ -146,8 +145,8 @@ class ServiceConfigMergingTest {
                 getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
         });
@@ -161,7 +160,7 @@ class ServiceConfigMergingTest {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service2 starts, then new_service, and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("new_service2") && service.getState().equals(State.RUNNING)) {
                 newService2Started.countDown();
             }
@@ -171,11 +170,10 @@ class ServiceConfigMergingTest {
                 }
             }
             // Only count main as started if its dependency (new_service) has already been started
-            // TODO change to use new state from event instead of getState()
             if (newServiceStarted.getCount() == 0) {
                 if (service.getName().equals("main")
-                        && (service.getState().equals(State.RUNNING) || service.getState().equals(State.FINISHED))
-                        && prevState.equals(State.INSTALLED)) {
+                        && (service.getState().equals(State.RUNNING) || newState.equals(State.FINISHED))
+                        && oldState.equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
             }

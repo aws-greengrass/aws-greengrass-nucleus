@@ -62,8 +62,8 @@ public class IPCServicesTest {
         kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
                 IPCServicesTest.class.getResource("ipc.yaml").toString());
 
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
-            if (service.getName().equals("IPCService") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+            if (service.getName().equals("IPCService") && newState.equals(State.RUNNING)) {
                 awaitIpcServiceLatch.countDown();
             }
         });
