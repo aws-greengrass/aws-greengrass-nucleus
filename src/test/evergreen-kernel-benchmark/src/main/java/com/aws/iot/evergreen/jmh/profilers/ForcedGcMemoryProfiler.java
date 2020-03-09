@@ -80,6 +80,7 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
      */
     private static final Pattern JCMD_NATIVE_COMMITTED_MEMORY_PATTERN =
             Pattern.compile("^[\\-\\s]*(\\w+[\\w\\s]+)[: ].*committed=([\\d]+)\\w+\\)?$", Pattern.MULTILINE);
+    private static final String METRIC_PREFIX = "EG";
 
     private static boolean runOnlyAfterLastIteration = true;
     @SuppressWarnings("unused")
@@ -89,7 +90,6 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
     private static List<Pair<String, Long>> nativeMemoryUsage;
     private static volatile boolean enabled = false;
     private static UsageTuple usageAfterIteration;
-    private static UsageTuple usageAfterSettled;
 
     /**
      * The benchmark needs to hand over the reference so the memory is kept after
@@ -116,21 +116,8 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
      */
     public static void recordUsedMemory() {
         long t0 = System.currentTimeMillis();
-        long usedMemorySettled;
         if (runSystemGC()) {
             usageAfterIteration = getUsage();
-            long m2 = usageAfterIteration.getTotalUsed();
-            do {
-                try {
-                    Thread.sleep(567);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                runSystemGC();
-                usedMemorySettled = m2;
-                usageAfterSettled = getUsage();
-                m2 = usageAfterSettled.getTotalUsed();
-            } while (m2 < usedMemorySettled);
             gcTimeMillis = System.currentTimeMillis() - t0;
         }
         usedHeapViaHistogram = printHeapHistogram(System.out, 30);
@@ -306,50 +293,45 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
             }
         }
         List<Result<?>> l = new ArrayList<>(Arrays.asList(
-                new OptionalScalarResult("+forced-gc-mem.gcTimeMillis", (double) gcTimeMillis, "ms",
+                new OptionalScalarResult(METRIC_PREFIX + ".gcTimeMillis", (double) gcTimeMillis, "ms",
                         AggregationPolicy.AVG),
-                new OptionalScalarResult("+forced-gc-mem.heapUsed.jmap", (double) usedHeapViaHistogram, "bytes",
+                new OptionalScalarResult(METRIC_PREFIX + ".heapUsed.jmap", (double) usedHeapViaHistogram, "bytes",
                         AggregationPolicy.AVG)));
         if (usageAfterIteration != null) {
-            l.addAll(Arrays.asList(new OptionalScalarResult("+forced-gc-mem.nonHeapUsed.settled",
-                            (double) usageAfterSettled.nonHeap.getUsed(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult("+forced-gc-mem.nonHeapUsed",
+            l.addAll(Arrays.asList(
+                    new OptionalScalarResult(METRIC_PREFIX + ".nonHeapUsed",
                             (double) usageAfterIteration.nonHeap.getUsed(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult("+forced-gc-mem.totalCommitted.settled",
-                            (double) usageAfterSettled.getTotalCommitted(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult("+forced-gc-mem.totalCommitted",
+                    new OptionalScalarResult(METRIC_PREFIX + ".totalCommitted",
                             (double) usageAfterIteration.getTotalCommitted(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult("+forced-gc-mem.heapUsed.settled",
-                            (double) usageAfterSettled.heap.getUsed(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult("+forced-gc-mem.heapUsed", (double) usageAfterIteration.heap.getUsed(),
+                    new OptionalScalarResult(METRIC_PREFIX + ".heapUsed", (double) usageAfterIteration.heap.getUsed(),
                             "bytes", AggregationPolicy.AVG)));
         }
         if (nativeMemoryUsage != null) {
             l.addAll(nativeMemoryUsage.stream()
-                    .map(v -> new OptionalScalarResult("+forced-gc-mem.jcmd." + v.getLeft(), (double) v.getRight(),
+                    .map(v -> new OptionalScalarResult(METRIC_PREFIX + ".jcmd." + v.getLeft(), (double) v.getRight(),
                             "bytes", AggregationPolicy.AVG)).collect(Collectors.toList()));
         }
         // Record metaspace, code cache, and compressed class space (all are non-heap) usage
         for (MemoryPoolMXBean memoryMXBean : ManagementFactory.getMemoryPoolMXBeans()) {
             if ("Metaspace".equals(memoryMXBean.getName())) {
-                l.add(new OptionalScalarResult("+forced-gc-mem.metaspaceUsed",
+                l.add(new OptionalScalarResult(METRIC_PREFIX + ".metaspaceUsed",
                         (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
             } else if ("Code Cache".equals(memoryMXBean.getName())) {
-                l.add(new OptionalScalarResult("+forced-gc-mem.codeCacheUsed",
+                l.add(new OptionalScalarResult(METRIC_PREFIX + ".codeCacheUsed",
                         (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
             } else if ("Compressed Class Space".equals(memoryMXBean.getName())) {
-                l.add(new OptionalScalarResult("+forced-gc-mem.compressedClassSpaceUsed",
+                l.add(new OptionalScalarResult(METRIC_PREFIX + ".compressedClassSpaceUsed",
                         (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
             }
         }
-        LinuxVmProfiler.addLinuxVmStats("+forced-gc-mem.linuxVm", l);
+        LinuxVmProfiler.addLinuxVmStats(METRIC_PREFIX + ".linuxVm", l);
         keepReference = null;
         return l;
     }
 
     @Override
     public void beforeIteration(final BenchmarkParams benchmarkParams, final IterationParams iterationParams) {
-        usageAfterIteration = usageAfterSettled = null;
+        usageAfterIteration = null;
         enabled = true;
     }
 
