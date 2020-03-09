@@ -109,13 +109,13 @@ class ServiceConfigMergingTest {
 
         // Check that new_service starts and then main gets restarted
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("new_service") && service.getState().equals(State.RUNNING)) {
+            if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
                 newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0) {
                 if (service.getName().equals("main")
-                        && (service.getState().equals(State.RUNNING) || newState.equals(State.FINISHED))
+                        && (newState.equals(State.RUNNING) || newState.equals(State.FINISHED))
                         && oldState.equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
@@ -161,18 +161,18 @@ class ServiceConfigMergingTest {
 
         // Check that new_service2 starts, then new_service, and then main gets restarted
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("new_service2") && service.getState().equals(State.RUNNING)) {
+            if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.countDown();
             }
             if (newService2Started.getCount() == 0) {
-                if (service.getName().equals("new_service") && service.getState().equals(State.RUNNING)) {
+                if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
                     newServiceStarted.countDown();
                 }
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0) {
                 if (service.getName().equals("main")
-                        && (service.getState().equals(State.RUNNING) || newState.equals(State.FINISHED))
+                        && (newState.equals(State.RUNNING) || newState.equals(State.FINISHED))
                         && oldState.equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
