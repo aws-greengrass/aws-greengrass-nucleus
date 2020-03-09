@@ -22,7 +22,7 @@ public class DeploymentDocument {
     @JsonProperty("DeploymentId")
     String deploymentId;
 
-    @JsonProperty("rootPackages")
+    @JsonProperty("RootPackages")
     List<String> rootPackages;
 
     @JsonProperty("Packages")
