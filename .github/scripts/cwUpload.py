@@ -99,8 +99,9 @@ def main():
     prev_metric_map = {}
     for old_metric in reversed(prev_metrics):
         if old_metric["Label"] in current_metrics:
-            old_value = max(old_metric["Values"])
-            prev_metric_map[old_metric["Label"]] = old_value
+            if old_metric["Values"]:
+                old_value = max(old_metric["Values"])
+                prev_metric_map[old_metric["Label"]] = old_value
 
     table = "| Measurement | Value | Change | Test |\n| - | - | - | - |\n"
     for test_path, v in current_metrics.items():

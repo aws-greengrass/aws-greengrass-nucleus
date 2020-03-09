@@ -7,46 +7,58 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-public class IPCAwareServicesTest {
+class IPCAwareServicesTest {
 
-    public static Kernel kernel;
+    private static final String SAMPLE_IPC_AWARE_SERVICE_NAME = "main";
+
+    @TempDir
+    static Path tempRootDir;
+
+    private Kernel kernel;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
+        // set a POM_DIR env var for Exec so that ipc_aware_main.yaml can use it to locate pom.xml
+        Exec.setDefaultEnv("POM_DIR", System.getProperty("user.dir"));
+
+        // start kernel
         kernel = new Kernel();
-        String tdir = System.getProperty("user.dir");
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
-                IPCAwareServicesTest.class.getResource("ipc_aware_main.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                getClass().getResource("ipc_aware_main.yaml").toString());
         kernel.launch();
     }
 
     @AfterEach
-    public void teardown() {
+    void teardown() {
         kernel.shutdown();
     }
 
     @Test
-    public void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running()
+    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running()
             throws Exception {
         CountDownLatch serviceRunning = new CountDownLatch(1);
         EvergreenService.GlobalStateChangeListener listener = (service, state) -> {
-            if ("main".equals(service.getName()) && State.RUNNING.equals(service.getState())) {
+            if (SAMPLE_IPC_AWARE_SERVICE_NAME.equals(service.getName()) && State.RUNNING.equals(service.getState())) {
                 serviceRunning.countDown();
             }
         };
         kernel.context.addGlobalStateChangeListener(listener);
-        //waiting for main to transition to running
+
+        // waiting for main to transition to running
         boolean isRunning = serviceRunning.await(30, TimeUnit.SECONDS);
         assertTrue(isRunning);
     }

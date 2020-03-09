@@ -9,5 +9,5 @@ plain:
 main:
   requires: IPCService
   startup:
-    mvn -q exec:java -f $EVERGREEN_HOME/pom.xml -Dexec.mainClass="com.aws.iot.evergreen.ipc.ipcawareservices.SampleIpcAwareServiceMovesToRunning" -Dexec.classpathScope="test"
+    mvn -q exec:java -f $POM_DIR/pom.xml -Dexec.mainClass="com.aws.iot.evergreen.integrationtests.ipc.sample.SampleIpcAwareServiceMovesToRunning" -Dexec.classpathScope="test"
 
