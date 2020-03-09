@@ -52,9 +52,13 @@ public class DeploymentTask implements Callable<Void> {
             logger.atInfo().addKeyValue("deploymentId", document.getDeploymentId())
                     .log("Start deployment task");
             List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document);
+            // Block this without timeout because a device can be offline and it can take quite a long time
+            // to download a package.
             packageCache.preparePackages(desiredPackages).get();
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document);
-            kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig);
+            // Block this without timeout because it can take a long time for the device to update the config
+            // (if it's not in a safe window).
+            kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
             logger.atInfo().addKeyValue("deploymentId", document.getDeploymentId())
                     .log("Finish deployment task");
         } catch (PackageVersionConflictException | ExecutionException | InterruptedException e) {

@@ -55,6 +55,8 @@ public class DeploymentTaskTest {
     @Test
     public void GIVEN_deploymentDocument_WHEN_start_deploymentTask_THEN_succeeds() throws Exception {
         when(mockPackageCache.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
+                .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache).preparePackages(anyList());
