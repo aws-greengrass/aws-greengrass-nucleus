@@ -56,7 +56,7 @@ public class IPCServicesTest {
     @BeforeAll
     static void setup() throws Exception {
         // starting daemon
-        CountDownLatch AwaitIpcServiceLatch = new CountDownLatch(1);
+        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
         kernel = new Kernel();
 
         kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
@@ -64,13 +64,13 @@ public class IPCServicesTest {
 
         kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
             if (service.getName().equals("IPCService") && service.getState().equals(State.RUNNING)) {
-                AwaitIpcServiceLatch.countDown();
+                awaitIpcServiceLatch.countDown();
             }
         });
 
         kernel.launch();
 
-        assertTrue(AwaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
+        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
         Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
