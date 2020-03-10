@@ -17,6 +17,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Builder
+// TODO: pull this class to a library to share with cloud services. SIM: https://sim.amazon.com/issues/P33788350
 public class DeploymentDocument {
 
     @JsonProperty("DeploymentId")
