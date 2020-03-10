@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -66,6 +67,8 @@ public class DeploymentService extends EvergreenService {
     private Future<Boolean> currentProcessStatus = null;
     private String currentJobId;
     private DeploymentContext currentDeploymentContext;
+    private CountDownLatch doneSignal = null;
+
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
 
@@ -166,13 +169,16 @@ public class DeploymentService extends EvergreenService {
      * @param iotJobsHelperFactory Factory object for creating IotJobHelper
      * @param executorService      Executor service coming from kernel
      * @param kernel               The evergreen kernel
+     * @param doneSignal           {@link CountDownLatch} to indicate thread finished work upto certain point. Used
+     *                             in unit testing.
      */
     public DeploymentService(Topics topics, IotJobsHelperFactory iotJobsHelperFactory, ExecutorService executorService,
-                             Kernel kernel) {
+                             Kernel kernel, CountDownLatch doneSignal) {
         super(topics);
         this.iotJobsHelperFactory = iotJobsHelperFactory;
         this.executorService = executorService;
         this.kernel = kernel;
+        this.doneSignal = doneSignal;
     }
 
     @Override
@@ -198,6 +204,9 @@ public class DeploymentService extends EvergreenService {
             iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer, rejectedError -> {
                 logger.error("Job subscription got rejected", rejectedError);
             });
+            if (doneSignal != null) {
+                doneSignal.countDown();
+            }
         } catch (ExecutionException | InterruptedException ex) {
             logger.error("Caught exception in subscribing to topics", ex);
             errored = true;
@@ -274,7 +283,8 @@ public class DeploymentService extends EvergreenService {
          * @return
          */
         public IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
-                                       String rootCAPath, String clientEndpoint, MqttClientConnectionEvents callbacks) {
+                                              String rootCAPath, String clientEndpoint,
+                                              MqttClientConnectionEvents callbacks) {
             try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
                  HostResolver resolver = new HostResolver(eventLoopGroup);
                  ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);

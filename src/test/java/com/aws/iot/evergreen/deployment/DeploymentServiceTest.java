@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -56,7 +57,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 public class DeploymentServiceTest {
 
-    private static final String MOCK_DEVICE_PARAMETER = "mockDeviceParameter";
     private static final String EVERGREEN_SERVICE_FULL_NAME = "DeploymentService";
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final String MOCK_THING_NAME = "MockThingName";
@@ -102,6 +102,7 @@ public class DeploymentServiceTest {
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorConsumerCaptor;
 
     DeploymentService deploymentService;
+    CountDownLatch doneSignal;
 
     @Nested
     class DeploymentServiceInitializedWithMocks {
@@ -133,7 +134,6 @@ public class DeploymentServiceTest {
                     when(mockTopic.getOnce()).thenReturn(MOCK_ROOTCA_PATH);
                     return mockTopic;
                 }
-
                 return mockTopic;
             });
             when(mockConfig.getFullName()).thenReturn("DeploymentService");
@@ -148,8 +148,9 @@ public class DeploymentServiceTest {
                     .thenReturn(mockIotJobsHelper);
 
             //Creating the class to be tested
+            doneSignal = new CountDownLatch(1);
             deploymentService =
-                    new DeploymentService(mockConfig, mockIotJobsHelperFactory, mockExecutorService, mockKernel);
+                    new DeploymentService(mockConfig, mockIotJobsHelperFactory, mockExecutorService, mockKernel, doneSignal);
         }
 
         @Test
@@ -246,8 +247,7 @@ public class DeploymentServiceTest {
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
         Thread t = new Thread(() -> deploymentService.startup());
         t.start();
-        //let the other thread start
-        Thread.sleep(100);
+        doneSignal.await();
     }
 
     private JobExecutionData getTestJobExecutionData() {
