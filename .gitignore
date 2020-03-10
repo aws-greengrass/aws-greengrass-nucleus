@@ -1,4 +1,4 @@
-/target/
+**/target/
 .DS_Store
 ._*
 *.class
@@ -10,3 +10,5 @@ core
 artifact_cache
 package.db
 coverage
+*.iml
+jmh-result.json

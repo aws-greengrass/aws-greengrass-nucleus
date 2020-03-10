@@ -428,7 +428,8 @@ public class Exec implements Closeable {
         Copier(InputStream i, Consumer<CharSequence> s) {
             in = i;
             out = s;
-            //            setDaemon(true);
+            // Set as a daemon thread so that it dies when the main thread exits
+            setDaemon(true);
             setName("Copier");
             if (whenDone != null) {
                 if (numberOfCopiers == null) {
