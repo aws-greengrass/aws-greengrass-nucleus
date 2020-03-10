@@ -98,9 +98,6 @@ public class DeploymentServiceTest {
     @Captor
     ArgumentCaptor<Consumer<DescribeJobExecutionResponse>> describeJobConsumerCaptor;
 
-    @Captor
-    ArgumentCaptor<Consumer<RejectedError>> rejectedErrorConsumerCaptor;
-
     DeploymentService deploymentService;
     CountDownLatch doneSignal;
 
@@ -150,7 +147,7 @@ public class DeploymentServiceTest {
             //Creating the class to be tested
             doneSignal = new CountDownLatch(1);
             deploymentService =
-                    new DeploymentService(mockConfig, mockIotJobsHelperFactory, mockExecutorService, mockKernel, doneSignal);
+                    new DeploymentService(mockConfig, mockIotJobsHelperFactory, mockExecutorService, mockKernel);
         }
 
         @Test
@@ -247,7 +244,11 @@ public class DeploymentServiceTest {
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
         Thread t = new Thread(() -> deploymentService.startup());
         t.start();
-        doneSignal.await();
+        //Waiting for other thread to start
+        //TODO: Make it more robust by checking for a service state instead of sleeping.
+        // With mock kernel the state transition does not get triggered
+        Thread.sleep(1000);
+
     }
 
     private JobExecutionData getTestJobExecutionData() {
