@@ -30,7 +30,6 @@ import org.openjdk.jmh.profile.InternalProfiler;
 import org.openjdk.jmh.results.AggregationPolicy;
 import org.openjdk.jmh.results.IterationResult;
 import org.openjdk.jmh.results.Result;
-import org.openjdk.jmh.runner.IterationType;
 import org.openjdk.jmh.util.Utils;
 
 import java.io.BufferedReader;
@@ -48,7 +47,6 @@ import java.lang.management.MemoryUsage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -82,23 +80,16 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
             Pattern.compile("^[\\-\\s]*(\\w+[\\w\\s]+)[: ].*committed=([\\d]+)\\w+\\)?$", Pattern.MULTILINE);
     private static final String METRIC_PREFIX = "EG";
 
-    private static boolean runOnlyAfterLastIteration = true;
     @SuppressWarnings("unused")
     private static Object keepReference;
-    private static long gcTimeMillis = -1;
-    private static long usedHeapViaHistogram = -1;
-    private static List<Pair<String, Long>> nativeMemoryUsage;
-    private static volatile boolean enabled = false;
-    private static UsageTuple usageAfterIteration;
+    private static List<OptionalScalarResult> dataPoints = new LinkedList<>();
 
     /**
      * The benchmark needs to hand over the reference so the memory is kept after
      * the shutdown of the benchmark and can be measured.
      */
     public static void keepReference(Object _rootReferenceToKeep) {
-        if (enabled) {
-            keepReference = _rootReferenceToKeep;
-        }
+        keepReference = _rootReferenceToKeep;
     }
 
     public static UsageTuple getUsage() {
@@ -116,12 +107,45 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
      */
     public static void recordUsedMemory() {
         long t0 = System.currentTimeMillis();
+        UsageTuple usageAfterIteration = null;
+        long gcTimeMillis = -1;
         if (runSystemGC()) {
             usageAfterIteration = getUsage();
             gcTimeMillis = System.currentTimeMillis() - t0;
         }
-        usedHeapViaHistogram = printHeapHistogram(System.out, 30);
-        nativeMemoryUsage = printNativeMemoryUsage(System.out);
+        long usedHeapViaHistogram = printHeapHistogram(System.out, 30);
+        List<Pair<String, Long>> nativeMemoryUsage = printNativeMemoryUsage(System.out);
+
+        dataPoints.addAll(Arrays
+                .asList(new OptionalScalarResult(METRIC_PREFIX + ".gcTimeMillis", (double) gcTimeMillis, "ms",
+                                AggregationPolicy.AVG),
+                        new OptionalScalarResult(METRIC_PREFIX + ".heapUsed.jmap", (double) usedHeapViaHistogram,
+                                "bytes", AggregationPolicy.AVG)));
+        if (usageAfterIteration != null) {
+            dataPoints.addAll(Arrays.asList(new OptionalScalarResult(METRIC_PREFIX + ".nonHeapUsed",
+                            (double) usageAfterIteration.nonHeap.getUsed(), "bytes", AggregationPolicy.AVG),
+                    new OptionalScalarResult(METRIC_PREFIX + ".totalCommitted",
+                            (double) usageAfterIteration.getTotalCommitted(), "bytes", AggregationPolicy.AVG),
+                    new OptionalScalarResult(METRIC_PREFIX + ".heapUsed", (double) usageAfterIteration.heap.getUsed(),
+                            "bytes", AggregationPolicy.AVG)));
+        }
+        dataPoints.addAll(nativeMemoryUsage.stream()
+                .map(v -> new OptionalScalarResult(METRIC_PREFIX + ".jcmd." + v.getLeft(), (double) v.getRight(),
+                        "bytes", AggregationPolicy.AVG)).collect(Collectors.toList()));
+        // Record metaspace, code cache, and compressed class space (all are non-heap) usage
+        for (MemoryPoolMXBean memoryMXBean : ManagementFactory.getMemoryPoolMXBeans()) {
+            if ("Metaspace".equals(memoryMXBean.getName())) {
+                dataPoints.add(new OptionalScalarResult(METRIC_PREFIX + ".metaspaceUsed",
+                        (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
+            } else if ("Code Cache".equals(memoryMXBean.getName())) {
+                dataPoints.add(new OptionalScalarResult(METRIC_PREFIX + ".codeCacheUsed",
+                        (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
+            } else if ("Compressed Class Space".equals(memoryMXBean.getName())) {
+                dataPoints.add(new OptionalScalarResult(METRIC_PREFIX + ".compressedClassSpaceUsed",
+                        (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
+            }
+        }
+        LinuxVmProfiler.addLinuxVmStats(METRIC_PREFIX + ".linuxVm", dataPoints);
     }
 
     public static boolean runSystemGC() {
@@ -280,59 +304,17 @@ public class ForcedGcMemoryProfiler implements InternalProfiler {
         return memList;
     }
 
-    int iterationNumber = 0;
-
     @Override
     public Collection<? extends Result<?>> afterIteration(final BenchmarkParams benchmarkParams,
                                                           final IterationParams iterationParams,
                                                           final IterationResult result) {
-        if (runOnlyAfterLastIteration) {
-            if (iterationParams.getType() != IterationType.MEASUREMENT
-                    || iterationParams.getCount() != ++iterationNumber) {
-                return Collections.emptyList();
-            }
-        }
-        List<Result<?>> l = new ArrayList<>(Arrays.asList(
-                new OptionalScalarResult(METRIC_PREFIX + ".gcTimeMillis", (double) gcTimeMillis, "ms",
-                        AggregationPolicy.AVG),
-                new OptionalScalarResult(METRIC_PREFIX + ".heapUsed.jmap", (double) usedHeapViaHistogram, "bytes",
-                        AggregationPolicy.AVG)));
-        if (usageAfterIteration != null) {
-            l.addAll(Arrays.asList(
-                    new OptionalScalarResult(METRIC_PREFIX + ".nonHeapUsed",
-                            (double) usageAfterIteration.nonHeap.getUsed(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult(METRIC_PREFIX + ".totalCommitted",
-                            (double) usageAfterIteration.getTotalCommitted(), "bytes", AggregationPolicy.AVG),
-                    new OptionalScalarResult(METRIC_PREFIX + ".heapUsed", (double) usageAfterIteration.heap.getUsed(),
-                            "bytes", AggregationPolicy.AVG)));
-        }
-        if (nativeMemoryUsage != null) {
-            l.addAll(nativeMemoryUsage.stream()
-                    .map(v -> new OptionalScalarResult(METRIC_PREFIX + ".jcmd." + v.getLeft(), (double) v.getRight(),
-                            "bytes", AggregationPolicy.AVG)).collect(Collectors.toList()));
-        }
-        // Record metaspace, code cache, and compressed class space (all are non-heap) usage
-        for (MemoryPoolMXBean memoryMXBean : ManagementFactory.getMemoryPoolMXBeans()) {
-            if ("Metaspace".equals(memoryMXBean.getName())) {
-                l.add(new OptionalScalarResult(METRIC_PREFIX + ".metaspaceUsed",
-                        (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
-            } else if ("Code Cache".equals(memoryMXBean.getName())) {
-                l.add(new OptionalScalarResult(METRIC_PREFIX + ".codeCacheUsed",
-                        (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
-            } else if ("Compressed Class Space".equals(memoryMXBean.getName())) {
-                l.add(new OptionalScalarResult(METRIC_PREFIX + ".compressedClassSpaceUsed",
-                        (double) memoryMXBean.getUsage().getUsed(), "bytes", AggregationPolicy.AVG));
-            }
-        }
-        LinuxVmProfiler.addLinuxVmStats(METRIC_PREFIX + ".linuxVm", l);
         keepReference = null;
-        return l;
+        return dataPoints;
     }
 
     @Override
     public void beforeIteration(final BenchmarkParams benchmarkParams, final IterationParams iterationParams) {
-        usageAfterIteration = null;
-        enabled = true;
+        dataPoints = new LinkedList<>();
     }
 
     @Override

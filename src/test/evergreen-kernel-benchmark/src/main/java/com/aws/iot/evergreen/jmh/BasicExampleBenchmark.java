@@ -16,13 +16,12 @@ public class BasicExampleBenchmark {
         String tdir = System.getProperty("user.home")+"/kernelTest";
         Kernel kernel = new Kernel();
         kernel.parseArgs("-r", tdir,
-                "-log", "stdout",
                 "-i", BasicExampleBenchmark.class.getResource("config.yaml").toString()
         );
         kernel.launch();
         Thread.sleep(20000);
         ForcedGcMemoryProfiler.recordUsedMemory();
-        kernel.shutdown(60);
+        kernel.shutdown();
     }
 
 }

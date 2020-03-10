@@ -24,7 +24,6 @@
 package com.aws.iot.evergreen.jmh.profilers;
 
 import org.openjdk.jmh.results.AggregationPolicy;
-import org.openjdk.jmh.results.Result;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -44,7 +43,7 @@ public class LinuxVmProfiler {
      * Parse the linux {@code /proc/self/status} and add everything prefixed with "Vm" as metric to
      * the profiling result.
      */
-    public static void addLinuxVmStats(String prefix, List<Result<?>> l) {
+    public static void addLinuxVmStats(String prefix, List<OptionalScalarResult> l) {
         // procfs is not available on mac or windows, so just skip these stats
         if (!new File("/proc/self/status").exists()) {
             return;
