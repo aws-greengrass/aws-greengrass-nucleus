@@ -1,6 +1,7 @@
 package com.aws.iot.evergreen.deployment;
 
-import com.aws.iot.evergreen.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -8,6 +9,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageCache;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,9 +67,22 @@ public class DeploymentTaskTest {
     }
 
     @Test
+    public void GIVEN_deploymentDocument_WHEN_resolveDependencies_with_conflicted_dependency_THEN_deploymentTask_aborted()
+            throws Exception {
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument))
+                .thenThrow(new PackageVersionConflictException(""));
+        Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
+        assertTrue(thrown.getCause() instanceof PackageVersionConflictException);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        verify(mockPackageCache, times(0)).preparePackages(anyList());
+        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument));
+        verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
+    }
+
+    @Test
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_interrupted_THEN_deploymentTask_aborted() throws Exception {
         when(mockDependencyResolver.resolveDependencies(deploymentDocument)).thenThrow(new InterruptedException());
-        Exception thrown = assertThrows(DeploymentTaskFailureException.class, () -> deploymentTask.call());
+        Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertTrue(thrown.getCause() instanceof InterruptedException);
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
@@ -84,7 +99,7 @@ public class DeploymentTaskTest {
 
         t.interrupt();
         Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get());
-        assertTrue(thrown.getCause() instanceof DeploymentTaskFailureException);
+        assertTrue(thrown.getCause() instanceof RetryableDeploymentTaskFailureException);
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument));
@@ -97,7 +112,7 @@ public class DeploymentTaskTest {
         when(mockPackageCache.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument))).thenThrow(new InterruptedException());
 
-        Exception thrown = assertThrows(DeploymentTaskFailureException.class, () -> deploymentTask.call());
+        Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertTrue(thrown.getCause() instanceof InterruptedException);
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache).preparePackages(anyList());

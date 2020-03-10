@@ -1,6 +1,7 @@
 package com.aws.iot.evergreen.deployment;
 
-import com.aws.iot.evergreen.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -31,7 +32,7 @@ public class DeploymentTask implements Callable<Void> {
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
 
     @Override
-    public Void call() throws DeploymentTaskFailureException {
+    public Void call() throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException {
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE).addKeyValue("deploymentId",
                     document.getDeploymentId())
@@ -44,10 +45,13 @@ public class DeploymentTask implements Callable<Void> {
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
-            logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE).addKeyValue("deploymentId", document.getDeploymentId())
+            logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
+                    .addKeyValue("deploymentId", document.getDeploymentId())
                     .log("Finish deployment task");
-        } catch (PackageVersionConflictException | ExecutionException | InterruptedException e) {
-            throw new DeploymentTaskFailureException(e);
+        } catch (PackageVersionConflictException e) {
+            throw new NonRetryableDeploymentTaskFailureException(e);
+        } catch (ExecutionException | InterruptedException e) {
+            throw new RetryableDeploymentTaskFailureException(e);
         }
         return null;
     }
