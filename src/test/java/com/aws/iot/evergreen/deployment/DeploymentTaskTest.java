@@ -20,8 +20,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.isA;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -72,7 +73,7 @@ public class DeploymentTaskTest {
         when(mockDependencyResolver.resolveDependencies(deploymentDocument))
                 .thenThrow(new PackageVersionConflictException(""));
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
-        assertTrue(thrown.getCause() instanceof PackageVersionConflictException);
+        assertThat(thrown.getCause(), isA(PackageVersionConflictException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument));
@@ -83,7 +84,7 @@ public class DeploymentTaskTest {
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_interrupted_THEN_deploymentTask_aborted() throws Exception {
         when(mockDependencyResolver.resolveDependencies(deploymentDocument)).thenThrow(new InterruptedException());
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
-        assertTrue(thrown.getCause() instanceof InterruptedException);
+        assertThat(thrown.getCause(), isA(InterruptedException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument));
@@ -99,7 +100,7 @@ public class DeploymentTaskTest {
 
         t.interrupt();
         Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get());
-        assertTrue(thrown.getCause() instanceof RetryableDeploymentTaskFailureException);
+        assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument));
@@ -113,7 +114,7 @@ public class DeploymentTaskTest {
         when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument))).thenThrow(new InterruptedException());
 
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
-        assertTrue(thrown.getCause() instanceof InterruptedException);
+        assertThat(thrown.getCause(), isA(InterruptedException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument));
