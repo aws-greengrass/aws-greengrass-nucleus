@@ -260,7 +260,7 @@ public class DeploymentService extends EvergreenService {
         return paramValue;
     }
 
-    static class IotJobsHelperFactory {
+    public static class IotJobsHelperFactory {
 
         /**
          * Returns IotJobsHelper {@link IotJobsHelper}.
@@ -273,7 +273,7 @@ public class DeploymentService extends EvergreenService {
          * @param callbacks           Callback for handling Mqtt connection events
          * @return
          */
-        IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
+        public IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
                                        String rootCAPath, String clientEndpoint, MqttClientConnectionEvents callbacks) {
             try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
                  HostResolver resolver = new HostResolver(eventLoopGroup);
