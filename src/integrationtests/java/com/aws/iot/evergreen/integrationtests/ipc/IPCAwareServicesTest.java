@@ -37,7 +37,7 @@ class IPCAwareServicesTest {
 
         // start kernel
         kernel = new Kernel();
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+        kernel.parseArgs("-r", tempRootDir.toString(), "-i",
                 getClass().getResource("ipc_aware_main.yaml").toString());
         kernel.launch();
     }
@@ -59,7 +59,7 @@ class IPCAwareServicesTest {
         kernel.context.addGlobalStateChangeListener(listener);
 
         // waiting for main to transition to running
-        boolean isRunning = serviceRunning.await(30, TimeUnit.SECONDS);
+        boolean isRunning = serviceRunning.await(60, TimeUnit.SECONDS);
         assertTrue(isRunning);
     }
 
