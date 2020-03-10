@@ -10,7 +10,9 @@ import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -21,20 +23,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-public class KernelShutdownTest {
+class KernelShutdownTest {
 
     private static Kernel kernel;
 
+    @TempDir
+    Path tempRootDir;
+
     @BeforeEach
-    public void setup() {
+    void setup() {
         kernel = new Kernel();
-        String tdir = System.getProperty("user.dir");
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", KernelShutdownTest.class.getResource("long_running_services.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i", getClass().getResource(
+                "long_running_services.yaml").toString());
         kernel.launch();
     }
 
     @Test
-    public void WHEN_kernel_shutdown_THEN_services_are_shutdown_in_reverse_dependecy_order() throws InterruptedException {
+    void WHEN_kernel_shutdown_THEN_services_are_shutdown_in_reverse_dependecy_order() throws InterruptedException {
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
         kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {

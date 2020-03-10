@@ -27,8 +27,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -44,28 +46,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(PerformanceReporting.class)
 public class IPCServicesTest {
 
-    public static int port;
-    public static String address;
-    public static Kernel kernel;
+    private static int port;
+    private static String address;
+    private static Kernel kernel;
+
+    @TempDir
+    static Path tempRootDir;
 
     @BeforeAll
-    public static void setup() throws Exception {
+    static void setup() throws Exception {
         // starting daemon
-        CountDownLatch OK = new CountDownLatch(1);
-        String tdir = System.getProperty("user.home") + "/gg2ktest";
-        System.out.println("tdir = " + tdir);
+        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
         kernel = new Kernel();
 
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                IPCServicesTest.class.getResource("ipc.yaml").toString());
 
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
-            if (service.getName().equals("IPCService") && service.getState().equals(State.RUNNING)) {
-                OK.countDown();
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+            if (service.getName().equals("IPCService") && newState.equals(State.RUNNING)) {
+                awaitIpcServiceLatch.countDown();
             }
         });
 
         kernel.launch();
-        OK.await(10, TimeUnit.SECONDS);
+
+        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
+
         Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
@@ -73,12 +79,12 @@ public class IPCServicesTest {
     }
 
     @AfterAll
-    public static void teardown() {
+    static void teardown() {
         kernel.shutdownNow();
     }
 
     @Test
-    public void registerResourceTest() throws Exception {
+    void registerResourceTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.find("mqtt", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
@@ -136,7 +142,7 @@ public class IPCServicesTest {
     }
 
     @Test
-    public void registerResourcePermissionTest() throws Exception {
+    void registerResourcePermissionTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.find("ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
@@ -151,7 +157,7 @@ public class IPCServicesTest {
     }
 
     @Test
-    public void lifecycleTest() throws Exception {
+    void lifecycleTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.find("ServiceName", "_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);

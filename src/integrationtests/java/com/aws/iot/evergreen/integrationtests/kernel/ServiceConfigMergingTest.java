@@ -4,15 +4,17 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -26,32 +28,35 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-public class ServiceConfigMergingTest {
+class ServiceConfigMergingTest {
     private Kernel kernel;
 
+    @TempDir
+    Path tempRootDir;
+
+
     @BeforeEach
-    public void before(TestInfo testInfo) {
+    void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
         kernel = new Kernel();
     }
 
     @AfterEach
-    public void after() {
+    void after() {
         kernel.shutdownNow();
     }
 
     @Test
-    public void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
+    void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
             throws Throwable {
         // GIVEN
-        String tdir = System.getProperty("user.home") + "/kernelTest";
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
-                ServiceConfigMergingTest.class.getResource("single_service.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
         });
@@ -61,8 +66,8 @@ public class ServiceConfigMergingTest {
 
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING) && prevState
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
                     .equals(State.INSTALLED)) {
                 mainRestarted.countDown();
             }
@@ -82,16 +87,15 @@ public class ServiceConfigMergingTest {
     }
 
     @Test
-    public void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
+    void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
         // GIVEN
-        String tdir = System.getProperty("user.home") + "/kernelTest";
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
-                ServiceConfigMergingTest.class.getResource("single_service.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
         });
@@ -104,13 +108,13 @@ public class ServiceConfigMergingTest {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service starts and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("new_service") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
                 newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main") && service.getState().equals(State.RUNNING) && prevState
+                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
                         .equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
@@ -133,16 +137,15 @@ public class ServiceConfigMergingTest {
     }
 
     @Test
-    public void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
+    void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
             throws Throwable {
         // GIVEN
-        String tdir = System.getProperty("user.home") + "/kernelTest";
-        kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
-                ServiceConfigMergingTest.class.getResource("single_service.yaml").toString());
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("main") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
         });
@@ -156,18 +159,18 @@ public class ServiceConfigMergingTest {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service2 starts, then new_service, and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, prevState) -> {
-            if (service.getName().equals("new_service2") && service.getState().equals(State.RUNNING)) {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.countDown();
             }
             if (newService2Started.getCount() == 0) {
-                if (service.getName().equals("new_service") && service.getState().equals(State.RUNNING)) {
+                if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
                     newServiceStarted.countDown();
                 }
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main") && service.getState().equals(State.RUNNING) && prevState
+                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
                         .equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }

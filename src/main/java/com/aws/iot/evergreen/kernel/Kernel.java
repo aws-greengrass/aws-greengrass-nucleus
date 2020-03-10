@@ -579,8 +579,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Map<String, CountDownLatch> latches = new HashMap<>();
         newConfig.forEach((key, v) -> latches.put((String) key, new CountDownLatch(1)));
 
-        EvergreenService.GlobalStateChangeListener listener = (service, was) -> {
-            if (newConfig.containsKey(service.getName()) && service.getState().equals(State.RUNNING)) {
+        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
+            if (newConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
                 latches.get(service.getName()).countDown();
             }
             if (latches.values().stream().allMatch(c -> c.getCount() <= 0)) {
