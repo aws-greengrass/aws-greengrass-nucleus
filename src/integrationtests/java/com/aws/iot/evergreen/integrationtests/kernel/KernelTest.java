@@ -106,14 +106,14 @@ class KernelTest {
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State was) -> {
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
             if (expectedStateTransitionList.size() == 0) {
                 return;
             }
 
             ExpectedStateTransition expected = expectedStateTransitionList.peek();
 
-            if (service.getName().equals(expected.serviceName) && was.equals(expected.was) && service.getState()
+            if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
                     .equals(expected.current)) {
                 System.out.println(String.format("Just saw state event for service %s: %s=> %s", expected.serviceName,
                         expected.was, expected.current));
