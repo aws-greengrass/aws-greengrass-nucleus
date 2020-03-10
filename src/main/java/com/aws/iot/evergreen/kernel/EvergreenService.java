@@ -103,7 +103,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         return (State) state.getOnce();
     }
 
-    private void setState(State newState) {
+    private void updateStateAndBroadcast(State newState) {
         final State currentState = getState();
 
         if (newState.equals(currentState)) {
@@ -115,7 +115,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                 .addKeyValue("newState", newState).log();
         prevState = currentState;
         this.state.setValue(newState);
-        context.globalNotifyStateChanged(this, currentState);
+        context.globalNotifyStateChanged(this, prevState, newState);
     }
 
     /**
@@ -418,9 +418,9 @@ public class EvergreenService implements InjectionActions, Closeable {
                     boolean ok = installLatch.await(120, TimeUnit.SECONDS);
                     State reportState = getReportState().orElse(null);
                     if (State.ERRORED.equals(reportState) || !ok) {
-                        setState(State.ERRORED);
+                        updateStateAndBroadcast(State.ERRORED);
                     } else {
-                        setState(State.INSTALLED);
+                        updateStateAndBroadcast(State.INSTALLED);
                     }
                     continue;
                 case INSTALLED:
@@ -431,7 +431,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                     switch (desiredState.get()) {
                         case FINISHED:
                             stopBackingTask();
-                            setState(State.FINISHED);
+                            updateStateAndBroadcast(State.FINISHED);
                             continue;
                         case RUNNING:
                             setBackingTask(() -> {
@@ -468,7 +468,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                         break;
                     }
 
-                    setState(State.STOPPING);
+                    updateStateAndBroadcast(State.STOPPING);
                     continue;
                 case STOPPING:
                     // doesn't handle desiredState in STOPPING.
@@ -490,14 +490,14 @@ public class EvergreenService implements InjectionActions, Closeable {
 
                     stopBackingTask();
                     if (State.ERRORED.equals(getReportState().orElse(null)) || !stopSucceed) {
-                        setState(State.ERRORED);
+                        updateStateAndBroadcast(State.ERRORED);
                         // If the thread is still running, then kill it
                         if (stopThread.isAlive()) {
                             stopThread.interrupt();
                         }
                         continue;
                     } else {
-                        setState(State.FINISHED);
+                        updateStateAndBroadcast(State.FINISHED);
                         continue;
                     }
 
@@ -511,10 +511,10 @@ public class EvergreenService implements InjectionActions, Closeable {
                     switch (desiredState.get()) {
                         case NEW:
                         case INSTALLED:
-                            setState(State.NEW);
+                            updateStateAndBroadcast(State.NEW);
                             continue;
                         case RUNNING:
-                            setState(State.INSTALLED);
+                            updateStateAndBroadcast(State.INSTALLED);
                             continue;
                         default:
                             // not allowed to set desired state to STOPPING, ERRORED, BROKEN
@@ -530,22 +530,22 @@ public class EvergreenService implements InjectionActions, Closeable {
                     }
                     switch (prevState) {
                         case RUNNING:
-                            setState(State.STOPPING);
+                            updateStateAndBroadcast(State.STOPPING);
                             continue;
                         case NEW: // error in installing.
-                            setState(State.NEW);
+                            updateStateAndBroadcast(State.NEW);
                             continue;
                         case INSTALLED: // error in starting
-                            setState(State.INSTALLED);
+                            updateStateAndBroadcast(State.INSTALLED);
                             continue;
                         case STOPPING:
                             // not handled;
-                            setState(State.FINISHED);
+                            updateStateAndBroadcast(State.FINISHED);
                             continue;
                         default:
                             logger.atError().setEventType("service-invalid-state-error")
                                     .addKeyValue("previousState", prevState).log("Unexpected previous state");
-                            setState(State.FINISHED);
+                            updateStateAndBroadcast(State.FINISHED);
                             continue;
                     }
                 default:
@@ -561,7 +561,7 @@ public class EvergreenService implements InjectionActions, Closeable {
             if (stateEvent instanceof State) {
                 State toState = (State) stateEvent;
                 logger.atInfo().setEventType("service-report-state").addKeyValue("state", toState).log();
-                setState(toState);
+                updateStateAndBroadcast(toState);
             }
         }
     }
@@ -909,7 +909,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     public interface GlobalStateChangeListener {
-        void globalServiceStateChanged(EvergreenService l, State was);
+        void globalServiceStateChanged(EvergreenService l, State oldState, State newState);
     }
 
 }

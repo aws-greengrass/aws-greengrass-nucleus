@@ -250,11 +250,13 @@ public class Context implements Closeable {
      * Serially send an event to the global state change listeners.
      *
      * @param changedService the service which had a state change
-     * @param previousState  the previous state of the service
+     * @param oldState  the old state of the service
+     * @param newState the new state of the service
      */
-    public synchronized void globalNotifyStateChanged(EvergreenService changedService, final State previousState) {
+    public synchronized void globalNotifyStateChanged(EvergreenService changedService, final State oldState,
+                                                      final State newState) {
         if (listeners != null) {
-            listeners.forEach(s -> s.globalServiceStateChanged(changedService, previousState));
+            listeners.forEach(s -> s.globalServiceStateChanged(changedService, oldState, newState));
         }
     }
 
