@@ -4,9 +4,9 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,9 +114,8 @@ class ServiceConfigMergingTest {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main")
-                        && (newState.equals(State.RUNNING) || newState.equals(State.FINISHED))
-                        && oldState.equals(State.INSTALLED)) {
+                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
+                        .equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
             }
@@ -171,9 +170,8 @@ class ServiceConfigMergingTest {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main")
-                        && (newState.equals(State.RUNNING) || newState.equals(State.FINISHED))
-                        && oldState.equals(State.INSTALLED)) {
+                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
+                        .equals(State.INSTALLED)) {
                     mainRestarted.countDown();
                 }
             }
