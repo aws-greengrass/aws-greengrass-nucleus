@@ -251,7 +251,7 @@ public class DeploymentService extends EvergreenService {
                         callbacks);
     }
 
-    protected String getStringParameterFromConfig(String parameterName) {
+    private String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
         Topic childTopic = config.findLeafChild(parameterName);
         if (childTopic != null) {
@@ -260,7 +260,7 @@ public class DeploymentService extends EvergreenService {
         return paramValue;
     }
 
-    public static class IotJobsHelperFactory {
+    static class IotJobsHelperFactory {
 
         /**
          * Returns IotJobsHelper {@link IotJobsHelper}.
@@ -273,9 +273,8 @@ public class DeploymentService extends EvergreenService {
          * @param callbacks           Callback for handling Mqtt connection events
          * @return
          */
-        public IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
-                                              String rootCAPath, String clientEndpoint,
-                                              MqttClientConnectionEvents callbacks) {
+        IotJobsHelper getIotJobsHelper(String thingName, String certificateFilePath, String privateKeyPath,
+                                       String rootCAPath, String clientEndpoint, MqttClientConnectionEvents callbacks) {
             try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
                  HostResolver resolver = new HostResolver(eventLoopGroup);
                  ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);

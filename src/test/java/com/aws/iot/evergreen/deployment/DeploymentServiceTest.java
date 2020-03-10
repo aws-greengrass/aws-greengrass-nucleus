@@ -153,7 +153,7 @@ public class DeploymentServiceTest {
         }
 
         @Test
-        public void GIVEN_DescribeJobNotification_WHEN_NewJob_THEN_ProcessNotificationSuccessfully()
+        public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_report_succeeded_job_status()
                 throws ExecutionException, InterruptedException {
             CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
             when(mockBooleanFuture.get()).thenReturn(Boolean.TRUE);
@@ -174,7 +174,7 @@ public class DeploymentServiceTest {
         }
 
         @Test
-        public void GIVEN_DescribeJobNotification_WHEN_NewJob_THEN_ProcessNotificationUnSuccessfully()
+        public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status()
                 throws ExecutionException, InterruptedException {
             CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
             when(mockBooleanFuture.get()).thenReturn(Boolean.FALSE);
@@ -208,7 +208,7 @@ public class DeploymentServiceTest {
             }
 
             @Test
-            public void GIVEN_DeviceConfiguration_THEN_StartDeploymentService()
+            public void GIVEN_device_configured_THEN_start_deployment_service()
                     throws ExecutionException, InterruptedException {
 
                 verify(mockIotJobsHelper).subscribeToEventNotifications(any());
@@ -216,8 +216,8 @@ public class DeploymentServiceTest {
             }
 
             @Test
-            public void GIVEN_EventNotification_WHEN_NewJobQueued_THEN_ProcessNotification()
-                    throws ExecutionException, InterruptedException {
+            public void GIVEN_subscribed_to_EventNotifications_WHEN_new_job_queued_THEN_process_notification()
+                    throws Exception {
 
                 verify(mockIotJobsHelper).subscribeToEventNotifications(jobEventConsumerCaptor.capture());
                 Consumer<JobExecutionsChangedEvent> consumer = jobEventConsumerCaptor.getValue();
@@ -228,8 +228,8 @@ public class DeploymentServiceTest {
             }
 
             @Test
-            public void GIVEN_EventNotification_WHEN_JobFinishedNoNewJob_THEN_ProcessNotification()
-                    throws ExecutionException, InterruptedException {
+            public void GIVEN_subscribed_to_EventNotifications_WHEN_job_finished_and_no_job_THEN_process_notification()
+                    throws Exception {
 
                 verify(mockIotJobsHelper).subscribeToEventNotifications(jobEventConsumerCaptor.capture());
                 Consumer<JobExecutionsChangedEvent> consumer = jobEventConsumerCaptor.getValue();

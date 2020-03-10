@@ -73,10 +73,9 @@ public class IotJobsHelperTest {
      }
 
      @Test
-     public void GIVEN_JobsClientAndMqttConnection_WHEN_MqttConnected_THEN_SubscribeToEventNotifications()
-             throws ExecutionException, InterruptedException {
-         CompletableFuture<Integer> integerCompletableFuture = mock(CompletableFuture.class);
-            when(integerCompletableFuture.get()).thenReturn(1);
+     public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_subscribe_to_eventNotifications()
+             throws Exception {
+         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
          when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any(JobExecutionsChangedSubscriptionRequest.class)
                  , eq(QualityOfService.AT_LEAST_ONCE), eq(eventConsumer))).thenReturn(integerCompletableFuture);
         iotJobsHelper.subscribeToEventNotifications(eventConsumer);
@@ -89,8 +88,8 @@ public class IotJobsHelperTest {
      }
 
     @Test
-    public void GIVEN_JobsClientAndMqttConnection_WHEN_MqttConnected_THEN_SubscribeToGetNextJobDescription()
-            throws ExecutionException, InterruptedException {
+    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_subscribe_to_getNextJobDescription()
+            throws Exception {
         CompletableFuture<Integer> integerCompletableFuture = mock(CompletableFuture.class);
         when(integerCompletableFuture.get()).thenReturn(1);
         when(mockIotJobsClient.SubscribeToDescribeJobExecutionAccepted(
@@ -116,7 +115,7 @@ public class IotJobsHelperTest {
     }
 
     @Test
-    public void GIVEN_JobsClientAndMqttConnection_WHEN_MqttConnected_THEN_RequestNextPendingJobDoc() {
+    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_request_next_pending_jobDoc() {
 
         iotJobsHelper.requestNextPendingJobDocument();
         ArgumentCaptor<DescribeJobExecutionRequest> requestArgumentCaptor =
@@ -130,7 +129,7 @@ public class IotJobsHelperTest {
     }
 
     @Test
-    public void GIVEN_JobsClientAndMqttConnection_WHEN_MqttConnected_THEN_UpdateJobStatusAccepted() {
+    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_successfully() {
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
         iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
@@ -161,7 +160,7 @@ public class IotJobsHelperTest {
     }
 
     @Test
-    public void GIVEN_JobsClientAndMqttConnection_WHEN_MqttConnected_THEN_UpdateJobStatusRejected() {
+    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_failed() {
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
         iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
