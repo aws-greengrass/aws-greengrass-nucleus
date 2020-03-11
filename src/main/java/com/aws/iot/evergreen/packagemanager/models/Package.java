@@ -45,13 +45,13 @@ public class Package {
     // TODO: Migrate to artifact objects, this is only a list of URLs at the moment
     private final List<String> artifacts;
 
-    // TODO clean up this field
-    @Deprecated
     private final Map<String, String> dependencies;
 
     // TODO: Needs discussion, this should probably be removed after integration demo
     private final List<String> requires;
 
+    // TODO clean up this field
+    @Deprecated
     @JsonIgnore
     private Set<Package> dependencyPackages;
 
