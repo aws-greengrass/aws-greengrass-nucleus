@@ -60,8 +60,7 @@ public class UpdatingKernelState extends BaseState {
         }
 
         // merge config
-        Map<Object, Object> resolvedConfig = new HashMap<>();
-        resolvedConfig.put(EvergreenService.SERVICES_NAMESPACE_TOPIC, deploymentContext.getResolvedKernelConfig());
+        Map<Object, Object> resolvedConfig = deploymentContext.getResolvedKernelConfig();
         logger.atInfo().addKeyValue("resolved_config", resolvedConfig).log("Resolved config :" + resolvedConfig);
 
         try {

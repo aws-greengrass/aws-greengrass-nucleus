@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -42,12 +43,14 @@ public class ConfigResolver {
      */
     public Map<Object, Object> resolveConfig() {
         Map<Object, Object> newConfig = new HashMap<>();
+        Map<Object, Object> serviceConfig = new HashMap<>();
+        newConfig.put(EvergreenService.SERVICES_NAMESPACE_TOPIC, serviceConfig);
 
         packagesToDeploy.forEach(pkg -> {
-            processPackage(newConfig, pkg);
+            processPackage(serviceConfig, pkg);
         });
 
-        newConfig.put(kernel.getMain().getName(), getUpdatedMainConfig());
+        serviceConfig.put(kernel.getMain().getName(), getUpdatedMainConfig());
 
         return newConfig;
     }
