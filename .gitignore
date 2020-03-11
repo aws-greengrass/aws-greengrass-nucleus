@@ -5,6 +5,7 @@
 *.jar
 *~
 *.log
+*.metrics
 core
 .idea
 artifact_cache
