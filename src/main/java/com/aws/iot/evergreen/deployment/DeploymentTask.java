@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictExc
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import lombok.AllArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -37,10 +38,10 @@ public class DeploymentTask implements Callable<Void> {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE).addKeyValue("deploymentId",
                     document.getDeploymentId())
                     .log("Start deployment task");
-            List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document);
+            Map<PackageIdentifier, String> desiredPackages = dependencyResolver.resolveDependencies(document);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
-            packageCache.preparePackages(desiredPackages).get();
+            packageCache.preparePackages(new ArrayList<>(desiredPackages.keySet())).get();
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document);
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
