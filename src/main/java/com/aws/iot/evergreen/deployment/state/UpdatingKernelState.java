@@ -5,13 +5,11 @@ package com.aws.iot.evergreen.deployment.state;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeploymentFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentContext;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
