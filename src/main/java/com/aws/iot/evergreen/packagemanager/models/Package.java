@@ -40,14 +40,12 @@ public class Package {
 
     private final Set<PackageParameter> packageParameters;
 
-    private final Map<String, Object> lifecycle;
+    private final Map<Object, Object> lifecycle;
 
     // TODO: Migrate to artifact objects, this is only a list of URLs at the moment
     private final List<String> artifacts;
 
-    // TODO clean up this field
-    @Deprecated
-    private final Map<String, String> dependencies;
+    private final Map<Object, Object> dependencies;
 
     // TODO: Needs discussion, this should probably be removed after integration demo
     private final List<String> requires;
@@ -75,9 +73,9 @@ public class Package {
                    @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
                    @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
                    @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
-                   @JsonProperty("Lifecycle") Map<String, Object> lifecycle,
+                   @JsonProperty("Lifecycle") Map<Object, Object> lifecycle,
                    @JsonProperty("Artifacts") List<String> artifacts,
-                   @JsonProperty("Dependencies") Map<String, String> dependencies,
+                   @JsonProperty("Dependencies") Map<Object, Object> dependencies,
                    @JsonProperty("Requires") List<String> requires) throws SemverException {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;

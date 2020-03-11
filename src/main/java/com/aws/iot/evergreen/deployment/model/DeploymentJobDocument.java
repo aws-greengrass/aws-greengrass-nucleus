@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
+import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
@@ -17,18 +18,14 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Builder
-@Deprecated
 // TODO: pull this class to a library to share with cloud services. SIM: https://sim.amazon.com/issues/P33788350
-public class DeploymentDocument {
+public class DeploymentJobDocument {
 
     @JsonProperty("DeploymentId")
     String deploymentId;
 
     @JsonProperty("RootPackages")
-    List<String> rootPackages;
-
-    @JsonProperty("Packages")
-    List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
+    List<PackageIdentifier> rootPackages;
 
     @JsonProperty("GroupName")
     String groupName;

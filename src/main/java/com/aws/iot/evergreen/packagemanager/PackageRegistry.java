@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
 
 import java.util.List;
 
+@Deprecated
 public interface PackageRegistry {
 
     /**

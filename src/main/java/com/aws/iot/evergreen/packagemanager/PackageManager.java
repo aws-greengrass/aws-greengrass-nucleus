@@ -78,10 +78,12 @@ public class PackageManager {
      * @param proposedPackages The set of proposed packages to resolve dependencies for
      * @return the local resolved dependency tress in the future
      */
+    @Deprecated
     public Future<Set<Package>> resolvePackages(Set<PackageMetadata> proposedPackages) {
         return executorService.submit(() -> resolveDependencies(proposedPackages));
     }
 
+    @Deprecated
     private Set<Package> resolveDependencies(Set<PackageMetadata> proposedPackages)
             throws PackageVersionConflictException, PackageDownloadException, PackageLoadingException {
         Map<String, PackageRegistryEntry> activePackages = packageRegistry.findActivePackages().stream()
@@ -110,6 +112,7 @@ public class PackageManager {
         return loadPackages(proposedPackages, activePackages);
     }
 
+    @Deprecated
     void resolveDependencies(PackageMetadata packageMetadata, Map<String, PackageRegistryEntry> devicePackages)
             throws PackageVersionConflictException {
 
@@ -160,7 +163,7 @@ public class PackageManager {
                     PackageRegistryEntry dependencyPackageEntry = devicePackages.get(proposedDependency.getName());
                     if (dependencyPackageEntry == null) {
                         dependencyPackageEntry =
-                                new PackageRegistryEntry(proposedDependency.getName(), null, new HashMap<>());
+                                new PackageRegistryEntry(proposedDependency.getName(), (Semver) null, new HashMap<>());
                         devicePackages.put(proposedDependency.getName(), dependencyPackageEntry);
                     }
                     PackageRegistryEntry.Reference dependOnBy =

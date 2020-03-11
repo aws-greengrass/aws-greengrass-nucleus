@@ -1,5 +1,6 @@
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 
@@ -14,7 +15,7 @@ public class PackageCache {
      * @param pkgs a list of packages.
      * @return a future to notify once this is finished.
      */
-    public Future<Void> preparePackages(List<PackageIdentifier> pkgs) {
+    public Future<Void> preparePackages(List<Package> pkgs) {
         // TODO: to be implemented.
         return null;
     }

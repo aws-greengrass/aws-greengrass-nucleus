@@ -2,14 +2,14 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentJobDocument;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
-import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
+import com.aws.iot.evergreen.packagemanager.models.Package;
 import lombok.AllArgsConstructor;
 
 import java.util.List;
@@ -27,7 +27,7 @@ public class DeploymentTask implements Callable<Void> {
     private final KernelConfigResolver kernelConfigResolver;
     private final Kernel kernel;
     private final Logger logger;
-    private final DeploymentDocument document;
+    private final DeploymentJobDocument document;
 
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
 
@@ -37,11 +37,11 @@ public class DeploymentTask implements Callable<Void> {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE).addKeyValue("deploymentId",
                     document.getDeploymentId())
                     .log("Start deployment task");
-            List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document);
+            List<Package> desiredPackages = dependencyResolver.resolveDependencies(document);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
             packageCache.preparePackages(desiredPackages).get();
-            Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document);
+            Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages);
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();

@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
 import java.util.Collections;
 import java.util.List;
 
+@Deprecated
 public class PackageRegistryImpl implements PackageRegistry {
     @Override
     public List<PackageRegistryEntry> findActivePackages() {

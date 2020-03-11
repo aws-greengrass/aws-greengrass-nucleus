@@ -1,6 +1,8 @@
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentJobDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 
 import java.util.HashMap;
@@ -20,12 +22,11 @@ public class KernelConfigResolver {
      * Create a kernel config map from a list of package identifiers and deployment document.
      * For each package, it first retrieves its recipe, then merge the parameter values into the recipe, and last
      * transform it to a kernel config key-value pair.
-     * @param pkgs a list of package identifiers
-     * @param document deployment document
+     * @param pkgs a list of package configurations
      * @return a kernel config map
      * @throws InterruptedException when the running thread is interrupted
      */
-    public Map<Object, Object> resolve(List<PackageIdentifier> pkgs, DeploymentDocument document)
+    public Map<Object, Object> resolve(List<Package> pkgs)
             throws InterruptedException {
         return new HashMap<>();
     }
