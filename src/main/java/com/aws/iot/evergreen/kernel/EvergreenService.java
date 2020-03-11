@@ -90,7 +90,7 @@ public class EvergreenService implements InjectionActions, Closeable {
      */
     public EvergreenService(Topics topics) {
         this.config = topics;
-        this.context = topics.context;
+        this.context = topics.getContext();
         this.logger = LogManager.getLogger(getName());
         logger.addDefaultKeyValue("serviceName", getName());
         this.state = initStateTopic(topics);
