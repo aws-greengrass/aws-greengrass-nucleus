@@ -1,0 +1,13 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: TickTock
+Description: A *very* helpful periodic service
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+  - name: Period
+    type: NUMBER
+    value: 2
+Lifecycle:
+  run:
+    "echo No tick-tocking with period: {{params:Period.value}}"

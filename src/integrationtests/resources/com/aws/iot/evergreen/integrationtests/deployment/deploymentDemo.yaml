@@ -1,0 +1,16 @@
+---
+
+main:
+  install:
+    skipif: true
+    all: echo All installed
+  requires:
+    macos:
+    linux:
+  run: |-
+    echo $PATH
+    pwd
+    printenv
+    while true; do
+    date; sleep 5; echo RUNNING
+    done
