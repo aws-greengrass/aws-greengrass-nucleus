@@ -4,12 +4,16 @@ services:
     startup:
       all: "{platform.invoke} {args}"
   main:
-    requires: IPCService, mqtt, ServiceName
+    dependencies:
+      - IPCService
+      - mqtt
+      - ServiceName
     run: |-
       sleep 300
 
   mqtt:
-    requires: IPCService
+    dependencies:
+      - IPCService
     resources:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
@@ -17,7 +21,8 @@ services:
       exit 0
 
   ServiceName:
-    requires: IPCService
+    dependencies:
+      - IPCService
     any:
       resources:
         - http-resource

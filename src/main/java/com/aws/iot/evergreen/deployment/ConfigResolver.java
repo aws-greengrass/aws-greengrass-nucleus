@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +26,7 @@ public class ConfigResolver {
 
     private static final Logger logger = LogManager.getLogger(ConfigResolver.class);
 
-    private static final String REQUIRES_CONFIG_KEY = "requires";
+    private static final String DEPENDENCIES_CONFIG_KEY = "dependencies";
     private static final String VERSION_CONFIG_KEY = "version";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
@@ -70,7 +71,7 @@ public class ConfigResolver {
             interpolate(lifecycleKey, lifecycle, pkg.getPackageParameters());
         }
 
-        // Generate requires list
+        // Generate dependencies list
         Set<String> dependencyServiceNames =
                 pkg.getDependencyPackages().stream().map(Package::getPackageName).collect(Collectors.toSet());
         addServiceDependencies(lifecycle, dependencyServiceNames);
@@ -129,7 +130,7 @@ public class ConfigResolver {
     }
 
     void addServiceDependencies(Map<Object, Object> lifecycle, final Set<String> dependencies) {
-        lifecycle.put(REQUIRES_CONFIG_KEY, String.join(", ", dependencies));
+        lifecycle.put(DEPENDENCIES_CONFIG_KEY, new ArrayList<>(dependencies));
     }
 }
 
