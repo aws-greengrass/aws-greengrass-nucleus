@@ -56,13 +56,15 @@ class KernelShutdownTest {
 
         assertTrue(genericExternalServices.stream().allMatch(e -> e.getState().isClosable()));
 
-        //sorting genericExternalServices in descending order based on when they reached terminal state
-        Collections.sort(genericExternalServices, (s1, s2) ->
-                Long.compare(s1.getStateTopic().getModtime(), s1.getStateTopic().getModtime()));
+        EvergreenService main = genericExternalServices.stream()
+                .filter(e -> e.getName().equals("main")).findFirst().get();
+        EvergreenService sleeperA = genericExternalServices.stream()
+                .filter(e -> e.getName().equals("sleeperA")).findFirst().get();
+        EvergreenService sleeperB = genericExternalServices.stream()
+                .filter(e -> e.getName().equals("sleeperB")).findFirst().get();
 
-        // service should moved to terminal state based on dependency order
-        assertEquals("main", genericExternalServices.get(2).getName());
-        assertEquals("sleeperA", genericExternalServices.get(1).getName());
-        assertEquals("sleeperB", genericExternalServices.get(0).getName());
+        assertTrue(main.getStateTopic().getModtime() <= sleeperA.getStateTopic().getModtime());
+        assertTrue(sleeperA.getStateTopic().getModtime() <= sleeperB.getStateTopic().getModtime());
+
     }
 }
