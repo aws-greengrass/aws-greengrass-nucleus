@@ -110,7 +110,7 @@ public class DeploymentServiceTest {
             when(mockConfig.createLeafChild(eq("_State"))).thenReturn(stateTopic);
             when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
             when(mockConfig.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
-            when(mockConfig.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
+            when(mockConfig.getName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
             when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
 
             when(mockConfig.findLeafChild(Mockito.any())).thenAnswer(invocationOnMock -> {
@@ -133,7 +133,6 @@ public class DeploymentServiceTest {
                 }
                 return mockTopic;
             });
-            when(mockConfig.getFullName()).thenReturn("DeploymentService");
             when(mockConfig.getContext()).thenReturn(mockContext);
 
             //Deployment service specific mocks

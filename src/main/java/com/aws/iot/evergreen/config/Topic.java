@@ -172,14 +172,14 @@ public class Topic extends Node {
     public boolean equals(Object o) {
         if (o instanceof Topic) {
             Topic t = (Topic) o;
-            return name.equals(t.name);
+            return getName().equals(t.getName());
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(name);
+        return Objects.hashCode(getName());
     }
 
     @Override

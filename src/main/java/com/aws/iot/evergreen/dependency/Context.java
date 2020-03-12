@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.CrashableFunction;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
@@ -29,7 +30,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
@@ -402,7 +402,7 @@ public class Context implements Closeable {
             }
         }
 
-        public final synchronized T computeIfEmpty(Function<Value, T> s) {
+        public final synchronized <E extends Exception> T computeIfEmpty(CrashableFunction<Value, T, E> s) throws E {
             T v = value;
             return v == null ? put(s.apply(this)) : v;
         }

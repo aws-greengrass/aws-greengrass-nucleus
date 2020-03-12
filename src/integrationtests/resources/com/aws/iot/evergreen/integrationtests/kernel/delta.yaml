@@ -1,18 +1,19 @@
-ticktock:
-  run: echo tick-tock phase 3
-  periodic: 3 seconds
-main:
-  install:
-    skipif: true
-    all: echo All installed
-  requires: jdk11, git, mqtt, ticktock:INSTALLED, frodo
-  setenv:
-    JUSTME: fancy a spot of coffee?
-  run: |-
-    echo $PATH xyzzy; pwd
-    printenv
-    while true; do
-    date; sleep 5; echo Now we\'re in phase 3
-    done
-frodo:
-  run: echo "I'm Frodo"
+services:
+  ticktock:
+    run: echo tick-tock phase 3
+    periodic: 3 seconds
+  main:
+    install:
+      skipif: true
+      all: echo All installed
+    requires: jdk11, git, mqtt, ticktock:INSTALLED, frodo
+    setenv:
+      JUSTME: fancy a spot of coffee?
+    run: |-
+      echo $PATH xyzzy; pwd
+      printenv
+      while true; do
+      date; sleep 5; echo Now we\'re in phase 3
+      done
+  frodo:
+    run: echo "I'm Frodo"
