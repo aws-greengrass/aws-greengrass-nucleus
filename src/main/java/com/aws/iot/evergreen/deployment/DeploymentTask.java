@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictExc
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import lombok.AllArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -36,13 +35,12 @@ public class DeploymentTask implements Callable<Void> {
     @Override
     public Void call() throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException {
         try {
-            logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE).addKeyValue("deploymentId",
-                    document.getDeploymentId())
-                    .log("Start deployment task");
-            Map<PackageIdentifier, String> desiredPackages = dependencyResolver.resolveDependencies(document);
+            logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
+                    .addKeyValue("deploymentId", document.getDeploymentId()).log("Start deployment task");
+            List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
-            packageCache.preparePackages(new ArrayList<>(desiredPackages.keySet())).get();
+            packageCache.preparePackages(desiredPackages).get();
             // TODO : Compute the set of packages to be removed from the fleet - package information
             // and pass it to the config resolver
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, new HashSet<>());
@@ -50,8 +48,7 @@ public class DeploymentTask implements Callable<Void> {
             // (if it's not in a safe window).
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .addKeyValue("deploymentId", document.getDeploymentId())
-                    .log("Finish deployment task");
+                    .addKeyValue("deploymentId", document.getDeploymentId()).log("Finish deployment task");
         } catch (PackageVersionConflictException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
         } catch (ExecutionException | InterruptedException e) {
