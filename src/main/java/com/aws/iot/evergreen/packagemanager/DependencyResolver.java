@@ -8,8 +8,8 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictExc
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import lombok.AllArgsConstructor;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 @AllArgsConstructor
 public class DependencyResolver {
@@ -27,8 +27,8 @@ public class DependencyResolver {
      * @throws PackageVersionConflictException when a package version conflict cannot be resolved
      * @throws InterruptedException            when the running thread is interrupted
      */
-    public Map<PackageIdentifier, String> resolveDependencies(DeploymentDocument document)
+    public List<PackageIdentifier> resolveDependencies(DeploymentDocument document)
             throws PackageVersionConflictException, InterruptedException {
-        return new HashMap<>();
+        return new ArrayList<>();
     }
 }
