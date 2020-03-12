@@ -1,0 +1,20 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: Mosquitto
+Description: Mosquitto MQTT Server
+Publisher: Eclipse Foundation
+Version: '1.0.0'
+Lifecycle:
+  startup:
+    macos: echo "Hello this is mosquitto getting started"
+  install:
+    macos:
+      skipif: brew list | egrep -i -q mosquitto
+      script: echo "Hello This is mosquitto being installed"
+  shutdown:
+    macos:
+      script: echo "By mosquitto signing off!"
+Dependencies:
+  TickTock: ">=1.0.0"
+requires:
+  - homebrew

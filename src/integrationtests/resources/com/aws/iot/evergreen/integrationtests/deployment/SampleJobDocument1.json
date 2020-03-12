@@ -1,0 +1,34 @@
+{
+"DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
+"RootPackages": [
+"CustomerApp"
+],
+"Packages": [
+{
+"Name": "CustomerApp",
+"ResolvedVersion": "1.0.0",
+"VersionConstraint": "=1.0.0",
+"Dependencies": [
+{
+"Name": "Mosquitto"
+}
+]
+},
+{
+"Name": "Mosquitto",
+"ResolvedVersion": "1.0.0",
+"VersionConstraint": "=1.0.0",
+"Dependencies": [
+{
+"Name": "TickTock"
+}
+]
+},
+{
+"Name": "TickTock",
+"ResolvedVersion": "1.0.0",
+"VersionConstraint": "=1.0.0"
+}
+],
+"Timestamp": 1582574829
+}

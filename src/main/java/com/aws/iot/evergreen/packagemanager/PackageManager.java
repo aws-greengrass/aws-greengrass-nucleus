@@ -35,8 +35,8 @@ public class PackageManager {
 
     // TODO: Temporary hard coding, this should be initialized from config
     private static final Path CACHE_DIRECTORY = Paths.get(System.getProperty("user.dir")).resolve("artifact_cache");
-    private static final Path MOCK_PACKAGE_SOURCE =
-            Paths.get(System.getProperty("user.dir")).resolve("mock_artifact_source");
+    private static final Path LOCAL_PACKAGE_SOURCE =
+            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -52,7 +52,7 @@ public class PackageManager {
      */
     public PackageManager() {
         this.localCache = new LocalPackageStore(CACHE_DIRECTORY);
-        this.mockPackageRepository = new LocalPackageStore(MOCK_PACKAGE_SOURCE);
+        this.mockPackageRepository = new LocalPackageStore(LOCAL_PACKAGE_SOURCE);
         this.packageRegistry = new PackageRegistryImpl();
     }
 
