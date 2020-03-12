@@ -25,8 +25,7 @@ import java.util.stream.Collectors;
 public class KernelConfigResolver {
 
     private static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
-    private static final String VERSION_CONFIG_KEY = "version";
-    private static final String VERSION_CONSTRAINT_CONFIG_KEY = "versionconstraint";
+    protected static final String VERSION_CONFIG_KEY = "version";
     private static final String SERVICE_NAMESPACE_CONFIG_KEY = "services";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
