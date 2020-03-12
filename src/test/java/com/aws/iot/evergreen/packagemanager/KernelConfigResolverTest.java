@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -62,9 +63,7 @@ public class KernelConfigResolverTest {
                 new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
         PackageIdentifier dependencyPackageIdentifier =
                 new PackageIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3", Semver.SemverType.NPM));
-        Map<PackageIdentifier, String> packagesToDeploy = new HashMap<>();
-        packagesToDeploy.put(rootPackageIdentifier, ">1.0");
-        packagesToDeploy.put(dependencyPackageIdentifier, ">2.0");
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier, dependencyPackageIdentifier);
 
         Package rootPackage =
                 getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.singletonMap(TEST_INPUT_PACKAGE_B, "2.3"),
@@ -119,7 +118,7 @@ public class KernelConfigResolverTest {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
                 new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
-        Map<PackageIdentifier, String> packagesToDeploy = Collections.singletonMap(rootPackageIdentifier, ">1.0");
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
 
@@ -159,12 +158,12 @@ public class KernelConfigResolverTest {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
                 new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
-        Map<PackageIdentifier, String> packagesToDeploy = Collections.singletonMap(rootPackageIdentifier, ">1.0");
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
 
-        Set<PackageIdentifier> rootPackagesToRemove = new HashSet<>(Arrays.asList(new PackageIdentifier(
-                "RemovedService", new Semver("3.4", Semver.SemverType.NPM))));
+        Set<PackageIdentifier> rootPackagesToRemove = new HashSet<>(
+                Arrays.asList(new PackageIdentifier("RemovedService", new Semver("3.4", Semver.SemverType.NPM))));
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
@@ -203,7 +202,7 @@ public class KernelConfigResolverTest {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
                 new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
-        Map<PackageIdentifier, String> packagesToDeploy = Collections.singletonMap(rootPackageIdentifier, ">1.0");
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
