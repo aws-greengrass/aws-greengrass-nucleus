@@ -43,7 +43,6 @@ public class DependencyResolver {
     private final PackageStore store;
     @Inject
     private final Kernel kernel;
-
     /**
      * Create the full list of packages to be run on the device from a deployment document.
      * It also resolves the conflicts between the packages specified in the deployment document and the existing
@@ -120,7 +119,6 @@ public class DependencyResolver {
                                           Map<String, Map<String, String>> packageNameToVersionConstraints,
                                           Set<String> packagesToResolve)
             throws PackagingException, IOException, PackageVersionConflictException {
-
         if (packagesToResolve.isEmpty()) {
             return Optional.empty();
         }
@@ -278,7 +276,6 @@ public class DependencyResolver {
         }
         logger.atDebug().addKeyValue("packageName", pkgName).addKeyValue("versionList", versionList)
                 .log("Found possible versions for dependency package");
-
         return versionList;
     }
 

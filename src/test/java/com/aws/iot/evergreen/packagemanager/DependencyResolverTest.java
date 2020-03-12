@@ -5,11 +5,16 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+<<<<<<< HEAD
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+=======
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+>>>>>>> Refactor dependency resolution for packages
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
@@ -58,7 +63,6 @@ public class DependencyResolverTest {
 
     @Mock
     private EvergreenService mainService;
-
     @BeforeAll
     public static void Setup() {
         System.setProperty("log.fmt", "TEXT");
@@ -173,7 +177,6 @@ public class DependencyResolverTest {
 
             Map<String, String> dependenciesB1_1_x = new HashMap<>();
             dependenciesB1_1_x.put(pkgC1, "1.0.0");
-
             when(mockPackageStore.getPackageVersionsIfExists(pkgB1)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
             when(mockPackageStore.getPackageVersionsIfExists(pkgB2)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
             when(mockPackageStore.getPackageVersionsIfExists(pkgC1)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
@@ -194,6 +197,7 @@ public class DependencyResolverTest {
             when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
+
             doReturn(Optional.empty()).when(resolver).getPackageVersionIfActive(any());
 
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA),
@@ -248,6 +252,7 @@ public class DependencyResolverTest {
             when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
+
             doReturn(Optional.empty()).when(resolver).getPackageVersionIfActive(any());
 
             // top-level package order: A, B2
