@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -686,11 +687,6 @@ public class EvergreenService implements InjectionActions, Closeable {
             boolean isDepender = evergreenService.dependencies.keySet().stream().anyMatch(d -> d.equals(this));
             if (isDepender) {
                 dependers.add(evergreenService);
-            }
-            // orderedDependencies sorts services based on dependency order with main as last,
-            // therefore all dependers will be present before the service itself in the list of orderedDependencies
-            if (evergreenService.equals(this)) {
-                break;
             }
         }
         return dependers;
