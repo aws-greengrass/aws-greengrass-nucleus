@@ -40,6 +40,26 @@ class KernelShutdownTest {
 
     @Test
     void WHEN_kernel_shutdown_THEN_services_are_shutdown_in_reverse_dependecy_order() throws InterruptedException {
+        CountDownLatch mainClosed = new CountDownLatch(1);
+        CountDownLatch sleeperAClosed = new CountDownLatch(1);
+        CountDownLatch sleeperBClosed = new CountDownLatch(1);
+
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.isClosable()) {
+                mainClosed.countDown();
+            }
+            // Only count main as started if its dependency (new_service) has already been started
+            if (mainClosed.getCount() == 0) {
+                if (service.getName().equals("sleeperA") && newState.isClosable()) {
+                    sleeperAClosed.countDown();
+                }
+            }
+            if (sleeperAClosed.getCount() == 0) {
+                if (service.getName().equals("sleeperB") && newState.isClosable()) {
+                    sleeperBClosed.countDown();
+                }
+            }
+        });
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
         kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
@@ -47,24 +67,10 @@ class KernelShutdownTest {
                 mainRunningLatch.countDown();
             }
         });
+
         //wait for main to run
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
         kernel.shutdown(60);
-
-        List<EvergreenService> genericExternalServices = kernel.orderedDependencies().stream()
-                .filter(e -> e instanceof GenericExternalService).collect(Collectors.toList());
-
-        assertTrue(genericExternalServices.stream().allMatch(e -> e.getState().isClosable()));
-
-        EvergreenService main = genericExternalServices.stream()
-                .filter(e -> e.getName().equals("main")).findFirst().get();
-        EvergreenService sleeperA = genericExternalServices.stream()
-                .filter(e -> e.getName().equals("sleeperA")).findFirst().get();
-        EvergreenService sleeperB = genericExternalServices.stream()
-                .filter(e -> e.getName().equals("sleeperB")).findFirst().get();
-
-        assertTrue(main.getStateTopic().getModtime() <= sleeperA.getStateTopic().getModtime());
-        assertTrue(sleeperA.getStateTopic().getModtime() <= sleeperB.getStateTopic().getModtime());
-
+        assertTrue(sleeperBClosed.getCount()==0);
     }
 }
