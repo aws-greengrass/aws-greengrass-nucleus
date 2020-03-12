@@ -69,7 +69,7 @@ public class DeploymentServiceTest {
     Topic stateTopic;
 
     @Mock
-    Topic requiresTopic;
+    Topic dependenciesTopic;
 
     @Mock
     Topics mockConfig;
@@ -109,9 +109,9 @@ public class DeploymentServiceTest {
             //Evergreen service specific mocks
             when(mockConfig.createLeafChild(eq("_State"))).thenReturn(stateTopic);
             when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
-            when(mockConfig.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
+            when(mockConfig.createLeafChild(eq("dependencies"))).thenReturn(dependenciesTopic);
             when(mockConfig.getName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
-            when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
+            when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);
 
             when(mockConfig.findLeafChild(Mockito.any())).thenAnswer(invocationOnMock -> {
                 String parameterName = invocationOnMock.getArguments()[0].toString();

@@ -125,7 +125,8 @@ public class ConfigurationTest {
             JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(testConfig.toPOJO(), sw);
             String tc = sw.toString();
             assertTrue(tc.contains("\"{platform.invoke} {name}\""), tc);
-            assertTrue(tc.contains("requires: \"greenlake\""));
+            assertTrue(tc.contains("dependencies:\n" +
+                                           "    - \"greenlake\""));
         }
     }
 

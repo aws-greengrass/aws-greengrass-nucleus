@@ -42,5 +42,6 @@ services:
       debian: |-
         sudo add-apt-repository https://aws.amazon.com/iot/apt
         sudo apt-get install monitoring
-    requires: greenlake
+    dependencies:
+      - greenlake
     

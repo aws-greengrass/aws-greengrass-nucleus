@@ -15,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -124,11 +126,15 @@ class ServiceConfigMergingTest {
                 }
             }
         });
+
+        List<String> serviceList =
+                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                      .collect(Collectors.toList());
+        serviceList.add("new_service");
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put("requires", kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                            .collect(Collectors.joining(",")) + ",new_service");
+                    put("dependencies", serviceList);
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
@@ -183,18 +189,20 @@ class ServiceConfigMergingTest {
             }
         });
 
-        List<String> originalRunningServices =
+        List<String> serviceList =
                 kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
                         .collect(Collectors.toList());
+        serviceList.add("new_service");
+
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
                 put("main",new HashMap<Object, Object>() {{
-                    put("requires", String.join(",", originalRunningServices) + ",new_service");
+                    put("dependencies", serviceList);
                 }});
 
                 put("new_service",new HashMap<Object, Object>() {{
                     put("run", "sleep 60");
-                    put("requires", "new_service2");
+                    put("dependencies", Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2",new HashMap<Object, Object>() {{

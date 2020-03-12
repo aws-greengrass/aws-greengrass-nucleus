@@ -1,5 +1,6 @@
 package com.aws.iot.evergreen.ipc;
 
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
@@ -71,7 +72,8 @@ public class IPCService extends EvergreenService {
             String serverUri = "tcp://" + LOCAL_IP + ":" + port;
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
-            config.parent.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME).setValue(serverUri);
+            Topic kernelUri = config.parent.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
+            kernelUri.setValue(serverUri);
 
             super.startup();
             logger.atInfo().setEventType("ipc-started").addKeyValue("uri", serverUri).log();
