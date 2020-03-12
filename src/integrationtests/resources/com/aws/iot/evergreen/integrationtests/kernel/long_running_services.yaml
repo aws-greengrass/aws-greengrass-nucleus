@@ -11,14 +11,17 @@ services:
       done
 
   sleeperA:
-    requires: sleeperB
+    dependencies:
+      - sleeperB
     run: |-
       while true; do
       date; echo sleeperA_running; sleep 5
       done
 
   main:
-    requires: sleeperA, sleeperB
+    dependencies:
+      - sleeperA
+      - sleeperB
     run: |-
       while true; do
       date; echo main_running; sleep 5

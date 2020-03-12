@@ -35,7 +35,7 @@ class EvergreenServiceTest {
     private Topic stateTopic;
 
     @Mock
-    private Topic requiresTopic;
+    private Topic dependenciesTopic;
 
     @Mock
     private Context context;
@@ -46,9 +46,9 @@ class EvergreenServiceTest {
     @BeforeEach
     void beforeEach() {
         Mockito.when(config.createLeafChild(eq("_State"))).thenReturn(stateTopic);
-        Mockito.when(config.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
+        Mockito.when(config.createLeafChild(eq("dependencies"))).thenReturn(dependenciesTopic);
         Mockito.when(config.getName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
-        Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
+        Mockito.when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);
 
         evergreenService = new EvergreenService(config);
         evergreenService.context = context;

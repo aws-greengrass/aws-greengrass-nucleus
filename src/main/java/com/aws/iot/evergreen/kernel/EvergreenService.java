@@ -41,8 +41,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Singleton;
 
@@ -51,8 +49,6 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 public class EvergreenService implements InjectionActions, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
-
-    private static final Pattern DEP_PARSE = Pattern.compile(" *([^,:;& ]+)(:([^,; ]+))?[,; ]*");
 
     public final Topics config;
     public Context context;
@@ -78,7 +74,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private static final Set<State> ALLOWED_STATES_FOR_REPORTING =
             new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED));
-    private final Topic requiresTopic;
+    private final Topic dependenciesTopic;
 
     // Static logger instance for static methods
     private static final Logger staticLogger = LogManager.getLogger(EvergreenService.class);
@@ -97,8 +93,8 @@ public class EvergreenService implements InjectionActions, Closeable {
         logger.addDefaultKeyValue("serviceName", getName());
         this.state = initStateTopic(topics);
 
-        this.requiresTopic = topics.createLeafChild("requires").dflt("");
-        this.requiresTopic.setParentNeedsToKnow(false);
+        this.dependenciesTopic = topics.createLeafChild("dependencies").dflt(new ArrayList<String>());
+        this.dependenciesTopic.setParentNeedsToKnow(false);
     }
 
     public State getState() {
@@ -253,22 +249,25 @@ public class EvergreenService implements InjectionActions, Closeable {
         return state;
     }
 
-    private synchronized void initRequiresTopic() {
-        requiresTopic.subscribe((what, node) -> {
+    private synchronized void initDependenciesTopic() {
+        dependenciesTopic.subscribe((what, node) -> {
             if (!WhatHappened.changed.equals(what)) {
                 return;
             }
 
-            logger.atInfo().log("Setting up dependencies again", requiresTopic.getOnce());
+            // TODO: chaurah: log set
+            List<String> depList = (List<String>) dependenciesTopic.getOnce();
+            logger.atInfo().log("Setting up dependencies again",
+                                String.join(",", depList));
             try {
-                setupDependencies((String) requiresTopic.getOnce());
+                setupDependencies(depList);
             } catch (Exception e) {
                 logger.atError().log("Error while setting up dependencies from subscription", e);
             }
         });
 
         try {
-            setupDependencies((String) requiresTopic.getOnce());
+            setupDependencies((List<String>) dependenciesTopic.getOnce());
         } catch (Exception e) {
             serviceErrored(e);
         }
@@ -656,8 +655,8 @@ public class EvergreenService implements InjectionActions, Closeable {
 
         context.get(Kernel.class).clearODcache();
         dependencies.put(dependentEvergreenService, when);
-        String ser = serializeDependencyList(dependencies);
-        requiresTopic.setValue(ser);
+        List<String> ser = createDependenciesList(dependencies);
+        dependenciesTopic.setValue(ser);
 
         dependentEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
             if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
@@ -674,9 +673,11 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
-    private String serializeDependencyList(ConcurrentHashMap<EvergreenService, State> dependencies) {
-        return dependencies.entrySet().stream().map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
-                .collect(Collectors.joining(","));
+    private List<String> createDependenciesList(ConcurrentHashMap<EvergreenService, State> dependencies) {
+        return dependencies.entrySet()
+                           .stream()
+                           .map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
+                           .collect(Collectors.toList());
     }
 
     private List<EvergreenService> getDependers() {
@@ -766,7 +767,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void postInject() {
-        initRequiresTopic();
+        initDependenciesTopic();
         //TODO: Use better threadPool mechanism
         new Thread(() -> {
             while (!isClosed.get()) {
@@ -783,15 +784,17 @@ public class EvergreenService implements InjectionActions, Closeable {
         }).start();
     }
 
-    private Map<EvergreenService, State> parseDependencyList(String dependencyList) throws Exception {
-        Matcher m = DEP_PARSE.matcher(dependencyList);
+    private Map<EvergreenService, State> getDependencyStateMap(List<String> dependencyList) throws Exception {
         HashMap<EvergreenService, State> ret = new HashMap<>();
-        while (m.find()) {
-            Pair<EvergreenService, State> dep = parseSingleDependency(m.group(1), m.group(3));
+        for (String dependency : dependencyList) {
+            String [] dependencyInfo = dependency.split(":");
+            if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
+                throw new Exception("Bad dependency syntax");
+            }
+            Pair<EvergreenService, State> dep
+                    = parseSingleDependency(dependencyInfo[0],
+                                            dependencyInfo.length > 1 ? dependencyInfo[1] : null);
             ret.put(dep.getLeft(), dep.getRight());
-        }
-        if (!m.hitEnd()) {
-            throw new Exception("Bad dependency syntax");
         }
         return ret;
     }
@@ -823,8 +826,8 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
     }
 
-    private synchronized void setupDependencies(String dependencyList) throws Exception {
-        Map<EvergreenService, State> shouldHaveDependencies = parseDependencyList(dependencyList);
+    private synchronized void setupDependencies(List<String> dependencyList) throws Exception {
+        Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
         shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
             try {
                 addDependency(dependentEvergreenService, when);

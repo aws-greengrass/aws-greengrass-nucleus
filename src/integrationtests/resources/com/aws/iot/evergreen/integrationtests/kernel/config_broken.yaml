@@ -23,7 +23,9 @@ services:
     install:
       skipif: true
       all: echo All installed
-    requires: installErrorRetry, runErrorRetry
+    dependencies:
+      - installErrorRetry
+      - runErrorRetry
     setenv:
       JUSTME: fancy a spot of tea?
     run: |-

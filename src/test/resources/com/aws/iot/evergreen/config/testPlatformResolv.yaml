@@ -7,8 +7,9 @@ services:
         macos: curl -sSL https://get.haskellstack.org/ | sh
 
   influxdb:
-    requires:
-      macos: homebrew:AwaitingStartup
+    dependencies:
+      macos:
+        - homebrew:AwaitingStartup
 
     lifecycle:
       install:

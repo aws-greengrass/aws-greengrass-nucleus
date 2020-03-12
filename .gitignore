@@ -13,3 +13,7 @@ package.db
 coverage
 *.iml
 jmh-result.json
+work
+bin
+config
+evergreen.metrics

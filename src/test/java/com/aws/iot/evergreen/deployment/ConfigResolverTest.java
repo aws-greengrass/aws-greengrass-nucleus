@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,7 +40,7 @@ public class ConfigResolverTest {
 
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";
-    private static final String LIFECYCLE_REQUIRES_KEY = "requires";
+    private static final String LIFECYCLE_DEPENDENCIES_KEY = "dependencies";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
             "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
@@ -230,12 +231,11 @@ public class ConfigResolverTest {
     }
 
     private Set<String> getServiceDependencies(String serviceName, Map<Object, Object> config) {
-        return new HashSet<>(
-                Arrays.asList(getValueForLifecycleKey(LIFECYCLE_REQUIRES_KEY, serviceName, config).split(", ")));
+        return new HashSet<>((List<String>)getLifecycleConfig(serviceName, config).get(LIFECYCLE_DEPENDENCIES_KEY));
     }
 
-    private String getValueForLifecycleKey(String key, String servicename, Map<Object, Object> config) {
-        return (String) getLifecycleConfig(servicename, config).get(key);
+    private String getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
+        return (String) getLifecycleConfig(serviceName, config).get(key);
     }
 
     private Map<Object, Object> getLifecycleConfig(String serviceName, Map<Object, Object> config) {
