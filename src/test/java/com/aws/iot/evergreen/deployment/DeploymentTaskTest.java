@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -83,11 +84,12 @@ public class DeploymentTaskTest {
     }
 
     @Test
-    public void GIVEN_deploymentDocument_WHEN_resolveDependencies_interrupted_THEN_deploymentTask_aborted()
+    public void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument)).thenThrow(new InterruptedException());
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument)).thenThrow(
+                new PackagingException("mock error"));
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
-        assertThat(thrown.getCause(), isA(InterruptedException.class));
+        assertThat(thrown.getCause(), isA(PackagingException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
