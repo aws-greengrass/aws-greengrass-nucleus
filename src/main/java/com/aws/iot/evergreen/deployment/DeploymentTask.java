@@ -9,9 +9,12 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
+import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import lombok.AllArgsConstructor;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,9 +52,9 @@ public class DeploymentTask implements Callable<Void> {
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", document.getDeploymentId()).log("Finish deployment task");
-        } catch (PackageVersionConflictException e) {
+        } catch (PackageVersionConflictException | UnexpectedPackagingException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
-        } catch (ExecutionException | InterruptedException e) {
+        } catch (ExecutionException | InterruptedException | IOException | PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
         }
         return null;

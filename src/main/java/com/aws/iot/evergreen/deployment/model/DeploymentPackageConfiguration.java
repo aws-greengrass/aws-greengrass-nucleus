@@ -28,12 +28,14 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("ResolvedVersion")
     String resolvedVersion;
 
+    @Deprecated
     @JsonProperty("VersionConstraint")
     String versionConstraint;
 
     @JsonProperty("Parameters")
     Set<PackageParameter> parameters;
 
+    @Deprecated
     @JsonProperty("Dependencies")
     List<PackageIdentifier> listOfDependencies;
 
