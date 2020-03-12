@@ -72,7 +72,7 @@ public class IPCServicesTest {
 
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
-        Topic kernelUri = kernel.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
+        Topic kernelUri = kernel.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();
@@ -86,12 +86,18 @@ public class IPCServicesTest {
     @Test
     void registerResourceTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("mqtt", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+                .token((String) kernel
+                        .findServiceTopic("mqtt")
+                        .findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
         IPCClient client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
         KernelIPCClientConfig config2 = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+                .token((String) kernel
+                        .findServiceTopic("ServiceName")
+                        .findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
         IPCClient client2 = new IPCClientImpl(config2);
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
 
@@ -144,7 +150,10 @@ public class IPCServicesTest {
     @Test
     void registerResourcePermissionTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("ServiceName", SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+                .token((String) kernel
+                        .findServiceTopic("ServiceName")
+                        .findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
         IPCClient client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
@@ -159,7 +168,10 @@ public class IPCServicesTest {
     @Test
     void lifecycleTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.find("ServiceName", "_UID").getOnce()).build();
+                .token((String) kernel
+                        .findServiceTopic("ServiceName")
+                        .findLeafChild("_UID").getOnce())
+                .build();
         IPCClient client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
 

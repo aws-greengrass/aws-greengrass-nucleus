@@ -100,7 +100,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     public synchronized void published(WhatHappened what, Topic n) {
         if (what == WhatHappened.childChanged) {
             try {
-                if (n.name.startsWith("_")) {
+                if (n.getName().startsWith("_")) {
                     return;  // Don't log entries whose name starts in '_'
                 }
                 appendLong(n.getModtime(), out);

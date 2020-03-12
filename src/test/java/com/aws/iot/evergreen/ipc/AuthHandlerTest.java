@@ -80,11 +80,14 @@ class AuthHandlerTest {
     @Test
     public void GIVEN_service_WHEN_register_auth_token_THEN_client_can_be_authenticated_with_token() throws Exception {
         Configuration config = new Configuration(new Context());
-        AuthHandler.registerAuthToken(new EvergreenService(config.lookupTopics(SERVICE_NAME)));
-        Object authToken = config.find(SERVICE_NAME, SERVICE_UNIQUE_ID_KEY).getOnce();
+        AuthHandler.registerAuthToken(new EvergreenService(
+                config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME)));
+        Object authToken = config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME, SERVICE_UNIQUE_ID_KEY)
+                .getOnce();
 
         assertNotNull(authToken);
-        assertEquals(SERVICE_NAME, config.find(AUTH_TOKEN_LOOKUP_KEY, (String) authToken).getOnce());
+        assertEquals(SERVICE_NAME, config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, AUTH_TOKEN_LOOKUP_KEY, (String) authToken)
+                .getOnce());
 
         AuthHandler auth = new AuthHandler(config, mock(IPCRouter.class));
 

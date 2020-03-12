@@ -12,9 +12,9 @@ import java.util.function.Consumer;
 
 public abstract class Node {
     public final Context context;
-    public final String name;
     public final Topics parent;
     private final String fnc;
+    private final String name;
     protected CopyOnWriteArraySet<Watcher> watchers;
     private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
 
@@ -55,6 +55,10 @@ public abstract class Node {
 
     public String getFullName() {
         return fnc;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public abstract void appendTo(Appendable a) throws IOException;

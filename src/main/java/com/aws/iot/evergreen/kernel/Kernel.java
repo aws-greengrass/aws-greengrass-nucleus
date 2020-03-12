@@ -6,12 +6,14 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -280,10 +282,19 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.put(ShellRunner.class, context.get(ShellRunner.Dryrun.class));
         }
         try {
-            EvergreenService main = getMain(); // Trigger boot  (!?!?)
+            mainService = getMain();
             autostart.forEach(s -> {
                 try {
-                    main.addDependency(EvergreenService.locate(context, s), State.RUNNING);
+                    if (!s.contains("SafeSystemUpdate")) {
+                        mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING);
+                    } else {
+                        // SafeSystemUpdate will reset to Installed after update.
+                        // This is a hacky way to avoid restarting depending services.
+                        // TODO: Find a proper way handle this situation.
+                        mainService.addDependency(EvergreenService.locate(context, s), State.INSTALLED);
+                    }
+                } catch (ServiceLoadException se) {
+                    logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
                     logger.atError().setCause(e).log("Unable to add auto-starting dependency {} to main", s);
                 }
@@ -293,7 +304,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     .log("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ");
             mainServiceName = "fallbackMain";
             try {
-                getMain(); // trigger fallback boot
+                mainService = getMain();
             } catch (Throwable t) {
                 logger.atError().setEventType("system-boot-error").setCause(t)
                         .log("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ");
@@ -324,11 +335,15 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * Get a reference to the main service.
      */
     public EvergreenService getMain() {
-        EvergreenService m = mainService;
-        if (m == null) {
-            m = mainService = EvergreenService.locate(context, mainServiceName);
+        if (mainService == null) {
+            // TODO: move loading mainService into kernel launch
+            try {
+                mainService = EvergreenService.locate(context, mainServiceName);
+            } catch (ServiceLoadException e) {
+                logger.atError().setCause(e).log();
+            }
         }
-        return m;
+        return mainService;
     }
 
     /**
@@ -565,6 +580,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
+    public Topics findServiceTopic(String name) {
+        return this.findTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, name);
+    }
+
     /**
      * Merge in new configuration values and new services.
      *
@@ -573,21 +592,29 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * @param newConfig    the map of new configuration
      * @return future which completes only once the config is merged and all the services in the config are running
      */
+    @SuppressFBWarnings("NP_NONNULL_PARAM_VIOLATION") // https://github.com/findbugsproject/findbugs/issues/79
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
+
+        if (newConfig.get("services") == null) {
+            mergeMap(timestamp, newConfig);
+            totallyCompleteFuture.complete(null);
+            return totallyCompleteFuture;
+        }
+
+        Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get("services");
         Map<String, CountDownLatch> latches = new HashMap<>();
-        newConfig.forEach((key, v) -> latches.put((String) key, new CountDownLatch(1)));
+        serviceConfig.forEach((key, v) -> latches.put((String) key, new CountDownLatch(1)));
 
         EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
-            if (newConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
+            if (serviceConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
                 latches.get(service.getName()).countDown();
             }
             if (latches.values().stream().allMatch(c -> c.getCount() <= 0)) {
                 totallyCompleteFuture.complete(null);
             }
         };
-
         totallyCompleteFuture.thenRun(() -> {
             context.removeGlobalStateChangeListener(listener);
         });
@@ -597,16 +624,17 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 try {
                     mergeMap(timestamp, newConfig);
                     context.addGlobalStateChangeListener(listener);
-
-                    newConfig.keySet().forEach(serviceName -> {
-                        EvergreenService eg = EvergreenService.locate(context, (String) serviceName);
-                        if (eg == null) {
-                            logger.error("Could not locate EvergreenService for modified service {}", serviceName);
-                        } else if (State.NEW.equals(eg.getState())) {
+                    serviceConfig.keySet().forEach(serviceName -> {
+                        try {
+                            EvergreenService eg = EvergreenService.locate(context, serviceName);
+                            // TODO: remove requestStart here as each service will handle update behavior based on
+                            // updated fields.
                             eg.requestStart();
+                        } catch (ServiceLoadException e) {
+                            logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                                    .log("Could not locate EvergreenService for modified service");
                         }
                     });
-
                 } catch (Throwable e) {
                     totallyCompleteFuture.completeExceptionally(e);
                 }

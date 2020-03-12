@@ -72,6 +72,8 @@ public class ConfigResolverTest {
         Map<Object, Object> resolvedConfig = configResolver.resolveConfig();
 
         // THEN
+        assertThat("Must contain services keyword", resolvedConfig.containsKey(EvergreenService.SERVICES_NAMESPACE_TOPIC));
+        resolvedConfig = (Map<Object, Object>) resolvedConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
         // service config
         assertThat("Must contain main service", resolvedConfig.containsKey("main"));
         assertThat("Must contain top level package service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
@@ -107,6 +109,8 @@ public class ConfigResolverTest {
         Map<Object, Object> resolvedConfig = configResolver.resolveConfig();
 
         // THEN
+        assertThat("Must contain services keyword", resolvedConfig.containsKey(EvergreenService.SERVICES_NAMESPACE_TOPIC));
+        resolvedConfig = (Map<Object, Object>) resolvedConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
         // service config
         assertThat("Must contain main service", resolvedConfig.containsKey("main"));
         assertThat("Must contain updated service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
@@ -136,6 +140,8 @@ public class ConfigResolverTest {
         Map<Object, Object> resolvedConfig = configResolver.resolveConfig();
 
         // THEN
+        assertThat("Must contain services keyword", resolvedConfig.containsKey(EvergreenService.SERVICES_NAMESPACE_TOPIC));
+        resolvedConfig = (Map<Object, Object>) resolvedConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
         // service config
         assertThat("Must contain main service", resolvedConfig.containsKey("main"));
         assertThat("Must contain top level package service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));
@@ -167,6 +173,8 @@ public class ConfigResolverTest {
         Map<Object, Object> resolvedConfig = configResolver.resolveConfig();
 
         // THEN
+        assertThat("Must contain services keyword", resolvedConfig.containsKey(EvergreenService.SERVICES_NAMESPACE_TOPIC));
+        resolvedConfig = (Map<Object, Object>) resolvedConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
         // service config
         assertThat("Must contain main service", resolvedConfig.containsKey("main"));
         assertThat("Must contain top level package service", resolvedConfig.containsKey(TEST_INPUT_PACKAGE_A));

@@ -47,7 +47,7 @@ class EvergreenServiceTest {
     void beforeEach() {
         Mockito.when(config.createLeafChild(eq("_State"))).thenReturn(stateTopic);
         Mockito.when(config.createLeafChild(eq("requires"))).thenReturn(requiresTopic);
-        Mockito.when(config.getFullName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
+        Mockito.when(config.getName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
         Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
 
         evergreenService = new EvergreenService(config);
