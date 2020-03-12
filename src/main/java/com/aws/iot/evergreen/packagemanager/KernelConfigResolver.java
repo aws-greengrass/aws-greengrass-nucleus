@@ -15,6 +15,7 @@ import lombok.AllArgsConstructor;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -37,20 +38,19 @@ public class KernelConfigResolver {
      * For each package, it first retrieves its recipe, then merges the parameter values into the recipe, and last
      * transform it to a kernel config key-value pair.
      *
-     * @param packagesToDeploy     map of package identifiers to version constraints for resolved packages that are
-     *                             to be deployed
+     * @param packagesToDeploy     package identifiers for resolved packages that are to be deployed
      * @param document             deployment document
      * @param rootPackagesToRemove top level packages that need to be removed as part of current deployment
      * @return a kernel config map
      * @throws InterruptedException when the running thread is interrupted
      */
-    public Map<Object, Object> resolve(Map<PackageIdentifier, String> packagesToDeploy, DeploymentDocument document,
+    public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                        Set<PackageIdentifier> rootPackagesToRemove) throws InterruptedException {
 
         Map<Object, Object> servicesConfig = new HashMap<>();
 
-        packagesToDeploy.forEach((packageIdentifier, versionConstraint) -> servicesConfig
-                .put(packageIdentifier.getName(), getServiceConfig(packageIdentifier, versionConstraint, document)));
+        packagesToDeploy.forEach(packageIdentifier -> servicesConfig
+                .put(packageIdentifier.getName(), getServiceConfig(packageIdentifier, document)));
 
         servicesConfig.put(kernel.getMain().getName(), getUpdatedMainConfig(rootPackagesToRemove, document));
 
@@ -61,8 +61,7 @@ public class KernelConfigResolver {
     /*
      * Processe lifecycle section of each package and add it to the config.
      */
-    private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, String versionConstraint,
-                                                 DeploymentDocument document) {
+    private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document) {
 
         Package pkg = packageCache.getRecipe(packageIdentifier);
 
@@ -90,7 +89,6 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, String.join(", ", dependencyServiceNames));
 
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, pkg.getVersion());
-        resolvedServiceConfig.put(VERSION_CONSTRAINT_CONFIG_KEY, versionConstraint);
         return resolvedServiceConfig;
     }
 
