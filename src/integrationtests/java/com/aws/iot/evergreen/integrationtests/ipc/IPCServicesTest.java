@@ -23,6 +23,7 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -72,7 +73,8 @@ public class IPCServicesTest {
 
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
-        Topic kernelUri = kernel.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv", KERNEL_URI_ENV_VARIABLE_NAME);
+        Topic kernelUri = kernel.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv",
+                                        KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();
@@ -101,7 +103,7 @@ public class IPCServicesTest {
         IPCClient client2 = new IPCClientImpl(config2);
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
 
-        Resource resource = Resource.builder().name("evergreen_1").serviceType("_mqtt").domain("local").build();
+        Resource resource = Resource.builder().name("evergreen_2").serviceType("_mqtt").domain("local").build();
         RegisterResourceRequest req = RegisterResourceRequest.builder().resource(resource).build();
 
         LookupResourceRequest lookup = LookupResourceRequest.builder().resource(resource).build();

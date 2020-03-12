@@ -10,8 +10,9 @@ services:
         script: |-
           brew tap homebrew/cask-versions
           brew cask install corretto
-    requires:
-      macos: homebrew
+    dependencies:
+      macos:
+        - homebrew
   git:
     install:
       debian:
@@ -20,8 +21,9 @@ services:
       macos:
         skipif: onpath git
         script: brew install git
-    requires:
-      macos: homebrew
+    dependencies:
+      macos:
+        - homebrew
   homebrew:
     install:
       macos:
@@ -42,9 +44,9 @@ services:
         script: |-
           find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
           brew cask install docker
-    requires:
+    dependencies:
       macos:
-        homebrew
+        - homebrew
   plain:
     run:
       all: "{platform.invoke} {args}"
@@ -60,11 +62,13 @@ services:
         sudo apt-get install greenlake
     throttleBandwidth: 100 kb/s
   hello-docker:
-    requires: docker
+    dependencies:
+      - docker
     run: docker run --rm hello-world
     shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
   hello-docker-nginx:
-    requires: docker
+    dependencies:
+      - docker
     run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
     shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
@@ -72,7 +76,8 @@ services:
       debian: |-
         sudo add-apt-repository https://aws.amazon.com/iot/apt
         sudo apt-get install monitoring
-    requires: greenlake
+    dependencies:
+      - greenlake
   mqtt:
     setenv:
       W: $[work]/moquette
@@ -102,9 +107,19 @@ services:
     install:
       skipif: true
       all: echo All installed
-    requires:
-      macos: jdk11, git, hello-docker, hello-docker-nginx, mqtt, ticktock:INSTALLED
-      linux: jdk11, git, mqtt, ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
+    dependencies:
+      macos:
+        - jdk11
+        - git
+        - hello-docker
+        - hello-docker-nginx
+        - mqtt
+        - ticktock:INSTALLED
+      linux:
+        - jdk11
+        - git
+        - mqtt
+        - ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
     xyzzy: localhttp, broken
     setenv:
       JUSTME: fancy a spot of tea?

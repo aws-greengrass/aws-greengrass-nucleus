@@ -596,7 +596,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
-
         if (newConfig.get("services") == null) {
             mergeMap(timestamp, newConfig);
             totallyCompleteFuture.complete(null);

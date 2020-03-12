@@ -61,6 +61,7 @@ class KernelShutdownTest {
                 Long.compare(s1.getStateTopic().getModtime(), s1.getStateTopic().getModtime()));
 
         // service should moved to terminal state based on dependency order
+        assertEquals(3, genericExternalServices.size());
         assertEquals("main", genericExternalServices.get(2).getName());
         assertEquals("sleeperA", genericExternalServices.get(1).getName());
         assertEquals("sleeperB", genericExternalServices.get(0).getName());
