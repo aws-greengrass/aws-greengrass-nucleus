@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class DeploymentServiceIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello evergreen. This is a test";
-    private static final String TEST_MOSQUITTO_STRING = "Hello This is mosquitto being installed";
+    private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "No tick-tocking with period: 2";
 
     HashMap<String, Object> mockJobDocument =  new HashMap<>();
@@ -88,7 +88,8 @@ public class DeploymentServiceIntegrationTest {
     }
 
     @Test
-    public void testSubmittingSampleDocument() throws Exception {
+    public void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_THEN_services_start_in_kernel()
+            throws Exception {
 
         File fileToWatch = new File(LogFileName);
         while (!fileToWatch.exists()) {
@@ -113,9 +114,12 @@ public class DeploymentServiceIntegrationTest {
         Boolean isSuccess = result.get();
         assertTrue(isSuccess);
         String logLines = new String(Files.readAllBytes(Paths.get(LogFileName)));
-        assertTrue(logLines.contains(TEST_CUSTOMER_APP_STRING));
-        assertTrue(logLines.contains(TEST_MOSQUITTO_STRING));
-        assertTrue(logLines.contains(TEST_TICK_TOCK_STRING));
+        int tickTokLogStringIndex = logLines.indexOf(TEST_TICK_TOCK_STRING);
+        int mosquittoLogStringIndex = logLines.indexOf(TEST_MOSQUITTO_STRING);
+        int customerAppLogStringIndex = logLines.indexOf(TEST_CUSTOMER_APP_STRING);
+        assertTrue(tickTokLogStringIndex != -1);
+        assertTrue(mosquittoLogStringIndex != -1);
+        assertTrue(customerAppLogStringIndex != -1);
         kernel.shutdown();
     }
 
