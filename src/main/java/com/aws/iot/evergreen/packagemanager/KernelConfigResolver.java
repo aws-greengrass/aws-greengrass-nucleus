@@ -85,8 +85,7 @@ public class KernelConfigResolver {
         // Generate dependencies
         // TODO : Only platform specific dependencies should be added once deployment document and
         // package recipe format supports platform wise dependency specification
-        Set<String> dependencyServiceNames = pkg.getDependencies().keySet();
-        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, String.join(", ", dependencyServiceNames));
+        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, pkg.getDependencies().keySet());
 
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, pkg.getVersion());
         return resolvedServiceConfig;
@@ -138,7 +137,7 @@ public class KernelConfigResolver {
         kernelDependencies.addAll(document.getRootPackages());
 
         Map<Object, Object> mainLifecycleMap = new HashMap<>();
-        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, String.join(", ", kernelDependencies));
+        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, kernelDependencies);
 
         return mainLifecycleMap;
     }

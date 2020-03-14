@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.when;
@@ -104,11 +105,11 @@ public class KernelConfigResolverTest {
 
         // dependencies
         assertThat("Main service must depend on new service",
-                getServiceDependencies("main", servicesConfig).contains(TEST_INPUT_PACKAGE_A));
+                   dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
-                getServiceDependencies("main", servicesConfig).contains("IpcService"));
+                   dependencyListContains("main", "IpcService", servicesConfig));
         assertThat("New service must depend on dependency service",
-                getServiceDependencies(TEST_INPUT_PACKAGE_A, servicesConfig).contains(TEST_INPUT_PACKAGE_B));
+                   dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
     }
 
@@ -149,7 +150,7 @@ public class KernelConfigResolverTest {
 
         // dependencies
         assertThat("Main service must depend on updated service",
-                getServiceDependencies("main", servicesConfig).contains(TEST_INPUT_PACKAGE_A));
+                   dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
     }
 
     @Test
@@ -190,9 +191,9 @@ public class KernelConfigResolverTest {
 
         // dependencies
         assertThat("Main service must depend on updated service",
-                getServiceDependencies("main", servicesConfig).contains(TEST_INPUT_PACKAGE_A));
+                   dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must not depend on removed service",
-                !getServiceDependencies("main", servicesConfig).contains("RemovedService"));
+                   !dependencyListContains("main", "RemovedService", servicesConfig));
 
     }
 
@@ -282,9 +283,15 @@ public class KernelConfigResolverTest {
         return getValueForLifecycleKey(LIFECYCLE_INSTALL_KEY, serviceName, config);
     }
 
-    private Set<String> getServiceDependencies(String serviceName, Map<Object, Object> config) {
-        return new HashSet<>(Arrays.asList(
-                getValueForLifecycleKey(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY, serviceName, config).split(", ")));
+    private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
+        Iterable<String> dependencyList =
+                (Iterable<String>)getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
+        return StreamSupport.stream(dependencyList.spliterator(), false)
+                            .anyMatch(itr -> itr.equals(dependencyName));
+    }
+
+    private Iterable<String> getServiceDependencies(String serviceName, Map<Object, Object> config) {
+        return (Iterable<String>)getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
     }
 
     private String getValueForLifecycleKey(String key, String servicename, Map<Object, Object> config) {
