@@ -139,7 +139,7 @@ public class GenericExternalService extends EvergreenService {
      * @return the status of the run.
      */
     protected RunStatus run(String name, IntConsumer background) {
-        Node n = config.getChild(name);
+        Node n = (lifecycle == null) ? null : lifecycle.getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 

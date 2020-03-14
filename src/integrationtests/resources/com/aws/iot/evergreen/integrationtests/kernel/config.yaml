@@ -1,50 +1,54 @@
 ---
 services:
   jdk11:
-    install:
-      debian:
-        script: |-
-          sudo curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
-          sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
-      macos:
-        script: |-
-          brew tap homebrew/cask-versions
-          brew cask install corretto
+    lifecycle:
+      install:
+        debian:
+          script: |-
+            sudo curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
+            sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
+        macos:
+          script: |-
+            brew tap homebrew/cask-versions
+            brew cask install corretto
     dependencies:
       macos:
         - homebrew
   git:
-    install:
-      debian:
-        skipif: onpath git
-        script: sudo apt-get install git
-      macos:
-        skipif: onpath git
-        script: brew install git
+    lifecycle:
+      install:
+        debian:
+          skipif: onpath git
+          script: sudo apt-get install git
+        macos:
+          skipif: onpath git
+          script: brew install git
     dependencies:
       macos:
         - homebrew
   homebrew:
-    install:
-      macos:
-        skipif: onpath brew
-        script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    lifecycle:
+      install:
+        macos:
+          skipif: onpath brew
+          script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
   #launchers:
   docker:
     bashtimeout: 300
-    startup:
-      macos: open /Applications/Docker.app
-    install:
-      skipif: onpath docker
-      debian: |-
-        curl --silent -sSL https://get.docker.com/ | sh
-      fedora: sudo dnf install docker
-      macos:
-        skipif: exists /Applications/Docker.app
-        script: |-
-          find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
-          brew cask install docker
+    lifecycle:
+      startup:
+        macos: open /Applications/Docker.app
+      install:
+        skipif: onpath docker
+        debian: |-
+          curl --silent -sSL https://get.docker.com/ | sh
+        fedora: sudo dnf install docker
+        macos:
+          skipif: exists /Applications/Docker.app
+          script: |-
+            find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
+            brew cask install docker
     dependencies:
       macos:
         - homebrew
@@ -57,57 +61,75 @@ services:
     class: com.aws.iot.httpservice.SimpleHttpServer
 
   greenlake:
-    install:
-      debian: |-
-        sudo add-apt-repository https://aws.amazon.com/iot/apt
-        sudo apt-get install greenlake
+    lifecycle:
+      install:
+        debian: |-
+          sudo add-apt-repository https://aws.amazon.com/iot/apt
+          sudo apt-get install greenlake
     throttleBandwidth: 100 kb/s
   hello-docker:
     dependencies:
       - docker
-    run: docker run --rm hello-world
-    shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
+    lifecycle:
+      run: docker run --rm hello-world
+      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
   hello-docker-nginx:
+    lifecycle:
+      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
+      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
     dependencies:
       - docker
-    run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
-    shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
-    install:
-      debian: |-
-        sudo add-apt-repository https://aws.amazon.com/iot/apt
-        sudo apt-get install monitoring
+    lifecycle:
+      install:
+        debian: |-
+          sudo add-apt-repository https://aws.amazon.com/iot/apt
+          sudo apt-get install monitoring
     dependencies:
       - greenlake
   mqtt:
+    lifecycle:
+      run:
+        unix: |-
+          pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
+          sh $W/bin/moquette.sh
+      install:
+        unix:
+          skipif: exists $[work]/moquette/bin/moquette.sh
+          script: |-
+            mkdir -p $W || true
+            curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
+      shutdown:
+        unix: pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
     setenv:
       W: $[work]/moquette
-    run:
-      unix: |-
-        pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
-        sh $W/bin/moquette.sh
-    install:
-      unix:
-        skipif: exists $[work]/moquette/bin/moquette.sh
-        script: |-
-          mkdir -p $W || true
-          curl --silent -L https://bintray.com/artifact/download/andsel/generic/moquette-0.12.1.tar.gz | tar -zxf - -C $W;
-    shutdown:
-      unix: pkill -9  -f "io[.]moquette[.]broker[.]Server" || true
 
   fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
-    startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
+    lifecycle:
+      startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
   broken:
-    startup: exit -1
+    lifecycle:
+      startup: exit -1
   ticktock:
-    run: echo tick-tock
+    lifecycle:
+      run: echo tick-tock
     periodic: 2 seconds
   setenv:
     ANSWER: 42
   main:
-    install:
-      skipif: true
-      all: echo All installed
+    lifecycle:
+      install:
+        skipif: true
+        all: echo All installed
+      run: |-
+        echo $PATH
+        pwd
+        printenv
+        while true; do
+        date; sleep 5; echo RUNNING
+        done
+      download:
+        hw.jar: http://foo/hw.jar
     dependencies:
       macos:
         - jdk11
@@ -124,15 +146,6 @@ services:
     xyzzy: localhttp, broken
     setenv:
       JUSTME: fancy a spot of tea?
-    run: |-
-      echo $PATH
-      pwd
-      printenv
-      while true; do
-      date; sleep 5; echo RUNNING
-      done
-    download:
-      hw.jar: http://foo/hw.jar
     args: -jar {hw.jar}
   system:
     ServiceSearchList: https://raw.githubusercontent.com/JamesGosling/SailingForecast/master/docs/evg/

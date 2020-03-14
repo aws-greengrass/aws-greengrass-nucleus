@@ -1,41 +1,44 @@
 services:
   installErrorRetry:
-    install: |-
-      sleep 1
-      if [ -f "/tmp/egInstallErrorRetry" ]; then
-        echo "INSTALL_SUCCEED"
-        rm /tmp/egInstallErrorRetry
-      else
-        echo "INSTALL_FAIL"
-        touch /tmp/egInstallErrorRetry
-        exit 1
-      fi
-    shutdown:
-      rm -f /tmp/egInstallErrorRetry
+    lifecycle:
+      install: |-
+        sleep 1
+        if [ -f "/tmp/egInstallErrorRetry" ]; then
+          echo "INSTALL_SUCCEED"
+          rm /tmp/egInstallErrorRetry
+        else
+          echo "INSTALL_FAIL"
+          touch /tmp/egInstallErrorRetry
+          exit 1
+        fi
+      shutdown:
+        rm -f /tmp/egInstallErrorRetry
 
   runErrorRetry:
-    run: |-
-      sleep 2
-      echo "RUN_BROKEN"
-      exit 1
+    lifecycle:
+      run: |-
+        sleep 2
+        echo "RUN_BROKEN"
+        exit 1
 
   main:
-    install:
-      skipif: true
-      all: echo All installed
+    lifecycle:
+      install:
+        skipif: true
+        all: echo All installed
+      run: |-
+        echo $PATH
+        pwd
+        printenv
+        echo RUNNING
+        while true; do
+        date; sleep 5;
+        done
+      download:
+        hw.jar: http://foo/hw.jar
     dependencies:
       - installErrorRetry
       - runErrorRetry
     setenv:
       JUSTME: fancy a spot of tea?
-    run: |-
-      echo $PATH
-      pwd
-      printenv
-      echo RUNNING
-      while true; do
-      date; sleep 5;
-      done
-    download:
-      hw.jar: http://foo/hw.jar
     args: -jar {hw.jar}
