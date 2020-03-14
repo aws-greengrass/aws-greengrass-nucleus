@@ -45,8 +45,10 @@ public class KernelConfigResolverTest {
     @Mock
     private EvergreenService alreadyRunningService;
 
+    private static final String LIFECYCLE_CONFIG_ROOT_KEY = "lifecycle";
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";
+    private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY = "dependencies";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
             "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
@@ -234,9 +236,13 @@ public class KernelConfigResolverTest {
         assertThat("Must contain top level package service", servicesConfig.containsKey(TEST_INPUT_PACKAGE_A));
 
         // parameter interpolation
+        Map<String, String> serviceInstallCommand =
+                (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
+
         assertThat("If parameter value was set in deployment, it should be used",
-                getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig)
+                   serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY)
                         .equals("echo installing service in Package PackageA with param PackageA_Param_1_value"));
+
         assertThat("If not parameter value was set in deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig)
                         .equals("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
@@ -268,18 +274,22 @@ public class KernelConfigResolverTest {
 
     private Map<String, Object> getSimplePackageLifecycle(String packageName) {
         Map<String, Object> lifecycle = new HashMap<>();
-        lifecycle.put(LIFECYCLE_INSTALL_KEY,
+        Map<String, Object> installCommands = new HashMap<>();
+        lifecycle.put(LIFECYCLE_INSTALL_KEY, installCommands);
+        installCommands.put(LIFECYCLE_SCRIPT_KEY,
                 String.format(LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT, packageName, packageName));
+
+        // Short form is allowed as well, test both cases
         lifecycle.put(LIFECYCLE_RUN_KEY, String.format(LIFECYCLE_MOCK_RUN_COMMAND_FORMAT, packageName, packageName));
         return lifecycle;
     }
 
     // utilities for verification
-    private String getServiceRunCommand(String serviceName, Map<Object, Object> config) {
+    private Object getServiceRunCommand(String serviceName, Map<Object, Object> config) {
         return getValueForLifecycleKey(LIFECYCLE_RUN_KEY, serviceName, config);
     }
 
-    private String getServiceInstallCommand(String serviceName, Map<Object, Object> config) {
+    private Object getServiceInstallCommand(String serviceName, Map<Object, Object> config) {
         return getValueForLifecycleKey(LIFECYCLE_INSTALL_KEY, serviceName, config);
     }
 
@@ -294,8 +304,9 @@ public class KernelConfigResolverTest {
         return (Iterable<String>)getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
     }
 
-    private String getValueForLifecycleKey(String key, String servicename, Map<Object, Object> config) {
-        return (String) getLifecycleConfig(servicename, config).get(key);
+    private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
+        Map<Object, Object> map = getLifecycleConfig(serviceName, config);
+        return ((Map<Object, Object>)map.get(LIFECYCLE_CONFIG_ROOT_KEY)).get(key);
     }
 
     private Map<Object, Object> getLifecycleConfig(String serviceName, Map<Object, Object> config) {

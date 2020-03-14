@@ -89,7 +89,8 @@ class ServiceConfigMergingTest {
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
         assertEquals("redefined", kernel.find("services", "main", "setenv", "HELLO").getOnce());
-        assertThat((String) kernel.find("services", "main", "run").getOnce(), containsString("echo \"Running main\""));
+        assertThat((String) kernel.find("services", "main", "lifecycle", "run").getOnce(),
+                   containsString("echo \"Running main\""));
     }
 
     @Test
@@ -138,7 +139,11 @@ class ServiceConfigMergingTest {
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
-                    put("run", "sleep 60");
+                    put("lifecycle", new HashMap<Object, Object>() {{
+                        put("run", new HashMap<Object, Object>() {{
+                            put("script", "sleep 60");
+                        }});
+                    }});
                 }});
             }});
         }}).get(60, TimeUnit.SECONDS);
@@ -201,12 +206,16 @@ class ServiceConfigMergingTest {
                 }});
 
                 put("new_service",new HashMap<Object, Object>() {{
-                    put("run", "sleep 60");
+                    put("lifecycle",new HashMap<Object, Object>() {{
+                            put("run", "sleep 60");
+                    }});
                     put("dependencies", Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2",new HashMap<Object, Object>() {{
-                    put("run", "sleep 60");
+                    put("lifecycle",new HashMap<Object, Object>() {{
+                        put("run", "sleep 60");
+                    }});
                 }});
             }});
         }}).get(60, TimeUnit.SECONDS);

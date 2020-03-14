@@ -50,6 +50,7 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 public class EvergreenService implements InjectionActions, Closeable {
     public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
+    public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
 
     public final Topics config;
     public Context context;
@@ -82,6 +83,9 @@ public class EvergreenService implements InjectionActions, Closeable {
     // Service logger instance
     protected final Logger logger;
 
+    // Service lifecycle Topics
+    protected final Topics lifecycle;
+
     /**
      * Constructor for EvergreenService.
      *
@@ -90,6 +94,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     public EvergreenService(Topics topics) {
         this.config = topics;
         this.context = topics.getContext();
+        this.lifecycle = topics.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         this.logger = LogManager.getLogger(getName());
         logger.addDefaultKeyValue("serviceName", getName());
         this.state = initStateTopic(topics);
