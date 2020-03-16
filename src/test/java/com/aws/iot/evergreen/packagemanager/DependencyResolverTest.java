@@ -5,16 +5,11 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-<<<<<<< HEAD
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-=======
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
->>>>>>> Refactor dependency resolution for packages
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
@@ -137,7 +132,6 @@ public class DependencyResolverTest {
                     ".2.0"), new Semver("1.1.0"), new Semver("1.0.0")));
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
             doReturn(Optional.of("1.1.0")).when(resolver).getPackageVersionIfActive(any());
-
             Map<String, String> versionConstraints = new HashMap<>();
             versionConstraints.putIfAbsent("mock", ">1.0");
             List<Semver> versions = resolver.getVersionsToExplore("testPackage", versionConstraints);

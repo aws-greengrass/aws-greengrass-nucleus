@@ -7,7 +7,6 @@
     {
       "Name": "CustomerApp",
       "ResolvedVersion": "1.0.0",
-      "VersionConstraint": "=1.0.0",
       "Dependencies": [
         {
           "Name": "Mosquitto"
@@ -17,7 +16,6 @@
     {
       "Name": "Mosquitto",
       "ResolvedVersion": "1.0.0",
-      "VersionConstraint": "=1.0.0",
       "Dependencies": [
         {
           "Name": "TickTock"
@@ -26,9 +24,8 @@
     },
     {
       "Name": "TickTock",
-      "ResolvedVersion": "1.0.0",
-      "VersionConstraint": "=1.0.0"
+      "ResolvedVersion": "1.0.0"
     }
   ],
-  "Timestamp": 1582574829
+  "Timestamp": 1592574829000
 }

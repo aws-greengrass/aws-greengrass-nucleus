@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.AllArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -88,8 +89,9 @@ public class KernelConfigResolver {
         // Generate dependencies
         // TODO : Only platform specific dependencies should be added once deployment document and
         // package recipe format supports platform wise dependency specification
-        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, pkg.getDependencies().keySet());
 
+        List<String> dependencyServiceNames = new ArrayList<>(pkg.getDependencies().keySet());
+        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencyServiceNames);
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, pkg.getVersion());
         return resolvedServiceConfig;
     }
@@ -138,10 +140,8 @@ public class KernelConfigResolver {
         kernelDependencies
                 .removeAll(rootPackagesToRemove.stream().map(PackageIdentifier::getName).collect(Collectors.toSet()));
         kernelDependencies.addAll(document.getRootPackages());
-
         Map<Object, Object> mainLifecycleMap = new HashMap<>();
-        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, kernelDependencies);
-
+        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, new ArrayList<>(kernelDependencies));
         return mainLifecycleMap;
     }
 
@@ -180,5 +180,4 @@ public class KernelConfigResolver {
         }
         return Collections.emptySet();
     }
-
 }
