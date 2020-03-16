@@ -201,7 +201,7 @@ class KernelTest {
         testGroup(0);
         System.out.println("First phase passed, now for the harder stuff");
 
-        kernel.find( "services", "main", "run")
+        kernel.find( "services", "main", "lifecycle", "run")
                 .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
         //            kernel.writeConfig(new OutputStreamWriter(System.out));
         testGroup(1);

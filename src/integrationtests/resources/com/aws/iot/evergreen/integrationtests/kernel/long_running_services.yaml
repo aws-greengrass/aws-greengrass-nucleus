@@ -5,24 +5,27 @@ services:
       all: "{platform.invoke} {args}"
 
   sleeperB:
-    run: |-
-      while true; do
-      date; echo sleeperB_running; sleep 5
-      done
+    lifecycle:
+      run: |-
+        while true; do
+        date; echo sleeperB_running; sleep 5
+        done
 
   sleeperA:
     dependencies:
       - sleeperB
-    run: |-
-      while true; do
-      date; echo sleeperA_running; sleep 5
-      done
+    lifecycle:
+      run: |-
+        while true; do
+        date; echo sleeperA_running; sleep 5
+        done
 
   main:
     dependencies:
       - sleeperA
       - sleeperB
-    run: |-
-      while true; do
-      date; echo main_running; sleep 5
-      done
+    lifecycle:
+      run: |-
+        while true; do
+        date; echo main_running; sleep 5
+        done

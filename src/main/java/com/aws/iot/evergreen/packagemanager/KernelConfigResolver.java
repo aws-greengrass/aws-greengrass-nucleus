@@ -66,6 +66,10 @@ public class KernelConfigResolver {
         Package pkg = packageCache.getRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
+        Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
+
+        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                  resolvedLifecycleConfig);
 
         // TODO : Package recipe format is not in alignment with the changed Kernel config syntax,
         // which leads to inconsistent naming, e.g. lifecycle per new Kernel config syntax is one of several config
@@ -75,7 +79,7 @@ public class KernelConfigResolver {
         // Interpolate parameters
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, pkg);
         for (Map.Entry<String, Object> configKVPair : pkg.getLifecycle().entrySet()) {
-            resolvedServiceConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
+            resolvedLifecycleConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
         }
 
         // TODO : Update package recipe format to include all information that service dependencies config
