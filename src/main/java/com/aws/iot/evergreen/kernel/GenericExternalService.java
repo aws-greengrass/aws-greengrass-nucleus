@@ -41,15 +41,19 @@ public class GenericExternalService extends EvergreenService {
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
-            if (c.parentNeedsToKnow() && !child.childOf("shutdown")) {
-                logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child.getFullName())
-                        .log();
-                if (child.childOf("install")) {
-                    requestReinstall();
-                } else {
-                    requestRestart();
-                }
+            if (!c.parentNeedsToKnow()) {
+                return;
             }
+            logger.atInfo().setEventType("service-config-change")
+                    .addKeyValue("configNode", child.getFullName()).log();
+            if (c.childOf("shutdown")) {
+                return;
+            }
+            if (c.childOf("install")) {
+                requestReinstall();
+                return;
+            }
+            requestRestart();
         });
 
         AuthHandler.registerAuthToken(this);
