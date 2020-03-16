@@ -256,8 +256,7 @@ public class EvergreenService implements InjectionActions, Closeable {
                 return;
             }
 
-            // TODO: chaurah: log set
-            List<String> depList = (List<String>) dependenciesTopic.getOnce();
+            Iterable<String> depList = (Iterable<String>) dependenciesTopic.getOnce();
             logger.atInfo().log("Setting up dependencies again",
                                 String.join(",", depList));
             try {
@@ -268,7 +267,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
 
         try {
-            setupDependencies((List<String>) dependenciesTopic.getOnce());
+            setupDependencies((Iterable<String>) dependenciesTopic.getOnce());
         } catch (Exception e) {
             serviceErrored(e);
         }
@@ -656,7 +655,7 @@ public class EvergreenService implements InjectionActions, Closeable {
 
         context.get(Kernel.class).clearODcache();
         dependencies.put(dependentEvergreenService, when);
-        List<String> ser = createDependenciesList(dependencies);
+        Iterable<String> ser = createDependenciesList(dependencies);
         dependenciesTopic.setValue(ser);
 
         dependentEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
@@ -674,7 +673,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         });
     }
 
-    private List<String> createDependenciesList(ConcurrentHashMap<EvergreenService, State> dependencies) {
+    private Iterable<String> createDependenciesList(ConcurrentHashMap<EvergreenService, State> dependencies) {
         return dependencies.entrySet()
                            .stream()
                            .map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
@@ -780,7 +779,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         }).start();
     }
 
-    private Map<EvergreenService, State> getDependencyStateMap(List<String> dependencyList) throws Exception {
+    private Map<EvergreenService, State> getDependencyStateMap(Iterable<String> dependencyList) throws Exception {
         HashMap<EvergreenService, State> ret = new HashMap<>();
         for (String dependency : dependencyList) {
             String [] dependencyInfo = dependency.split(":");
@@ -822,7 +821,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
     }
 
-    private synchronized void setupDependencies(List<String> dependencyList) throws Exception {
+    private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
         Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
         shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
             try {
