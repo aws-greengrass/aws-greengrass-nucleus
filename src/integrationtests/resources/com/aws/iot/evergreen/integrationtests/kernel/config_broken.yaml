@@ -24,7 +24,6 @@ services:
   main:
     lifecycle:
       install:
-        skipif: true
         all: echo All installed
       run: |-
         echo $PATH
