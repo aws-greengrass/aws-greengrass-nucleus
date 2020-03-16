@@ -21,9 +21,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
           aws-region: us-west-2
       - name: Build EG with Maven
-        run: mvn -ntp -q install -DskipTests=true
+        run: mvn -ntp install -DskipTests=true
       - name: Build benchmark with Maven
-        run: mvn -ntp -q -f src/test/evergreen-kernel-benchmark install
+        run: mvn -ntp -f src/test/evergreen-kernel-benchmark install
       - name: JMH Benchmark
         # The JVM arguments provided below are intended to tune the JVM to keep the heap as small as possible
         # and to release unused heap space back to the OS
@@ -33,7 +33,18 @@ jobs:
           -rf json
           -f 5
           -wi 0
-          -jvmArgs "-Xms1m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
+          -jvmArgs "-Xms1m -Xmx128m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
           -prof com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler
           -i 1
+          -bm avgt
+      - name: Upload JMH Result
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: JMH Report
+          path: jmh-result.json
+      - name: Upload to CloudWatch
+        run: >-
+          pip3 -q install boto3 setuptools wheel &&
+          pip3 -q install retryable PyGithub &&
+          python3 .github/scripts/cwJMHUpload.py
