@@ -202,8 +202,9 @@ public class DependencyResolver {
         // Add active package version running on the device
         Optional<String> version = getPackageVersionIfActive(pkgName);
         Semver activeVersion = null;
-        if (version.isPresent() && req.isSatisfiedBy(version.get())) {
-            activeVersion = new Semver(version.get());
+
+        if (version.isPresent() && req.isSatisfiedBy(version.get().split(":")[1])) {
+            activeVersion = new Semver(version.get().split(":")[1]);
             versionList.add(activeVersion);
         }
 

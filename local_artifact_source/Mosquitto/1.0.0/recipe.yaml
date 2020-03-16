@@ -15,6 +15,6 @@ Lifecycle:
     macos:
       script: echo "By mosquitto signing off!"
 Dependencies:
-  TickTock: ">=1.0.0"
+  TickTock: "=1.0.0"
 requires:
   - homebrew

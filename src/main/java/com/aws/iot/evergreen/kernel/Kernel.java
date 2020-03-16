@@ -626,8 +626,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     serviceConfig.keySet().forEach(serviceName -> {
                         try {
                             EvergreenService eg = EvergreenService.locate(context, serviceName);
-                            // TODO: remove requestStart here as each service will handle update behavior based on
-                            // updated fields.
                             eg.requestStart();
                         } catch (ServiceLoadException e) {
                             logger.atError().setCause(e).addKeyValue("serviceName", serviceName)

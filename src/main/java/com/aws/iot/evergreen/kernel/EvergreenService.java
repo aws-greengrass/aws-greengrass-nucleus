@@ -291,30 +291,30 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     private Optional<State> peekOrRemoveFirstDesiredState(State activeState) {
-        if (desiredStateList.isEmpty()) {
-            return Optional.empty();
+        synchronized (desiredStateList) {
+            if (desiredStateList.isEmpty()) {
+                return Optional.empty();
+            }
+            State first = desiredStateList.get(0);
+            if (first == activeState) {
+                desiredStateList.remove(first);
+                // ignore remove() return value as it's possible that desiredStateList update
+            }
+            return Optional.ofNullable(first);
         }
-        State first = desiredStateList.get(0);
-        if (first == activeState) {
-            desiredStateList.remove(first);
-            // ignore remove() return value as it's possible that desiredStateList update
-        }
-        return Optional.ofNullable(first);
     }
 
     // Set desiredStateList and override existing desiredStateList.
-    // Expect to have multi-thread access
-    private synchronized void setDesiredState(State... state) {
-        synchronized (desiredStateList) {
-            List<State> newStateList = Arrays.asList(state);
-            if (newStateList.equals(desiredStateList)) {
-                return;
-            }
-            desiredStateList.clear();
-            desiredStateList.addAll(newStateList);
-            // try insert to the queue, if queue full doesn't block.
-            enqueueStateEvent("DesiredStateUpdated");
+    // Not thread safe.
+    private void setDesiredState(State... state) {
+        List<State> newStateList = Arrays.asList(state);
+        if (newStateList.equals(desiredStateList)) {
+            return;
         }
+        desiredStateList.clear();
+        desiredStateList.addAll(newStateList);
+        // try insert to the queue, if queue full doesn't block.
+        enqueueStateEvent("DesiredStateUpdated");
     }
 
     @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
@@ -335,29 +335,62 @@ public class EvergreenService implements InjectionActions, Closeable {
     /**
      * Start Service.
      */
-    public void requestStart() {
-        setDesiredState(State.RUNNING);
+    public final void requestStart() {
+        synchronized (this.desiredStateList) {
+            if (this.desiredStateList.isEmpty()) {
+                this.setDesiredState(State.RUNNING);
+                return;
+            }
+            State lastState = this.desiredStateList.get(this.desiredStateList.size() - 1);
+            if (lastState == State.RUNNING) {
+                return;
+            } else if (lastState == State.FINISHED) {
+                this.desiredStateList.set(this.desiredStateList.size() - 1, State.RUNNING);
+            } else {
+                this.desiredStateList.add(State.RUNNING);
+            }
+        }
     }
 
     /**
      * Stop Service.
      */
-    public void requestStop() {
-        setDesiredState(State.FINISHED);
+    public final void requestStop() {
+        synchronized (this.desiredStateList) {
+            // don't override in the case of re-install
+            int index = this.desiredStateList.indexOf(State.NEW);
+            if (index == -1) {
+                setDesiredState(State.FINISHED);
+                return;
+            }
+            this.desiredStateList.subList(index + 1, this.desiredStateList.size()).clear();
+            this.desiredStateList.add(State.FINISHED);
+        }
     }
 
     /**
      * Restart Service.
      */
-    public void requestRestart() {
-        setDesiredState(State.FINISHED, State.RUNNING);
+    public final void requestRestart() {
+        synchronized (this.desiredStateList) {
+            // don't override in the case of re-install
+            int index = this.desiredStateList.indexOf(State.NEW);
+            if (index == -1) {
+                setDesiredState(State.FINISHED, State.RUNNING);
+                return;
+            }
+            this.desiredStateList.subList(index + 1, this.desiredStateList.size()).clear();
+            this.desiredStateList.add(State.RUNNING);
+        }
     }
 
     /**
      * ReInstall Service.
      */
-    public void requestReinstall() {
-        setDesiredState(State.FINISHED, State.NEW, State.RUNNING);
+    public final void requestReinstall() {
+        synchronized (this.desiredStateList) {
+            setDesiredState(State.FINISHED, State.NEW, State.RUNNING);
+        }
     }
 
     private void startStateTransition() throws InterruptedException {

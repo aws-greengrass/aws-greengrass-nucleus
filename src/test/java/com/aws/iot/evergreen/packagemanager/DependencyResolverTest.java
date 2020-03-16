@@ -123,7 +123,7 @@ public class DependencyResolverTest {
             when(mockPackageStore.getPackageVersionsIfExists("testPackage")).thenReturn(Arrays.asList(new Semver("1" +
                     ".2.0"), new Semver("1.1.0"), new Semver("1.0.0")));
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore));
-            doReturn(Optional.of("1.1.0")).when(resolver).getPackageVersionIfActive(any());
+            doReturn(Optional.of("services.testPackage:1.1.0")).when(resolver).getPackageVersionIfActive(any());
 
             List<Semver> versions = resolver.getVersionsToExplore("testPackage", Arrays.asList(">1.0"));
             assertEquals(Arrays.asList(new Semver("1.1.0"), new Semver("1.2.0")), versions);
