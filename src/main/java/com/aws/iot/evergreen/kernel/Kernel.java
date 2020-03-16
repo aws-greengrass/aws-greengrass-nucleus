@@ -285,14 +285,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             mainService = getMain();
             autostart.forEach(s -> {
                 try {
-                    if (!s.contains("SafeSystemUpdate")) {
-                        mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING);
-                    } else {
-                        // SafeSystemUpdate will reset to Installed after update.
-                        // This is a hacky way to avoid restarting depending services.
-                        // TODO: Find a proper way handle this situation.
-                        mainService.addDependency(EvergreenService.locate(context, s), State.INSTALLED);
-                    }
+                    mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING);
                 } catch (ServiceLoadException se) {
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
@@ -626,8 +619,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     serviceConfig.keySet().forEach(serviceName -> {
                         try {
                             EvergreenService eg = EvergreenService.locate(context, serviceName);
-                            // TODO: remove requestStart here as each service will handle update behavior based on
-                            // updated fields.
                             eg.requestStart();
                         } catch (ServiceLoadException e) {
                             logger.atError().setCause(e).addKeyValue("serviceName", serviceName)

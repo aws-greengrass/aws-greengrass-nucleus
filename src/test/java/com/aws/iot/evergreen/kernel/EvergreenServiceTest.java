@@ -3,54 +3,33 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.Validator;
-import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
-class EvergreenServiceTest {
+class EvergreenServiceTest extends EGServiceTestUtil {
 
     public static final String STATE_TOPIC_NAME = "_State";
-    private static final String EVERGREEN_SERVICE_FULL_NAME = "EvergreenServiceFullName";
 
     private EvergreenService evergreenService;
-
-    @Mock
-    private Topics config;
-
-    @Mock
-    private Topic stateTopic;
-
-    @Mock
-    private Topic dependenciesTopic;
-
-    @Mock
-    private Context context;
 
     @Captor
     private ArgumentCaptor<Validator> validatorArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
-        Mockito.when(config.createLeafChild(eq("_State"))).thenReturn(stateTopic);
-        Mockito.when(config.createLeafChild(eq("dependencies"))).thenReturn(dependenciesTopic);
-        Mockito.when(config.getName()).thenReturn(EVERGREEN_SERVICE_FULL_NAME);
-        Mockito.when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);
+        evergreenService = new EvergreenService(initializeMockedConfig());
 
-        evergreenService = new EvergreenService(config);
         evergreenService.context = context;
     }
 

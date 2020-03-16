@@ -59,8 +59,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
     public synchronized void addUpdateAction(String tag, Crashable action) {
         pendingActions.put(tag, action);
         logger.atDebug().setEventType("register-service-update-action").addKeyValue("action", tag).log();
-        if (!isPeriodic()) {
-            requestStart();
+        synchronized (pendingActions) {
+            pendingActions.notifyAll();
         }
     }
 
@@ -85,9 +85,19 @@ public class UpdateSystemSafelyService extends EvergreenService {
     public void startup() {
         // startup() is invoked on it's own thread
         reportState(State.RUNNING);
-        logger.atInfo().setEventType("check-available-service-update").log();
 
-        while (!pendingActions.isEmpty()) {
+        while (this.getState() != State.FINISHED) {
+            synchronized (pendingActions) {
+                if (pendingActions.isEmpty()) {
+                    try {
+                        pendingActions.wait(10000);
+                    } catch (InterruptedException e) {
+                        logger.atWarn().log("Interrupted while waiting for pending Actions");
+                    }
+                    continue;
+                }
+            }
+            logger.atInfo().setEventType("get-available-service-update").log();
             // TODO: should really use an injected clock to support simulation-time
             //      it's a big project and would affect many parts of the system.
             final long now = System.currentTimeMillis();
@@ -116,7 +126,6 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 });
             }
         }
-        this.requestStop();
     }
 
     public interface DisruptableCheck {
