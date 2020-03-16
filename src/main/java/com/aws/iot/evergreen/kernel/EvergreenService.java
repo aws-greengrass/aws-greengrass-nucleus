@@ -95,6 +95,10 @@ public class EvergreenService implements InjectionActions, Closeable {
         this.config = topics;
         this.context = topics.getContext();
         this.lifecycle = topics.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+
+        // TODO: Validate syntax for lifecycle keywords and fail early
+        // skipif will require validation for onpath/exists etc. keywords
+
         this.logger = LogManager.getLogger(getName());
         logger.addDefaultKeyValue("serviceName", getName());
         this.state = initStateTopic(topics);

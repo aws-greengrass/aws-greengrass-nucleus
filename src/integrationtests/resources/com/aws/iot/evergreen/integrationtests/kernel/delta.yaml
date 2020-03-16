@@ -6,7 +6,6 @@ services:
   main:
     lifecycle:
       install:
-        skipif: true
         all: echo All installed
       run: |-
         echo $PATH xyzzy; pwd
@@ -15,7 +14,6 @@ services:
         date; sleep 5; echo Now we\'re in phase 3
         done
     dependencies:
-      - jdk11
       - git
       - mqtt
       - ticktock:INSTALLED

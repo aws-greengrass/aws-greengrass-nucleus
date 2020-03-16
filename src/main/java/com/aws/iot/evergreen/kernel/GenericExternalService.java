@@ -193,10 +193,10 @@ public class GenericExternalService extends EvergreenService {
 
     boolean shouldSkip(Topics n) {
         Node skipif = n.getChild("skipif");
-        boolean neg = skipif == null && (skipif = n.getChild("doif")) != null;
-        if (skipif instanceof Topic) {
+        if (skipif != null && skipif instanceof Topic) {
             Topic tp = (Topic) skipif;
             String expr = String.valueOf(tp.getOnce()).trim();
+            boolean neg = false;
             if (expr.startsWith("!")) {
                 expr = expr.substring(1).trim();
                 neg = !neg;
@@ -209,8 +209,6 @@ public class GenericExternalService extends EvergreenService {
                         return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
                     case "exists":
                         return Files.exists(Paths.get(context.get(Kernel.class).deTilde(m.group(2)))) ^ neg;
-                    case "true":
-                        return !neg;
                     default:
                         logger.atError().setEventType("generic-service-invalid-config")
                                 .addKeyValue("operator", m.group(1)).log("Unknown operator in skipif");
@@ -218,10 +216,10 @@ public class GenericExternalService extends EvergreenService {
                         return false;
                 }
             }
-            RunStatus status = run(tp, expr, null, n);
-            // Assume it's a shell script: test for 0 return code and nothing on stderr
-            return neg ^ (status != RunStatus.Errored);
         }
+        logger.atError().setEventType("generic-service-invalid-config")
+              .log("Unsupported definition of skipif");
+        serviceErrored();
         return false;
     }
 
