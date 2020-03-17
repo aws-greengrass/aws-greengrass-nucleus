@@ -13,7 +13,7 @@ Lifecycle:
       skipif: exists ~/
       script: echo "Hello This is mosquitto being installed"
     ubuntu:
-      skipif: exist ~/
+      skipif: exists ~/
       script: echo "Hello This is mosquitto being installed"
   shutdown:
     macos:
