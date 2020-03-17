@@ -7,12 +7,18 @@ Version: '1.0.0'
 Lifecycle:
   startup:
     macos: echo "Hello this is mosquitto getting started"
+    ubuntu: echo "Hello this is mosquitto getting started"
   install:
     macos:
       skipif: brew list | egrep -i -q mosquitto
       script: echo "Hello This is mosquitto being installed"
+    ubuntu:
+      skipif: brew list | egrep -i -q mosquitto
+      script: echo "Hello This is mosquitto being installed"
   shutdown:
     macos:
+      script: echo "By mosquitto signing off!"
+    ubuntu:
       script: echo "By mosquitto signing off!"
 Dependencies:
   TickTock: "=1.0.0"
