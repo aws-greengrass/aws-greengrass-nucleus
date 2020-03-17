@@ -1,6 +1,6 @@
 /*
- *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *  * SPDX-License-Identifier: Apache-2.0
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 package com.aws.iot.evergreen.integrationtests.deployment;
@@ -9,6 +9,8 @@ import com.aws.iot.evergreen.deployment.DeploymentTask;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
@@ -17,22 +19,26 @@ import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -48,69 +54,53 @@ public class DeploymentServiceIntegrationTest {
     private static final String TEST_TICK_TOCK_STRING = "No tick-tocking with period: 2";
     private static final Path LOCAL_CACHE_PATH = Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
-    static ObjectMapper OBJECT_MAPPER = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE,
+    private static ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE,
             false)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    static Logger logger;
-    static final String LogFileName = "deploymentIntegTest.log";
+    private static Logger logger;
 
     private static DependencyResolver dependencyResolver;
     private static PackageCache packageCache;
     private static KernelConfigResolver kernelConfigResolver;
 
-    DeploymentDocument sampleDeploymentDocument;
-    Kernel kernel;
+    private DeploymentDocument sampleDeploymentDocument;
+    private Kernel kernel;
+    @TempDir
+    Path tempRootDir;
+    private static Map<String, Long> outputMessagesToTimestamp;
 
     @BeforeAll
-    static void setupLogFile() {
-        System.setProperty("log.fmt", "JSON");
-        System.setProperty("log.storeName", LogFileName);
-        System.setProperty("log.store", "FILE");
-        System.setProperty("log.level", "INFO");
-        try {
-            Files.deleteIfExists(Paths.get(LogFileName));
-            Files.createFile(Paths.get(LogFileName));
-            logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
-        } catch (IOException e) {
-            fail("Failed to create log file", e);
-        }
-    }
-
-    @AfterAll
-    static void cleanup() {
-        try {
-            Files.deleteIfExists(Paths.get(LogFileName));
-        } catch (IOException e) {
-            fail("Failed to delete log file", e);
-        }
+    static void setupLogger() {
+        outputMessagesToTimestamp = new HashMap<>();
+        logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     }
 
     @BeforeEach
-    public void setupKernelAndLogFile() {
+    public void setupKernel() throws InterruptedException {
 
-        try {
-            String tdir = System.getProperty("user.home");
-            kernel = new Kernel();
-            kernel.parseArgs("-r", tdir, "-log", "stdout", "-i",
-                    DeploymentServiceIntegrationTest.class.getResource("deploymentDemo.yaml").toString());
-            kernel.launch();
-            dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel.context);
-            packageCache = new PackageCache();
-            kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
-
-            File fileToWatch = new File(LogFileName);
-            while (!fileToWatch.exists()) {
-                Thread.sleep(1000);
-            }
-        } catch(Exception e) {
-            fail("Caught exception while setting up test");
-        }
+        kernel = new Kernel();
+        kernel.parseArgs("-r", tempRootDir.toString(), "-i",
+                DeploymentServiceIntegrationTest.class.getResource("deploymentDemo.yaml").toString());
+        kernel.launch();
+        dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel.context);
+        packageCache = new PackageCache();
+        kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
     }
 
     @Test
     public void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
             throws Exception {
+        outputMessagesToTimestamp.clear();
+        Consumer<EvergreenStructuredLogMessage> listener = m->{
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if(messageOnStdout != null) {
+                outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
+            }
+        };
+        Log4jLogEventBuilder.addGlobalListener(listener);
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument.json").toURI());
 
@@ -119,21 +109,31 @@ public class DeploymentServiceIntegrationTest {
         } catch (ExecutionException e) {
             fail("Failed executing the deployment task", e.getCause());
         }
-        String logLines = new String(Files.readAllBytes(Paths.get(LogFileName)));
-        int tickTokLogStringIndex = logLines.indexOf(TEST_TICK_TOCK_STRING);
-        int mosquittoLogStringIndex = logLines.indexOf(TEST_MOSQUITTO_STRING);
-        int customerAppLogStringIndex = logLines.indexOf(TEST_CUSTOMER_APP_STRING);
-        assertTrue(tickTokLogStringIndex != -1);
-        assertTrue(mosquittoLogStringIndex != -1);
-        assertTrue(customerAppLogStringIndex != -1);
-        //TODO: Check the order of indexes as per dependency
+        //wait for logs to be captured
+        Thread.sleep(Duration.ofSeconds(2).toMillis());
+        Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
+        assertTrue(listOfStdoutMessagesTapped.containsAll(Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING,
+                TEST_CUSTOMER_APP_STRING)));
+        assertTrue(outputMessagesToTimestamp.get(TEST_TICK_TOCK_STRING) <
+                outputMessagesToTimestamp.get(TEST_MOSQUITTO_STRING));
+        assertTrue(outputMessagesToTimestamp.get(TEST_MOSQUITTO_STRING) <
+                outputMessagesToTimestamp.get(TEST_CUSTOMER_APP_STRING));
+        Log4jLogEventBuilder.removeGlobalListener(listener);
         kernel.shutdown();
     }
 
     @Test
     public void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
             throws Exception {
-
+        outputMessagesToTimestamp.clear();
+        Consumer<EvergreenStructuredLogMessage> listener = m->{
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if(messageOnStdout != null) {
+                outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
+            }
+        };
+        Log4jLogEventBuilder.addGlobalListener(listener);
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument.json").toURI());
         try {
@@ -149,21 +149,14 @@ public class DeploymentServiceIntegrationTest {
         } catch (ExecutionException e) {
             fail("Failed executing the updated deployment task", e.getCause());
         }
-        String logLines = new String(Files.readAllBytes(Paths.get(LogFileName)));
-        int customerAppLogStringIndex = logLines.indexOf(TEST_CUSTOMER_APP_STRING_UPDATED);
-        assertTrue(customerAppLogStringIndex != -1);
+        //Wait for logs to get captured
+        Thread.sleep(Duration.ofSeconds(2).toMillis());
+        assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
+        Log4jLogEventBuilder.removeGlobalListener(listener);
         kernel.shutdown();
     }
 
     private Future<?> submitSampleJobDocument(URI uri) {
-        File fileToWatch = new File(LogFileName);
-        while (!fileToWatch.exists()) {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
 
         try {
             sampleDeploymentDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
