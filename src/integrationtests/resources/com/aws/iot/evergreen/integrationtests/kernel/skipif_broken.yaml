@@ -1,0 +1,16 @@
+services:
+  test:
+    lifecycle:
+      run:
+        debian:
+          skipif: This is broken
+          script: echo "Running test" && sleep 10
+        macos:
+          skipif: This is broken
+          script: echo "Running test" && sleep 10
+  main:
+    lifecycle:
+      run:
+        script: echo "Running main" && sleep 60
+    dependencies:
+      - test

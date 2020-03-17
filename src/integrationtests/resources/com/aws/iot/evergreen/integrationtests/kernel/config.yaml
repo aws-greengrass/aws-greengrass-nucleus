@@ -119,7 +119,6 @@ services:
   main:
     lifecycle:
       install:
-        skipif: true
         all: echo All installed
       run: |-
         echo $PATH
@@ -139,7 +138,6 @@ services:
         - mqtt
         - ticktock:INSTALLED
       linux:
-        - jdk11
         - git
         - mqtt
         - ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
