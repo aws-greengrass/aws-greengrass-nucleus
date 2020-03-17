@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Log4jLoggerAdapter;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
@@ -29,15 +30,17 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -70,9 +73,12 @@ public class DeploymentServiceIntegrationTest {
     @TempDir
     Path tempRootDir;
     private static Map<String, Long> outputMessagesToTimestamp;
+    private CountDownLatch countDownLatch;
 
     @BeforeAll
     static void setupLogger() {
+        System.setProperty("log.level", "INFO");
+        System.setProperty("log.fmt", "JSON");
         outputMessagesToTimestamp = new HashMap<>();
         logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     }
@@ -93,11 +99,17 @@ public class DeploymentServiceIntegrationTest {
     public void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();
+        final List<String> listOfExpectedMessages = Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING,
+                TEST_CUSTOMER_APP_STRING);
+        countDownLatch = new CountDownLatch(3);
         Consumer<EvergreenStructuredLogMessage> listener = m->{
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if(messageOnStdout != null) {
-                outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
+            if(messageOnStdout != null && listOfExpectedMessages.contains(messageOnStdout)) {
+                if(!outputMessagesToTimestamp.containsKey(messageOnStdout)) {
+                    outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
+                    countDownLatch.countDown();
+                }
             }
         };
         Log4jLogEventBuilder.addGlobalListener(listener);
@@ -109,11 +121,10 @@ public class DeploymentServiceIntegrationTest {
         } catch (ExecutionException e) {
             fail("Failed executing the deployment task", e.getCause());
         }
-        //wait for logs to be captured
-        Thread.sleep(Duration.ofSeconds(2).toMillis());
+
+        countDownLatch.await(10, TimeUnit.SECONDS);
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
-        assertTrue(listOfStdoutMessagesTapped.containsAll(Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING,
-                TEST_CUSTOMER_APP_STRING)));
+        assertTrue(listOfStdoutMessagesTapped.containsAll(listOfExpectedMessages));
         assertTrue(outputMessagesToTimestamp.get(TEST_TICK_TOCK_STRING) <
                 outputMessagesToTimestamp.get(TEST_MOSQUITTO_STRING));
         assertTrue(outputMessagesToTimestamp.get(TEST_MOSQUITTO_STRING) <
@@ -126,11 +137,13 @@ public class DeploymentServiceIntegrationTest {
     public void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();
+        countDownLatch = new CountDownLatch(1);
         Consumer<EvergreenStructuredLogMessage> listener = m->{
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if(messageOnStdout != null) {
+            if(messageOnStdout != null && messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
                 outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
+                countDownLatch.countDown();
             }
         };
         Log4jLogEventBuilder.addGlobalListener(listener);
@@ -149,8 +162,7 @@ public class DeploymentServiceIntegrationTest {
         } catch (ExecutionException e) {
             fail("Failed executing the updated deployment task", e.getCause());
         }
-        //Wait for logs to get captured
-        Thread.sleep(Duration.ofSeconds(2).toMillis());
+        countDownLatch.await(10, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         Log4jLogEventBuilder.removeGlobalListener(listener);
         kernel.shutdown();
