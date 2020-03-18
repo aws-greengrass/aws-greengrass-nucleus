@@ -18,4 +18,9 @@ public class PackageIdentifier {
     String name;
     @JsonProperty("Version")
     Semver version;
+
+    @Override
+    public String toString() {
+        return String.format("%s-v%s", name, version);
+    }
 }
