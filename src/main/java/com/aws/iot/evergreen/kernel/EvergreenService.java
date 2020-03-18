@@ -19,6 +19,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Pair;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AllArgsConstructor;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -55,7 +56,7 @@ public class EvergreenService implements InjectionActions {
     public final Topics config;
     public Context context;
     // Services that this service depend on
-    protected final ConcurrentHashMap<EvergreenService, State> dependencies = new ConcurrentHashMap<>();
+    protected final ConcurrentHashMap<EvergreenService, DependencyInfo> dependencies = new ConcurrentHashMap<>();
     private final Object dependencyReadyLock = new Object();
     private final Object dependersExitedLock = new Object();
     private final Topic state;
@@ -69,6 +70,7 @@ public class EvergreenService implements InjectionActions {
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
     private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
+    private final Object stateEventLock = new Object();
 
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
@@ -123,7 +125,7 @@ public class EvergreenService implements InjectionActions {
         logger.atInfo().setEventType("service-set-state").addKeyValue("currentState", currentState)
                 .addKeyValue("newState", newState).log();
 
-        synchronized (this.state) {
+        synchronized (State.class) {
             prevState = currentState;
             this.state.setValue(newState);
             context.globalNotifyStateChanged(this, prevState, newState);
@@ -143,6 +145,13 @@ public class EvergreenService implements InjectionActions {
                     .log("Invalid report state");
         }
         // TODO: Add more validations
+
+        if (Thread.currentThread().isInterrupted()) {
+            // It's possible that cancelled backingTask is trying to reportState.
+            // ignore in such case.
+            logger.atWarn().addKeyValue("reportedState", newState).log("Ignoring reportState");
+            return;
+        }
 
         if (getState().equals(State.INSTALLED) && newState.equals(State.FINISHED)) {
             // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
@@ -259,6 +268,7 @@ public class EvergreenService implements InjectionActions {
                                 String.join(",", depList));
             try {
                 setupDependencies(depList);
+                this.requestRestart();
             } catch (Exception e) {
                 logger.atError().log("Error while setting up dependencies from subscription", e);
             }
@@ -281,6 +291,20 @@ public class EvergreenService implements InjectionActions {
 
     public boolean isPeriodic() {
         return periodicityInformation != null;
+    }
+
+    /**
+     * Returns true if the service has reached its desired state.
+     * @return
+     */
+    public boolean reachedDesiredState() {
+        synchronized (desiredStateList) {
+            return desiredStateList.isEmpty()
+                    // when reachedDesiredState() is called in global state listener,
+                    // service lifecycle thread hasn't drained the desiredStateList yet.
+                    // Therefore adding this check.
+                    || desiredStateList.stream().allMatch(s -> s == getState());
+        }
     }
 
     private Optional<State> peekOrRemoveFirstDesiredState(State activeState) {
@@ -312,17 +336,19 @@ public class EvergreenService implements InjectionActions {
     }
 
     @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
-    private synchronized void enqueueStateEvent(Object event) {
-        if (event instanceof State) {
-            // override existing reportState
-            stateEventQueue.clear();
-            stateEventQueue.offer(event);
-        } else {
-            stateEventQueue.offer(event);
+    private void enqueueStateEvent(Object event) {
+        synchronized (stateEventLock) {
+            if (event instanceof State) {
+                // override existing reportState
+                stateEventQueue.clear();
+                stateEventQueue.offer(event);
+            } else {
+                stateEventQueue.offer(event);
 
-            // Ignore returned value of offer().
-            // If enqueue isn't successful, the event queue has contents and there is no need to send another
-            // trigger to process state transition.
+                // Ignore returned value of offer().
+                // If enqueue isn't successful, the event queue has contents and there is no need to send another
+                // trigger to process state transition.
+            }
         }
     }
 
@@ -370,7 +396,7 @@ public class EvergreenService implements InjectionActions {
             // don't override in the case of re-install
             int index = this.desiredStateList.indexOf(State.NEW);
             if (index == -1) {
-                setDesiredState(State.FINISHED, State.RUNNING);
+                setDesiredState(State.INSTALLED, State.RUNNING);
                 return;
             }
             this.desiredStateList.subList(index + 1, this.desiredStateList.size()).clear();
@@ -383,7 +409,7 @@ public class EvergreenService implements InjectionActions {
      */
     public final void requestReinstall() {
         synchronized (this.desiredStateList) {
-            setDesiredState(State.FINISHED, State.NEW, State.RUNNING);
+            setDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
         }
     }
 
@@ -430,13 +456,19 @@ public class EvergreenService implements InjectionActions {
                     }
                     continue;
                 case INSTALLED:
+                    stopBackingTask();
+                    // drain the report state
+                    reportState = getReportState().orElse(null);
+                    if (reportState != null) {
+                        updateStateAndBroadcast(reportState);
+                        continue;
+                    }
                     if (!desiredState.isPresent()) {
                         break;
                     }
 
                     switch (desiredState.get()) {
                         case FINISHED:
-                            stopBackingTask();
                             updateStateAndBroadcast(State.FINISHED);
                             continue;
                         case RUNNING:
@@ -503,7 +535,8 @@ public class EvergreenService implements InjectionActions {
                         }
                         continue;
                     } else {
-                        updateStateAndBroadcast(State.FINISHED);
+                        desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
+                        goToDesiredState(desiredState.orElse(null));
                         continue;
                     }
 
@@ -514,20 +547,8 @@ public class EvergreenService implements InjectionActions {
 
                     logger.atInfo().setEventType("service-state-transition").addKeyValue("currentState", getState())
                             .addKeyValue("desiredState", desiredState).log();
-                    switch (desiredState.get()) {
-                        case NEW:
-                        case INSTALLED:
-                            updateStateAndBroadcast(State.NEW);
-                            continue;
-                        case RUNNING:
-                            updateStateAndBroadcast(State.INSTALLED);
-                            continue;
-                        default:
-                            // not allowed to set desired state to STOPPING, ERRORED, BROKEN
-                            logger.atError().setEventType("service-invalid-state-error")
-                                    .addKeyValue("desiredState", desiredState).log("Unexpected desired state");
-                    }
-                    break;
+                    goToDesiredState(desiredState.get());
+                    continue;
                 case ERRORED:
                     handleError();
                     //TODO: Set service to broken state if error happens too often
@@ -546,7 +567,8 @@ public class EvergreenService implements InjectionActions {
                             continue;
                         case STOPPING:
                             // not handled;
-                            updateStateAndBroadcast(State.FINISHED);
+                            desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
+                            goToDesiredState(desiredState.orElse(null));
                             continue;
                         default:
                             logger.atError().setEventType("service-invalid-state-error")
@@ -573,6 +595,33 @@ public class EvergreenService implements InjectionActions {
     }
 
     /**
+     * Only use in service lifecycle thread.
+     * @param desiredState the desiredState to go. If not provided, default is Finished.
+     */
+    private void goToDesiredState(State desiredState) {
+        if (desiredState == null) {
+            updateStateAndBroadcast(State.FINISHED);
+            return;
+        }
+        switch (desiredState) {
+            case NEW:
+                updateStateAndBroadcast(State.NEW);
+                break;
+            case INSTALLED:
+            case RUNNING:
+                updateStateAndBroadcast(State.INSTALLED);
+                break;
+            case FINISHED:
+                updateStateAndBroadcast(State.FINISHED);
+                break;
+            default:
+                // not allowed to set desired state to STOPPING, ERRORED, BROKEN
+                logger.atError().setEventType("service-invalid-state-error")
+                        .addKeyValue("desiredState", desiredState).log("Unexpected desired state");
+        }
+    }
+
+    /**
      * Custom handler to handle error.
      */
     public void handleError() {
@@ -583,6 +632,7 @@ public class EvergreenService implements InjectionActions {
         if (bt != null) {
             backingTask = null;
             if (!bt.isDone()) {
+                logger.warn("Stopping backingTask {}", bt);
                 bt.cancel(true);
             }
         }
@@ -684,25 +734,33 @@ public class EvergreenService implements InjectionActions {
      * @param dependentEvergreenService the service to add as a dependency.
      * @param when                      the state that the dependent service must be in before starting the current
      *                                  service.
+     * @param isDefault                 True if the dependency is added without explicit declaration
+     *                                  in 'dependencies' Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public synchronized void addDependency(EvergreenService dependentEvergreenService, State when)
+    public synchronized void addDependency(EvergreenService dependentEvergreenService, State when, boolean isDefault)
             throws InputValidationException {
         if (dependentEvergreenService == null || when == null) {
             throw new InputValidationException("One or more parameters was null");
         }
 
-        if (dependencies.containsKey(dependentEvergreenService) && dependencies.get(dependentEvergreenService)
-                .equals(when)) {
-            return;
-        }
+        dependencies.compute(dependentEvergreenService, (k, ov) -> {
+            if (ov == null) {
+                Subscriber subscriber = createDependencySubscriber(dependentEvergreenService);
+                dependentEvergreenService.getStateTopic().subscribe(subscriber);
+                context.get(Kernel.class).clearODcache();
+                return new DependencyInfo(when, isDefault, subscriber);
+            }
+            ov.startWhen = when;
+            if (!ov.isDefaultDependency) {
+                ov.isDefaultDependency = isDefault;
+            }
+            return ov;
+        });
+    }
 
-        context.get(Kernel.class).clearODcache();
-        dependencies.put(dependentEvergreenService, when);
-        Iterable<String> ser = createDependenciesList(dependencies);
-        dependenciesTopic.setValue(ser);
-
-        dependentEvergreenService.getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService) {
+        return (WhatHappened what, Topic t) -> {
             if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
                 if (!dependencyReady(dependentEvergreenService)) {
                     this.requestRestart();
@@ -714,14 +772,7 @@ public class EvergreenService implements InjectionActions {
                     dependencyReadyLock.notifyAll();
                 }
             }
-        });
-    }
-
-    private Iterable<String> createDependenciesList(ConcurrentHashMap<EvergreenService, State> dependencies) {
-        return dependencies.entrySet()
-                           .stream()
-                           .map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
-                           .collect(Collectors.toList());
+        };
     }
 
     private List<EvergreenService> getDependers() {
@@ -783,7 +834,7 @@ public class EvergreenService implements InjectionActions {
 
     private boolean dependencyReady(EvergreenService v) {
         State state = v.getState();
-        State startWhenState = dependencies.get(v);
+        State startWhenState = dependencies.get(v).startWhen;
         return state.isHappy() && (startWhenState == null || startWhenState.preceedsOrEqual(state));
     }
 
@@ -869,18 +920,24 @@ public class EvergreenService implements InjectionActions {
     private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
         Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
 
-        Set<EvergreenService> removedDependencies =
-                dependencies.keySet().stream().filter(d -> !shouldHaveDependencies.containsKey(d))
-                        .collect(Collectors.toSet());
+        Set<EvergreenService> removedDependencies = dependencies.entrySet().stream()
+                .filter(e -> !shouldHaveDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         if (!removedDependencies.isEmpty()) {
             logger.atInfo().setEventType("removing-unused-dependencies")
                     .addKeyValue("removedDependencies", removedDependencies);
-            removedDependencies.forEach(dependencies::remove);
-            context.get(Kernel.class).clearODcache();
+
+            removedDependencies.forEach(dependency -> {
+                DependencyInfo dependencyInfo = dependencies.remove(dependency);
+                dependency.getStateTopic().remove(dependencyInfo.stateTopicSubscriber);
+                context.get(Kernel.class).clearODcache();
+            });
         }
+
         shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
             try {
-                addDependency(dependentEvergreenService, when);
+                addDependency(dependentEvergreenService, when, false);
             } catch (InputValidationException e) {
                 logger.atWarn().setCause(e).setEventType("add-dependency")
                         .log("Unable to add dependency {}", dependentEvergreenService);
@@ -916,7 +973,8 @@ public class EvergreenService implements InjectionActions {
     }
 
     public Map<EvergreenService, State> getDependencies() {
-        return dependencies;
+        return dependencies.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().startWhen));
     }
 
     public boolean satisfiedBy(HashSet<EvergreenService> ready) {
@@ -940,4 +998,11 @@ public class EvergreenService implements InjectionActions {
         return isClosed.get();
     }
 
+    @AllArgsConstructor
+    protected static class DependencyInfo {
+        State startWhen;
+        // true if the dependency isn't explicitly declared in config
+        Boolean isDefaultDependency;
+        Subscriber stateTopicSubscriber;
+    }
 }

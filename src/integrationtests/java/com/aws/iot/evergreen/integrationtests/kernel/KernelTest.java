@@ -117,8 +117,7 @@ class KernelTest extends AbstractBaseITCase {
                         // runErrorRetry restart on error
                         new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),
                         new ExpectedStateTransition("runErrorRetry", State.ERRORED, State.STOPPING),
-                        new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.FINISHED),
-                        new ExpectedStateTransition("runErrorRetry", State.FINISHED, State.INSTALLED),
+                        new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.INSTALLED),
 
                         // main service restart on dependency error
                         new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),

@@ -284,7 +284,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             mainService = getMain();
             autostart.forEach(s -> {
                 try {
-                    mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING);
+                    mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING, true);
                 } catch (ServiceLoadException se) {
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
@@ -593,13 +593,14 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
-        if (newConfig.get("services") == null) {
+        if (newConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC) == null) {
             mergeMap(timestamp, newConfig);
             totallyCompleteFuture.complete(null);
             return totallyCompleteFuture;
         }
 
-        Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get("services");
+        Map<String, Object> serviceConfig = (Map<String, Object>) newConfig
+                .get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
         List<String> removedServices = getRemovedServicesNames(serviceConfig);
         logger.atDebug("merge-config").kv("removedServices", removedServices).log();
 
@@ -607,7 +608,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         serviceConfig.forEach((key, v) -> servicesRunningLatches.put(key, new CountDownLatch(1)));
 
         EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
-            if (serviceConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
+            if (servicesRunningLatches.containsKey(service.getName()) && service.reachedDesiredState()) {
+                logger.atInfo().setEventType("service-update-complete")
+                        .addKeyValue("serviceName", service.getName())
+                        .addKeyValue("deploymentId", deploymentId).log();
                 servicesRunningLatches.get(service.getName()).countDown();
             }
         };
@@ -616,21 +620,29 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             context.runOnPublishQueueAndWait(() -> {
                 try {
                     mergeMap(timestamp, newConfig);
-                    context.addGlobalStateChangeListener(listener);
-                    serviceConfig.keySet().forEach(serviceName -> {
+                    context.runOnPublishQueue(() -> serviceConfig.keySet().forEach(serviceName -> {
                         try {
                             EvergreenService eg = EvergreenService.locate(context, serviceName);
                             eg.requestStart();
+                            if (eg.reachedDesiredState()) {
+                                logger.atInfo().addKeyValue("serviceName", eg.getName())
+                                        .log("Service already reached desired state");
+                                servicesRunningLatches.get(serviceName).countDown();
+                            }
                         } catch (ServiceLoadException e) {
                             logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
                                     .log("Could not locate EvergreenService for modified service");
                         }
-                    });
+                    }));
+
+                    // State change listener should be added after starting new services.
+                    context.addGlobalStateChangeListener(listener);
                 } catch (Throwable e) {
                     totallyCompleteFuture.completeExceptionally(e);
                 }
             });
         });
+
         // execute logic to close and clean up removed services.
         context.get(Executor.class).execute(() -> {
             try {

@@ -31,7 +31,6 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
         // start kernel
         kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("ipc_aware_main.yaml").toString());
-        kernel.launch();
     }
 
     @AfterEach
@@ -48,6 +47,7 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
             }
         };
         kernel.context.addGlobalStateChangeListener(listener);
+        kernel.launch();
 
         // waiting for main to transition to running
         boolean isRunning = serviceRunning.await(60, TimeUnit.SECONDS);

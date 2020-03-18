@@ -223,6 +223,101 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
                 containsInRelativeOrder("new_service2", "new_service", "main"));
     }
 
+    @Test
+    void GIVEN_kernel_running_single_service_WHEN_merge_same_doc_happens_twice_THEN_second_merge_should_not_restart_services()
+            throws Throwable {
+
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+
+        HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
+            put("services", new HashMap<Object, Object>() {{
+                put("main",new HashMap<Object, Object>() {{
+                    put("dependencies", Arrays.asList("new_service"));
+                }});
+
+                put("new_service",new HashMap<Object, Object>() {{
+                    put("lifecycle",new HashMap<Object, Object>() {{
+                            put("run", "sleep 60");
+                    }});
+                    put("dependencies", Arrays.asList("new_service2"));
+                }});
+
+                put("new_service2",new HashMap<Object, Object>() {{
+                    put("lifecycle",new HashMap<Object, Object>() {{
+                        put("run", "sleep 60");
+                    }});
+                }});
+            }});
+        }};
+
+        // launch kernel
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
+                mainRunning.countDown();
+            }
+        });
+        kernel.launch();
+
+        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+
+        // do first merge
+        CountDownLatch mainRestarted = new CountDownLatch(1);
+        CountDownLatch newService2Started = new CountDownLatch(1);
+        CountDownLatch newServiceStarted = new CountDownLatch(1);
+        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
+            if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
+                newService2Started.countDown();
+            }
+            if (newService2Started.getCount() == 0) {
+                if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
+                    newServiceStarted.countDown();
+                }
+            }
+            // Only count main as started if its dependency (new_service) has already been started
+            if (newServiceStarted.getCount() == 0) {
+                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
+                        .equals(State.INSTALLED)) {
+                    mainRestarted.countDown();
+                }
+            }
+        };
+        kernel.context.addGlobalStateChangeListener(listener);
+
+        EvergreenService main = EvergreenService.locate(kernel.context, "main");
+        kernel.mergeInNewConfig("id", System.currentTimeMillis(), newConfig).get(60, TimeUnit.SECONDS);
+
+        // Verify that first merge succeeded.
+        assertEquals(State.RUNNING, main.getState());
+        assertTrue(newService2Started.await(60, TimeUnit.SECONDS));
+        assertTrue(newServiceStarted.await(60, TimeUnit.SECONDS));
+        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertThat(kernel.orderedDependencies().stream().map(EvergreenService::getName).collect(Collectors.toList()),
+                containsInRelativeOrder("new_service2", "new_service", "main"));
+
+        // WHEN
+        AtomicBoolean stateChanged = new AtomicBoolean(false);
+        listener = (service, oldState, newState) -> {
+            System.err.println("State shouldn't change in merging the same config: " + service.getName() + " " + oldState + " => " + newState);
+            stateChanged.set(true);
+        };
+
+        kernel.context.addGlobalStateChangeListener(listener);
+
+        // THEN
+        // merge in the same config the second time
+        // merge shouldn't block
+        kernel.mergeInNewConfig("id", System.currentTimeMillis(), newConfig).get(60, TimeUnit.SECONDS);
+
+        // main and sleeperB should be running
+        assertEquals(State.RUNNING, main.getState());
+
+        assertFalse(stateChanged.get(), "State shouldn't change in merging the same config.");
+
+        // remove listener
+        kernel.context.removeGlobalStateChangeListener(listener);
+    }
 
     @Test
     void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed()
@@ -255,7 +350,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         }
         List<String> dependencies = new ArrayList((List<String>)servicesConfig.get("main").get("dependencies")) ;
         //removing main's dependency on sleeperA, Now sleeperA is an unused dependency
-        dependencies.remove("sleeperA:RUNNING");
+        dependencies.removeIf(s -> s.contains("sleeperA"));
         servicesConfig.get("main").put("dependencies",dependencies);
         // updating service B's run
         ((Map) servicesConfig.get("sleeperB").get(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
@@ -288,6 +383,6 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
                 .map(EvergreenService::getName)
                 .collect(Collectors.toList());
 
-        assertEquals(orderedDependencies, Arrays.asList("sleeperB","main"));
+        assertEquals(Arrays.asList("sleeperB","main"), orderedDependencies);
     }
 }
