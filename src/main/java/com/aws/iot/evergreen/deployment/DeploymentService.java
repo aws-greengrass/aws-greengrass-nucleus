@@ -19,7 +19,9 @@ import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -56,7 +58,7 @@ public class DeploymentService extends EvergreenService {
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
     //TODO: Change this to be taken from config or user input. Maybe as part of deployment document
-    private static final Path LOCAL_CACHE_PATH =
+    private static final Path LOCAL_ARTIFACT_SOURCE =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
@@ -71,9 +73,11 @@ public class DeploymentService extends EvergreenService {
     private Kernel kernel;
     @Inject
     private IotJobsHelperFactory iotJobsHelperFactory;
-
+    @Inject
     private DependencyResolver dependencyResolver;
+    @Inject
     private PackageCache packageCache;
+    @Inject
     private KernelConfigResolver kernelConfigResolver;
 
     private IotJobsHelper iotJobsHelper;
@@ -142,19 +146,21 @@ public class DeploymentService extends EvergreenService {
 
             logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
 
-            //Starting the job processing in another thread
+
             DeploymentTask deploymentTask;
             try {
                 deploymentTask = createDeploymentTask(response.execution.jobDocument);
-                currentProcessStatus = executorService.submit(deploymentTask);
-                logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
             } catch (InvalidRequestException e) {
-                logger.atError().setCause(e.getCause()).log("Caught InvalidRequestException while processing a "
-                        + "deployment");
+                logger.atError().setCause(e.getCause())
+                        .log("Caught InvalidRequestException while processing a " + "deployment");
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("error", e.getMessage());
                 updateJobAsFailed(currentJobId, statusDetails);
+                return;
             }
+            //Starting the job processing in another thread
+            currentProcessStatus = executorService.submit(deploymentTask);
+            logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
         }
 
     };
@@ -203,22 +209,26 @@ public class DeploymentService extends EvergreenService {
     }
 
     /**
-     * Constructor.
+     * Constructor fo unit testing.
      *
      * @param topics               The configuration coming from  kernel
      * @param iotJobsHelperFactory Factory object for creating IotJobHelper
      * @param executorService      Executor service coming from kernel
      * @param kernel               The evergreen kernel
+     * @param dependencyResolver   {@link DependencyResolver}
+     * @param packageCache         {@link PackageCache}
+     * @param kernelConfigResolver {@link KernelConfigResolver}
      */
     public DeploymentService(Topics topics, IotJobsHelperFactory iotJobsHelperFactory, ExecutorService executorService,
-                             Kernel kernel) {
+                             Kernel kernel, DependencyResolver dependencyResolver, PackageCache packageCache,
+                             KernelConfigResolver kernelConfigResolver) {
         super(topics);
         this.iotJobsHelperFactory = iotJobsHelperFactory;
         this.executorService = executorService;
         this.kernel = kernel;
-        this.dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), this.kernel);
-        this.packageCache = new PackageCache();
-        this.kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
+        this.dependencyResolver = dependencyResolver;
+        this.packageCache = packageCache;
+        this.kernelConfigResolver = kernelConfigResolver;
     }
 
     @Override
@@ -287,16 +297,8 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void initialize() {
-        //Cannot do this in constructor because of how dependency injection works
-        if (dependencyResolver == null) {
-            this.dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel);
-        }
-        if (packageCache == null) {
-            this.packageCache = new PackageCache();
-        }
-        if (kernelConfigResolver == null) {
-            this.kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
-        }
+        //TODO: Update then pacakge store to be used once it is designed. Probably remove this.
+        this.dependencyResolver.setStore(new LocalPackageStore(LOCAL_ARTIFACT_SOURCE));
     }
 
     private void initializeIotJobsHelper(String thingName) {

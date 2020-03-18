@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,8 +22,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 @AllArgsConstructor
+@NoArgsConstructor
 public class KernelConfigResolver {
 
     private static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
@@ -30,8 +33,10 @@ public class KernelConfigResolver {
     private static final String SERVICE_NAMESPACE_CONFIG_KEY = "services";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
-    private final PackageCache packageCache;
-    private final Kernel kernel;
+    @Inject
+    private PackageCache packageCache;
+    @Inject
+    private Kernel kernel;
 
     /**
      * Create a kernel config map from a list of package identifiers and deployment document.

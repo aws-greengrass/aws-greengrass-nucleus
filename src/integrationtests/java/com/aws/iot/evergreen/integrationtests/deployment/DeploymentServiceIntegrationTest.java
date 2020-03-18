@@ -132,11 +132,7 @@ public class DeploymentServiceIntegrationTest {
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument.json").toURI(), System.currentTimeMillis());
 
-        try {
-            result.get();
-        } catch (ExecutionException e) {
-            fail("Failed executing the deployment task", e.getCause());
-        }
+        result.get();
 
         countDownLatch.await(60, TimeUnit.SECONDS);
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
@@ -165,11 +161,7 @@ public class DeploymentServiceIntegrationTest {
 
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
-        try {
-            result.get();
-        } catch (ExecutionException e) {
-            fail("Failed executing the updated deployment task", e.getCause());
-        }
+        result.get();
         countDownLatch.await(60, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         Log4jLogEventBuilder.removeGlobalListener(listener);

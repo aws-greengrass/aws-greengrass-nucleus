@@ -9,6 +9,9 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.packagemanager.DependencyResolver;
+import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
+import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +40,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+
+import javax.inject.Inject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,6 +79,15 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     @Mock
     ExecutorService mockExecutorService;
 
+    @Mock
+    private DependencyResolver dependencyResolver;
+
+    @Mock
+    private PackageCache packageCache;
+
+    @Mock
+    private KernelConfigResolver kernelConfigResolver;
+
     @Captor
     ArgumentCaptor<Consumer<JobExecutionsChangedEvent>> jobEventConsumerCaptor;
 
@@ -80,6 +95,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     ArgumentCaptor<Consumer<DescribeJobExecutionResponse>> describeJobConsumerCaptor;
 
     DeploymentService deploymentService;
+
 
     @Nested
     class DeploymentServiceInitializedWithMocks {
@@ -122,7 +138,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             //Creating the class to be tested
             deploymentService =
-                    new DeploymentService(config, mockIotJobsHelperFactory, mockExecutorService, mockKernel);
+                    new DeploymentService(config, mockIotJobsHelperFactory, mockExecutorService, mockKernel,
+                            dependencyResolver, packageCache, kernelConfigResolver);
         }
 
         @Test
