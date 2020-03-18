@@ -226,6 +226,7 @@
                 <artifactId>findbugs-maven-plugin</artifactId>
                 <version>3.0.5</version>
                 <configuration>
+                    <skip>${skipTests}</skip>
                     <effort>Max</effort>
                     <!-- Reports all bugs (other values are medium and max) -->
                     <threshold>Low</threshold>
@@ -258,6 +259,7 @@
                     <configLocation>checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
+                    <skip>${skipTests}</skip>
                 </configuration>
                 <executions>
                     <execution>
