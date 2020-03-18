@@ -3,14 +3,18 @@ package com.aws.iot.evergreen.integrationtests.kernel;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,17 +22,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-class KernelShutdownTest {
+class KernelShutdownTest extends AbstractBaseITCase {
 
-    private static Kernel kernel;
-
-    @TempDir
-    Path tempRootDir;
+    private Kernel kernel;
 
     @BeforeEach
-    void setup() {
+    void beforeEach() {
         kernel = new Kernel();
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i", getClass().getResource(
+        kernel.parseArgs("-i", getClass().getResource(
                 "long_running_services.yaml").toString());
         kernel.launch();
     }

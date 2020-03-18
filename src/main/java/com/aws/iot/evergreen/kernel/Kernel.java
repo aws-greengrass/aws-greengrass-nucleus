@@ -58,9 +58,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 
+import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
-import static com.aws.iot.evergreen.util.Utils.homePath;
 
 /**
  * Evergreen-kernel.
@@ -135,6 +135,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         ensureCreated(workPath);
                     }
                 });
+
+
+        // Initialize root path from System Property/JVM argument
+        String rootAbsolutePath = System.getProperty("root");
+        if (Utils.isEmpty(rootAbsolutePath) || !ensureCreated(Paths.get(rootAbsolutePath))) {
+            System.err.println(rootAbsolutePath + ": not a valid root directory");
+            broken = true;
+        }
+        root.setValue(rootAbsolutePath);
+        prefs.put("rootpath", String.valueOf(root.getOnce())); // make root setting sticky
+
+
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
                 case "-dryrun":
@@ -162,18 +174,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 case "-s":
                     addServiceSearchURL(getArg());
                     break;
-                case "-root":
-                case "-r": {
-                    String r = deTilde(getArg());
-                    if (Utils.isEmpty(r) || !ensureCreated(Paths.get(r))) {
-                        System.err.println(r + ": not a valid root directory");
-                        broken = true;
-                        break;
-                    }
-                    root.setValue(r);
-                    prefs.put("rootpath", String.valueOf(root.getOnce())); // make root setting sticky
-                }
-                break;
                 case "-main":
                     mainServiceName = getArg();
                     break;
@@ -526,7 +526,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      */
     public String deTilde(String s) {
         if (s.startsWith("~/")) {
-            s = homePath.resolve(s.substring(2)).toString();
+            s = HOME_PATH.resolve(s.substring(2)).toString();
         }
         if (rootPath != null && s.startsWith("~root/")) {
             s = rootPath.resolve(s.substring(6)).toString();

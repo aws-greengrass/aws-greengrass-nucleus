@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -29,12 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-class ServiceConfigMergingTest {
+class ServiceConfigMergingTest extends AbstractBaseITCase {
     private Kernel kernel;
-
-    @TempDir
-    Path tempRootDir;
-
 
     @BeforeEach
     void before(TestInfo testInfo) {
@@ -53,9 +49,7 @@ class ServiceConfigMergingTest {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
             throws Throwable {
         // GIVEN
-        Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("single_service.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -96,8 +90,7 @@ class ServiceConfigMergingTest {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("single_service.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -156,8 +149,7 @@ class ServiceConfigMergingTest {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("single_service.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
