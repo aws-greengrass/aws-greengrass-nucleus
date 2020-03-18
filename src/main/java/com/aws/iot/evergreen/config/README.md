@@ -12,11 +12,32 @@ An important use-case for this property is when two clones of this config are di
 (no longer cross-updating).  Updates made while disconnected can be reconstructed by
 replaying each other's logs upon reconnection.  This "hack" depends on the two systems having sufficiently well synchronized clocks.
 
+## One way of visualizing it
+
+Given the following configuration in YAML format,
+
+```yaml
+main:
+    requires: myService
+    run: echo MAIN
+```
+
+You could visualize it as:
+
+![Alt text](Topics_and_topic_sample.svg)
+
+
+With the above simple example in mind, a more generic version is the following:
+
+![Alt text](Topics_and_topic_concept.svg)
+
+## Limitations
 One feature that's missing is that arrays are not supported, only primitives and maps.
 Even though arrays are a standard feature of JSON, they present problems when logging
 mutations in a way that can be replayed in any order.  I haven't yet figured out a way
 to do it that I like.
 
+## Work with code
 The basic API looks like this:
 ```java
 var where = Path.of("somewhere.tlog");
@@ -37,7 +58,7 @@ Textual reading and writing can be handled by using the Jackson-JR library:
 ```
 *Write YAML:*
 ```java
-	JSON.std.with(new YAMLFactory())
+JSON.std.with(new YAMLFactory())
         .write(config.toPOJO(), System.out);
 ```
 *Write pretty JSON:*
