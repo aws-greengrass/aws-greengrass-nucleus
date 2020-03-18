@@ -46,8 +46,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -603,72 +605,93 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         List<String> removedServices = getRemovedServicesNames(serviceConfig);
         logger.atDebug("merge-config").kv("removedServices", removedServices).log();
 
-        Map<String, CountDownLatch> servicesRunningLatches = new HashMap<>();
-        serviceConfig.forEach((key, v) -> servicesRunningLatches.put(key, new CountDownLatch(1)));
-
-        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
-            if (serviceConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
-                servicesRunningLatches.get(service.getName()).countDown();
-            }
-        };
-
+        Set<EvergreenService> servicesToTrack = new HashSet<>();
         context.get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
-            context.runOnPublishQueueAndWait(() -> {
-                try {
-                    mergeMap(timestamp, newConfig);
-                    context.addGlobalStateChangeListener(listener);
-                    serviceConfig.keySet().forEach(serviceName -> {
+            try {
+                mergeMap(timestamp, newConfig);
+                for (String serviceName : serviceConfig.keySet()) {
+                    EvergreenService eg = EvergreenService.locate(context, serviceName);
+                    if (State.NEW.equals(eg.getState())) {
+                        eg.requestStart();
+                    }
+                    servicesToTrack.add(eg);
+                }
+
+                // wait until topic listeners finished processing mergeMap changes.
+                context.runOnPublishQueueAndWait(() -> {
+                    logger.atInfo("merge-config")
+                            .addKeyValue("serviceToTrack", servicesToTrack)
+                            .log("applied new service config. Waiting for services to complete update");
+
+                    // polling to wait for all services started.
+                    context.get(ExecutorService.class).submit(() -> {
+                        //TODO: Add timeout
                         try {
-                            EvergreenService eg = EvergreenService.locate(context, serviceName);
-                            eg.requestStart();
-                        } catch (ServiceLoadException e) {
-                            logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                                    .log("Could not locate EvergreenService for modified service");
+                            while (!totallyCompleteFuture.isCancelled()) {
+                                if (servicesToTrack.stream().allMatch(service -> {
+                                    if (!service.reachedDesiredState()) {
+                                        return false;
+                                    }
+                                    State state = service.getState();
+                                    if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
+                                        return true;
+                                    }
+                                    return false;
+                                })) {
+                                    break;
+                                }
+                                Thread.sleep(1000); // hardcoded
+                            }
+                            if (totallyCompleteFuture.isCancelled()) {
+                                logger.atWarn("merge-config").addKeyValue("deploymentId", deploymentId)
+                                    .log("merge-config-cancelled");
+                                return;
+                            }
+
+                            removeServices(removedServices);
+                            logger.atInfo("merge-config").addKeyValue("deploymentId", deploymentId)
+                                .log("All services updated");
+
+                            totallyCompleteFuture.complete(null);
+                        } catch (Throwable t) {
+                            //TODO: handle different throwables. Revert changes if applicable.
+                            totallyCompleteFuture.completeExceptionally(t);
                         }
                     });
-                } catch (Throwable e) {
-                    totallyCompleteFuture.completeExceptionally(e);
-                }
-            });
-        });
-        // execute logic to close and clean up removed services.
-        context.get(Executor.class).execute(() -> {
-            try {
-                for (Map.Entry<String, CountDownLatch> entry : servicesRunningLatches.entrySet()) {
-                    logger.atDebug("merge-config").log("Waiting for service {} to be running", entry.getKey());
-                    entry.getValue().await();
-                }
-                List<Future<Void>> serviceClosedFutures = new ArrayList<>();
-                removedServices.forEach(serviceName -> {
-                    try {
-                        EvergreenService eg = EvergreenService.locate(context, serviceName);
-                        serviceClosedFutures.add(eg.close());
-                    } catch (ServiceLoadException e) {
-                        logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                                .log("Could not locate EvergreenService to close service");
-                    }
                 });
-                // waiting for removed service to close before removing reference and config entry
-                for (Future serviceClosedFuture : serviceClosedFutures) {
-                    serviceClosedFuture.get();
-                }
-                removedServices.forEach(serviceName -> {
-                    try {
-                        context.remove(serviceName);
-                        findTopics("services", serviceName).remove();
-                    } catch (Exception e) {
-                        logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                                .log("Cloud not clean up resources while removing");
-                    }
-                });
-
-                totallyCompleteFuture.complete(null);
             } catch (Throwable e) {
                 totallyCompleteFuture.completeExceptionally(e);
             }
         });
-        totallyCompleteFuture.thenRun(() -> context.removeGlobalStateChangeListener(listener));
+
         return totallyCompleteFuture;
+    }
+
+    private void removeServices(List<String> serviceToRemove) throws InterruptedException, ExecutionException {
+        List<Future<Void>> serviceClosedFutures = new ArrayList<>();
+        serviceToRemove.forEach(serviceName -> {
+            try {
+                EvergreenService eg = EvergreenService.locate(context, serviceName);
+                serviceClosedFutures.add(eg.close());
+            } catch (ServiceLoadException e) {
+                logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                        .log("Could not locate EvergreenService to close service");
+            }
+        });
+        // waiting for removed service to close before removing reference and config entry
+        for (Future serviceClosedFuture : serviceClosedFutures) {
+            serviceClosedFuture.get();
+        }
+        serviceToRemove.forEach(serviceName -> {
+            try {
+                context.remove(serviceName);
+                findTopics("services", serviceName).remove();
+            } catch (Exception e) {
+                // TODO: better error handling.
+                logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                        .log("Cloud not clean up resources while removing");
+            }
+        });
     }
 
     //TODO: handle removing services that are running within in the JVM but defined via config

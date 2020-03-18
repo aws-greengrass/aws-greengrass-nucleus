@@ -1,15 +1,17 @@
 ---
 services:
   plain:
-    startup:
-      all: "{platform.invoke} {args}"
+    lifecycle:
+      startup:
+        all: "{platform.invoke} {args}"
   main:
     dependencies:
       - IPCService
       - mqtt
       - ServiceName
-    run: |-
-      sleep 300
+    lifecycle:
+      run: |-
+        sleep 300
 
   mqtt:
     dependencies:
@@ -17,8 +19,9 @@ services:
     resources:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
-    run:
-      exit 0
+    lifecycle:
+      run:
+        exit 0
 
   ServiceName:
     dependencies:
@@ -26,5 +29,6 @@ services:
     any:
       resources:
         - http-resource
-    run:
-      exit 0
+    lifecycle:
+      run:
+        exit 0

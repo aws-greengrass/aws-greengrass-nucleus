@@ -13,6 +13,7 @@ public class SampleIpcAwareServiceMovesToRunning {
         IPCClient client = new IPCClientImpl(KernelIPCClientConfig.builder().build());
         LifecycleImpl c = new LifecycleImpl(client);
         c.reportState("RUNNING");
+        Thread.sleep(1000);
         client.disconnect();
     }
 }
