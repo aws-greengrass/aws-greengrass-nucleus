@@ -102,7 +102,7 @@ def main():
         os.system(f"git fetch --depth={num_commit_history} origin master")
         # Get the last 50 merges to master with the short commit hash and commiter's date
         # Format like: 43a4929 2019-11-24T11:29:22-08:00
-        merges_to_master = subprocess.check_output(["git", "log", "-n", num_commit_history, "--merges",
+        merges_to_master = subprocess.check_output(["git", "log", "-n", str(num_commit_history), "--merges",
                                                     "--first-parent", "origin/master",
                                                     "--pretty=format:%h %cI"]).decode("utf-8").strip().split("\n")
 
