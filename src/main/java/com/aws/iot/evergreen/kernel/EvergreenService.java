@@ -218,7 +218,7 @@ public class EvergreenService implements InjectionActions {
                     staticLogger.atInfo().setEventType("evergreen-service-loaded")
                             .addKeyValue("serviceName", ret.getName()).log();
                 } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create code-backed service from " + clazz.getSimpleName(),
+                    throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
                             ex);
                 }
             } else if (serviceRootTopics.isEmpty()) {
@@ -230,7 +230,7 @@ public class EvergreenService implements InjectionActions {
                     staticLogger.atInfo().setEventType("generic-service-loaded")
                             .addKeyValue("serviceName", ret.getName()).log();
                 } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create generic service", ex);
+                    throw new ServiceLoadException("Can't create generic service instance " + name, ex);
                 }
             }
             return ret;
