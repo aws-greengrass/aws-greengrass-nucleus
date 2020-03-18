@@ -46,5 +46,5 @@ jobs:
       - name: Upload to CloudWatch
         run: >-
           pip3 -q install boto3 setuptools wheel &&
-          pip3 -q install retryable PyGithub &&
+          pip3 -q install retryable agithub &&
           python3 .github/scripts/cwJMHUpload.py
