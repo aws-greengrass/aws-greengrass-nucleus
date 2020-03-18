@@ -37,7 +37,7 @@ Even though arrays are a standard feature of JSON, they present problems when lo
 mutations in a way that can be replayed in any order.  I haven't yet figured out a way
 to do it that I like.
 
-## Work with code
+## Code with configuration
 The basic API looks like this:
 ```java
 var where = Path.of("somewhere.tlog");
@@ -74,9 +74,9 @@ a GG-SG config file:
 config.findTopics("platforms").forEachTopicSet(n -> System.out.println(n.name));
 ```
 
-For code samples, look at ConfigurationTest.java
+For code samples, look at [ConfigurationTest](ConfigurationTest.java).
 
-## subscribe() vs getOnce()
+### subscribe() vs getOnce()
 While you can think of this mechanism as a conventional config file, it's better to think of it as a lightweight publish/subscribe mechanism and use that viewpoint to make it possible for code to be reactive to on-the-fly configuration changes, rather than depending on rebooting the system to pick up configuration changes.
 
 For example, it is common for services to have a variable to control the level of detail in diagnostic traces.  It's useful, in a system under test, to be able to change this in order to help in diagnosing problems.  In a conventional system, it's common to write something like this:
