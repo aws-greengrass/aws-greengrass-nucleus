@@ -98,9 +98,12 @@ def main():
         for b in batch(datapoints, 20):
             put_metrics_retryable(cw, namespace, b)
 
+        num_commit_history = 50
+        os.system(f"git fetch --depth={num_commit_history} origin master")
         # Get the last 50 merges to master with the short commit hash and commiter's date
         # Format like: 43a4929 2019-11-24T11:29:22-08:00
-        merges_to_master = subprocess.check_output(["git", "log", "-n", "50", "--merges", "--first-parent", "master",
+        merges_to_master = subprocess.check_output(["git", "log", "-n", num_commit_history, "--merges",
+                                                    "--first-parent", "origin/master",
                                                     "--pretty=format:%h %cI"]).decode("utf-8").strip().split("\n")
 
         annotations = {
