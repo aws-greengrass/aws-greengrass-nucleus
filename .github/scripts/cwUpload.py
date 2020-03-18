@@ -22,10 +22,10 @@ def batch(iterable, batch_size=1):
 
 
 @retry()
-def put_metrics_retryable(cw, datapoints):
+def put_metrics_retryable(cw, namespace, datapoints):
     # Returns None, will throw if an error occurs
     cw.put_metric_data(
-        Namespace="Evergreen/Testing",
+        Namespace=namespace,
         MetricData=datapoints
     )
 
@@ -33,6 +33,7 @@ def put_metrics_retryable(cw, datapoints):
 @retry(count=10, delay=10)
 def comment_on_pr(comment, pr_number):
     gh = Github(sys.argv[1])
+    print(gh.get_rate_limit())
     repo = gh.get_repo(os.getenv("GITHUB_REPOSITORY"))
     pr = repo.get_pull(pr_number)
     pr.create_issue_comment(comment)
@@ -74,7 +75,7 @@ def main():
     if event_type == "push":
         # Put metrics up to cloudwatch in batches of 20 (their max limit)
         for b in batch(datapoints, 20):
-            put_metrics_retryable(cw, b)
+            put_metrics_retryable(cw, "Evergreen/Testing", b)
         # Only continue to run for pull requests
         return
 
