@@ -100,19 +100,19 @@ def main():
 
         num_commit_history = 50
         os.system(f"git fetch --depth={num_commit_history} origin master")
-        # Get the last 50 merges to master with the short commit hash and commiter's date
+        # Get the last 50 commits to master with the short commit hash and commiter's date
         # Format like: 43a4929 2019-11-24T11:29:22-08:00
-        merges_to_master = subprocess.check_output(["git", "log", "-n", str(num_commit_history), "--merges",
-                                                    "--first-parent", "origin/master",
-                                                    "--pretty=format:%h %cI"]).decode("utf-8").strip().split("\n")
+        commits_to_master = subprocess.check_output(["git", "log", "-n", str(num_commit_history),
+                                                     "--first-parent", "origin/master",
+                                                     "--pretty=format:%h %cI"]).decode("utf-8").strip().split("\n")
 
         annotations = {
             "vertical": [
                 {
-                    "label": merge.split(" ")[0],
-                    "value": merge.split(" ")[1],
+                    "label": commit.split(" ")[0],
+                    "value": commit.split(" ")[1],
                     "color": "#16b"  # Annotate with CloudWatch blue
-                } for merge in merges_to_master
+                } for commit in commits_to_master
             ]
         }
 
@@ -124,6 +124,7 @@ def main():
         region = os.getenv("AWS_REGION")
         period = 300
         dashboard_data = {
+            "start": "-P7D",  # Set default time range to 1 week
             "widgets": [
                 {
                     "type": "metric",
