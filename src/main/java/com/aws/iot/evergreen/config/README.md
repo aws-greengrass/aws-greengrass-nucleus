@@ -74,7 +74,7 @@ a GG-SG config file:
 config.findTopics("platforms").forEachTopicSet(n -> System.out.println(n.name));
 ```
 
-For code samples, look at [ConfigurationTest](ConfigurationTest.java).
+For code samples, look at [ConfigurationTest](https://github.com/aws/aws-greengrass-kernel/blob/master/src/test/java/com/aws/iot/evergreen/config/ConfigurationTest.java).
 
 ### subscribe() vs getOnce()
 While you can think of this mechanism as a conventional config file, it's better to think of it as a lightweight publish/subscribe mechanism and use that viewpoint to make it possible for code to be reactive to on-the-fly configuration changes, rather than depending on rebooting the system to pick up configuration changes.
