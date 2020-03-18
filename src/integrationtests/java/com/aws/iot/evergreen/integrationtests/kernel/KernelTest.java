@@ -7,8 +7,9 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -47,8 +49,8 @@ class KernelTest extends AbstractBaseITCase {
     }
 
     @BeforeAll
-    static void beforeAll () {
-        // TODO Migrate off verification through logging
+    static void beforeAll() {
+        // TODO Refactor with Log Listener
         // override log store to a file for legacy kernel test to verify logs
         System.setProperty("log.fmt", "JSON");
         System.setProperty("log.store", "FILE");
@@ -120,7 +122,7 @@ class KernelTest extends AbstractBaseITCase {
     }
 
     @Test
-    void testSomeMethod() {
+    void testSomeMethod() throws Exception {
         Runnable runnable = () -> {
             File fileToWatch = new File(LOG_FILE_PATH_NAME);
             long lastKnownPosition = 0;
@@ -154,7 +156,8 @@ class KernelTest extends AbstractBaseITCase {
                                     if (++pattern.seen == 1) {
                                         System.out.println("KernelTest: Just saw " + pattern.message);
                                         OK[pattern.group].countDown();
-                                        System.out.println("\tOK[" + pattern.group + "]=" + OK[pattern.group].getCount());
+                                        System.out
+                                                .println("\tOK[" + pattern.group + "]=" + OK[pattern.group].getCount());
                                     }
                                 }
                             }
@@ -178,16 +181,14 @@ class KernelTest extends AbstractBaseITCase {
         testGroup(0);
         System.out.println("First phase passed, now for the harder stuff");
 
-        kernel.find( "services", "main", "lifecycle", "run")
+        kernel.find("services", "main", "lifecycle", "run")
                 .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
         //            kernel.writeConfig(new OutputStreamWriter(System.out));
         testGroup(1);
 
         System.out.println("Now merging delta.yaml");
-        kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
-                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta"
-                        + ".yaml")))
-                .get(60, TimeUnit.SECONDS);
+        kernel.mergeInNewConfig("ID", System.currentTimeMillis(), (Map<Object, Object>) JSON.std.with(new YAMLFactory())
+                .anyFrom(getClass().getResource("delta" + ".yaml"))).get(60, TimeUnit.SECONDS);
         testGroup(2);
         kernel.shutdown();
     }

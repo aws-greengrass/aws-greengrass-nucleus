@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -35,8 +34,6 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
-        System.setProperty("log.store", "CONSOLE");
-        System.setProperty("log.fmt", "TEXT");
         kernel = new Kernel();
     }
 
@@ -83,7 +80,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
         assertEquals("redefined", kernel.find("services", "main", "setenv", "HELLO").getOnce());
         assertThat((String) kernel.find("services", "main", "lifecycle", "run").getOnce(),
-                   containsString("echo \"Running main\""));
+                containsString("echo \"Running main\""));
     }
 
     @Test
@@ -120,9 +117,8 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
             }
         });
 
-        List<String> serviceList =
-                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                      .collect(Collectors.toList());
+        List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                .collect(Collectors.toList());
         serviceList.add("new_service");
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
@@ -185,26 +181,25 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
             }
         });
 
-        List<String> serviceList =
-                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                        .collect(Collectors.toList());
+        List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                .collect(Collectors.toList());
         serviceList.add("new_service");
 
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
-                put("main",new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
                     put("dependencies", serviceList);
                 }});
 
-                put("new_service",new HashMap<Object, Object>() {{
-                    put("lifecycle",new HashMap<Object, Object>() {{
-                            put("run", "sleep 60");
+                put("new_service", new HashMap<Object, Object>() {{
+                    put("lifecycle", new HashMap<Object, Object>() {{
+                        put("run", "sleep 60");
                     }});
                     put("dependencies", Arrays.asList("new_service2"));
                 }});
 
-                put("new_service2",new HashMap<Object, Object>() {{
-                    put("lifecycle",new HashMap<Object, Object>() {{
+                put("new_service2", new HashMap<Object, Object>() {{
+                    put("lifecycle", new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
                 }});

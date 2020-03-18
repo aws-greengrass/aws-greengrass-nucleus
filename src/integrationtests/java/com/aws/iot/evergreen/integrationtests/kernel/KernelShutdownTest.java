@@ -4,17 +4,12 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,8 +24,7 @@ class KernelShutdownTest extends AbstractBaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource(
-                "long_running_services.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
         kernel.launch();
     }
 
