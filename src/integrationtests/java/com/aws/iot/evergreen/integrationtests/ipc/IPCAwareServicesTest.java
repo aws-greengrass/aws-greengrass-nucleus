@@ -43,8 +43,7 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
     }
 
     @Test
-    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running()
-            throws Exception {
+    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running() throws Exception {
         CountDownLatch serviceRunning = new CountDownLatch(1);
         EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (SAMPLE_IPC_AWARE_SERVICE_NAME.equals(service.getName()) && State.RUNNING.equals(newState)) {
