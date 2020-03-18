@@ -43,6 +43,7 @@ public class DependencyResolver {
     private final PackageStore store;
     @Inject
     private final Kernel kernel;
+
     /**
      * Create the full list of packages to be run on the device from a deployment document.
      * It also resolves the conflicts between the packages specified in the deployment document and the existing

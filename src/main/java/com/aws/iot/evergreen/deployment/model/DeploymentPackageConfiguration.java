@@ -27,20 +27,20 @@ import java.util.Set;
 public class DeploymentPackageConfiguration {
 
     @JsonProperty("Name")
-    String packageName;
+    private String packageName;
 
     @JsonProperty("ResolvedVersion")
-    String resolvedVersion;
+    private String resolvedVersion;
 
     @Deprecated
     @JsonProperty("VersionConstraint")
-    String versionConstraint;
+    private String versionConstraint;
 
     @JsonProperty("Parameters")
-    Set<PackageParameter> parameters = new HashSet<>();
+    private Set<PackageParameter> parameters = new HashSet<>();
 
     @Deprecated
     @JsonProperty("Dependencies")
-    List<PackageIdentifier> listOfDependencies;
+    private List<PackageIdentifier> listOfDependencies;
 
 }

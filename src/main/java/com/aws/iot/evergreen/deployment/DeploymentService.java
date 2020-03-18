@@ -149,7 +149,8 @@ public class DeploymentService extends EvergreenService {
                 currentProcessStatus = executorService.submit(deploymentTask);
                 logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
             } catch (InvalidRequestException e) {
-                //TODO: Add status details
+                logger.atError().setCause(e.getCause()).log("Caught InvalidRequestException while processing a "
+                        + "deployment");
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("error", e.getMessage());
                 updateJobAsFailed(currentJobId, statusDetails);
@@ -158,14 +159,14 @@ public class DeploymentService extends EvergreenService {
 
     };
 
-    private DeploymentTask createDeploymentTask(HashMap<String, Object> jobDocument) throws InvalidRequestException {
+    private DeploymentTask createDeploymentTask(Map<String, Object> jobDocument) throws InvalidRequestException {
 
         DeploymentDocument deploymentDocument = parseAndValidateJobDocument(jobDocument);
         return new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver, kernel, logger,
                 deploymentDocument);
     }
 
-    private DeploymentDocument parseAndValidateJobDocument(HashMap<String, Object> jobDocument)
+    private DeploymentDocument parseAndValidateJobDocument(Map<String, Object> jobDocument)
             throws InvalidRequestException {
         if (jobDocument == null) {
             String errorMessage = "Job document cannot be empty";
@@ -178,20 +179,16 @@ public class DeploymentService extends EvergreenService {
             return deploymentDocument;
         } catch (JsonProcessingException e) {
             String errorMessage = "Unable to parse the job document";
-            logger.error(errorMessage, e);
-            logger.error(e.getMessage());
             throw new InvalidRequestException(errorMessage, e);
         }
     }
 
-    private void updateJobAsSucceded(String jobId, HashMap<String, String> statusDetails) {
-        //TODO: Fill in status details from the deployment packet
+    private void updateJobAsSucceeded(String jobId, HashMap<String, String> statusDetails) {
         iotJobsHelper.updateJobStatus(jobId, JobStatus.SUCCEEDED, statusDetails);
         logger.addDefaultKeyValue("JobId", "");
     }
 
     private void updateJobAsFailed(String jobId, HashMap<String, String> statusDetails) {
-        //TODO: Fill in status details from the deployment packet
         iotJobsHelper.updateJobStatus(jobId, JobStatus.FAILED, statusDetails);
         logger.addDefaultKeyValue("JobId", "");
     }
@@ -219,7 +216,7 @@ public class DeploymentService extends EvergreenService {
         this.iotJobsHelperFactory = iotJobsHelperFactory;
         this.executorService = executorService;
         this.kernel = kernel;
-        this.dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH));
+        this.dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), this.kernel);
         this.packageCache = new PackageCache();
         this.kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
     }
@@ -260,7 +257,7 @@ public class DeploymentService extends EvergreenService {
                     logger.info("Getting the status of the current process");
 
                     currentProcessStatus.get();
-                    updateJobAsSucceded(currentJobId, null);
+                    updateJobAsSucceeded(currentJobId, null);
                     currentProcessStatus = null;
                 }
                 Thread.sleep(pollingFrequency);
@@ -292,7 +289,7 @@ public class DeploymentService extends EvergreenService {
     private void initialize() {
         //Cannot do this in constructor because of how dependency injection works
         if (dependencyResolver == null) {
-            this.dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), context);
+            this.dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel);
         }
         if (packageCache == null) {
             this.packageCache = new PackageCache();

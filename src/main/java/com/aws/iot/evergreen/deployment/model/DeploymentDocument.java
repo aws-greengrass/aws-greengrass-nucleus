@@ -26,19 +26,19 @@ import java.util.List;
 public class DeploymentDocument {
 
     @JsonProperty("DeploymentId")
-    String deploymentId;
+    private String deploymentId;
 
     @JsonProperty("RootPackages")
-    List<String> rootPackages;
+    private List<String> rootPackages;
 
     @JsonProperty("Packages")
-    List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
+    private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
 
     @JsonProperty("GroupName")
-    String groupName;
+    private String groupName;
 
     @Setter
     @JsonProperty("Timestamp")
-    Long timestamp;
+    private Long timestamp;
 
 }

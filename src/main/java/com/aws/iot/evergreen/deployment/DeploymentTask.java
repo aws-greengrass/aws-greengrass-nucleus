@@ -49,8 +49,6 @@ public class DeploymentTask implements Callable<Void> {
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, new HashSet<>());
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
-            logger.atInfo().addKeyValue("Config", newConfig.toString())
-                    .log("Submitting the config to merge with " + "kernel");
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", document.getDeploymentId()).log("Finish deployment task");

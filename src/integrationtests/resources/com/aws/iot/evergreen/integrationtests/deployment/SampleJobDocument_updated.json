@@ -25,12 +25,12 @@
       "ResolvedVersion": "1.0.0",
       "Dependencies": [
         {
-          "Name": "TickTock"
+          "Name": "GreenSignal"
         }
       ]
     },
     {
-      "Name": "TickTock",
+      "Name": "GreenSignal",
       "ResolvedVersion": "1.0.0"
     }
   ],
