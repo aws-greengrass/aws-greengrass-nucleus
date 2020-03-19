@@ -5,7 +5,7 @@ package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
@@ -21,17 +21,15 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.util.Pair;
+import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
-
+import com.aws.iot.evergreen.util.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -45,24 +43,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-public class IPCServicesTest {
+class IPCServicesTest extends AbstractBaseITCase {
 
     private static int port;
     private static String address;
     private static Kernel kernel;
 
-    @TempDir
-    static Path tempRootDir;
-
     @BeforeAll
-    static void setup() throws Exception {
-        // starting daemon
-        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
+    static void startKernel() throws Exception {
         kernel = new Kernel();
+        kernel.parseArgs(IPCServicesTest.class.getResource("ipc.yaml").toString());
 
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                IPCServicesTest.class.getResource("ipc.yaml").toString());
-
+        // ensure awaitIpcServiceLatch starts
+        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
             if (service.getName().equals("IPCService") && newState.equals(State.RUNNING)) {
                 awaitIpcServiceLatch.countDown();
@@ -73,8 +66,8 @@ public class IPCServicesTest {
 
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
-        Topic kernelUri = kernel.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv",
-                                        KERNEL_URI_ENV_VARIABLE_NAME);
+        Topic kernelUri =
+                kernel.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();
@@ -88,17 +81,12 @@ public class IPCServicesTest {
     @Test
     void registerResourceTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel
-                        .findServiceTopic("mqtt")
-                        .findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+                .token((String) kernel.findServiceTopic("mqtt").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
         KernelIPCClientConfig config2 = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel
-                        .findServiceTopic("ServiceName")
-                        .findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
                 .build();
         IPCClient client2 = new IPCClientImpl(config2);
         ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
@@ -152,9 +140,7 @@ public class IPCServicesTest {
     @Test
     void registerResourcePermissionTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel
-                        .findServiceTopic("ServiceName")
-                        .findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
                 .build();
         IPCClient client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
@@ -170,10 +156,7 @@ public class IPCServicesTest {
     @Test
     void lifecycleTest() throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel
-                        .findServiceTopic("ServiceName")
-                        .findLeafChild("_UID").getOnce())
-                .build();
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild("_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
 
