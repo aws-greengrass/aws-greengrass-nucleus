@@ -54,7 +54,7 @@ class KernelTest extends AbstractBaseITCase {
     }
 
     @Test
-    void GIVEN_the_ultimate_config_WHEN_kernel_starts_THEN_services_starts_with_env_set() throws Exception {
+    void GIVEN_expected_log_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
 
         // start logWatcher with a separate thread
         new Thread(getLogWatcher()).start();
