@@ -45,9 +45,10 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
             throws Throwable {
+        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
-
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -86,6 +87,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
+        System.out.println("The root property is: " + System.getProperty("root"));
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
