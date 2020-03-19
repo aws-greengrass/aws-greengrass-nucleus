@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -460,7 +459,7 @@ public class EvergreenService implements InjectionActions {
                                     waitForDependencyReady();
                                     logger.atInfo().setEventType("service-starting").log();
                                 } catch (InterruptedException e) {
-                                    logger.atError().setEventType("service-dependency-error").setCause(e)
+                                    logger.atWarn().setEventType("service-dependency-error")
                                             .log("Got interrupted while waiting for dependency ready");
                                     return;
                                 }
