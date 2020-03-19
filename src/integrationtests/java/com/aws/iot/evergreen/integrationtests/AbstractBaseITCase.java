@@ -7,11 +7,11 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 
 /**
- * This class is a base IT case to simplify the setup for each integration tests.
+ * This class is a base IT case to simplify the setup for integration tests.
  *
- * It creates a temp directory and set to root property before each test.
+ * It creates a temp directory and sets it to "root" before each @Test.
  *
- * However, individual integration test could override the setup, or just do it on their own without extending this.
+ * However, individual integration test could override the setup or just set up without extending this.
  */
 public abstract class AbstractBaseITCase {
 
