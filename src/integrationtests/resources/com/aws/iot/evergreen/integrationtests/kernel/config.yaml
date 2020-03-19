@@ -131,7 +131,6 @@ services:
         hw.jar: http://foo/hw.jar
     dependencies:
       macos:
-        - jdk11
         - git
         - hello-docker
         - hello-docker-nginx

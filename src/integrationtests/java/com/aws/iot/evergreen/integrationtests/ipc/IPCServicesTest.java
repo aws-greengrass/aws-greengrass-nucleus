@@ -52,7 +52,7 @@ class IPCServicesTest extends AbstractBaseITCase {
     @BeforeAll
     static void startKernel() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs(IPCServicesTest.class.getResource("ipc.yaml").toString());
+        kernel.parseArgs("-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
 
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);

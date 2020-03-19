@@ -44,7 +44,7 @@ class KernelTest extends AbstractBaseITCase {
     @Test
     void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
 
-        // add log listener to verify stdout patterm
+        // add log listener to verify stdout pattern
         Consumer<EvergreenStructuredLogMessage> logListener = getLogListener();
         Log4jLogEventBuilder.addGlobalListener(logListener);
 
