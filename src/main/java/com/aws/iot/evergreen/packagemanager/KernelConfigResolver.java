@@ -11,7 +11,9 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,8 +22,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 @AllArgsConstructor
+@NoArgsConstructor
 public class KernelConfigResolver {
 
     private static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
@@ -29,8 +33,10 @@ public class KernelConfigResolver {
     private static final String SERVICE_NAMESPACE_CONFIG_KEY = "services";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
-    private final PackageCache packageCache;
-    private final Kernel kernel;
+    @Inject
+    private PackageCache packageCache;
+    @Inject
+    private Kernel kernel;
 
     /**
      * Create a kernel config map from a list of package identifiers and deployment document.
@@ -88,8 +94,9 @@ public class KernelConfigResolver {
         // Generate dependencies
         // TODO : Only platform specific dependencies should be added once deployment document and
         // package recipe format supports platform wise dependency specification
-        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, pkg.getDependencies().keySet());
 
+        List<String> dependencyServiceNames = new ArrayList<>(pkg.getDependencies().keySet());
+        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencyServiceNames);
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, pkg.getVersion());
         return resolvedServiceConfig;
     }
@@ -138,10 +145,8 @@ public class KernelConfigResolver {
         kernelDependencies
                 .removeAll(rootPackagesToRemove.stream().map(PackageIdentifier::getName).collect(Collectors.toSet()));
         kernelDependencies.addAll(document.getRootPackages());
-
         Map<Object, Object> mainLifecycleMap = new HashMap<>();
-        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, kernelDependencies);
-
+        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, new ArrayList<>(kernelDependencies));
         return mainLifecycleMap;
     }
 
@@ -180,5 +185,4 @@ public class KernelConfigResolver {
         }
         return Collections.emptySet();
     }
-
 }

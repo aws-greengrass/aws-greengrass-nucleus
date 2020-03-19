@@ -21,6 +21,8 @@ import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,13 +38,15 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 @AllArgsConstructor
+@NoArgsConstructor
 public class DependencyResolver {
     private static final Logger logger = LogManager.getLogger(DependencyResolver.class);
     private static final String ROOT_REQUIREMENT_KEY = "ROOT";
 
-    private final PackageStore store;
+    @Setter
+    private PackageStore store;
     @Inject
-    private final Kernel kernel;
+    private Kernel kernel;
 
     /**
      * Create the full list of packages to be run on the device from a deployment document.
@@ -120,7 +124,6 @@ public class DependencyResolver {
                                           Map<String, Map<String, String>> packageNameToVersionConstraints,
                                           Set<String> packagesToResolve)
             throws PackagingException, IOException, PackageVersionConflictException {
-
         if (packagesToResolve.isEmpty()) {
             return Optional.empty();
         }
@@ -278,7 +281,6 @@ public class DependencyResolver {
         }
         logger.atDebug().addKeyValue("packageName", pkgName).addKeyValue("versionList", versionList)
                 .log("Found possible versions for dependency package");
-
         return versionList;
     }
 

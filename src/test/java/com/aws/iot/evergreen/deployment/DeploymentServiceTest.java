@@ -4,10 +4,12 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.packagemanager.DependencyResolver;
+import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
+import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,18 +33,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,6 +70,15 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     @Mock
     ExecutorService mockExecutorService;
 
+    @Mock
+    private DependencyResolver dependencyResolver;
+
+    @Mock
+    private PackageCache packageCache;
+
+    @Mock
+    private KernelConfigResolver kernelConfigResolver;
+
     @Captor
     ArgumentCaptor<Consumer<JobExecutionsChangedEvent>> jobEventConsumerCaptor;
 
@@ -79,7 +86,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     ArgumentCaptor<Consumer<DescribeJobExecutionResponse>> describeJobConsumerCaptor;
 
     DeploymentService deploymentService;
-    CountDownLatch doneSignal;
+
 
     @Nested
     class DeploymentServiceInitializedWithMocks {
@@ -121,17 +128,17 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                     .thenReturn(mockIotJobsHelper);
 
             //Creating the class to be tested
-            doneSignal = new CountDownLatch(1);
             deploymentService =
-                    new DeploymentService(config, mockIotJobsHelperFactory, mockExecutorService, mockKernel);
+                    new DeploymentService(config, mockIotJobsHelperFactory, mockExecutorService, mockKernel,
+                            dependencyResolver, packageCache, kernelConfigResolver);
         }
 
         @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_report_succeeded_job_status()
                 throws ExecutionException, InterruptedException {
-            CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
-            when(mockBooleanFuture.get()).thenReturn(Boolean.TRUE);
-            when(mockExecutorService.submit(any(DeploymentProcess.class))).thenReturn(mockBooleanFuture);
+            CompletableFuture<Void> mockFuture = new CompletableFuture<Void>();
+            mockFuture.complete(null);
+            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             startDeploymentServiceInAnotherThread();
 
@@ -140,19 +147,23 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
             response.execution = getTestJobExecutionData();
             consumer.accept(response);
+
             verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
-            verify(mockExecutorService).submit(any(DeploymentProcess.class));
-            //Wait for the deploymentFrequency after which deployment service will check for the status of future
-            Thread.sleep(Duration.ofSeconds(1).toMillis());
+            verify(mockExecutorService).submit(any(DeploymentTask.class));
+            //Wait for the enough time after which deployment service would have updated the status of job
+            Thread.sleep(Duration.ofSeconds(2).toMillis());
+
             verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
+            deploymentService.shutdown();
         }
 
         @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status()
                 throws ExecutionException, InterruptedException {
-            CompletableFuture<Boolean> mockBooleanFuture = mock(CompletableFuture.class);
-            when(mockBooleanFuture.get()).thenReturn(Boolean.FALSE);
-            when(mockExecutorService.submit(any(DeploymentProcess.class))).thenReturn(mockBooleanFuture);
+            CompletableFuture<Void> mockFuture = new CompletableFuture<Void>();
+            Throwable t = new NonRetryableDeploymentTaskFailureException(null);
+            mockFuture.completeExceptionally(t);
+            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             startDeploymentServiceInAnotherThread();
 
@@ -161,11 +172,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
             response.execution = getTestJobExecutionData();
             consumer.accept(response);
+
             verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
-            verify(mockExecutorService).submit(any(DeploymentProcess.class));
-            //Wait for the deploymentFrequency after which deployment service will check for the status of future
-            Thread.sleep(Duration.ofSeconds(1).toMillis());
+            verify(mockExecutorService).submit(any(DeploymentTask.class));
+            //Wait for the enough time after which deployment service would have updated the status of job
+            Thread.sleep(Duration.ofSeconds(2).toMillis());
             verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), any());
+            deploymentService.shutdown();
         }
 
         @Nested
