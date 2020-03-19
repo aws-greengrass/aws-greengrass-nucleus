@@ -7,57 +7,44 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.it.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
-import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(PerformanceReporting.class)
 class KernelTest extends AbstractBaseITCase {
-    private static final String LOG_FILE_NAME = "KernelTest.log";
-    private static final String LOG_FILE_PATH_NAME = tempRootDir.resolve(LOG_FILE_NAME).toAbsolutePath().toString();
-
-
-    private static final ExpectedMessage[] EXPECTED_MESSAGES = {new ExpectedMessage(0, "MAIN IS RUNNING", "Main service"),
-            //new ExpectedMessage("docs.docker.com/", "docker hello world"),
-            new ExpectedMessage(0, "tick-tock", "periodic", 3), new ExpectedMessage(0, "ANSWER=42", "global setenv"),
-            new ExpectedMessage(0, "EVERGREEN_UID=", "generated unique token"),
-            new ExpectedMessage(0, "version: 0.12.1", "moquette mqtt server"),
-            new ExpectedMessage(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
-            new ExpectedMessage(1, "NEWMAIN", "Assignment to 'run' script'"),
-            new ExpectedMessage(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
-            new ExpectedMessage(2, "I'm Frodo", "merge adding dependency")};
+    private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
+            {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
+                    //new ExpectedStdoutPattern("docs.docker.com/", "docker hello world"),
+                    new ExpectedStdoutPattern(0, "tick-tock", "periodic", 3),
+                    new ExpectedStdoutPattern(0, "ANSWER=42", "global setenv"),
+                    new ExpectedStdoutPattern(0, "EVERGREEN_UID=", "generated unique token"),
+                    new ExpectedStdoutPattern(0, "version: 0.12.1", "moquette mqtt server"),
+                    new ExpectedStdoutPattern(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
+                    new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'"),
+                    new ExpectedStdoutPattern(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
+                    new ExpectedStdoutPattern(2, "I'm Frodo", "merge adding dependency")};
 
     private static final CountDownLatch[] COUNT_DOWN_LATCHES =
             {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
 
-    @BeforeAll
-    static void beforeAll() {
-        // TODO Refactor with Log Listener
-        // override log store to a file for legacy kernel test to verify logs
-        System.setProperty("log.store", "FILE");
-        System.setProperty("log.level", "INFO");
-        System.setProperty("log.storeName", LOG_FILE_PATH_NAME);
-        System.out.println("Storing log to: " + LOG_FILE_PATH_NAME);
-    }
-
     @Test
-    void GIVEN_expected_log_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
-
-        // start logWatcher with a separate thread
-        new Thread(getLogWatcher()).start();
+    void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
+        // Add log listener to verify stdout patterm
+        Log4jLogEventBuilder.addGlobalListener(getLogListener());
 
         // launch kernel
         Kernel kernel = new Kernel();
@@ -68,7 +55,7 @@ class KernelTest extends AbstractBaseITCase {
         System.out.println("Group 0 passed, now for the harder stuff");
 
         kernel.find("services", "main", "lifecycle", "run")
-                .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
+                .setValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
         testGroup(1);
 
         System.out.println("Group 1 passed, now merging delta.yaml");
@@ -81,39 +68,24 @@ class KernelTest extends AbstractBaseITCase {
         kernel.shutdown();
     }
 
-    private Runnable getLogWatcher() {
-        return () -> {
-            try {
+    private Consumer<EvergreenStructuredLogMessage> getLogListener() {
+        return evergreenStructuredLogMessage -> {
+            String stdoutStr = evergreenStructuredLogMessage.getContexts().get("stdout");
 
-                File fileToWatch = new File(LOG_FILE_PATH_NAME);
-                while (!fileToWatch.exists()) {
-                    Thread.sleep(1000);
-                }
+            if (stdoutStr != null && stdoutStr.length() > 0) {
+                for (ExpectedStdoutPattern expectedStdoutPattern : EXPECTED_MESSAGES) {
+                    if (stdoutStr.contains(expectedStdoutPattern.pattern)) {
+                        if (--expectedStdoutPattern.count == 0) {
+                            System.out.println(String.format("KernelTest: Just saw stdout pattern: '%s' for '%s'.",
+                                    expectedStdoutPattern.pattern, expectedStdoutPattern.message));
 
-                long lastKnownPosition = 0;
-                while (true) {
-                    Thread.sleep(1000);
+                            COUNT_DOWN_LATCHES[expectedStdoutPattern.group].countDown();
 
-                    try (RandomAccessFile randomAccessFile = new RandomAccessFile(fileToWatch, "r")) {
-                        randomAccessFile.seek(lastKnownPosition);
-                        String line;
-                        while ((line = randomAccessFile.readLine()) != null) {
-                            for (ExpectedMessage message : EXPECTED_MESSAGES) {
-                                if (line.contains(message.pattern)) {
-                                    if (++message.seen == 1) {
-                                        System.out.println("KernelTest: Just saw " + message.message);
-                                        COUNT_DOWN_LATCHES[message.group].countDown();
-                                        System.out.println("\tCOUNT_DOWN_LATCHES[" + message.group + "]="
-                                                + COUNT_DOWN_LATCHES[message.group].getCount());
-                                    }
-                                }
-                            }
+                            System.out.println("\tCOUNT_DOWN_LATCHES[" + expectedStdoutPattern.group + "]="
+                                    + COUNT_DOWN_LATCHES[expectedStdoutPattern.group].getCount());
                         }
-                        lastKnownPosition = randomAccessFile.getFilePointer();
                     }
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
         };
     }
@@ -121,8 +93,8 @@ class KernelTest extends AbstractBaseITCase {
     private void testGroup(int group) throws Exception {
         COUNT_DOWN_LATCHES[group].await(100, TimeUnit.SECONDS);
 
-        for (ExpectedMessage pattern : EXPECTED_MESSAGES) {
-            if (pattern.seen <= 0 && pattern.group == group) {
+        for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
+            if (pattern.count > 0 && pattern.group == group) {
                 fail("Didnt see: " + pattern.message);
             }
         }
@@ -189,20 +161,20 @@ class KernelTest extends AbstractBaseITCase {
         }
     }
 
-    private static class ExpectedMessage {
+    private static class ExpectedStdoutPattern {
         final int group;
         final String pattern;
         final String message;
-        int seen;
+        int count;
 
-        ExpectedMessage(int group, String pattern, String message, int count) {
+        ExpectedStdoutPattern(int group, String pattern, String message, int count) {
             this.group = group;
             this.pattern = pattern;
             this.message = message;
-            seen = 1 - count;
+            this.count = count;
         }
 
-        ExpectedMessage(int group, String pattern, String message) {
+        ExpectedStdoutPattern(int group, String pattern, String message) {
             this(group, pattern, message, 1);
         }
     }
