@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -48,7 +49,7 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-public class EvergreenService implements InjectionActions, Closeable {
+public class EvergreenService implements InjectionActions {
     public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
@@ -64,6 +65,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     private Future backingTask;
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
+    private Thread lifeCycleThread;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
@@ -656,23 +658,33 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
     }
 
-    @Override
-    public void close() {
+    /**
+     * Moves the service to finished state and shuts down lifecycle thread.
+     *
+     * @return future completes when the lifecycle thread shuts down.
+     */
+    public Future<Void> close() {
+        CompletableFuture<Void> closeFuture = new CompletableFuture<>();
         context.get(Executor.class).execute(() -> {
-            Periodicity t = periodicityInformation;
-            if (t != null) {
-                t.shutdown();
-            }
-            //TODO: make close block till the service exits or make close non blocking
-            // currently close blocks till dependers exit which neither the above
             try {
-                waitForDependersToExit();
-            } catch (InterruptedException e) {
-                logger.error("Interrupted waiting for dependers to exit");
+                Periodicity t = periodicityInformation;
+                if (t != null) {
+                    t.shutdown();
+                }
+                try {
+                    waitForDependersToExit();
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted waiting for dependers to exit");
+                }
+                requestStop();
+                isClosed.set(true);
+                lifeCycleThread.join();
+                closeFuture.complete(null);
+            } catch (Exception e) {
+                closeFuture.completeExceptionally(e);
             }
-            requestStop();
-            isClosed.set(true);
         });
+        return closeFuture;
     }
 
     public Context getContext() {
@@ -809,7 +821,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     public void postInject() {
         initDependenciesTopic();
         //TODO: Use better threadPool mechanism
-        new Thread(() -> {
+        lifeCycleThread = new Thread(() -> {
             while (!isClosed.get()) {
                 try {
                     startStateTransition();
@@ -821,7 +833,8 @@ public class EvergreenService implements InjectionActions, Closeable {
                             .addKeyValue("currentState", getState()).log();
                 }
             }
-        }).start();
+        });
+        lifeCycleThread.start();
     }
 
     private Map<EvergreenService, State> getDependencyStateMap(Iterable<String> dependencyList) throws Exception {

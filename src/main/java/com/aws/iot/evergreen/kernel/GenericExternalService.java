@@ -43,7 +43,7 @@ public class GenericExternalService extends EvergreenService {
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
             // when the service is removed via a deployment this topic itself will be removed
-            if (WhatHappened.removed.equals(what)) {
+            if (WhatHappened.removed.equals(what) && child == null) {
                 return;
             }
             if (!c.parentNeedsToKnow()) {
