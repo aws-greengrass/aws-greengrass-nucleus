@@ -1,0 +1,16 @@
+---
+services:
+
+  main:
+    install:
+      all: echo All installed
+    dependencies:
+      macos:
+      linux:
+    run: |-
+      echo $PATH
+      pwd
+      printenv
+      while true; do
+      date; sleep 5; echo RUNNING
+      done
