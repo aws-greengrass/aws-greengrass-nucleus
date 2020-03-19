@@ -22,37 +22,31 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(PerformanceReporting.class)
 class KernelTest extends AbstractBaseITCase {
-    static final int[] gc = new int[10];
-    static final CountDownLatch[] OK = new CountDownLatch[10];
-    private static final Expected[] expectations = {new Expected(0, "\"stdout\":\"RUNNING\"", "Main service"),
-            //new Expected("docs.docker.com/", "docker hello world"),
-            new Expected(0, "\"stdout\":\"tick-tock\"", "periodic", 3),
-            new Expected(0, "\"stdout\":\"ANSWER=42\"", "global setenv"),
-            new Expected(0, "\"stdout\":\"EVERGREEN_UID=", "generated unique token"),
-            new Expected(0, "\"stdout\":\"version: 0.12.1\"", "moquette mqtt server"),
-            new Expected(0, "\"stdout\":\"JUSTME=fancy a spot of tea?\"", "local setenv in main service"),
-            new Expected(1, "\"stdout\":\"NEWMAIN\"", "Assignment to 'run' script'"),
-            new Expected(2, "\"stdout\":\"JUSTME=fancy a spot of coffee?\"", "merge yaml"),
-            new Expected(2, "\"stdout\":\"I'm Frodo\"", "merge adding dependency")};
     private static final String LOG_FILE_NAME = "KernelTest.log";
     private static final String LOG_FILE_PATH_NAME = tempRootDir.resolve(LOG_FILE_NAME).toAbsolutePath().toString();
 
-    static {
-        for (int i = gc.length; --i >= 0; ) {
-            OK[i] = new CountDownLatch(gc[i]);
-        }
-    }
+
+    private static final ExpectedMessage[] EXPECTED_MESSAGES = {new ExpectedMessage(0, "MAIN IS RUNNING", "Main service"),
+            //new ExpectedMessage("docs.docker.com/", "docker hello world"),
+            new ExpectedMessage(0, "tick-tock", "periodic", 3), new ExpectedMessage(0, "ANSWER=42", "global setenv"),
+            new ExpectedMessage(0, "EVERGREEN_UID=", "generated unique token"),
+            new ExpectedMessage(0, "version: 0.12.1", "moquette mqtt server"),
+            new ExpectedMessage(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
+            new ExpectedMessage(1, "NEWMAIN", "Assignment to 'run' script'"),
+            new ExpectedMessage(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
+            new ExpectedMessage(2, "I'm Frodo", "merge adding dependency")};
+
+    private static final CountDownLatch[] COUNT_DOWN_LATCHES =
+            {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
 
     @BeforeAll
     static void beforeAll() {
         // TODO Refactor with Log Listener
         // override log store to a file for legacy kernel test to verify logs
-        System.setProperty("log.fmt", "JSON");
         System.setProperty("log.store", "FILE");
         System.setProperty("log.level", "INFO");
         System.setProperty("log.storeName", LOG_FILE_PATH_NAME);
@@ -60,10 +54,83 @@ class KernelTest extends AbstractBaseITCase {
     }
 
     @Test
-    void testErrorRetry() throws InterruptedException {
-        Kernel kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
+    void GIVEN_the_ultimate_config_WHEN_kernel_starts_THEN_services_starts_with_env_set() throws Exception {
 
+        // start logWatcher with a separate thread
+        new Thread(getLogWatcher()).start();
+
+        // launch kernel
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+        kernel.launch();
+
+        testGroup(0);
+        System.out.println("Group 0 passed, now for the harder stuff");
+
+        kernel.find("services", "main", "lifecycle", "run")
+                .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
+        testGroup(1);
+
+        System.out.println("Group 1 passed, now merging delta.yaml");
+        kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
+                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
+                .get(60, TimeUnit.SECONDS);
+        testGroup(2);
+        System.out.println("Group 2 passed. We made it.");
+
+        kernel.shutdown();
+    }
+
+    private Runnable getLogWatcher() {
+        return () -> {
+            try {
+
+                File fileToWatch = new File(LOG_FILE_PATH_NAME);
+                while (!fileToWatch.exists()) {
+                    Thread.sleep(1000);
+                }
+
+                long lastKnownPosition = 0;
+                while (true) {
+                    Thread.sleep(1000);
+
+                    try (RandomAccessFile randomAccessFile = new RandomAccessFile(fileToWatch, "r")) {
+                        randomAccessFile.seek(lastKnownPosition);
+                        String line;
+                        while ((line = randomAccessFile.readLine()) != null) {
+                            for (ExpectedMessage message : EXPECTED_MESSAGES) {
+                                if (line.contains(message.pattern)) {
+                                    if (++message.seen == 1) {
+                                        System.out.println("KernelTest: Just saw " + message.message);
+                                        COUNT_DOWN_LATCHES[message.group].countDown();
+                                        System.out.println("\tCOUNT_DOWN_LATCHES[" + message.group + "]="
+                                                + COUNT_DOWN_LATCHES[message.group].getCount());
+                                    }
+                                }
+                            }
+                        }
+                        lastKnownPosition = randomAccessFile.getFilePointer();
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+    }
+
+    private void testGroup(int group) throws Exception {
+        COUNT_DOWN_LATCHES[group].await(100, TimeUnit.SECONDS);
+
+        for (ExpectedMessage pattern : EXPECTED_MESSAGES) {
+            if (pattern.seen <= 0 && pattern.group == group) {
+                fail("Didnt see: " + pattern.message);
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_dependency_will_error_out_WHEN_kernel_starts_THEN_main_restarts_after_dependency_retries()
+            throws Exception {
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
                         new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.NEW),
@@ -87,8 +154,9 @@ class KernelTest extends AbstractBaseITCase {
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
+        Kernel kernel = new Kernel();
         kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
-            if (expectedStateTransitionList.size() == 0) {
+            if (expectedStateTransitionList.isEmpty()) {
                 return;
             }
 
@@ -96,141 +164,55 @@ class KernelTest extends AbstractBaseITCase {
 
             if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
                     .equals(expected.current)) {
-                System.out.println(String.format("Just saw state event for service %s: %s=> %s", expected.serviceName,
+                System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
                         expected.was, expected.current));
 
                 expectedStateTransitionList.pollFirst();
-                if (expectedStateTransitionList.size() == 0) {
-                    // all assersion done.
+
+                if (expectedStateTransitionList.isEmpty()) {
                     assertionLatch.countDown();
                 }
             }
-
         });
+
+        kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
         kernel.launch();
-        boolean ok = assertionLatch.await(60, TimeUnit.SECONDS);
+        assertionLatch.await(60, TimeUnit.SECONDS);
 
         kernel.shutdownNow();
-        if (expectedStateTransitionList.size() != 0 || !ok) {
-            for (ExpectedStateTransition e : expectedStateTransitionList) {
-                System.err.println(
-                        String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was,
-                                e.current));
-            }
-            fail("Not seen all expected state transitions");
+
+        if (!expectedStateTransitionList.isEmpty()) {
+            expectedStateTransitionList.forEach(e -> System.err.println(
+                    String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was, e.current)));
+
+            fail("Didn't see all expected state transitions");
         }
     }
 
-    @Test
-    void testSomeMethod() throws Exception {
-        Runnable runnable = () -> {
-            File fileToWatch = new File(LOG_FILE_PATH_NAME);
-            long lastKnownPosition = 0;
-
-            while (!fileToWatch.exists()) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            try {
-                while (true) {
-                    Thread.sleep(1000);
-                    long fileLength = fileToWatch.length();
-
-                    /**
-                     * This case occur, when file is taken backup and new file
-                     * created with the same name.
-                     */
-                    if (fileLength < lastKnownPosition) {
-                        lastKnownPosition = 0;
-                    }
-                    if (fileLength > lastKnownPosition) {
-                        RandomAccessFile randomAccessFile = new RandomAccessFile(fileToWatch, "r");
-                        randomAccessFile.seek(lastKnownPosition);
-                        String line = null;
-                        while ((line = randomAccessFile.readLine()) != null) {
-                            for (Expected pattern : expectations) {
-                                if (line.contains(pattern.pattern)) {
-                                    if (++pattern.seen == 1) {
-                                        System.out.println("KernelTest: Just saw " + pattern.message);
-                                        OK[pattern.group].countDown();
-                                        System.out
-                                                .println("\tOK[" + pattern.group + "]=" + OK[pattern.group].getCount());
-                                    }
-                                }
-                            }
-                        }
-                        lastKnownPosition = randomAccessFile.getFilePointer();
-                        randomAccessFile.close();
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        };
-        Thread thread = new Thread(runnable);
-        thread.start();
-
-        Kernel kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
-        kernel.launch();
-        boolean ok = OK[0].await(200, TimeUnit.SECONDS);
-        assertTrue(ok);
-        testGroup(0);
-        System.out.println("First phase passed, now for the harder stuff");
-
-        kernel.find("services", "main", "lifecycle", "run")
-                .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
-        //            kernel.writeConfig(new OutputStreamWriter(System.out));
-        testGroup(1);
-
-        System.out.println("Now merging delta.yaml");
-        kernel.mergeInNewConfig("ID", System.currentTimeMillis(), (Map<Object, Object>) JSON.std.with(new YAMLFactory())
-                .anyFrom(getClass().getResource("delta" + ".yaml"))).get(60, TimeUnit.SECONDS);
-        testGroup(2);
-        kernel.shutdown();
-    }
-
-    private void testGroup(int g) {
-        try {
-            OK[g].await(100, TimeUnit.SECONDS);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace(System.out);
-        }
-        for (Expected pattern : expectations) {
-            if (pattern.seen <= 0 && pattern.group == g) {
-                fail("Didnt see: " + pattern.message);
-            }
-        }
-    }
-
-    private static class Expected {
+    private static class ExpectedMessage {
+        final int group;
         final String pattern;
         final String message;
-        final int group;
-        int seen = 0;
+        int seen;
 
-        Expected(int g, String p, String m, int n) {
-            group = g;
-            pattern = p;
-            message = m;
-            seen = 1 - n;
-            gc[g]++;
+        ExpectedMessage(int group, String pattern, String message, int count) {
+            this.group = group;
+            this.pattern = pattern;
+            this.message = message;
+            seen = 1 - count;
         }
 
-        Expected(int group, String p, String m) {
-            this(group, p, m, 1);
+        ExpectedMessage(int group, String pattern, String message) {
+            this(group, pattern, message, 1);
         }
     }
 
-    private class ExpectedStateTransition {
+    private static class ExpectedStateTransition {
         final String serviceName;
         final State was;
         final State current;
 
-        public ExpectedStateTransition(String name, State was, State current) {
+        ExpectedStateTransition(String name, State was, State current) {
             this.serviceName = name;
             this.was = was;
             this.current = current;

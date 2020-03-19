@@ -26,18 +26,10 @@ services:
       install:
         all: echo All installed
       run: |-
-        echo $PATH
-        pwd
-        printenv
-        echo RUNNING
+        echo main of config_broken is running
         while true; do
         date; sleep 5;
         done
-      download:
-        hw.jar: http://foo/hw.jar
     dependencies:
       - installErrorRetry
       - runErrorRetry
-    setenv:
-      JUSTME: fancy a spot of tea?
-    args: -jar {hw.jar}
