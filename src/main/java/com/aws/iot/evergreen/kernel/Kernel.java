@@ -673,11 +673,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         return totallyCompleteFuture;
     }
 
+    //TODO: handle removing services that are running within in the JVM but defined via config
     private List<String> getRemovedServicesNames(Map<String, Object> serviceConfig) {
         return orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName())
-                .filter(serviceName -> !serviceConfig.keySet().contains(serviceName))
+                .map(EvergreenService::getName)
+                .filter(serviceName -> !serviceConfig.containsKey(serviceName))
                 .collect(Collectors.toList());
 
     }

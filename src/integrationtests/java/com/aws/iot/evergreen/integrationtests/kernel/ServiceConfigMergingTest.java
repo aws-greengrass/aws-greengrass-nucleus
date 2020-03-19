@@ -238,10 +238,10 @@ class ServiceConfigMergingTest {
 
 
     @Test
-    void GIVEN_kernel_running_services_WHEN_merge_remove_service_THEN_removed_service_is_closed()
+    void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+        kernel.parseArgs("-r", tempRootDir.toString(), "-i",
                 getClass().getResource("long_running_services.yaml").toString());
         kernel.launch();
 
@@ -256,7 +256,7 @@ class ServiceConfigMergingTest {
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
 
         Map<Object, Object> currentConfig = new HashMap<>(kernel.toPOJO());
-        Map<String,Map> servicesConfig = (Map<String, Map>) currentConfig.get("services");
+        Map<String,Map> servicesConfig = (Map<String, Map>) currentConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
         Iterator<String> itr = servicesConfig.keySet().iterator();
 
         //removing all services in the current kernel config except sleeperB and main
@@ -271,7 +271,8 @@ class ServiceConfigMergingTest {
         dependencies.remove("sleeperA:RUNNING");
         servicesConfig.get("main").put("dependencies",dependencies);
         // updating service B's run
-        ((Map) servicesConfig.get("sleeperB").get("lifecycle")).put("run","while true; do\n echo sleeperB_running; sleep 10\n done");
+        ((Map) servicesConfig.get("sleeperB").get(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
+                .put("run","while true; do\n echo sleeperB_running; sleep 10\n done");
 
         Future<Void> future = kernel.mergeInNewConfig("id", System.currentTimeMillis(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
@@ -284,7 +285,7 @@ class ServiceConfigMergingTest {
         EvergreenService main = EvergreenService.locate(kernel.context, "main");
         EvergreenService sleeperB = EvergreenService.locate(kernel.context, "sleeperB");
         // wait for merge to complete
-        future.get();
+        future.get(60, TimeUnit.SECONDS);
         //sleeperA should be closed
         assertTrue(isSleeperAClosed.get());
         // main and sleeperB should be running

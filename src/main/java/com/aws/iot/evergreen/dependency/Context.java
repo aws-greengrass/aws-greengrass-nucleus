@@ -81,8 +81,8 @@ public class Context implements Closeable {
         publishThread.start();
     }
 
-    public boolean remove(String serviceName) {
-        return parts.remove(serviceName) != null;
+    public boolean remove(Object tag) {
+        return parts.remove(tag) != null;
     }
 
     public <T> T get(Class<T> cl) {
