@@ -1,10 +1,10 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.it.kernel;
+package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.it.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
@@ -63,7 +63,7 @@ class KernelTest extends AbstractBaseITCase {
                 (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
                 .get(60, TimeUnit.SECONDS);
         testGroup(2);
-        System.out.println("Group 2 passed. We made it.");
+        System.out.println("Group 2 passed. We made integrationtests.");
 
         kernel.shutdown();
     }
@@ -95,13 +95,13 @@ class KernelTest extends AbstractBaseITCase {
 
         for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
             if (pattern.count > 0 && pattern.group == group) {
-                fail("Didnt see: " + pattern.message);
+                fail("Didn't see: " + pattern.message);
             }
         }
     }
 
     @Test
-    void GIVEN_dependency_will_error_out_WHEN_kernel_starts_THEN_main_restarts_after_dependency_retries()
+    void GIVEN_expected_state_transitions_WHEN_services_error_out_THEN_all_expectations_should_be_seen()
             throws Exception {
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),

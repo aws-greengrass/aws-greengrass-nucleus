@@ -1,11 +1,11 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.it.ipc;
+package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.it.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
@@ -103,7 +103,7 @@ class IPCServicesTest extends AbstractBaseITCase {
         assertEquals(resource, lookupResults.get(0));
 
         // Perform a fuzzy lookup by setting the name to null, so that
-        // we're looking it up based on service type only
+        // we're looking integrationtests up based on service type only
         LookupResourceRequest fuzzyLookup =
                 LookupResourceRequest.builder().resource(resource.toBuilder().name(null).build()).build();
         lookupResults = c.lookupResources(lookup);
@@ -120,7 +120,7 @@ class IPCServicesTest extends AbstractBaseITCase {
         // Try updating the resource (as a different service which isn't allowed)
         assertThrows(ResourceNotOwnedException.class, () -> c2.updateResource(updateRequest));
 
-        // Try removing it (as a different service which isn't allowed)
+        // Try removing integrationtests (as a different service which isn't allowed)
         RemoveResourceRequest removeRequest = RemoveResourceRequest.builder().resource(resource).build();
         assertThrows(ResourceNotOwnedException.class, () -> c2.removeResource(removeRequest));
 
@@ -129,7 +129,7 @@ class IPCServicesTest extends AbstractBaseITCase {
                 RemoveResourceRequest.builder().resource(Resource.builder().name("ABC").build()).build();
         assertThrows(ResourceNotFoundException.class, () -> c.removeResource(removeRequest2));
 
-        // Now remove the service properly and check that it is gone
+        // Now remove the service properly and check that integrationtests is gone
         c.removeResource(removeRequest);
         assertTrue(c.lookupResources(lookup).isEmpty());
 

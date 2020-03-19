@@ -1,10 +1,10 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.it.ipc;
+package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.it.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
@@ -28,7 +28,7 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
 
     @BeforeEach
     void setup() {
-        // set a POM_DIR env var for Exec so that ipc_aware_main.yaml can use it to locate pom.xml
+        // set a POM_DIR env var for Exec so that ipc_aware_main.yaml can use integrationtests to locate pom.xml
         Exec.setDefaultEnv("POM_DIR", System.getProperty("user.dir"));
 
         // start kernel

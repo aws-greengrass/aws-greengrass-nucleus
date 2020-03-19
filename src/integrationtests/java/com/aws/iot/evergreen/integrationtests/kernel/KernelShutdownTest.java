@@ -1,9 +1,9 @@
-package com.aws.iot.evergreen.it.kernel;
+package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.it.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.BeforeEach;
