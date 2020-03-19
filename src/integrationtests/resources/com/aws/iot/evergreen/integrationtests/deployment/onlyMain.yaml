@@ -3,7 +3,6 @@ services:
 
   main:
     install:
-      skipif: true
       all: echo All installed
     dependencies:
       macos:

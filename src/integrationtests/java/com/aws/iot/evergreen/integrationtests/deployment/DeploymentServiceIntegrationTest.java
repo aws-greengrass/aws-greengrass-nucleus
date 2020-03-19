@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -138,8 +137,6 @@ public class DeploymentServiceIntegrationTest {
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
         assertThat(listOfStdoutMessagesTapped, Matchers.containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING)
                 , Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
-        //TODO: Check the correct ordering of dependencies
-        // Logs are not guaranteed to be in the order of dependencies
         Log4jLogEventBuilder.removeGlobalListener(listener);
     }
 
