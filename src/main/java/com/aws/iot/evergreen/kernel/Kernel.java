@@ -117,10 +117,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * @param args user-provided arguments
      */
     public Kernel parseArgs(String... args) {
-        Preferences prefs = Preferences.userNodeForPackage(this.getClass());
         this.args = args;
         Topic root =
-                lookup("system", "rootpath").dflt(deTilde(prefs.get("rootpath", "~/.evergreen"))).subscribe((w, n) -> {
+                lookup("system", "rootpath").subscribe((w, n) -> {
                     rootPath = Paths.get(Coerce.toString(n));
                     configPath = Paths.get(deTilde(configPathName));
                     Exec.removePath(clitoolPath);
@@ -144,8 +143,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             broken = true;
         }
         root.setValue(rootAbsolutePath);
-        prefs.put("rootpath", String.valueOf(root.getOnce())); // make root setting sticky
-
 
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
