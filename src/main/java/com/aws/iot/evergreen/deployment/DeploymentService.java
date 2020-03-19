@@ -151,8 +151,8 @@ public class DeploymentService extends EvergreenService {
             try {
                 deploymentTask = createDeploymentTask(response.execution.jobDocument);
             } catch (InvalidRequestException e) {
-                logger.atError().setCause(e.getCause())
-                        .log("Caught InvalidRequestException while processing a " + "deployment");
+                logger.atError().setCause(e).addKeyValue("message", e.getMessage())
+                        .log("Caught InvalidRequestException while processing a deployment");
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("error", e.getMessage());
                 updateJobAsFailed(currentJobId, statusDetails);
@@ -209,7 +209,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     /**
-     * Constructor fo unit testing.
+     * Constructor for unit testing.
      *
      * @param topics               The configuration coming from  kernel
      * @param iotJobsHelperFactory Factory object for creating IotJobHelper
