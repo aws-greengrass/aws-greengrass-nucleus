@@ -128,7 +128,7 @@
                         </goals>
                         <configuration>
                             <sources>
-                                <source>src/integrationtests/java</source>
+                                <source>src/it/java</source>
                             </sources>
                         </configuration>
                     </execution>
@@ -141,7 +141,7 @@
                         <configuration>
                             <resources>
                                 <resource>
-                                    <directory>src/integrationtests/resources</directory>
+                                    <directory>src/it/resources</directory>
                                 </resource>
                             </resources>
                         </configuration>
@@ -154,20 +154,6 @@
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
-                    <systemProperties>
-                        <property>
-                            <name>log.level</name>
-                            <value>INFO</value>
-                        </property>
-                        <property>
-                            <name>log.store</name>
-                            <value>CONSOLE</value>
-                        </property>
-                        <property>
-                            <name>log.fmt</name>
-                            <value>TEXT</value>
-                        </property>
-                    </systemProperties>
                     <argLine>${surefire.argLine} -Xms1m</argLine>
                     <excludes>
                         <exclude>**/InitTestSuite.java</exclude>
@@ -195,7 +181,7 @@
                         <configuration>
                             <skipTests>${skipTests}</skipTests>
                             <excludes>
-                                <exclude>**/integrationtests/**</exclude>
+                                <exclude>**/it/**</exclude>
                             </excludes>
                         </configuration>
                     </execution>
@@ -209,7 +195,7 @@
                         <configuration>
                             <skipTests>${skipTests}</skipTests>
                             <includes>
-                                <include>**/integrationtests/**</include>
+                                <include>**/it/**</include>
                             </includes>
                             <reuseForks>false
                             </reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->

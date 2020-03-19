@@ -1,4 +1,4 @@
-package com.aws.iot.evergreen.integrationtests;
+package com.aws.iot.evergreen.it;
 
 
 import org.junit.jupiter.api.BeforeAll;
