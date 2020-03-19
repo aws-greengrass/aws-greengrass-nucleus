@@ -28,7 +28,7 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
 
     @BeforeEach
     void setup() {
-        // set a POM_DIR env var for Exec so that ipc_aware_main.yaml can use integrationtests to locate pom.xml
+        // set a POM_DIR env var for Exec so that ipc_aware_main.yaml can use it to locate pom.xml
         Exec.setDefaultEnv("POM_DIR", System.getProperty("user.dir"));
 
         // start kernel
