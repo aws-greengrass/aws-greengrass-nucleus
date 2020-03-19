@@ -13,11 +13,8 @@ public class BasicExampleBenchmark {
 
     @Benchmark
     public void testMethod() throws Exception {
-        String tdir = System.getProperty("user.home")+"/kernelTest";
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tdir,
-                "-i", BasicExampleBenchmark.class.getResource("config.yaml").toString()
-        );
+        kernel.parseArgs("-i", BasicExampleBenchmark.class.getResource("config.yaml").toString());
         kernel.launch();
         Thread.sleep(20000);
         ForcedGcMemoryProfiler.recordUsedMemory();
