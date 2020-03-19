@@ -56,7 +56,6 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.prefs.Preferences;
 
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 import static com.aws.iot.evergreen.util.Utils.close;
@@ -137,7 +136,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
 
         // Initialize root path from System Property/JVM argument
-        String rootAbsolutePath = System.getProperty("root");
+        String rootAbsolutePath = System.getProperty("root", System.getProperty("user.home"));
         if (Utils.isEmpty(rootAbsolutePath) || !ensureCreated(Paths.get(rootAbsolutePath))) {
             System.err.println(rootAbsolutePath + ": not a valid root directory");
             broken = true;

@@ -93,7 +93,7 @@ public class DeploymentServiceIntegrationTest {
     @BeforeAll
     public static void setupKernel() {
         kernel = new Kernel();
-        kernel.parseArgs("-r", sharedDir.toString(), "-i",
+        kernel.parseArgs("-i",
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
         dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel);
