@@ -34,6 +34,8 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
+        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
     }
 
@@ -45,8 +47,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
             throws Throwable {
-        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
