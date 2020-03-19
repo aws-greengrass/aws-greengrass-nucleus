@@ -37,6 +37,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -264,7 +265,6 @@ public class EvergreenService implements InjectionActions, Closeable {
             if (!WhatHappened.changed.equals(what)) {
                 return;
             }
-
             Iterable<String> depList = (Iterable<String>) dependenciesTopic.getOnce();
             logger.atInfo().log("Setting up dependencies again",
                                 String.join(",", depList));
@@ -658,19 +658,21 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     @Override
     public void close() {
-        Periodicity t = periodicityInformation;
-        if (t != null) {
-            t.shutdown();
-        }
-        //TODO: make close block till the service exits or make close non blocking
-        // currently close blocks till dependers exit which neither the above
-        try {
-            waitForDependersToExit();
-        } catch (InterruptedException e) {
-            logger.error("Interrupted waiting for dependers to exit");
-        }
-        requestStop();
-        isClosed.set(true);
+        context.get(Executor.class).execute(() -> {
+            Periodicity t = periodicityInformation;
+            if (t != null) {
+                t.shutdown();
+            }
+            //TODO: make close block till the service exits or make close non blocking
+            // currently close blocks till dependers exit which neither the above
+            try {
+                waitForDependersToExit();
+            } catch (InterruptedException e) {
+                logger.error("Interrupted waiting for dependers to exit");
+            }
+            requestStop();
+            isClosed.set(true);
+        });
     }
 
     public Context getContext() {
@@ -926,6 +928,15 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     public interface GlobalStateChangeListener {
         void globalServiceStateChanged(EvergreenService l, State oldState, State newState);
+    }
+
+    /**
+     * is state machine shutting down.
+     *
+     * @return true is state machine is shutting down.
+     */
+    public boolean isClosed() {
+        return isClosed.get();
     }
 
 }

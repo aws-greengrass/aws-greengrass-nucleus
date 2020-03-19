@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -57,6 +58,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
@@ -596,20 +598,23 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
 
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get("services");
-        Map<String, CountDownLatch> latches = new HashMap<>();
-        serviceConfig.forEach((key, v) -> latches.put((String) key, new CountDownLatch(1)));
+        List<String> removedServices = getRemovedServicesNames(serviceConfig);
+
+        Map<String, CountDownLatch> servicesRunningLatches = new HashMap<>();
+        serviceConfig.forEach((key, v) -> servicesRunningLatches.put(key, new CountDownLatch(1)));
+
+        Map<String, CountDownLatch> servicesClosedLatches = new HashMap<>();
+        removedServices.forEach(serviceName -> servicesClosedLatches.put(serviceName, new CountDownLatch(1)));
 
         EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (serviceConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
-                latches.get(service.getName()).countDown();
+                servicesRunningLatches.get(service.getName()).countDown();
             }
-            if (latches.values().stream().allMatch(c -> c.getCount() <= 0)) {
-                totallyCompleteFuture.complete(null);
+
+            if (removedServices.contains(service.getName()) && newState.isClosable() && service.isClosed()) {
+                servicesClosedLatches.get(service.getName()).countDown();
             }
         };
-        totallyCompleteFuture.thenRun(() -> {
-            context.removeGlobalStateChangeListener(listener);
-        });
 
         context.get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
             context.runOnPublishQueueAndWait(() -> {
@@ -631,6 +636,49 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             });
         });
 
+        context.get(Executor.class).execute(() -> {
+            try {
+                for (CountDownLatch countDownLatch : servicesRunningLatches.values()) {
+                    countDownLatch.await();
+                }
+                removedServices.forEach(serviceName -> {
+                    try {
+                        EvergreenService eg = EvergreenService.locate(context, serviceName);
+                        eg.close();
+                    } catch (ServiceLoadException e) {
+                        logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                                .log("Could not locate EvergreenService to close service");
+                    }
+                });
+                // waiting for removed service to close before removing reference and config entry
+                for (CountDownLatch countDownLatch : servicesClosedLatches.values()) {
+                    countDownLatch.await();
+                }
+                removedServices.forEach(serviceName -> {
+                    try {
+                        context.remove(serviceName);
+                        findTopics("services", serviceName).remove();
+                    } catch (Exception e) {
+                        logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                                .log("Cloud not clean up resources while removing");
+                    }
+                });
+
+                totallyCompleteFuture.complete(null);
+            } catch (Throwable e) {
+                totallyCompleteFuture.completeExceptionally(e);
+            }
+        });
+        totallyCompleteFuture.thenRun(() -> context.removeGlobalStateChangeListener(listener));
         return totallyCompleteFuture;
+    }
+
+    private List<String> getRemovedServicesNames(Map<String, Object> serviceConfig) {
+        return orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(evergreenService -> evergreenService.getName())
+                .filter(serviceName -> !serviceConfig.keySet().contains(serviceName))
+                .collect(Collectors.toList());
+
     }
 }

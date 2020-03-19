@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.AuthHandler;
 import com.aws.iot.evergreen.util.Coerce;
@@ -41,6 +42,10 @@ public class GenericExternalService extends EvergreenService {
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
+            // when the service is removed via a deployment this topic itself will be removed
+            if (WhatHappened.removed.equals(what)) {
+                return;
+            }
             if (!c.parentNeedsToKnow()) {
                 return;
             }

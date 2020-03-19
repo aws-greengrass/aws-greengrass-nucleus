@@ -3,9 +3,12 @@
 
 package com.aws.iot.evergreen.integrationtests.kernel;
 
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,17 +18,24 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
@@ -106,7 +116,6 @@ class ServiceConfigMergingTest {
             }
         });
         kernel.launch();
-
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // WHEN
@@ -227,5 +236,64 @@ class ServiceConfigMergingTest {
                 containsInRelativeOrder("new_service2", "new_service", "main"));
     }
 
-    // TODO: Work on removing dependencies and stopping and then removing unused dependencies
+
+    @Test
+    void GIVEN_kernel_running_services_WHEN_merge_remove_service_THEN_removed_service_is_closed()
+            throws Throwable {
+        // GIVEN
+        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
+                getClass().getResource("long_running_services.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+            if (((State) t.getOnce()).isRunning()) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        //wait for main to run
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
+
+        Map<Object, Object> currentConfig = new HashMap<>(kernel.toPOJO());
+        Map<String,Map> servicesConfig = (Map<String, Map>) currentConfig.get("services");
+        Iterator<String> itr = servicesConfig.keySet().iterator();
+
+        //removing all services in the current kernel config except sleeperB and main
+        while(itr.hasNext()){
+            String serviceName = itr.next();
+            if(!serviceName.equals("sleeperB") && !serviceName.equals("main")){
+                itr.remove();
+            }
+        }
+        List<String> dependencies = new ArrayList((List<String>)servicesConfig.get("main").get("dependencies")) ;
+        //removing main's dependency on sleeperA, Now sleeperA is an unused dependency
+        dependencies.remove("sleeperA:RUNNING");
+        servicesConfig.get("main").put("dependencies",dependencies);
+        // updating service B's run
+        ((Map) servicesConfig.get("sleeperB").get("lifecycle")).put("run","while true; do\n echo sleeperB_running; sleep 10\n done");
+
+        Future<Void> future = kernel.mergeInNewConfig("id", System.currentTimeMillis(), currentConfig);
+        AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("sleeperA") && newState.isClosable()) {
+                isSleeperAClosed.set(true);
+            }
+        });
+
+        EvergreenService main = EvergreenService.locate(kernel.context, "main");
+        EvergreenService sleeperB = EvergreenService.locate(kernel.context, "sleeperB");
+        // wait for merge to complete
+        future.get();
+        //sleeperA should be closed
+        assertTrue(isSleeperAClosed.get());
+        // main and sleeperB should be running
+        assertTrue(State.RUNNING.equals(main.getState()));
+        assertTrue(State.RUNNING.equals(sleeperB.getState()));
+        // ensuring config value for sleeperA is removed
+        assertFalse(kernel.findTopics("services").children.contains("sleeperA"));
+        // ensure kernel no longer holds a reference of sleeperA
+        assertThrows(ServiceLoadException.class, () ->  EvergreenService.locate(kernel.context, "sleeperA"));
+    }
+        // TODO: Work on removing dependencies and stopping and then removing unused dependencies
 }
