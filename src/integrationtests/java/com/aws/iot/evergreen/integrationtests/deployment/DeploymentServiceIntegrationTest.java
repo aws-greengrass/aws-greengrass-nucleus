@@ -16,7 +16,6 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
@@ -26,7 +25,6 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
@@ -49,13 +47,12 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(PerformanceReporting.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class DeploymentServiceIntegrationTest {
+class DeploymentServiceIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello evergreen. This is a test";
 
-    //Based on the recipe files of the packages in sample job document
+    // Based on the recipe files of the packages in sample job document
     private static final String TEST_CUSTOMER_APP_STRING_UPDATED = "Hello evergreen. This is a new value";
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
@@ -79,7 +76,7 @@ public class DeploymentServiceIntegrationTest {
     private CountDownLatch countDownLatch;
 
     @TempDir
-    static Path sharedDir;
+    static Path rootDir;
 
     @BeforeAll
     static void setupLogger() {
@@ -91,7 +88,8 @@ public class DeploymentServiceIntegrationTest {
     }
 
     @BeforeAll
-    public static void setupKernel() {
+    static void setupKernel() {
+        System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i",
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());

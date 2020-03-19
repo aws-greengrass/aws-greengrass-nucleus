@@ -31,8 +31,6 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
-        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
     }
 

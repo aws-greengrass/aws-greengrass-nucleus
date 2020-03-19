@@ -16,7 +16,7 @@ import java.nio.file.Path;
 public abstract class AbstractBaseITCase {
 
     @TempDir
-    Path tempRootDir;
+    protected Path tempRootDir;
 
     @BeforeEach
     void setRootDir() {
