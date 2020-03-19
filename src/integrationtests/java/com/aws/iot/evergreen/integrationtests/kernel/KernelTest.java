@@ -43,8 +43,10 @@ class KernelTest extends AbstractBaseITCase {
 
     @Test
     void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
-        // Add log listener to verify stdout patterm
-        Log4jLogEventBuilder.addGlobalListener(getLogListener());
+
+        // add log listener to verify stdout patterm
+        Consumer<EvergreenStructuredLogMessage> logListener = getLogListener();
+        Log4jLogEventBuilder.addGlobalListener(logListener);
 
         // launch kernel
         Kernel kernel = new Kernel();
@@ -64,6 +66,9 @@ class KernelTest extends AbstractBaseITCase {
                 .get(60, TimeUnit.SECONDS);
         testGroup(2);
         System.out.println("Group 2 passed. We made integrationtests.");
+
+        // clean up
+        Log4jLogEventBuilder.removeGlobalListener(logListener);
 
         kernel.shutdown();
     }
