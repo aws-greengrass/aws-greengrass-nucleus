@@ -9,11 +9,9 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -24,7 +22,6 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(PerformanceReporting.class)
 class KernelTest extends AbstractBaseITCase {
     private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
             {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),

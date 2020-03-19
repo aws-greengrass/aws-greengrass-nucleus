@@ -27,7 +27,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
         aws-region: us-west-2
     - name: Build with Maven
-      run: mvn -ntp -q verify
+      run: mvn -ntp verify
     - name: Convert Jacoco to Cobertura
       run: curl -o cover2cover.py https://gist.githubusercontent.com/MikeDombo/82567fccc1b2aced0c76fc053efd5a26/raw/f79f748f37cabb4cedd186321ea70e9fb383815d/cover2cover.py && python3 cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
     - name: Upload Coverage

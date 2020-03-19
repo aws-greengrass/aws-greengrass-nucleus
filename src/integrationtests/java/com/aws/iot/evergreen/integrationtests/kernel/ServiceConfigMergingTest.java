@@ -7,12 +7,10 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -27,7 +25,6 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(PerformanceReporting.class)
 class ServiceConfigMergingTest extends AbstractBaseITCase {
     private Kernel kernel;
 

@@ -154,24 +154,8 @@
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
-                    <argLine>${surefire.argLine} -Xms1m</argLine>
-                    <excludes>
-                        <exclude>**/InitTestSuite.java</exclude>
-                    </excludes>
                 </configuration>
                 <executions>
-                    <execution>
-                        <id>default-test</id>
-                        <phase>process-test-classes</phase>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                        <configuration>
-                            <test>InitTestSuite</test>
-                            <skipTests>${skipTests}</skipTests>
-                        </configuration>
-                    </execution>
-
                     <execution>
                         <id>unit-tests</id>
                         <phase>test</phase>
