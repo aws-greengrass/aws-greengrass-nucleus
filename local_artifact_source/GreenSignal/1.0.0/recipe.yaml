@@ -1,0 +1,13 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: GreenSignal
+Description: A service indicating approval to proceed
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+  - name: NumApprovals
+    type: NUMBER
+    value: 2
+Lifecycle:
+  run:
+    "echo Go ahead with {{params:NumApprovals.value}} approvals"

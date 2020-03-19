@@ -8,6 +8,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -18,22 +20,25 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
 // TODO: pull this class to a library to share with cloud services. SIM: https://sim.amazon.com/issues/P33788350
 public class DeploymentDocument {
 
     @JsonProperty("DeploymentId")
-    String deploymentId;
+    private String deploymentId;
 
     @JsonProperty("RootPackages")
-    List<String> rootPackages;
+    private List<String> rootPackages;
 
     @JsonProperty("Packages")
-    List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
+    private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
 
     @JsonProperty("GroupName")
-    String groupName;
+    private String groupName;
 
+    @Setter
     @JsonProperty("Timestamp")
-    Long timestamp;
+    private Long timestamp;
+
 }
