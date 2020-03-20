@@ -7,12 +7,10 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -27,15 +25,12 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(PerformanceReporting.class)
 class ServiceConfigMergingTest extends AbstractBaseITCase {
     private Kernel kernel;
 
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
-        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
     }
 
@@ -88,7 +83,6 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
-        System.out.println("The root property is: " + System.getProperty("root"));
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
