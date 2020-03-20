@@ -154,6 +154,7 @@
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
+                    <argLine>${surefire.argLine} -Xms1m</argLine>
                 </configuration>
                 <executions>
                     <execution>
