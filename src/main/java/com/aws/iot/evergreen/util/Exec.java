@@ -187,7 +187,7 @@ public class Exec implements Closeable {
 
     private static String deTilde(String s) {
         if (s.startsWith("~/")) {
-            s = Utils.homePath.resolve(s.substring(2)).toString();
+            s = Utils.HOME_PATH.resolve(s.substring(2)).toString();
         }
         return s;
     }

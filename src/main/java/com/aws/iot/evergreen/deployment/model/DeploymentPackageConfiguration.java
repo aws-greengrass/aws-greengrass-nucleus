@@ -8,8 +8,11 @@ import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -20,23 +23,24 @@ import java.util.Set;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @AllArgsConstructor
+@NoArgsConstructor
 public class DeploymentPackageConfiguration {
 
     @JsonProperty("Name")
-    String packageName;
+    private String packageName;
 
     @JsonProperty("ResolvedVersion")
-    String resolvedVersion;
+    private String resolvedVersion;
 
     @Deprecated
     @JsonProperty("VersionConstraint")
-    String versionConstraint;
+    private String versionConstraint;
 
     @JsonProperty("Parameters")
-    Set<PackageParameter> parameters;
+    private Set<PackageParameter> parameters = new HashSet<>();
 
     @Deprecated
     @JsonProperty("Dependencies")
-    List<PackageIdentifier> listOfDependencies;
+    private List<PackageIdentifier> listOfDependencies;
 
 }

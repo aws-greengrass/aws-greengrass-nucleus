@@ -58,7 +58,6 @@ public class DependencyResolverTest {
 
     @Mock
     private EvergreenService mainService;
-
     @BeforeAll
     public static void Setup() {
         System.setProperty("log.fmt", "TEXT");
@@ -133,7 +132,6 @@ public class DependencyResolverTest {
                     ".2.0"), new Semver("1.1.0"), new Semver("1.0.0")));
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
             doReturn(Optional.of("1.1.0")).when(resolver).getPackageVersionIfActive(any());
-
             Map<String, String> versionConstraints = new HashMap<>();
             versionConstraints.putIfAbsent("mock", ">1.0");
             List<Semver> versions = resolver.getVersionsToExplore("testPackage", versionConstraints);
@@ -143,6 +141,7 @@ public class DependencyResolverTest {
 
     @Nested
     class ResolveDependenciesTest{
+        private final Semver v1_2_0 = new Semver("1.2.0");
         private final Semver v1_1_0 = new Semver("1.1.0");
         private final Semver v1_0_0 = new Semver("1.0.0");
         private final String pkgA = "A";
@@ -172,7 +171,6 @@ public class DependencyResolverTest {
 
             Map<String, String> dependenciesB1_1_x = new HashMap<>();
             dependenciesB1_1_x.put(pkgC1, "1.0.0");
-
             when(mockPackageStore.getPackageVersionsIfExists(pkgB1)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
             when(mockPackageStore.getPackageVersionsIfExists(pkgB2)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
             when(mockPackageStore.getPackageVersionsIfExists(pkgC1)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
@@ -193,6 +191,7 @@ public class DependencyResolverTest {
             when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
+
             doReturn(Optional.empty()).when(resolver).getPackageVersionIfActive(any());
 
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA),
@@ -247,6 +246,7 @@ public class DependencyResolverTest {
             when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
+
             doReturn(Optional.empty()).when(resolver).getPackageVersionIfActive(any());
 
             // top-level package order: A, B2
@@ -294,7 +294,7 @@ public class DependencyResolverTest {
             dependenciesB2_1_x.put(pkgC1, ">1.1");
 
             when(mockPackageStore.getPackageVersionsIfExists(pkgB1)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
-            when(mockPackageStore.getPackageVersionsIfExists(pkgC1)).thenReturn(Arrays.asList(v1_1_0, v1_0_0));
+            when(mockPackageStore.getPackageVersionsIfExists(pkgC1)).thenReturn(Arrays.asList(v1_2_0, v1_1_0, v1_0_0));
 
             when(mockPackageStore.getPackage(pkgA, v1_0_0)).thenReturn(Optional.of(new Package(null, pkgA, v1_0_0, "", ""
                     , Collections.emptySet(), Collections.emptyMap(), Collections.emptyList(), dependenciesA_1_x, Collections.emptyList())));
@@ -303,6 +303,9 @@ public class DependencyResolverTest {
                     Collections.emptyList())));
             when(mockPackageStore.getPackage(pkgB2, v1_1_0)).thenReturn(Optional.of(new Package(null, pkgB2, v1_1_0,
                     "", "", Collections.emptySet(), Collections.emptyMap(), Collections.emptyList(), dependenciesB2_1_x,
+                    Collections.emptyList())));
+            when(mockPackageStore.getPackage(pkgC1, v1_2_0)).thenReturn(Optional.of(new Package(null, pkgC1, v1_2_0,
+                    "", "", Collections.emptySet(), Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap(),
                     Collections.emptyList())));
 
             when(kernel.getMain()).thenReturn(mainService);
@@ -319,7 +322,8 @@ public class DependencyResolverTest {
 
             Exception thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc));
-            assertEquals("Unresolved packages: [B2, A]", thrown.getMessage());
+            assertEquals("Conflicts in resolving package: C1. Version constraints from upstream packages: " +
+                    "{B2-v1.1.0=>1.1, B1-v1.0.0=<1.0}", thrown.getMessage());
 
             // top-level package order: B2, A
             DeploymentDocument doc2 = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA), Arrays.asList(
@@ -329,7 +333,8 @@ public class DependencyResolverTest {
 
             thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc2));
-            assertEquals("Unresolved packages: [A, B2]", thrown.getMessage());
+            assertEquals("Package version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0",
+                    thrown.getMessage());
         }
 
         /**

@@ -12,11 +12,32 @@ An important use-case for this property is when two clones of this config are di
 (no longer cross-updating).  Updates made while disconnected can be reconstructed by
 replaying each other's logs upon reconnection.  This "hack" depends on the two systems having sufficiently well synchronized clocks.
 
+## One way of visualizing it
+
+Given the following configuration in YAML format,
+
+```yaml
+main:
+    requires: myService
+    run: echo MAIN
+```
+
+You could visualize it as:
+
+![Alt text](Topics_and_topic_sample.svg)
+
+
+With the above simple example in mind, a more generic version is the following:
+
+![Alt text](Topics_and_topic_concept.svg)
+
+## Limitations
 One feature that's missing is that arrays are not supported, only primitives and maps.
 Even though arrays are a standard feature of JSON, they present problems when logging
 mutations in a way that can be replayed in any order.  I haven't yet figured out a way
 to do it that I like.
 
+## Code with configuration
 The basic API looks like this:
 ```java
 var where = Path.of("somewhere.tlog");
@@ -37,7 +58,7 @@ Textual reading and writing can be handled by using the Jackson-JR library:
 ```
 *Write YAML:*
 ```java
-	JSON.std.with(new YAMLFactory())
+JSON.std.with(new YAMLFactory())
         .write(config.toPOJO(), System.out);
 ```
 *Write pretty JSON:*
@@ -53,9 +74,9 @@ a GG-SG config file:
 config.findTopics("platforms").forEachTopicSet(n -> System.out.println(n.name));
 ```
 
-For code samples, look at ConfigurationTest.java
+For code samples, look at [ConfigurationTest](https://github.com/aws/aws-greengrass-kernel/blob/master/src/test/java/com/aws/iot/evergreen/config/ConfigurationTest.java).
 
-## subscribe() vs getOnce()
+### subscribe() vs getOnce()
 While you can think of this mechanism as a conventional config file, it's better to think of it as a lightweight publish/subscribe mechanism and use that viewpoint to make it possible for code to be reactive to on-the-fly configuration changes, rather than depending on rebooting the system to pick up configuration changes.
 
 For example, it is common for services to have a variable to control the level of detail in diagnostic traces.  It's useful, in a system under test, to be able to change this in order to help in diagnosing problems.  In a conventional system, it's common to write something like this:

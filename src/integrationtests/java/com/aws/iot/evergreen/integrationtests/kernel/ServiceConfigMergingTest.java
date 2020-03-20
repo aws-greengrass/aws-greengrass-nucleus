@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.integrationtests.kernel;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -39,18 +39,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
-class ServiceConfigMergingTest {
+class ServiceConfigMergingTest extends AbstractBaseITCase {
     private Kernel kernel;
-
-    @TempDir
-    Path tempRootDir;
-
 
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
-        System.setProperty("log.store", "CONSOLE");
-        System.setProperty("log.fmt", "TEXT");
+        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
     }
 
@@ -62,11 +58,9 @@ class ServiceConfigMergingTest {
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
             throws Throwable {
-        // GIVEN
-        Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("single_service.yaml").toString());
 
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -99,15 +93,15 @@ class ServiceConfigMergingTest {
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
         assertEquals("redefined", kernel.find("services", "main", "setenv", "HELLO").getOnce());
         assertThat((String) kernel.find("services", "main", "lifecycle", "run").getOnce(),
-                   containsString("echo \"Running main\""));
+                containsString("echo \"Running main\""));
     }
 
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
+        System.out.println("The root property is: " + System.getProperty("root"));
         // GIVEN
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("single_service.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -136,9 +130,8 @@ class ServiceConfigMergingTest {
             }
         });
 
-        List<String> serviceList =
-                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                      .collect(Collectors.toList());
+        List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                .collect(Collectors.toList());
         serviceList.add("new_service");
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
@@ -165,8 +158,7 @@ class ServiceConfigMergingTest {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("single_service.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -202,26 +194,25 @@ class ServiceConfigMergingTest {
             }
         });
 
-        List<String> serviceList =
-                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                        .collect(Collectors.toList());
+        List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                .collect(Collectors.toList());
         serviceList.add("new_service");
 
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
-                put("main",new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
                     put("dependencies", serviceList);
                 }});
 
-                put("new_service",new HashMap<Object, Object>() {{
-                    put("lifecycle",new HashMap<Object, Object>() {{
-                            put("run", "sleep 60");
+                put("new_service", new HashMap<Object, Object>() {{
+                    put("lifecycle", new HashMap<Object, Object>() {{
+                        put("run", "sleep 60");
                     }});
                     put("dependencies", Arrays.asList("new_service2"));
                 }});
 
-                put("new_service2",new HashMap<Object, Object>() {{
-                    put("lifecycle",new HashMap<Object, Object>() {{
+                put("new_service2", new HashMap<Object, Object>() {{
+                    put("lifecycle", new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
                 }});

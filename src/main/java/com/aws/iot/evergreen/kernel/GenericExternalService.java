@@ -25,7 +25,8 @@ public class GenericExternalService extends EvergreenService {
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
                     "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH",
                     "SIGIO", "SIGPWR", "SIGSYS",};
-    private static final Pattern skipcmd = Pattern.compile("(exists|onpath) +(.+)");
+    private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
+    private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
     private boolean inShutdown;
     // currentScript is the Exec that's currently under executing
     private Exec currentScript;
@@ -221,10 +222,12 @@ public class GenericExternalService extends EvergreenService {
                         return false;
                 }
             }
+            logger.atError().setEventType("generic-service-invalid-config")
+                    .addKeyValue("command received", expr)
+                    .addKeyValue("valid pattern", SKIP_COMMAND_REGEX)
+                    .log("Invalid format for skipif. Should follow the pattern");
+            serviceErrored();
         }
-        logger.atError().setEventType("generic-service-invalid-config")
-              .log("Unsupported definition of skipif");
-        serviceErrored();
         return false;
     }
 

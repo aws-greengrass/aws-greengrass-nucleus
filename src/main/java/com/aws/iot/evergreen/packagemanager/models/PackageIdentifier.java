@@ -7,15 +7,22 @@ import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @JsonSerialize
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @EqualsAndHashCode
 @AllArgsConstructor
+@NoArgsConstructor
 public class PackageIdentifier {
     @JsonProperty("Name")
     String name;
     @JsonProperty("Version")
     Semver version;
+
+    @Override
+    public String toString() {
+        return String.format("%s-v%s", name, version);
+    }
 }

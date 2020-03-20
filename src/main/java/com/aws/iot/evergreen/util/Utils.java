@@ -18,7 +18,7 @@ import java.util.Map;
 
 @SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder"})
 public class Utils {
-    public static final Path homePath = Paths.get(System.getProperty("user.home"));
+    public static final Path HOME_PATH = Paths.get(System.getProperty("user.home"));
     private static final char[] rsChars = "abcdefghjklmnpqrstuvwxyz0123456789".toCharArray();
     private static final char[] hex = "0123456789ABCDEF".toCharArray();
     private static SecureRandom random;
@@ -151,7 +151,7 @@ public class Utils {
     }
 
     public static Path homePath(String s) {
-        return homePath.resolve(s);
+        return HOME_PATH.resolve(s);
     }
 
     /**

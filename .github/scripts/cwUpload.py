@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 import boto3
 from retryable import retry
-from github import Github
+from agithub.GitHub import GitHub
 
 
 def batch(iterable, batch_size=1):
@@ -22,20 +22,18 @@ def batch(iterable, batch_size=1):
 
 
 @retry()
-def put_metrics_retryable(cw, datapoints):
+def put_metrics_retryable(cw, namespace, datapoints):
     # Returns None, will throw if an error occurs
     cw.put_metric_data(
-        Namespace="Evergreen/Testing",
+        Namespace=namespace,
         MetricData=datapoints
     )
 
 
-@retry(count=10, delay=10)
-def comment_on_pr(comment, pr_number):
-    gh = Github(sys.argv[1])
-    repo = gh.get_repo(os.getenv("GITHUB_REPOSITORY"))
-    pr = repo.get_pull(pr_number)
-    pr.create_issue_comment(comment)
+def comment_on_pr(comment: str, pr_number):
+    # agithub automatically retries if we get rate limited, once the rate limit period expires
+    gh = GitHub(token=sys.argv[1])
+    gh.repos[os.getenv("GITHUB_REPOSITORY")].issues[pr_number].comments.post(body={"body": str(comment)})
 
 
 def main():
@@ -74,7 +72,7 @@ def main():
     if event_type == "push":
         # Put metrics up to cloudwatch in batches of 20 (their max limit)
         for b in batch(datapoints, 20):
-            put_metrics_retryable(cw, b)
+            put_metrics_retryable(cw, "Evergreen/Testing", b)
         # Only continue to run for pull requests
         return
 
@@ -116,7 +114,6 @@ def main():
                 change_str = f"💥 {change_str}"
         table += f"|{test_path.split(' ')[-1]}|{v}|{change_str}|{' '.join(test_path.split(' ')[0:-1])}|\n"
 
-    print(table)
     if "number" in github_event and len(sys.argv) == 2:
         comment_on_pr(table, github_event["number"])
 

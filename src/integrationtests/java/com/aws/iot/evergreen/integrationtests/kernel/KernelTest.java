@@ -4,23 +4,18 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Map;
@@ -31,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(PerformanceReporting.class)
-class KernelTest {
+class KernelTest extends AbstractBaseITCase {
     static final int[] gc = new int[10];
     static final CountDownLatch[] OK = new CountDownLatch[10];
     private static final Expected[] expectations = {new Expected(0, "\"stdout\":\"RUNNING\"", "Main service"),
@@ -44,7 +39,8 @@ class KernelTest {
             new Expected(1, "\"stdout\":\"NEWMAIN\"", "Assignment to 'run' script'"),
             new Expected(2, "\"stdout\":\"JUSTME=fancy a spot of coffee?\"", "merge yaml"),
             new Expected(2, "\"stdout\":\"I'm Frodo\"", "merge adding dependency")};
-    static final String LogFileName = "test.log";
+    private static final String LOG_FILE_NAME = "KernelTest.log";
+    private static final String LOG_FILE_PATH_NAME = tempRootDir.resolve(LOG_FILE_NAME).toAbsolutePath().toString();
 
     static {
         for (int i = gc.length; --i >= 0; ) {
@@ -52,36 +48,21 @@ class KernelTest {
         }
     }
 
-    @TempDir
-    Path tempRootDir;
-
     @BeforeAll
-    static void setup() {
+    static void beforeAll() {
+        // TODO Refactor with Log Listener
+        // override log store to a file for legacy kernel test to verify logs
         System.setProperty("log.fmt", "JSON");
-        System.setProperty("log.storeName", LogFileName);
         System.setProperty("log.store", "FILE");
         System.setProperty("log.level", "INFO");
-        try {
-            Files.deleteIfExists(Paths.get(LogFileName));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @AfterAll
-    static void cleanup() {
-        try {
-            Files.deleteIfExists(Paths.get(LogFileName));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        System.setProperty("log.storeName", LOG_FILE_PATH_NAME);
+        System.out.println("Storing log to: " + LOG_FILE_PATH_NAME);
     }
 
     @Test
     void testErrorRetry() throws InterruptedException {
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                getClass().getResource("config_broken.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
 
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
@@ -143,7 +124,7 @@ class KernelTest {
     @Test
     void testSomeMethod() throws Exception {
         Runnable runnable = () -> {
-            File fileToWatch = new File(LogFileName);
+            File fileToWatch = new File(LOG_FILE_PATH_NAME);
             long lastKnownPosition = 0;
 
             while (!fileToWatch.exists()) {
@@ -193,24 +174,21 @@ class KernelTest {
         thread.start();
 
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-r", tempRootDir.toString(), "-log", "stdout", "-i",
-                KernelTest.class.getResource("config.yaml").toString());
+        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
         kernel.launch();
         boolean ok = OK[0].await(200, TimeUnit.SECONDS);
         assertTrue(ok);
         testGroup(0);
         System.out.println("First phase passed, now for the harder stuff");
 
-        kernel.find( "services", "main", "lifecycle", "run")
+        kernel.find("services", "main", "lifecycle", "run")
                 .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
         //            kernel.writeConfig(new OutputStreamWriter(System.out));
         testGroup(1);
 
         System.out.println("Now merging delta.yaml");
-        kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
-                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta"
-                        + ".yaml")))
-                .get(60, TimeUnit.SECONDS);
+        kernel.mergeInNewConfig("ID", System.currentTimeMillis(), (Map<Object, Object>) JSON.std.with(new YAMLFactory())
+                .anyFrom(getClass().getResource("delta" + ".yaml"))).get(60, TimeUnit.SECONDS);
         testGroup(2);
         kernel.shutdown();
     }
