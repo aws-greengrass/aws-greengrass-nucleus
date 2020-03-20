@@ -89,6 +89,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private int argpos = 0;
     private boolean serviceServerURLListIsPopulated;
     private AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
+    private CountDownLatch pathsInitialized = new CountDownLatch(1);
 
     /**
      * Construct the Kernel and global Context.
@@ -117,22 +118,24 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      */
     public Kernel parseArgs(String... args) {
         this.args = args;
-        Topic root =
-                lookup("system", "rootpath").subscribe((w, n) -> {
-                    rootPath = Paths.get(Coerce.toString(n));
-                    configPath = Paths.get(deTilde(configPathName));
-                    Exec.removePath(clitoolPath);
-                    clitoolPath = Paths.get(deTilde(clitoolPathName));
-                    Exec.addFirstPath(clitoolPath);
-                    workPath = Paths.get(deTilde(workPathName));
-                    Exec.setDefaultEnv("HOME", workPath.toString());
-                    if (w != WhatHappened.initialized) {
-                        ensureCreated(configPath);
-                        ensureCreated(clitoolPath);
-                        ensureCreated(rootPath);
-                        ensureCreated(workPath);
-                    }
-                });
+        Topic root = lookup("system", "rootpath").subscribe((w, n) -> {
+            rootPath = Paths.get(Coerce.toString(n));
+            configPath = Paths.get(deTilde(configPathName));
+            Exec.removePath(clitoolPath);
+            clitoolPath = Paths.get(deTilde(clitoolPathName));
+            Exec.addFirstPath(clitoolPath);
+            workPath = Paths.get(deTilde(workPathName));
+            Exec.setDefaultEnv("HOME", workPath.toString());
+            if (w != WhatHappened.initialized) {
+                ensureCreated(configPath);
+                ensureCreated(clitoolPath);
+                ensureCreated(rootPath);
+                ensureCreated(workPath);
+            }
+            if (pathsInitialized.getCount() == 1) {
+                pathsInitialized.countDown();
+            }
+        });
 
 
         // Initialize root path from System Property/JVM argument
@@ -210,7 +213,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     /**
      * Startup the Kernel and all services.
      */
+    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED")
     public Kernel launch() {
+        try {
+            pathsInitialized.await(60, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            broken = true;
+        }
         System.out.println("root path = " + rootPath + "\n\t" + configPath);
         installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
         Queue<String> autostart = new LinkedList<>();
