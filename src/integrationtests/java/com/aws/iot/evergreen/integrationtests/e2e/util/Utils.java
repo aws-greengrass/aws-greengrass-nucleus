@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
+import com.aws.iot.evergreen.util.CrashableSupplier;
 import lombok.AllArgsConstructor;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AttachPolicyRequest;
@@ -23,11 +24,16 @@ import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
+import software.amazon.awssdk.services.iot.model.InternalException;
+import software.amazon.awssdk.services.iot.model.InternalFailureException;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
+import software.amazon.awssdk.services.iot.model.IotException;
 import software.amazon.awssdk.services.iot.model.JobStatus;
 import software.amazon.awssdk.services.iot.model.KeyPair;
+import software.amazon.awssdk.services.iot.model.LimitExceededException;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.TargetSelection;
+import software.amazon.awssdk.services.iot.model.ThrottlingException;
 import software.amazon.awssdk.services.iot.model.TimeoutConfig;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 
@@ -51,14 +57,16 @@ public class Utils {
     private static final Set<ThingInfo> createdThings = new CopyOnWriteArraySet<>();
     private static final Set<String> createdJobs = new CopyOnWriteArraySet<>();
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
+    private static final int DEFAULT_RETRIES = 5;
+    private static final int DEFAULT_INITIAL_BACKOFF_MS = 100;
 
     public static String createJob(String document, String[] targets) {
         String jobId = UUID.randomUUID().toString();
 
-        iotClient.createJob(
+        retryIot(() -> iotClient.createJob(
                 CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
                         .document(document).description("E2E Test: " + new Date())
-                        .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build());
+                        .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build()));
         createdJobs.add(jobId);
         return jobId;
     }
@@ -67,7 +75,9 @@ public class Utils {
         Instant start = Instant.now();
 
         while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
-            JobStatus status = iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status();
+            JobStatus status =
+                    retryIot(() -> iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build())).job()
+                            .status();
             if (status.ordinal() > JobStatus.IN_PROGRESS.ordinal()) {
                 return;
             }
@@ -78,34 +88,38 @@ public class Utils {
     public static ThingInfo createThing() {
         // Find or create IoT policy
         try {
-            iotClient.getPolicy(GetPolicyRequest.builder().policyName(FULL_ACCESS_POLICY_NAME).build());
+            retryIot(() -> iotClient.getPolicy(GetPolicyRequest.builder().policyName(FULL_ACCESS_POLICY_NAME).build()));
         } catch (ResourceNotFoundException e) {
-            iotClient.createPolicy(CreatePolicyRequest.builder().policyName(FULL_ACCESS_POLICY_NAME).policyDocument(
-                    "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
-                            + "      \"Effect\": \"Allow\",\n      \"Action\": \"iot:*\",\n"
-                            + "      \"Resource\": \"*\"\n    }\n  ]\n}").build());
+            retryIot(() -> iotClient.createPolicy(CreatePolicyRequest.builder().policyName(FULL_ACCESS_POLICY_NAME)
+                    .policyDocument("{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
+                            + "      \"Effect\": \"Allow\",\n      \"Action\": [\n"
+                            + "                \"iot:Connect\",\n                \"iot:Publish\",\n"
+                            + "                \"iot:Subscribe\",\n                \"iot:Receive\"\n],\n"
+                            + "      \"Resource\": \"*\"\n    }\n  ]\n}").build()));
         }
 
         // Create cert
-        CreateKeysAndCertificateResponse keyResponse =
-                iotClient.createKeysAndCertificate(CreateKeysAndCertificateRequest.builder().setAsActive(true).build());
+        CreateKeysAndCertificateResponse keyResponse = retryIot(() -> iotClient
+                .createKeysAndCertificate(CreateKeysAndCertificateRequest.builder().setAsActive(true).build()));
 
         // Attach policy to cert
-        iotClient.attachPolicy(
+        retryIot(() -> iotClient.attachPolicy(
                 AttachPolicyRequest.builder().policyName(FULL_ACCESS_POLICY_NAME).target(keyResponse.certificateArn())
-                        .build());
+                        .build()));
 
         // Create the thing and attach the cert to it
         String thingName = "e2etest-" + UUID.randomUUID().toString();
-        String thingArn = iotClient.createThing(CreateThingRequest.builder().thingName(thingName).build()).thingArn();
-        iotClient.attachThingPrincipal(
+        String thingArn =
+                retryIot(() -> iotClient.createThing(CreateThingRequest.builder().thingName(thingName).build()))
+                        .thingArn();
+        retryIot(() -> iotClient.attachThingPrincipal(
                 AttachThingPrincipalRequest.builder().thingName(thingName).principal(keyResponse.certificateArn())
-                        .build());
+                        .build()));
 
         ThingInfo info = new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
-                keyResponse.certificatePem(), keyResponse.keyPair(),
-                iotClient.describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build())
-                        .endpointAddress());
+                keyResponse.certificatePem(), keyResponse.keyPair(), retryIot(() -> iotClient
+                .describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build()))
+                .endpointAddress());
         createdThings.add(info);
         return info;
     }
@@ -119,27 +133,27 @@ public class Utils {
     }
 
     public static void cleanThing(ThingInfo thing) {
-        iotClient.detachThingPrincipal(
+        retryIot(() -> iotClient.detachThingPrincipal(
                 DetachThingPrincipalRequest.builder().thingName(thing.thingName).principal(thing.certificateArn)
-                        .build());
-        iotClient.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build());
-        iotClient.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
-                .newStatus(CertificateStatus.INACTIVE).build());
-        iotClient.deleteCertificate(
-                DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build());
+                        .build()));
+        retryIot(() -> iotClient.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build()));
+        retryIot(() -> iotClient.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
+                .newStatus(CertificateStatus.INACTIVE).build()));
+        retryIot(() -> iotClient.deleteCertificate(
+                DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build()));
         createdThings.remove(thing);
     }
 
     public static void cleanJob(String jobId) {
         try {
-            iotClient.cancelJob(CancelJobRequest.builder().jobId(jobId).force(true).build());
+            retryIot(() -> iotClient.cancelJob(CancelJobRequest.builder().jobId(jobId).force(true).build()));
         } catch (InvalidRequestException e) {
             // Ignore can't cancel due to job already completed
             if (!e.getMessage().contains("in status COMPLETED cannot")) {
                 throw e;
             }
         }
-        iotClient.deleteJob(DeleteJobRequest.builder().jobId(jobId).force(true).build());
+        retryIot(() -> iotClient.deleteJob(DeleteJobRequest.builder().jobId(jobId).force(true).build()));
         createdJobs.remove(jobId);
     }
 
@@ -163,5 +177,45 @@ public class Utils {
         public String certificatePem;
         public KeyPair keyPair;
         public String endpoint;
+    }
+
+    public static <T, E extends IotException> T retryIot(CrashableSupplier<T, E> func) throws E {
+        return retry(DEFAULT_RETRIES, DEFAULT_INITIAL_BACKOFF_MS, func, ThrottlingException.class,
+                InternalException.class, InternalFailureException.class, LimitExceededException.class);
+    }
+
+    @SafeVarargs
+    public static <T, E extends Throwable> T retry(int tries, int initialBackoffMillis, CrashableSupplier<T, E> func,
+                                                   Class<? extends Throwable>... retryableExceptions) throws E {
+        E lastException = null;
+        int tryCount = 0;
+        while (tryCount++ < tries) {
+            try {
+                return func.apply();
+            } catch (Throwable e) {
+                boolean retryable = false;
+                lastException = (E) e;
+
+                for (Class<?> t : retryableExceptions) {
+                    if (t.isAssignableFrom(e.getClass())) {
+                        retryable = true;
+                        break;
+                    }
+                }
+
+                // If not retryable, immediately throw it
+                if (!retryable) {
+                    throw lastException;
+                }
+
+                // Sleep with backoff
+                try {
+                    Thread.sleep(initialBackoffMillis * tryCount);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        throw lastException;
     }
 }
