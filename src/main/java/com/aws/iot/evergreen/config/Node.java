@@ -86,10 +86,10 @@ public abstract class Node {
     abstract void fire(WhatHappened what);
 
     /**
-     * Add a new watcher or listener
+     * Add a watcher
      *
-     * @param s a watcher or listener for this topic
-     * @return eturns true if this is a new listener; false if its a duplicate
+     * @param s a watcher to be added
+     * @return true if this is a new watcher; false if its a duplicate
      */
     protected boolean listen(Watcher s) {
         if (s != null) {
