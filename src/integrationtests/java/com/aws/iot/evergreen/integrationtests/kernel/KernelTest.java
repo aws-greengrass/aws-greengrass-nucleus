@@ -176,7 +176,7 @@ class KernelTest extends AbstractBaseITCase {
         Kernel kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
         kernel.launch();
-        boolean ok = OK[0].await(200, TimeUnit.SECONDS);
+        boolean ok = OK[0].await(220, TimeUnit.SECONDS);
         assertTrue(ok);
         testGroup(0);
         System.out.println("First phase passed, now for the harder stuff");
