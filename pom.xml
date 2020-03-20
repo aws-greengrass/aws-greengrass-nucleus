@@ -198,6 +198,8 @@
                             <includes>
                                 <include>**/integrationtests/**</include>
                             </includes>
+                            <groups>${groups}</groups>
+                            <excludedGroups>${excludedGroups}</excludedGroups>
                             <reuseForks>false
                             </reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
                         </configuration>
@@ -335,6 +337,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <skipTests>false</skipTests>
+        <excludedGroups>E2E</excludedGroups>
+        <groups></groups>
     </properties>
     <distributionManagement>
         <snapshotRepository>

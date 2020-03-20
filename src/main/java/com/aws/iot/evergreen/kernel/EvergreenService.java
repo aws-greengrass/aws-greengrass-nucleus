@@ -20,7 +20,6 @@ import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Pair;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
@@ -196,9 +195,6 @@ public class EvergreenService implements InjectionActions {
                 try {
                     clazz = Class.forName(cn);
                 } catch (Throwable ex) {
-                    staticLogger.atError().setEventType("service-load-error")
-                            .addKeyValue("serviceName", name)
-                            .addKeyValue("className", cn).log("Can't load service class");
                     throw new ServiceLoadException("Can't load service class from " + cn, ex);
                 }
             }
@@ -222,15 +218,10 @@ public class EvergreenService implements InjectionActions {
                     staticLogger.atInfo().setEventType("evergreen-service-loaded")
                             .addKeyValue("serviceName", ret.getName()).log();
                 } catch (Throwable ex) {
-                    staticLogger.atError().setEventType("evergreen-service-load-error")
-                            .addKeyValue("className", clazz.getName())
-                            .log("Can't create Evergreen Service instance");
                     throw new ServiceLoadException("Can't create code-backed service from " + clazz.getSimpleName(),
                             ex);
                 }
             } else if (serviceRootTopics.isEmpty()) {
-                staticLogger.atError().setEventType("service-load-error").addKeyValue("serviceName", name)
-                        .log("No matching definition in system model");
                 throw new ServiceLoadException("No matching definition in system model");
             } else {
                 // if not found, initialize GenericExternalService
@@ -239,9 +230,6 @@ public class EvergreenService implements InjectionActions {
                     staticLogger.atInfo().setEventType("generic-service-loaded")
                             .addKeyValue("serviceName", ret.getName()).log();
                 } catch (Throwable ex) {
-                    staticLogger.atError().setEventType("generic-service-load-error")
-                            .addKeyValue("serviceName", name)
-                            .log("Can't create generic instance");
                     throw new ServiceLoadException("Can't create generic service", ex);
                 }
             }

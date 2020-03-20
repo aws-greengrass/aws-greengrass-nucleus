@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -18,7 +17,10 @@ import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
@@ -40,13 +42,24 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_TH
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class DeploymentE2ETest extends AbstractBaseITCase {
+@Tag("E2E")
+public class DeploymentE2ETest {
+    @TempDir
+    static Path tempRootDir;
 
-    private static final String ROOT_CA_FILENAME = tempRootDir.resolve("rootCA.pem").toString();
-    private static final String PRIVATE_KEY_FILENAME = tempRootDir.resolve("privKey.key").toString();
-    private static final String CERTIFICATE_FILENAME = tempRootDir.resolve("thingCert.crt").toString();
+    private static String ROOT_CA_FILENAME;
+    private static String PRIVATE_KEY_FILENAME;
+    private static String CERTIFICATE_FILENAME;
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
+
+    @BeforeAll
+    static void beforeAll() {
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+        ROOT_CA_FILENAME = tempRootDir.resolve("rootCA.pem").toString();
+        PRIVATE_KEY_FILENAME = tempRootDir.resolve("privKey.key").toString();
+        CERTIFICATE_FILENAME = tempRootDir.resolve("thingCert.crt").toString();
+    }
 
     @AfterAll
     static void afterAll() {
