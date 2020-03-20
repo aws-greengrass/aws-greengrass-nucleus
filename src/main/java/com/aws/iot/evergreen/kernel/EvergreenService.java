@@ -881,14 +881,6 @@ public class EvergreenService implements InjectionActions {
 
     private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
         Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
-        shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
-            try {
-                addDependency(dependentEvergreenService, when);
-            } catch (InputValidationException e) {
-                logger.atWarn().setCause(e).setEventType("add-dependency")
-                        .log("Unable to add dependency {}", dependentEvergreenService);
-            }
-        });
 
         Set<EvergreenService> removedDependencies =
                 dependencies.keySet().stream().filter(d -> !shouldHaveDependencies.containsKey(d))
@@ -898,6 +890,14 @@ public class EvergreenService implements InjectionActions {
                     .addKeyValue("removedDependencies", removedDependencies);
             removedDependencies.forEach(dependencies::remove);
         }
+        shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
+            try {
+                addDependency(dependentEvergreenService, when);
+            } catch (InputValidationException e) {
+                logger.atWarn().setCause(e).setEventType("add-dependency")
+                        .log("Unable to add dependency {}", dependentEvergreenService);
+            }
+        });
     }
 
     @Override
