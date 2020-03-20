@@ -7,63 +7,104 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
-import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(PerformanceReporting.class)
 class KernelTest extends AbstractBaseITCase {
-    static final int[] gc = new int[10];
-    static final CountDownLatch[] OK = new CountDownLatch[10];
-    private static final Expected[] expectations = {new Expected(0, "\"stdout\":\"RUNNING\"", "Main service"),
-            //new Expected("docs.docker.com/", "docker hello world"),
-            new Expected(0, "\"stdout\":\"tick-tock\"", "periodic", 3),
-            new Expected(0, "\"stdout\":\"ANSWER=42\"", "global setenv"),
-            new Expected(0, "\"stdout\":\"EVERGREEN_UID=", "generated unique token"),
-            new Expected(0, "\"stdout\":\"version: 0.12.1\"", "moquette mqtt server"),
-            new Expected(0, "\"stdout\":\"JUSTME=fancy a spot of tea?\"", "local setenv in main service"),
-            new Expected(1, "\"stdout\":\"NEWMAIN\"", "Assignment to 'run' script'"),
-            new Expected(2, "\"stdout\":\"JUSTME=fancy a spot of coffee?\"", "merge yaml"),
-            new Expected(2, "\"stdout\":\"I'm Frodo\"", "merge adding dependency")};
-    private static final String LOG_FILE_NAME = "KernelTest.log";
-    private static final String LOG_FILE_PATH_NAME = tempRootDir.resolve(LOG_FILE_NAME).toAbsolutePath().toString();
+    private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
+            {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
+                    //new ExpectedStdoutPattern("docs.docker.com/", "docker hello world"),
+                    new ExpectedStdoutPattern(0, "tick-tock", "periodic", 3),
+                    new ExpectedStdoutPattern(0, "ANSWER=42", "global setenv"),
+                    new ExpectedStdoutPattern(0, "EVERGREEN_UID=", "generated unique token"),
+                    new ExpectedStdoutPattern(0, "version: 0.12.1", "moquette mqtt server"),
+                    new ExpectedStdoutPattern(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
+                    new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'"),
+                    new ExpectedStdoutPattern(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
+                    new ExpectedStdoutPattern(2, "I'm Frodo", "merge adding dependency")};
 
-    static {
-        for (int i = gc.length; --i >= 0; ) {
-            OK[i] = new CountDownLatch(gc[i]);
+    private static final CountDownLatch[] COUNT_DOWN_LATCHES =
+            {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
+
+    @Test
+    void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
+
+        // add log listener to verify stdout pattern
+        Consumer<EvergreenStructuredLogMessage> logListener = getLogListener();
+        Log4jLogEventBuilder.addGlobalListener(logListener);
+
+        // launch kernel
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+        kernel.launch();
+
+        testGroup(0);
+        System.out.println("Group 0 passed, now for the harder stuff");
+
+        kernel.find("services", "main", "lifecycle", "run")
+                .setValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
+        testGroup(1);
+
+        System.out.println("Group 1 passed, now merging delta.yaml");
+        kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
+                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
+                .get(60, TimeUnit.SECONDS);
+        testGroup(2);
+        System.out.println("Group 2 passed. We made it.");
+
+        // clean up
+        Log4jLogEventBuilder.removeGlobalListener(logListener);
+
+        kernel.shutdown();
+    }
+
+    private Consumer<EvergreenStructuredLogMessage> getLogListener() {
+        return evergreenStructuredLogMessage -> {
+            String stdoutStr = evergreenStructuredLogMessage.getContexts().get("stdout");
+
+            if (stdoutStr == null || stdoutStr.length() == 0) {
+                return;
+            }
+
+            for (ExpectedStdoutPattern expectedStdoutPattern : EXPECTED_MESSAGES) {
+                if (stdoutStr.contains(expectedStdoutPattern.pattern) && --expectedStdoutPattern.count == 0) {
+                    System.out.println(String.format("KernelTest: Just saw stdout pattern: '%s' for '%s'.",
+                            expectedStdoutPattern.pattern, expectedStdoutPattern.message));
+
+                    COUNT_DOWN_LATCHES[expectedStdoutPattern.group].countDown();
+
+                    System.out.println("\tCOUNT_DOWN_LATCHES[" + expectedStdoutPattern.group + "]="
+                            + COUNT_DOWN_LATCHES[expectedStdoutPattern.group].getCount());
+                }
+            }
+        };
+    }
+
+    private void testGroup(int group) throws Exception {
+        COUNT_DOWN_LATCHES[group].await(100, TimeUnit.SECONDS);
+
+        for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
+            if (pattern.count > 0 && pattern.group == group) {
+                fail("Didn't see: " + pattern.message);
+            }
         }
     }
 
-    @BeforeAll
-    static void beforeAll() {
-        // TODO Refactor with Log Listener
-        // override log store to a file for legacy kernel test to verify logs
-        System.setProperty("log.fmt", "JSON");
-        System.setProperty("log.store", "FILE");
-        System.setProperty("log.level", "INFO");
-        System.setProperty("log.storeName", LOG_FILE_PATH_NAME);
-        System.out.println("Storing log to: " + LOG_FILE_PATH_NAME);
-    }
-
     @Test
-    void testErrorRetry() throws InterruptedException {
-        Kernel kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
-
+    void GIVEN_expected_state_transitions_WHEN_services_error_out_THEN_all_expectations_should_be_seen()
+            throws Exception {
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
                         new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.NEW),
@@ -87,8 +128,9 @@ class KernelTest extends AbstractBaseITCase {
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
+        Kernel kernel = new Kernel();
         kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
-            if (expectedStateTransitionList.size() == 0) {
+            if (expectedStateTransitionList.isEmpty()) {
                 return;
             }
 
@@ -96,141 +138,55 @@ class KernelTest extends AbstractBaseITCase {
 
             if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
                     .equals(expected.current)) {
-                System.out.println(String.format("Just saw state event for service %s: %s=> %s", expected.serviceName,
+                System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
                         expected.was, expected.current));
 
                 expectedStateTransitionList.pollFirst();
-                if (expectedStateTransitionList.size() == 0) {
-                    // all assersion done.
+
+                if (expectedStateTransitionList.isEmpty()) {
                     assertionLatch.countDown();
                 }
             }
-
         });
+
+        kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
         kernel.launch();
-        boolean ok = assertionLatch.await(60, TimeUnit.SECONDS);
+        assertionLatch.await(60, TimeUnit.SECONDS);
 
         kernel.shutdownNow();
-        if (expectedStateTransitionList.size() != 0 || !ok) {
-            for (ExpectedStateTransition e : expectedStateTransitionList) {
-                System.err.println(
-                        String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was,
-                                e.current));
-            }
-            fail("Not seen all expected state transitions");
+
+        if (!expectedStateTransitionList.isEmpty()) {
+            expectedStateTransitionList.forEach(e -> System.err.println(
+                    String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was, e.current)));
+
+            fail("Didn't see all expected state transitions");
         }
     }
 
-    @Test
-    void testSomeMethod() throws Exception {
-        Runnable runnable = () -> {
-            File fileToWatch = new File(LOG_FILE_PATH_NAME);
-            long lastKnownPosition = 0;
-
-            while (!fileToWatch.exists()) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            try {
-                while (true) {
-                    Thread.sleep(1000);
-                    long fileLength = fileToWatch.length();
-
-                    /**
-                     * This case occur, when file is taken backup and new file
-                     * created with the same name.
-                     */
-                    if (fileLength < lastKnownPosition) {
-                        lastKnownPosition = 0;
-                    }
-                    if (fileLength > lastKnownPosition) {
-                        RandomAccessFile randomAccessFile = new RandomAccessFile(fileToWatch, "r");
-                        randomAccessFile.seek(lastKnownPosition);
-                        String line = null;
-                        while ((line = randomAccessFile.readLine()) != null) {
-                            for (Expected pattern : expectations) {
-                                if (line.contains(pattern.pattern)) {
-                                    if (++pattern.seen == 1) {
-                                        System.out.println("KernelTest: Just saw " + pattern.message);
-                                        OK[pattern.group].countDown();
-                                        System.out
-                                                .println("\tOK[" + pattern.group + "]=" + OK[pattern.group].getCount());
-                                    }
-                                }
-                            }
-                        }
-                        lastKnownPosition = randomAccessFile.getFilePointer();
-                        randomAccessFile.close();
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        };
-        Thread thread = new Thread(runnable);
-        thread.start();
-
-        Kernel kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
-        kernel.launch();
-        boolean ok = OK[0].await(200, TimeUnit.SECONDS);
-        assertTrue(ok);
-        testGroup(0);
-        System.out.println("First phase passed, now for the harder stuff");
-
-        kernel.find("services", "main", "lifecycle", "run")
-                .setValue("while true; do\n" + "        date; sleep 5; echo NEWMAIN\n" + "     " + "   done");
-        //            kernel.writeConfig(new OutputStreamWriter(System.out));
-        testGroup(1);
-
-        System.out.println("Now merging delta.yaml");
-        kernel.mergeInNewConfig("ID", System.currentTimeMillis(), (Map<Object, Object>) JSON.std.with(new YAMLFactory())
-                .anyFrom(getClass().getResource("delta" + ".yaml"))).get(60, TimeUnit.SECONDS);
-        testGroup(2);
-        kernel.shutdown();
-    }
-
-    private void testGroup(int g) {
-        try {
-            OK[g].await(100, TimeUnit.SECONDS);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace(System.out);
-        }
-        for (Expected pattern : expectations) {
-            if (pattern.seen <= 0 && pattern.group == g) {
-                fail("Didnt see: " + pattern.message);
-            }
-        }
-    }
-
-    private static class Expected {
+    private static class ExpectedStdoutPattern {
+        final int group;
         final String pattern;
         final String message;
-        final int group;
-        int seen = 0;
+        int count;
 
-        Expected(int g, String p, String m, int n) {
-            group = g;
-            pattern = p;
-            message = m;
-            seen = 1 - n;
-            gc[g]++;
+        ExpectedStdoutPattern(int group, String pattern, String message, int count) {
+            this.group = group;
+            this.pattern = pattern;
+            this.message = message;
+            this.count = count;
         }
 
-        Expected(int group, String p, String m) {
-            this(group, p, m, 1);
+        ExpectedStdoutPattern(int group, String pattern, String message) {
+            this(group, pattern, message, 1);
         }
     }
 
-    private class ExpectedStateTransition {
+    private static class ExpectedStateTransition {
         final String serviceName;
         final State was;
         final State current;
 
-        public ExpectedStateTransition(String name, State was, State current) {
+        ExpectedStateTransition(String name, State was, State current) {
             this.serviceName = name;
             this.was = was;
             this.current = current;

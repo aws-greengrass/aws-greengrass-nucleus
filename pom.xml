@@ -154,38 +154,9 @@
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
-                    <systemProperties>
-                        <property>
-                            <name>log.level</name>
-                            <value>INFO</value>
-                        </property>
-                        <property>
-                            <name>log.store</name>
-                            <value>CONSOLE</value>
-                        </property>
-                        <property>
-                            <name>log.fmt</name>
-                            <value>TEXT</value>
-                        </property>
-                    </systemProperties>
                     <argLine>${surefire.argLine} -Xms1m</argLine>
-                    <excludes>
-                        <exclude>**/InitTestSuite.java</exclude>
-                    </excludes>
                 </configuration>
                 <executions>
-                    <execution>
-                        <id>default-test</id>
-                        <phase>process-test-classes</phase>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                        <configuration>
-                            <test>InitTestSuite</test>
-                            <skipTests>${skipTests}</skipTests>
-                        </configuration>
-                    </execution>
-
                     <execution>
                         <id>unit-tests</id>
                         <phase>test</phase>

@@ -28,17 +28,20 @@ public class Topic extends Node {
     }
 
     /**
-     * This is the preferred way to get a value from a configuration. Instead of {@code setValue(configValue.getOnce())
-     * }
+     * Subscribe to a topic and invoke the subscriber right away on the same thread for a new subscriber.
+     * <p>
+     * This is the preferred way to get a value from a configuration. Instead of {@code setValue(configValue.getOnce())}
      * use {@code configValue.get((nv,ov)->setValue(nv)) }
-     * This way, every change to the config file will get forwarded to the
-     * object.
+     * This way, every change to the config file will get forwarded to the object.
+     *</p>
      *
      * @param s subscriber
+     * @return this topic
      */
     public Topic subscribe(Subscriber s) {
         if (listen(s)) {
             try {
+                // invoke the new subscriber right away
                 s.published(WhatHappened.initialized, this);
             } catch (Throwable ex) {
                 //TODO: do something less stupid

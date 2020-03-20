@@ -117,31 +117,16 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      */
     public Kernel parseArgs(String... args) {
         this.args = args;
-        Topic root =
-                lookup("system", "rootpath").subscribe((w, n) -> {
-                    rootPath = Paths.get(Coerce.toString(n));
-                    configPath = Paths.get(deTilde(configPathName));
-                    Exec.removePath(clitoolPath);
-                    clitoolPath = Paths.get(deTilde(clitoolPathName));
-                    Exec.addFirstPath(clitoolPath);
-                    workPath = Paths.get(deTilde(workPathName));
-                    Exec.setDefaultEnv("HOME", workPath.toString());
-                    if (w != WhatHappened.initialized) {
-                        ensureCreated(configPath);
-                        ensureCreated(clitoolPath);
-                        ensureCreated(rootPath);
-                        ensureCreated(workPath);
-                    }
-                });
 
-
-        // Initialize root path from System Property/JVM argument
+        // Get root path from System Property/JVM argument. Default to home path
         String rootAbsolutePath = System.getProperty("root", System.getProperty("user.home"));
         if (Utils.isEmpty(rootAbsolutePath) || !ensureCreated(Paths.get(rootAbsolutePath))) {
             System.err.println(rootAbsolutePath + ": not a valid root directory");
             broken = true;
         }
-        root.setValue(rootAbsolutePath);
+
+        lookup("system", "rootpath").dflt(rootAbsolutePath)
+                .subscribe((whatHappened, topic) -> initPaths((String) topic.getOnce()));
 
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
@@ -205,6 +190,21 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return value;
         });
         return this;
+    }
+
+    private void initPaths(String rootAbsolutePath) {
+        // init all paths
+        rootPath = Paths.get(rootAbsolutePath);
+        configPath = Paths.get(deTilde(configPathName));
+        Exec.removePath(clitoolPath);
+        clitoolPath = Paths.get(deTilde(clitoolPathName));
+        Exec.addFirstPath(clitoolPath);
+        workPath = Paths.get(deTilde(workPathName));
+        Exec.setDefaultEnv("HOME", workPath.toString());
+        ensureCreated(configPath);
+        ensureCreated(clitoolPath);
+        ensureCreated(rootPath);
+        ensureCreated(workPath);
     }
 
     /**

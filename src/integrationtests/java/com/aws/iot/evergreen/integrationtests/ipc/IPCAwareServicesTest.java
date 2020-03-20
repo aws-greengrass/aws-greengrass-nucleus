@@ -7,19 +7,16 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(PerformanceReporting.class)
 class IPCAwareServicesTest extends AbstractBaseITCase {
 
     private static final String SAMPLE_IPC_AWARE_SERVICE_NAME = "main";

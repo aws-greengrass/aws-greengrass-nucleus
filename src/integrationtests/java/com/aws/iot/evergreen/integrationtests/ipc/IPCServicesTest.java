@@ -5,7 +5,6 @@ package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
@@ -21,15 +20,15 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -42,8 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(PerformanceReporting.class)
-class IPCServicesTest extends AbstractBaseITCase {
+class IPCServicesTest {
+
+    @TempDir
+    static Path tempRootDir;
 
     private static int port;
     private static String address;
@@ -51,8 +52,10 @@ class IPCServicesTest extends AbstractBaseITCase {
 
     @BeforeAll
     static void startKernel() throws Exception {
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+
         kernel = new Kernel();
-        kernel.parseArgs(IPCServicesTest.class.getResource("ipc.yaml").toString());
+        kernel.parseArgs("-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
 
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
