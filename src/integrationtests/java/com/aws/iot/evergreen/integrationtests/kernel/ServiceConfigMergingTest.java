@@ -280,12 +280,11 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         //sleeperA should be closed
         assertTrue(isSleeperAClosed.get());
         // main and sleeperB should be running
-        assertTrue(State.RUNNING.equals(main.getState()));
-        assertTrue(State.RUNNING.equals(sleeperB.getState()));
+        assertEquals(State.RUNNING, main.getState());
+        assertEquals(State.RUNNING, sleeperB.getState());
         // ensuring config value for sleeperA is removed
         assertFalse(kernel.findTopics("services").children.contains("sleeperA"));
         // ensure kernel no longer holds a reference of sleeperA
         assertThrows(ServiceLoadException.class, () ->  EvergreenService.locate(kernel.context, "sleeperA"));
     }
-        // TODO: Work on removing dependencies and stopping and then removing unused dependencies
 }
