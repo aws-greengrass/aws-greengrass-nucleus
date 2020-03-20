@@ -30,14 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ServiceConfigMergingTest {
     private Kernel kernel;
 
-    @TempDir
-    Path tempRootDir;
-
     @BeforeEach
-    void before(TestInfo testInfo) {
+    void before(TestInfo testInfo, @TempDir Path rootDir) {
         System.out.println("Running test: " + testInfo.getDisplayName());
-        //See transient errors where property does not get set at the time this test runs. Setting it here explicitly
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+        System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
     }
 
