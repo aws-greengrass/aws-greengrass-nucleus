@@ -598,16 +598,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Map<String, CountDownLatch> servicesRunningLatches = new HashMap<>();
         serviceConfig.forEach((key, v) -> servicesRunningLatches.put(key, new CountDownLatch(1)));
 
-        Map<String, CountDownLatch> servicesClosedLatches = new HashMap<>();
-        removedServices.forEach(serviceName -> servicesClosedLatches.put(serviceName, new CountDownLatch(1)));
-
         EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (serviceConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
                 servicesRunningLatches.get(service.getName()).countDown();
-            }
-
-            if (removedServices.contains(service.getName()) && newState.isClosable() && service.isClosed()) {
-                servicesClosedLatches.get(service.getName()).countDown();
             }
         };
 
@@ -636,22 +629,19 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 for (CountDownLatch countDownLatch : servicesRunningLatches.values()) {
                     countDownLatch.await();
                 }
+                List<Future<Void>> serviceClosedFutures = new ArrayList<>();
                 removedServices.forEach(serviceName -> {
                     try {
                         EvergreenService eg = EvergreenService.locate(context, serviceName);
-                        eg.close();
-                        //For services that are already finished count down latch
-                        if (eg.getState().isClosable()) {
-                            servicesClosedLatches.get(eg.getName()).countDown();
-                        }
+                        serviceClosedFutures.add(eg.close());
                     } catch (ServiceLoadException e) {
                         logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
                                 .log("Could not locate EvergreenService to close service");
                     }
                 });
                 // waiting for removed service to close before removing reference and config entry
-                for (CountDownLatch countDownLatch : servicesClosedLatches.values()) {
-                    countDownLatch.await();
+                for (Future serviceClosedFuture : serviceClosedFutures) {
+                    serviceClosedFuture.get();
                 }
                 removedServices.forEach(serviceName -> {
                     try {
