@@ -125,7 +125,7 @@ public class EvergreenService implements InjectionActions, Closeable {
         synchronized (this.state) {
             prevState = currentState;
             this.state.setValue(newState);
-            context.globalNotifyStateChanged(this, prevState, newState);
+            context.globalNotifyStateChanged(this, prevState, newState, System.currentTimeMillis());
         }
     }
 
@@ -925,7 +925,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     }
 
     public interface GlobalStateChangeListener {
-        void globalServiceStateChanged(EvergreenService l, State oldState, State newState);
+        void globalServiceStateChanged(EvergreenService l, State oldState, State newState, Long timestamp);
     }
 
 }

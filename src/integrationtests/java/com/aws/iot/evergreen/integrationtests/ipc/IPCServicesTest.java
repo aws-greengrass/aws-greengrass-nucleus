@@ -56,7 +56,8 @@ class IPCServicesTest extends AbstractBaseITCase {
 
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState,
+                                                     Long timestamp) -> {
             if (service.getName().equals("IPCService") && newState.equals(State.RUNNING)) {
                 awaitIpcServiceLatch.countDown();
             }

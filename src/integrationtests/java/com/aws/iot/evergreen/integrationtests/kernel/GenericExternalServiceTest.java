@@ -24,7 +24,7 @@ class GenericExternalServiceTest extends AbstractBaseITCase {
         kernel.parseArgs("-i", getClass().getResource("skipif_broken.yaml").toString());
 
         CountDownLatch testErrored = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("test") && newState.equals(State.ERRORED)) {
                 testErrored.countDown();
             }

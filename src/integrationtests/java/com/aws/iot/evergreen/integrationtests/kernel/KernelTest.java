@@ -87,7 +87,8 @@ class KernelTest extends AbstractBaseITCase {
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState,
+                                                     Long timestamp) -> {
             if (expectedStateTransitionList.size() == 0) {
                 return;
             }

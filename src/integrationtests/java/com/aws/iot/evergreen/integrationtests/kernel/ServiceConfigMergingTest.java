@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -24,12 +25,14 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(PerformanceReporting.class)
 class ServiceConfigMergingTest extends AbstractBaseITCase {
     private Kernel kernel;
+    private Map<String, Long> serviceToTimestamp = new HashMap<>();
 
     @BeforeEach
     void before(TestInfo testInfo) {
@@ -51,7 +54,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -62,7 +65,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
 
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
                     .equals(State.INSTALLED)) {
                 mainRestarted.countDown();
@@ -93,7 +96,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -105,18 +108,18 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
         CountDownLatch newServiceStarted = new CountDownLatch(1);
-
+        serviceToTimestamp.clear();
         // Check that new_service starts and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
                 newServiceStarted.countDown();
+                serviceToTimestamp.put("new_service", timestamp);
             }
-            // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                        .equals(State.INSTALLED)) {
-                    mainRestarted.countDown();
-                }
+
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
+                    .equals(State.INSTALLED)) {
+                mainRestarted.countDown();
+                serviceToTimestamp.put("main", timestamp);
             }
         });
 
@@ -142,16 +145,22 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         // THEN
         assertTrue(newServiceStarted.await(60, TimeUnit.SECONDS));
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        List<String> actualOrder = serviceToTimestamp.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .map(entry->entry.getKey())
+                .collect(Collectors.toList());
+        assertThat(actualOrder, containsInRelativeOrder( "new_service", "main"));
     }
 
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
             throws Throwable {
+        serviceToTimestamp.clear();
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -166,21 +175,19 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service2 starts, then new_service, and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, timestamp) -> {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.countDown();
+                serviceToTimestamp.put("new_service2", timestamp);
             }
-            if (newService2Started.getCount() == 0) {
-                if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
-                    newServiceStarted.countDown();
-                }
+            if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
+                newServiceStarted.countDown();
+                serviceToTimestamp.put("new_service", timestamp);
             }
-            // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                        .equals(State.INSTALLED)) {
-                    mainRestarted.countDown();
-                }
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
+                    .equals(State.INSTALLED)) {
+                mainRestarted.countDown();
+                serviceToTimestamp.put("main", timestamp);
             }
         });
 
@@ -213,6 +220,11 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         assertTrue(newService2Started.await(60, TimeUnit.SECONDS));
         assertTrue(newServiceStarted.await(60, TimeUnit.SECONDS));
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        List<String> actualOrder = serviceToTimestamp.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .map(entry->entry.getKey())
+                .collect(Collectors.toList());
+        assertThat(actualOrder, containsInRelativeOrder("new_service2", "new_service", "main"));
         assertThat(kernel.orderedDependencies().stream().map(EvergreenService::getName).collect(Collectors.toList()),
                 containsInRelativeOrder("new_service2", "new_service", "main"));
     }
