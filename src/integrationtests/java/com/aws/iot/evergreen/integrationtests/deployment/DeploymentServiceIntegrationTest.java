@@ -80,9 +80,7 @@ class DeploymentServiceIntegrationTest {
 
     @BeforeAll
     static void setupLogger() {
-        System.setProperty("log.level", "INFO");
         System.setProperty("log.fmt", "JSON");
-        System.setProperty("log.store", "CONSOLE");
         outputMessagesToTimestamp = new HashMap<>();
         logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     }
@@ -100,7 +98,7 @@ class DeploymentServiceIntegrationTest {
     }
 
     @AfterAll
-    public static void tearDown() {
+    static void tearDown() {
         kernel.shutdown();
     }
 
@@ -140,7 +138,7 @@ class DeploymentServiceIntegrationTest {
 
     @Test
     @Order(2)
-    public void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
+    void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();
         countDownLatch = new CountDownLatch(1);
@@ -173,7 +171,6 @@ class DeploymentServiceIntegrationTest {
         DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver,
                 kernel, logger, sampleDeploymentDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
-        Future<?> resultOfSubmission = executorService.submit(deploymentTask);
-        return resultOfSubmission;
+        return executorService.submit(deploymentTask);
     }
 }
