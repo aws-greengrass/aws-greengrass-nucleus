@@ -27,19 +27,18 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ServiceConfigMergingTest {
+class ServiceConfigMergingTest extends AbstractBaseITCase {
     private Kernel kernel;
 
     @BeforeEach
-    void before(TestInfo testInfo, @TempDir Path rootDir) {
+    void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
-        System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
     }
 
     @AfterEach
     void after() {
-        kernel.shutdown();
+        kernel.shutdownNow();
     }
 
     @Test
@@ -86,7 +85,6 @@ class ServiceConfigMergingTest {
     @Test
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
-        System.out.println("The root property is: " + System.getProperty("root"));
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
