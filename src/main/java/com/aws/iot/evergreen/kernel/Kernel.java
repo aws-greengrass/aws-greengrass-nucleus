@@ -125,7 +125,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             broken = true;
         }
 
-        initPaths(rootAbsolutePath);
+        lookup("system", "rootpath").dflt(rootAbsolutePath)
+                .subscribe((whatHappened, topic) -> initPaths((String) topic.getOnce()));
 
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
@@ -192,9 +193,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     }
 
     private void initPaths(String rootAbsolutePath) {
-        // set up rootpath topic
-        lookup("system", "rootpath").setValue(rootAbsolutePath);
-
         // init all paths
         rootPath = Paths.get(rootAbsolutePath);
         configPath = Paths.get(deTilde(configPathName));
