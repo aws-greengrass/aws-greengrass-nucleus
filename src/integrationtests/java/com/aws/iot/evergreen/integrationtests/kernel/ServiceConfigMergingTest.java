@@ -11,7 +11,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -25,8 +27,11 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ServiceConfigMergingTest extends AbstractBaseITCase {
+class ServiceConfigMergingTest {
     private Kernel kernel;
+
+    @TempDir
+    Path tempRootDir;
 
     @BeforeEach
     void before(TestInfo testInfo) {

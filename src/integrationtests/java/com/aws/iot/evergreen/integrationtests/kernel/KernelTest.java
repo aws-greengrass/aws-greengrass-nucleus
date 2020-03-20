@@ -74,19 +74,19 @@ class KernelTest extends AbstractBaseITCase {
         return evergreenStructuredLogMessage -> {
             String stdoutStr = evergreenStructuredLogMessage.getContexts().get("stdout");
 
-            if (stdoutStr != null && stdoutStr.length() > 0) {
-                for (ExpectedStdoutPattern expectedStdoutPattern : EXPECTED_MESSAGES) {
-                    if (stdoutStr.contains(expectedStdoutPattern.pattern)) {
-                        if (--expectedStdoutPattern.count == 0) {
-                            System.out.println(String.format("KernelTest: Just saw stdout pattern: '%s' for '%s'.",
-                                    expectedStdoutPattern.pattern, expectedStdoutPattern.message));
+            if (stdoutStr == null || stdoutStr.length() == 0) {
+                return;
+            }
 
-                            COUNT_DOWN_LATCHES[expectedStdoutPattern.group].countDown();
+            for (ExpectedStdoutPattern expectedStdoutPattern : EXPECTED_MESSAGES) {
+                if (stdoutStr.contains(expectedStdoutPattern.pattern) && --expectedStdoutPattern.count == 0) {
+                    System.out.println(String.format("KernelTest: Just saw stdout pattern: '%s' for '%s'.",
+                            expectedStdoutPattern.pattern, expectedStdoutPattern.message));
 
-                            System.out.println("\tCOUNT_DOWN_LATCHES[" + expectedStdoutPattern.group + "]="
-                                    + COUNT_DOWN_LATCHES[expectedStdoutPattern.group].getCount());
-                        }
-                    }
+                    COUNT_DOWN_LATCHES[expectedStdoutPattern.group].countDown();
+
+                    System.out.println("\tCOUNT_DOWN_LATCHES[" + expectedStdoutPattern.group + "]="
+                            + COUNT_DOWN_LATCHES[expectedStdoutPattern.group].getCount());
                 }
             }
         };
