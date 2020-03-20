@@ -39,7 +39,7 @@ class ServiceConfigMergingTest {
 
     @AfterEach
     void after() {
-        kernel.shutdownNow();
+        kernel.shutdown();
     }
 
     @Test

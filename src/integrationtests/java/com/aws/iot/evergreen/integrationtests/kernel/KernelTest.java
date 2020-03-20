@@ -62,7 +62,7 @@ class KernelTest extends AbstractBaseITCase {
                 (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
                 .get(60, TimeUnit.SECONDS);
         testGroup(2);
-        System.out.println("Group 2 passed. We made integrationtests.");
+        System.out.println("Group 2 passed. We made it.");
 
         // clean up
         Log4jLogEventBuilder.removeGlobalListener(logListener);
