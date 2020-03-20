@@ -889,6 +889,7 @@ public class EvergreenService implements InjectionActions {
             logger.atInfo().setEventType("removing-unused-dependencies")
                     .addKeyValue("removedDependencies", removedDependencies);
             removedDependencies.forEach(dependencies::remove);
+            context.get(Kernel.class).clearODcache();
         }
         shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
             try {

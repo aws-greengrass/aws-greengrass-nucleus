@@ -623,7 +623,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 }
             });
         });
-
+        // execute logic to close and clean up removed services.
         context.get(Executor.class).execute(() -> {
             try {
                 for (CountDownLatch countDownLatch : servicesRunningLatches.values()) {

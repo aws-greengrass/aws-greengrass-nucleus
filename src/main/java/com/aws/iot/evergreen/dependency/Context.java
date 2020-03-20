@@ -81,6 +81,11 @@ public class Context implements Closeable {
         publishThread.start();
     }
 
+    /**
+     * Removed an entry with the provided tag.
+     * @param tag key to be removed
+     * @return true is success, false if tag not found
+     */
     public boolean remove(Object tag) {
         return parts.remove(tag) != null;
     }

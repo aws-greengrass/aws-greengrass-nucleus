@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.extensions.PerformanceReporting;
@@ -286,5 +287,12 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         assertFalse(kernel.findTopics("services").children.contains("sleeperA"));
         // ensure kernel no longer holds a reference of sleeperA
         assertThrows(ServiceLoadException.class, () ->  EvergreenService.locate(kernel.context, "sleeperA"));
+
+        List<String> orderedDependencies = kernel.orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(EvergreenService::getName)
+                .collect(Collectors.toList());
+
+        assertEquals(orderedDependencies, Arrays.asList("sleeperB","main"));
     }
 }
