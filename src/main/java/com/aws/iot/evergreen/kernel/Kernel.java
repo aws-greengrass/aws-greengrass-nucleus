@@ -640,6 +640,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     try {
                         EvergreenService eg = EvergreenService.locate(context, serviceName);
                         eg.close();
+                        //For services that are already finished count down latch
+                        if (eg.getState().isClosable()) {
+                            servicesClosedLatches.get(eg.getName()).countDown();
+                        }
                     } catch (ServiceLoadException e) {
                         logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
                                 .log("Could not locate EvergreenService to close service");

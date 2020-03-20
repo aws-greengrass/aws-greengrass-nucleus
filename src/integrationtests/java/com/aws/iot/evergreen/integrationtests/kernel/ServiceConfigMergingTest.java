@@ -232,7 +232,7 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-r", tempRootDir.toString(), "-i",
+        kernel.parseArgs("-i",
                 getClass().getResource("long_running_services.yaml").toString());
         kernel.launch();
 
