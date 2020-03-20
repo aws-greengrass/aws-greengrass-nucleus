@@ -120,6 +120,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Topic root =
                 lookup("system", "rootpath").subscribe((w, n) -> {
                     rootPath = Paths.get(Coerce.toString(n));
+                    System.out.println("root path 0:" + rootPath);
                     configPath = Paths.get(deTilde(configPathName));
                     Exec.removePath(clitoolPath);
                     clitoolPath = Paths.get(deTilde(clitoolPathName));
