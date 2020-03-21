@@ -14,8 +14,6 @@ services:
         date; sleep 5; echo Now we\'re in phase 3
         done
     dependencies:
-      - git
-      - mqtt
       - ticktock:INSTALLED
       - frodo
     setenv:
