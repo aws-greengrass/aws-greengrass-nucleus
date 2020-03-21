@@ -34,9 +34,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +49,7 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-public class EvergreenService implements InjectionActions, Closeable {
+public class EvergreenService implements InjectionActions {
     public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
@@ -63,6 +65,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     private Future backingTask;
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
+    private Thread lifeCycleThread;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
@@ -264,7 +267,6 @@ public class EvergreenService implements InjectionActions, Closeable {
             if (!WhatHappened.changed.equals(what)) {
                 return;
             }
-
             Iterable<String> depList = (Iterable<String>) dependenciesTopic.getOnce();
             logger.atInfo().log("Setting up dependencies again",
                                 String.join(",", depList));
@@ -656,21 +658,33 @@ public class EvergreenService implements InjectionActions, Closeable {
         }
     }
 
-    @Override
-    public void close() {
-        Periodicity t = periodicityInformation;
-        if (t != null) {
-            t.shutdown();
-        }
-        //TODO: make close block till the service exits or make close non blocking
-        // currently close blocks till dependers exit which neither the above
-        try {
-            waitForDependersToExit();
-        } catch (InterruptedException e) {
-            logger.error("Interrupted waiting for dependers to exit");
-        }
-        requestStop();
-        isClosed.set(true);
+    /**
+     * Moves the service to finished state and shuts down lifecycle thread.
+     *
+     * @return future completes when the lifecycle thread shuts down.
+     */
+    public Future<Void> close() {
+        CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+        context.get(Executor.class).execute(() -> {
+            try {
+                Periodicity t = periodicityInformation;
+                if (t != null) {
+                    t.shutdown();
+                }
+                try {
+                    waitForDependersToExit();
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted waiting for dependers to exit");
+                }
+                requestStop();
+                isClosed.set(true);
+                lifeCycleThread.join();
+                closeFuture.complete(null);
+            } catch (Exception e) {
+                closeFuture.completeExceptionally(e);
+            }
+        });
+        return closeFuture;
     }
 
     public Context getContext() {
@@ -807,7 +821,7 @@ public class EvergreenService implements InjectionActions, Closeable {
     public void postInject() {
         initDependenciesTopic();
         //TODO: Use better threadPool mechanism
-        new Thread(() -> {
+        lifeCycleThread = new Thread(() -> {
             while (!isClosed.get()) {
                 try {
                     startStateTransition();
@@ -819,7 +833,8 @@ public class EvergreenService implements InjectionActions, Closeable {
                             .addKeyValue("currentState", getState()).log();
                 }
             }
-        }).start();
+        });
+        lifeCycleThread.start();
     }
 
     private Map<EvergreenService, State> getDependencyStateMap(Iterable<String> dependencyList) throws Exception {
@@ -866,14 +881,6 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
         Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
-        shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
-            try {
-                addDependency(dependentEvergreenService, when);
-            } catch (InputValidationException e) {
-                logger.atWarn().setCause(e).setEventType("add-dependency")
-                        .log("Unable to add dependency {}", dependentEvergreenService);
-            }
-        });
 
         Set<EvergreenService> removedDependencies =
                 dependencies.keySet().stream().filter(d -> !shouldHaveDependencies.containsKey(d))
@@ -882,7 +889,16 @@ public class EvergreenService implements InjectionActions, Closeable {
             logger.atInfo().setEventType("removing-unused-dependencies")
                     .addKeyValue("removedDependencies", removedDependencies);
             removedDependencies.forEach(dependencies::remove);
+            context.get(Kernel.class).clearODcache();
         }
+        shouldHaveDependencies.forEach((dependentEvergreenService, when) -> {
+            try {
+                addDependency(dependentEvergreenService, when);
+            } catch (InputValidationException e) {
+                logger.atWarn().setCause(e).setEventType("add-dependency")
+                        .log("Unable to add dependency {}", dependentEvergreenService);
+            }
+        });
     }
 
     @Override
@@ -926,6 +942,15 @@ public class EvergreenService implements InjectionActions, Closeable {
 
     public interface GlobalStateChangeListener {
         void globalServiceStateChanged(EvergreenService l, State oldState, State newState);
+    }
+
+    /**
+     * is state machine shutting down.
+     *
+     * @return true is state machine is shutting down.
+     */
+    public boolean isClosed() {
+        return isClosed.get();
     }
 
 }
