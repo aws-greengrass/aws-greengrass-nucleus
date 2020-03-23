@@ -14,6 +14,17 @@
             <url>https://d10d248laylpoq.cloudfront.net/</url>
         </repository>
     </repositories>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>2.10.89</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <dependencies>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -96,6 +107,11 @@
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
             <version>1.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>iot</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <pluginRepositories>
@@ -182,6 +198,8 @@
                             <includes>
                                 <include>**/integrationtests/**</include>
                             </includes>
+                            <groups>${groups}</groups>
+                            <excludedGroups>${excludedGroups}</excludedGroups>
                             <reuseForks>false
                             </reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
                         </configuration>
@@ -319,6 +337,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <skipTests>false</skipTests>
+        <excludedGroups>E2E</excludedGroups>
+        <groups></groups>
     </properties>
     <distributionManagement>
         <snapshotRepository>
