@@ -47,18 +47,18 @@ public class DeploymentE2ETest {
     @TempDir
     static Path tempRootDir;
 
-    private static String ROOT_CA_FILENAME;
-    private static String PRIVATE_KEY_FILENAME;
-    private static String CERTIFICATE_FILENAME;
+    private static String rootCaFilePath;
+    private static String privateKeyFilePath;
+    private static String certificateFilePath;
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     @BeforeAll
     static void beforeAll() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        ROOT_CA_FILENAME = tempRootDir.resolve("rootCA.pem").toString();
-        PRIVATE_KEY_FILENAME = tempRootDir.resolve("privKey.key").toString();
-        CERTIFICATE_FILENAME = tempRootDir.resolve("thingCert.crt").toString();
+        rootCaFilePath = tempRootDir.resolve("rootCA.pem").toString();
+        privateKeyFilePath = tempRootDir.resolve("privKey.key").toString();
+        certificateFilePath = tempRootDir.resolve("thingCert.crt").toString();
     }
 
     @AfterAll
@@ -72,12 +72,12 @@ public class DeploymentE2ETest {
     void GIVEN_blank_kernel_WHEN_deploy_new_services_e2e_THEN_new_services_deployed_and_job_is_successful()
             throws Exception {
         // Setup IoT resources
-        Utils.downloadRootCAToFile(new File(ROOT_CA_FILENAME));
+        Utils.downloadRootCAToFile(new File(rootCaFilePath));
         Utils.ThingInfo thing = Utils.createThing();
-        try (CommitableFile cf = CommitableFile.of(new File(PRIVATE_KEY_FILENAME).toPath(), true)) {
+        try (CommitableFile cf = CommitableFile.of(new File(privateKeyFilePath).toPath(), true)) {
             cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
         }
-        try (CommitableFile cf = CommitableFile.of(new File(CERTIFICATE_FILENAME).toPath(), true)) {
+        try (CommitableFile cf = CommitableFile.of(new File(certificateFilePath).toPath(), true)) {
             cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
         }
 
@@ -86,9 +86,9 @@ public class DeploymentE2ETest {
         Topics deploymentServiceTopics = kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).setValue(thing.thingName);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).setValue(thing.endpoint);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).setValue(PRIVATE_KEY_FILENAME);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).setValue(CERTIFICATE_FILENAME);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).setValue(ROOT_CA_FILENAME);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).setValue(privateKeyFilePath);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).setValue(certificateFilePath);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).setValue(rootCaFilePath);
 
         // Inject our mocked local package store
         kernel.context.getv(DependencyResolver.class)
@@ -103,6 +103,7 @@ public class DeploymentE2ETest {
                                 new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
 
         // Create job targeting our DUT
+        // TODO: Eventually switch this to target using Thing Group instead of individual Thing
         String[] targets = new String[]{thing.thingArn};
         String jobId = Utils.createJob(document, targets);
 

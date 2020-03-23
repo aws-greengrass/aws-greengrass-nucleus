@@ -81,6 +81,11 @@ public class Utils {
             if (status.ordinal() > JobStatus.IN_PROGRESS.ordinal()) {
                 return;
             }
+            // Wait a little bit before checking again
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ignored) {
+            }
         }
         throw new TimeoutException();
     }
