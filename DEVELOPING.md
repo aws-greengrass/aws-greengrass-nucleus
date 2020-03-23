@@ -54,6 +54,15 @@ JUnit 5 is used for both unit and integration testing.
 `mvn test` will only run the unit tests.
 Use `mvn verify` to run both, or use `mvn surefire:test@integration-tests` to run only the integration tests.
 
+### End-To-End Tests
+End-To-End (E2E) tests differ from our integration tests in that they require AWS credentials and network
+access. In order to run these tests, first you must put AWS credentials into your environment such as by using
+Isengard and copying the credentials for your own, or the Evergreen dev account. Once you have credentials
+with Iot:* access, you can then use our E2E tests. To run only the E2E tests, use:
+`mvn surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""`. This command
+executes all integration tests tagged with "E2E". It will not run any other tests. Additionally, `mvn verify` does not
+run the E2E tests by default since they take longer and require additional resources.
+
 ## PR/CR
 Since development is on GitHub and not GitFarm we can't use `cr` to create a code review. Instead you must
 push to a remote branch. Pushing to a remote branch will give you a URL to open a pull request against `master`.
