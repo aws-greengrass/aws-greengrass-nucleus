@@ -132,7 +132,7 @@ public class DeploymentService extends EvergreenService {
                 .log("Received job description for job id : {} and status {}", currentJobId, jobExecutionData.status);
         logger.addDefaultKeyValue("JobId", currentJobId);
         if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
-            //TODO: Check the currently runnign process,
+            //TODO: Check the currently running process,
             // if it is same as this jobId then do nothing. If not then there is something wrong
             return;
         } else if (jobExecutionData.status == JobStatus.QUEUED) {
@@ -272,7 +272,7 @@ public class DeploymentService extends EvergreenService {
                 }
                 Thread.sleep(pollingFrequency);
             } catch (InterruptedException ex) {
-                logger.atError().setCause(ex).log("Exception encountered while sleeping in DA");
+                logger.atError().log("Interrupted while sleeping in DA");
                 errored = true;
                 reportState(State.ERRORED);
             } catch (ExecutionException e) {
@@ -308,6 +308,8 @@ public class DeploymentService extends EvergreenService {
         String rootCAPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
         String clientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
 
+        logger.atInfo().kv("privateKeyPath", privateKeyPath).kv("certificatePath", certificateFilePath)
+                .kv("rootCAPath", rootCAPath).kv("endpoint", clientEndpoint).kv("thingName", thingName).log();
         this.iotJobsHelper = iotJobsHelperFactory
                 .getIotJobsHelper(thingName, certificateFilePath, privateKeyPath, rootCAPath, clientEndpoint,
                         callbacks);

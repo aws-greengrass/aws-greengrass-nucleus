@@ -50,6 +50,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -99,10 +100,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         context.put(Configuration.class, this);
         context.put(Kernel.class, this);
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(4);
+        ExecutorService executorService = Executors.newCachedThreadPool();
         context.put(ScheduledThreadPoolExecutor.class, ses);
         context.put(ScheduledExecutorService.class, ses);
-        context.put(Executor.class, ses);
-        context.put(ExecutorService.class, ses);
+        context.put(Executor.class, executorService);
+        context.put(ExecutorService.class, executorService);
         context.put(ThreadPoolExecutor.class, ses);
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
@@ -498,12 +500,17 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
             allServicesExitedLatch.await(timeoutSeconds, TimeUnit.SECONDS);
             // Wait for tasks in the executor to end.
+            ScheduledExecutorService scheduledExecutorService = context.get(ScheduledExecutorService.class);
             ExecutorService executorService = context.get(ExecutorService.class);
             this.context.runOnPublishQueueAndWait(() -> {
                 executorService.shutdown();
+                scheduledExecutorService.shutdown();
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
+            // TODO: Timeouts should not be additive (ie. our timeout should be for this entire method, not
+            //  each timeout-able part of the method.
             executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
+            scheduledExecutorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
             //TODO: this needs to be changed once state machine thread is using the shared executor
             logger.atInfo().setEventType("executor-service-shutdown-complete").log();
         } catch (Throwable ex) {
@@ -594,6 +601,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get("services");
         List<String> removedServices = getRemovedServicesNames(serviceConfig);
+        logger.atDebug("merge-config").kv("removedServices", removedServices).log();
 
         Map<String, CountDownLatch> servicesRunningLatches = new HashMap<>();
         serviceConfig.forEach((key, v) -> servicesRunningLatches.put(key, new CountDownLatch(1)));
@@ -626,8 +634,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         // execute logic to close and clean up removed services.
         context.get(Executor.class).execute(() -> {
             try {
-                for (CountDownLatch countDownLatch : servicesRunningLatches.values()) {
-                    countDownLatch.await();
+                for (Map.Entry<String, CountDownLatch> entry : servicesRunningLatches.entrySet()) {
+                    logger.atDebug("merge-config").log("Waiting for service {} to be running", entry.getKey());
+                    entry.getValue().await();
                 }
                 List<Future<Void>> serviceClosedFutures = new ArrayList<>();
                 removedServices.forEach(serviceName -> {

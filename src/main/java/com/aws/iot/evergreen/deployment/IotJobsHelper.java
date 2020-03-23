@@ -22,7 +22,6 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -58,9 +57,12 @@ public class IotJobsHelper {
 
     /**
      * Connects to AWS Iot Cloud.
+     *
+     * @throws ExecutionException if connecting fails
+     * @throws InterruptedException if interrupted while connecting
      */
-    public void connectToAwsIot() {
-        connection.connect();
+    public void connectToAwsIot() throws ExecutionException, InterruptedException {
+        connection.connect().get();
     }
 
     /**

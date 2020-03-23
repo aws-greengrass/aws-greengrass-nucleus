@@ -11,56 +11,74 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Decrypt the test Iot thing private key
-      run: ./.github/scripts/decrypt_iot_thing_private_key_and_cert.sh
-      env:
-        evergreen_test_iot_thing_private_key_secret_passphrase: ${{secrets.evergreen_test_iot_thing_private_key}}
-    - name: Set up JDK 1.8
-      uses: actions/setup-java@v1
-      with:
-        java-version: 1.8
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
-        aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
-        aws-region: us-west-2
-    - name: Build with Maven
-      run: mvn -ntp verify
-    - name: Convert Jacoco to Cobertura
-      run: curl -o cover2cover.py https://gist.githubusercontent.com/MikeDombo/82567fccc1b2aced0c76fc053efd5a26/raw/f79f748f37cabb4cedd186321ea70e9fb383815d/cover2cover.py && python3 cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
-    - name: Upload Coverage
-      uses: actions/upload-artifact@v1.0.0
-      with:
-        name: Coverage Report
-        path: target/jacoco-report
-    - name: cobertura-report
-      uses: 5monkeys/cobertura-action@master
-      continue-on-error: true
-      with:
-        # The GITHUB_TOKEN for this repo
-        repo_token: ${{ github.token }}
-        # Path to the cobertura file.
-        path: target/jacoco-report/cobertura.xml
-        # If files with 100% should be skipped from report.
-        skip_covered: false
-        # Minimum allowed coverage percentage as an integer.
-        minimum_coverage: 60
-        # Show line rate as specific column.
-        show_line: true
-        # Show branch rate as specific column.
-        show_branch: true
-        # Use class names instead of the filename
-        show_class_names: true
-    - name: Publish with Maven
-      run: mvn -ntp --settings settings.xml clean deploy -DskipTests=true -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
-      if: github.event_name == 'push'
-    - name: GitHub Actions Artifact Cleaner
-      uses: glassechidna/artifact-cleaner@v2
-      continue-on-error: true
-      with:
-        # Specify a minimum size of artifacts to delete in bytes. Artifacts smaller than this won't be deleted.
-        minimumDeletionSize: 0 # optional, default is 0
-        # Only delete artifacts older than this, measured in seconds.
-        minimumAge: 5184000 # optional, default is 0. Set to 5.184e+6 (60 days)
+      - uses: actions/checkout@v2
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Build with Maven
+        run: mvn -ntp verify
+      - name: Convert Jacoco to Cobertura
+        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: Coverage Report
+          path: target/jacoco-report
+      - name: cobertura-report
+        uses: 5monkeys/cobertura-action@master
+        continue-on-error: true
+        with:
+          # The GITHUB_TOKEN for this repo
+          repo_token: ${{ github.token }}
+          # Path to the cobertura file.
+          path: target/jacoco-report/cobertura.xml
+          # If files with 100% should be skipped from report.
+          skip_covered: false
+          # Minimum allowed coverage percentage as an integer.
+          minimum_coverage: 60
+          # Show line rate as specific column.
+          show_line: true
+          # Show branch rate as specific column.
+          show_branch: true
+          # Use class names instead of the filename
+          show_class_names: true
+      - name: GitHub Actions Artifact Cleaner
+        uses: glassechidna/artifact-cleaner@v2
+        continue-on-error: true
+        with:
+          # Specify a minimum size of artifacts to delete in bytes. Artifacts smaller than this won't be deleted.
+          minimumDeletionSize: 0 # optional, default is 0
+          # Only delete artifacts older than this, measured in seconds.
+          minimumAge: 5184000 # optional, default is 0. Set to 5.184e+6 (60 days)
+  e2e-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
+          aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
+          aws-region: us-west-2
+      - name: Build Tests
+        run: mvn -ntp generate-test-sources generate-test-resources test-compile
+      - name: E2E Test
+        run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Publish with Maven
+        run: mvn -ntp --settings settings.xml deploy -DskipTests -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
