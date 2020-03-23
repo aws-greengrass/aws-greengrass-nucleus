@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.kernel;
 
-import java.lang.reflect.Field;
 import java.util.Map;
 
 import com.aws.iot.evergreen.config.Subscriber;
@@ -8,7 +7,6 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -16,21 +14,14 @@ import org.mockito.Mockito;
 public class SetupDependencyTest extends EGServiceTestUtil {
 
     private EvergreenService evergreenService;
-    private static Field dependenciesField;
-    private Map<EvergreenService, EvergreenService.DependencyInfo> dependencies;
 
-    @BeforeAll
-    static void setup() throws Exception {
-        dependenciesField = EvergreenService.class.getDeclaredField("dependencies");
-        dependenciesField.setAccessible(true);
-    }
+
     @BeforeEach
-    void beforeEach() throws Exception {
+    void beforeEach() {
         evergreenService = new EvergreenService(initializeMockedConfig());
         evergreenService.context = context;
         Kernel mockKernel = Mockito.mock(Kernel.class);
         Mockito.when(context.get(Kernel.class)).thenReturn(mockKernel);
-        dependencies = (Map<EvergreenService, EvergreenService.DependencyInfo>) dependenciesField.get(evergreenService);
     }
 
     @Test
@@ -45,10 +36,10 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         evergreenService.addDependency(dep1, State.INSTALLED, false);
 
         // THEN
+        Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
         // verify dependency added
         Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1).startWhen);
-        Assertions.assertEquals(false, dependencies.get(dep1).isDefaultDependency);
+        Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1));
         Mockito.verify(depStateTopic, Mockito.times(1)).subscribe(Mockito.any(Subscriber.class));
     }
 
@@ -62,33 +53,19 @@ public class SetupDependencyTest extends EGServiceTestUtil {
 
         evergreenService.addDependency(dep1, State.INSTALLED, false);
 
+        Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1).startWhen);
-        Assertions.assertEquals(false, dependencies.get(dep1).isDefaultDependency);
+        Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1));
         Mockito.verify(depStateTopic, Mockito.times(1)).subscribe(Mockito.any(Subscriber.class));
 
         // WHEN
         evergreenService.addDependency(dep1, State.RUNNING, true);
 
         // THEN
+        dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.RUNNING, dependencies.get(dep1).startWhen);
-        Assertions.assertEquals(true, dependencies.get(dep1).isDefaultDependency);
-        // verify stateTopic listener isn't added duplicated
-        Mockito.verifyNoMoreInteractions(depStateTopic);
-
-        // WHEN
-        evergreenService.addDependency(dep1, State.RUNNING, false);
-
-        // THEN
-        Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.RUNNING, dependencies.get(dep1).startWhen);
-        // verify isDefault isn't overridden
-        Assertions.assertEquals(true, dependencies.get(dep1).isDefaultDependency);
+        Assertions.assertEquals(State.RUNNING, dependencies.get(dep1));
         // verify stateTopic listener isn't added duplicated
         Mockito.verifyNoMoreInteractions(depStateTopic);
     }
-
-
-    //TODO: add test for setupDependencies
 }

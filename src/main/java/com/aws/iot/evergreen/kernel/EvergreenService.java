@@ -146,13 +146,6 @@ public class EvergreenService implements InjectionActions {
         }
         // TODO: Add more validations
 
-        if (Thread.currentThread().isInterrupted()) {
-            // It's possible that cancelled backingTask is trying to reportState.
-            // ignore in such case.
-            logger.atWarn().addKeyValue("reportedState", newState).log("Ignoring reportState");
-            return;
-        }
-
         if (getState().equals(State.INSTALLED) && newState.equals(State.FINISHED)) {
             // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
             requestStop();
@@ -1000,6 +993,7 @@ public class EvergreenService implements InjectionActions {
 
     @AllArgsConstructor
     protected static class DependencyInfo {
+        // starting at which state when the dependency is considered Ready. Default to be RUNNING.
         State startWhen;
         // true if the dependency isn't explicitly declared in config
         Boolean isDefaultDependency;
