@@ -1,6 +1,9 @@
 package com.aws.iot.evergreen.config;
 
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Exec;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -19,9 +22,10 @@ public class PlatformResolver {
                 "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
     }};
 
+    private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
     private static final Map<String, Integer> RANKS = initializeRanks();
 
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
+    @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
     @SuppressWarnings({"checkstyle:emptycatchblock"})
     private static Map<String, Integer> initializeRanks() {
         Map<String, Integer> ranks = new HashMap<>();
@@ -46,32 +50,36 @@ public class PlatformResolver {
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
             ranks.put("fedora", 11);
         }
-        String sysver = Exec.sh("uname -a").toLowerCase();
-        if (sysver.contains("ubuntu")) {
-            ranks.put("ubuntu", 20);
-        }
-        if (sysver.contains("darwin")) {
-            ranks.put("macos", 20);
-        }
-        if (sysver.contains("raspbian")) {
-            ranks.put("raspbian", 22);
-        }
-        if (sysver.contains("qnx")) {
-            ranks.put("qnx", 22);
-        }
-        if (sysver.contains("cygwin")) {
-            ranks.put("cygwin", 22);
-        }
-        if (sysver.contains("freebsd")) {
-            ranks.put("freebsd", 22);
-        }
-        if (sysver.contains("solaris") || sysver.contains("sunos")) {
-            ranks.put("solaris", 22);
+        try {
+            String sysver = Exec.sh("uname -a").toLowerCase();
+            if (sysver.contains("ubuntu")) {
+                ranks.put("ubuntu", 20);
+            }
+            if (sysver.contains("darwin")) {
+                ranks.put("macos", 20);
+            }
+            if (sysver.contains("raspbian")) {
+                ranks.put("raspbian", 22);
+            }
+            if (sysver.contains("qnx")) {
+                ranks.put("qnx", 22);
+            }
+            if (sysver.contains("cygwin")) {
+                ranks.put("cygwin", 22);
+            }
+            if (sysver.contains("freebsd")) {
+                ranks.put("freebsd", 22);
+            }
+            if (sysver.contains("solaris") || sysver.contains("sunos")) {
+                ranks.put("solaris", 22);
+            }
+        } catch (InterruptedException e) {
+            logger.atError().log("Interrupted while running uname -a");
         }
         try {
             ranks.put(InetAddress.getLocalHost().getHostName(), 99);
         } catch (UnknownHostException ex) {
-            ex.printStackTrace();
+            logger.atError().log("Error getting hostname", ex);
         }
 
         return ranks;

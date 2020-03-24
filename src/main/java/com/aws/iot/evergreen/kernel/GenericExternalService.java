@@ -50,8 +50,7 @@ public class GenericExternalService extends EvergreenService {
             if (!c.parentNeedsToKnow()) {
                 return;
             }
-            logger.atInfo().setEventType("service-config-change")
-                    .addKeyValue("configNode", child.getFullName()).log();
+            logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child.getFullName()).log();
             if (c.childOf("shutdown")) {
                 return;
             }
@@ -71,14 +70,14 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    public void install() {
+    public void install() throws InterruptedException {
         if (run("install", null) == RunStatus.Errored) {
             reportState(State.ERRORED);
         }
     }
 
     @Override
-    public void startup() {
+    public void startup() throws InterruptedException {
         RunStatus result = run("startup", exit -> {
             runScript = null;
             if (getState() == State.INSTALLED) {
@@ -121,7 +120,13 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void shutdown() {
         inShutdown = true;
-        run("shutdown", null);
+        try {
+            run("shutdown", null);
+        } catch (InterruptedException ex) {
+            inShutdown = false;
+            logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
+            return;
+        }
         Exec e = runScript;
         if (e != null && e.isRunning()) {
             try {
@@ -131,12 +136,11 @@ public class GenericExternalService extends EvergreenService {
                 logger.atError().setEventType("generic-service-shutdown-error").setCause(ioe).log();
             }
         }
-
         inShutdown = false;
     }
 
     @Override
-    public void handleError() {
+    public void handleError() throws InterruptedException {
         // A placeholder for error handling in GenericExternalService
         run("handleError", null);
     }
@@ -148,22 +152,22 @@ public class GenericExternalService extends EvergreenService {
      * @param background IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
      * @return the status of the run.
      */
-    protected RunStatus run(String name, IntConsumer background) {
+    protected RunStatus run(String name, IntConsumer background) throws InterruptedException {
         Node n = (lifecycle == null) ? null : lifecycle.getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 
-    protected RunStatus run(Node n, IntConsumer background) {
+    protected RunStatus run(Node n, IntConsumer background) throws InterruptedException {
         return n instanceof Topic ? run((Topic) n, background, null)
                 : n instanceof Topics ? run((Topics) n, background) : RunStatus.Errored;
     }
 
-    protected RunStatus run(Topic t, IntConsumer background, Topics config) {
+    protected RunStatus run(Topic t, IntConsumer background, Topics config) throws InterruptedException {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
 
     // TODO: return Exec along with RunStatus instead of setting currentScript in this function
-    protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) {
+    protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         final EZTemplates templateEngine = context.get(EZTemplates.class);
         cmd = templateEngine.rewrite(cmd).toString();
@@ -181,7 +185,7 @@ public class GenericExternalService extends EvergreenService {
         return ret;
     }
 
-    protected RunStatus run(Topics t, IntConsumer background) {
+    protected RunStatus run(Topics t, IntConsumer background) throws InterruptedException {
         if (shouldSkip(t)) {
             logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
             return RunStatus.OK;
@@ -191,8 +195,8 @@ public class GenericExternalService extends EvergreenService {
         if (script instanceof Topic) {
             return run((Topic) script, background, t);
         } else {
-            logger.atError().setEventType("generic-service-invalid-config")
-                    .addKeyValue("configNode", t.getFullName()).log("Missing script");
+            logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
+                    .log("Missing script");
             return RunStatus.Errored;
         }
     }
@@ -222,8 +226,7 @@ public class GenericExternalService extends EvergreenService {
                         return false;
                 }
             }
-            logger.atError().setEventType("generic-service-invalid-config")
-                    .addKeyValue("command received", expr)
+            logger.atError().setEventType("generic-service-invalid-config").addKeyValue("command received", expr)
                     .addKeyValue("valid pattern", SKIP_COMMAND_REGEX)
                     .log("Invalid format for skipif. Should follow the pattern");
             serviceErrored();

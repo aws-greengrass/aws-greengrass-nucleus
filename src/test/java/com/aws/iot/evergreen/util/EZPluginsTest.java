@@ -20,7 +20,7 @@ public class EZPluginsTest {
     }
 
     @Test
-    public void testMatch() {
+    public void testMatch() throws InterruptedException {
         System.out.println(Exec.sh("pwd"));
         EZPlugins pl = new EZPlugins(Utils.homePath(".pluginsTest"));
         pl.implementing(Foo.class, f -> {
