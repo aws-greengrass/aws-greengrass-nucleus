@@ -48,6 +48,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -105,6 +107,12 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             // initialize Evergreen service specific mocks
             serviceFullName = "DeploymentService";
             initializeMockedConfig();
+            Topics processedDeploymentsTopics =
+                    mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                            DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
+                            DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
+            when(config.createInteriorChild(eq(DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS)))
+                    .thenReturn(processedDeploymentsTopics);
             when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
 
             when(config.findLeafChild(Mockito.any())).thenAnswer(invocationOnMock -> {
@@ -147,7 +155,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         public class ServiceRunningWithDefaultPollFrequency {
 
             @BeforeEach
-            public void startService() throws InterruptedException {
+            public void startService() throws Exception {
                 startDeploymentServiceInAnotherThread();
             }
 
@@ -158,7 +166,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             @Test
             public void GIVEN_device_configured_THEN_start_deployment_service()
-                    throws ExecutionException, InterruptedException {
+                    throws Exception {
 
                 verify(mockIotJobsHelper).subscribeToEventNotifications(any());
                 verify(mockIotJobsHelper).subscribeToGetNextJobDecription(any(), any());
