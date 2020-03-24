@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
@@ -20,7 +21,9 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.iot.iotjobs.model.RejectedError;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
+import sun.nio.cs.UTF_32;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -58,11 +61,12 @@ public class IotJobsHelper {
     /**
      * Connects to AWS Iot Cloud.
      *
-     * @throws ExecutionException if connecting fails
+     * @throws ExecutionException   if connecting fails
      * @throws InterruptedException if interrupted while connecting
      */
     public void connectToAwsIot() throws ExecutionException, InterruptedException {
         connection.connect().get();
+        logger.info("Connection established to Iot cloud");
     }
 
     /**
@@ -95,7 +99,8 @@ public class IotJobsHelper {
      * @param status           The {@link JobStatus} to which to update
      * @param statusDetailsMap map with job status details
      */
-    public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap) {
+    public CompletableFuture<Integer> updateJobStatus(String jobId, JobStatus status,
+                                                      HashMap<String, String> statusDetailsMap) {
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
@@ -121,7 +126,7 @@ public class IotJobsHelper {
         updateJobRequest.status = status;
         updateJobRequest.statusDetails = statusDetailsMap;
         updateJobRequest.thingName = thingName;
-        iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
+        return iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE);
     }
 
     /**
@@ -147,7 +152,6 @@ public class IotJobsHelper {
                 .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
                         QualityOfService.AT_LEAST_ONCE, consumerAccept);
         subscribed.get();
-
         iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE, consumerReject);
         requestNextPendingJobDocument();
