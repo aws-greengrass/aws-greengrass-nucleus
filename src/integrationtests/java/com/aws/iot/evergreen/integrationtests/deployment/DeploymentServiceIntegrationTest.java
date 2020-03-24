@@ -166,8 +166,9 @@ class DeploymentServiceIntegrationTest {
     }
 
     /**
-     * First deployment contains packages yellow and green
-     * Second deployment updates the root packages to yellow and red. Red is added and green is removed, no update for yellow
+     * First deployment contains packages yellow and customerApp
+     * Second deployment updates the root packages to yellow and red. Red is added, customerApp is removed
+     * and no update for yellow
      *
      * @throws Exception
      */
