@@ -37,10 +37,12 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -57,12 +59,16 @@ public class DeploymentService extends EvergreenService {
     //TODO: Change this to be taken from config or user input. Maybe as part of deployment document
     private static final Path LOCAL_ARTIFACT_SOURCE =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
+    private static final Integer MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
+    private static final Integer MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
+    public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
+    public static final String PROCESSED_DEPLOYMENTS_TOPICS = "ProcessedDeployments";
 
     @Inject
     private ExecutorService executorService;
@@ -84,6 +90,7 @@ public class DeploymentService extends EvergreenService {
     @Getter
     private Future<Void> currentProcessStatus = null;
     private String currentJobId;
+    private boolean isConnectionResumed = false;
 
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
@@ -92,13 +99,16 @@ public class DeploymentService extends EvergreenService {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             if (errorCode != 0) {
-                logger.error("Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
+                logger.warn("Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
             }
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             logger.info("Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
+            // update the status of persisted deployments
+            updateStatusOfPersistedDeployments();
+            isConnectionResumed = true;
         }
     };
 
@@ -153,16 +163,16 @@ public class DeploymentService extends EvergreenService {
                         .log("Caught InvalidRequestException while processing a deployment");
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("error", e.getMessage());
-                updateJobAsFailed(currentJobId, statusDetails);
+                updateJobWithStatus(currentJobId, JobStatus.FAILED, statusDetails);
                 return;
             }
             //Starting the job processing in another thread
             currentProcessStatus = executorService.submit(deploymentTask);
             logger.atInfo().log("Submitted the job with jobId {}", jobExecutionData.jobId);
         }
-
     };
 
+<<<<<<< HEAD
     private DeploymentTask createDeploymentTask(Map<String, Object> jobDocument) throws InvalidRequestException {
 
         DeploymentDocument deploymentDocument = parseAndValidateJobDocument(jobDocument);
@@ -196,6 +206,8 @@ public class DeploymentService extends EvergreenService {
         iotJobsHelper.updateJobStatus(jobId, JobStatus.FAILED, statusDetails);
         logger.addDefaultKeyValue("JobId", "");
     }
+=======
+>>>>>>> Persisting deployment status during MQTT connection breakage
 
     /**
      * Constructor.
@@ -246,26 +258,33 @@ public class DeploymentService extends EvergreenService {
         try {
             initializeIotJobsHelper(thingName);
             iotJobsHelper.connectToAwsIot();
-            iotJobsHelper.subscribeToEventNotifications(eventHandler);
-            iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer, rejectedError -> {
-                logger.error("Job subscription got rejected", rejectedError);
-                //TODO: Add retry logic for subscribing
-            });
-            reportState(State.RUNNING);
-        } catch (ExecutionException | InterruptedException ex) {
-            logger.error("Caught exception in subscribing to topics", ex);
+        } catch (ExecutionException ex) {
+            logger.error("Caught exception in connecting to cloud", ex);
+            //TODO: retry when network is available
+            errored = true;
+            reportState(State.ERRORED);
+        } catch (Exception e) {
+            logger.error("Caught exception in initializing jobs helper", e);
             errored = true;
             reportState(State.ERRORED);
         }
+
+        subscribeToJobsTopics();
         logger.info("Running deployment service");
+        updateStatusOfPersistedDeployments();
         while (!receivedShutdown.get() && !errored) {
             try {
                 if (currentProcessStatus != null) {
                     logger.info("Getting the status of the current process");
 
                     currentProcessStatus.get();
-                    updateJobAsSucceeded(currentJobId, null);
+                    updateJobWithStatus(currentJobId, JobStatus.SUCCEEDED, null);
                     currentProcessStatus = null;
+                }
+                //If the connection was resumed after interruption then need to subscribe to mqtt topics again
+                if (isConnectionResumed) {
+                    subscribeToJobsTopics();
+                    isConnectionResumed = false;
                 }
                 Thread.sleep(pollingFrequency);
             } catch (InterruptedException ex) {
@@ -277,9 +296,13 @@ public class DeploymentService extends EvergreenService {
                         .log("Caught exception while getting the status of the Job");
                 Throwable t = e.getCause();
                 if (t instanceof NonRetryableDeploymentTaskFailureException) {
+<<<<<<< HEAD
                     HashMap<String, String> statusDetails = new HashMap<>();
                     statusDetails.put("error", t.getMessage());
                     updateJobAsFailed(currentJobId, statusDetails);
+=======
+                    updateJobWithStatus(currentJobId, JobStatus.FAILED, null);
+>>>>>>> Persisting deployment status during MQTT connection breakage
                 }
                 currentProcessStatus = null;
                 //TODO: Handle retryable error
@@ -295,6 +318,29 @@ public class DeploymentService extends EvergreenService {
         }
     }
 
+<<<<<<< HEAD
+=======
+    private void initialize() {
+        //TODO: Update then pacakge store to be used once it is designed. Probably remove this.
+        this.dependencyResolver.setStore(new LocalPackageStore(LOCAL_ARTIFACT_SOURCE));
+    }
+
+    private void subscribeToJobsTopics() {
+        try {
+            iotJobsHelper.subscribeToEventNotifications(eventHandler);
+            iotJobsHelper.subscribeToGetNextJobDecription(describeJobExecutionResponseConsumer, rejectedError -> {
+                logger.error("Job subscription got rejected", rejectedError);
+                //TODO: Add retry logic for subscribing
+            });
+            reportState(State.RUNNING);
+        } catch (ExecutionException | InterruptedException ex) {
+            logger.error("Caught exception in subscribing to topics", ex);
+            errored = true;
+            reportState(State.ERRORED);
+        }
+    }
+
+>>>>>>> Persisting deployment status during MQTT connection breakage
     private void initializeIotJobsHelper(String thingName) {
         //TODO: Get it from bootstrap config. Path of Bootstrap config should be taken as argument to kernel?
         String privateKeyPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
@@ -307,6 +353,69 @@ public class DeploymentService extends EvergreenService {
         this.iotJobsHelper = iotJobsHelperFactory
                 .getIotJobsHelper(thingName, certificateFilePath, privateKeyPath, rootCAPath, clientEndpoint,
                         callbacks);
+    }
+
+    private DeploymentTask createDeploymentTask(Map<String, Object> jobDocument) throws InvalidRequestException {
+
+        DeploymentDocument deploymentDocument = parseAndValidateJobDocument(jobDocument);
+        return new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver, kernel, logger,
+                deploymentDocument);
+    }
+
+    private DeploymentDocument parseAndValidateJobDocument(Map<String, Object> jobDocument)
+            throws InvalidRequestException {
+        if (jobDocument == null) {
+            String errorMessage = "Job document cannot be empty";
+            throw new InvalidRequestException(errorMessage);
+        }
+        DeploymentDocument deploymentDocument = null;
+        try {
+            String jobDocumentString = OBJECT_MAPPER.writeValueAsString(jobDocument);
+            deploymentDocument = OBJECT_MAPPER.readValue(jobDocumentString, DeploymentDocument.class);
+            return deploymentDocument;
+        } catch (JsonProcessingException e) {
+            String errorMessage = "Unable to parse the job document";
+            throw new InvalidRequestException(errorMessage, e);
+        }
+    }
+
+    private void updateStatusOfPersistedDeployments() {
+        Topics processedDeployments =
+                kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, PROCESSED_DEPLOYMENTS_TOPICS);
+        processedDeployments.deepForEachTopic(topic -> {
+            Map<String, Object> deploymentDetails = (HashMap) topic.getOnce();
+            String jobId = topic.getName();
+            String status = deploymentDetails.get("JobStatus").toString();
+            logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Updating status of persisted deployment");
+            //Removing the topic from config before it can be added again if the update fails again
+            processedDeployments.remove(topic);
+            updateJobWithStatus(jobId, JobStatus.valueOf(status),
+                    (HashMap<String, String>) deploymentDetails.get("StatusDetails"));
+        });
+    }
+
+    private void updateJobWithStatus(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
+        try {
+            iotJobsHelper.updateJobStatus(jobId, status, statusDetails).get();
+        } catch (ExecutionException e) {
+            logger.atWarn().kv("Status", status).log("Caught exception while updating job status");
+            //Persist the deployment
+            storeDeploymentStatusInConfig(jobId, status, statusDetails);
+        } catch (InterruptedException e) {
+            errored = true;
+            reportState(State.ERRORED);
+        }
+        logger.addDefaultKeyValue("JobId", "");
+    }
+
+    private void storeDeploymentStatusInConfig(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
+        Topics processedDeployments =
+                kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, PROCESSED_DEPLOYMENTS_TOPICS);
+        Topic thisJob = processedDeployments.createLeafChild(jobId);
+        Map<String, Object> deploymentDetails = new HashMap<>();
+        deploymentDetails.put("JobStatus", status);
+        deploymentDetails.put("StatusDetails", statusDetails);
+        thisJob.setValue(deploymentDetails);
     }
 
     private String getStringParameterFromConfig(String parameterName) {
@@ -341,7 +450,8 @@ public class DeploymentService extends EvergreenService {
                          .newMtlsBuilderFromPath(certificateFilePath, privateKeyPath)) {
                 builder.withCertificateAuthorityFromPath(null, rootCAPath).withEndpoint(clientEndpoint)
                         .withClientId(UUID.randomUUID().toString()).withCleanSession(true)
-                        .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks);
+                        .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks)
+                        .withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT).withPingTimeoutMs(MQTT_PING_TIMEOUT);
 
                 MqttClientConnection connection = builder.build();
                 IotJobsClient iotJobsClient = new IotJobsClient(connection);
