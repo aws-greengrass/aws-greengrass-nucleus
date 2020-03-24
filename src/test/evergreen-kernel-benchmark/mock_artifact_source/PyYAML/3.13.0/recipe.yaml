@@ -1,0 +1,6 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: PyYAML
+Description: Test recipe for Evergreen packages
+Publisher: EvergreenBenchmarkTest
+Version: '3.13.0'

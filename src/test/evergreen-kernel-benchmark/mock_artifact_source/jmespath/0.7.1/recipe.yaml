@@ -1,0 +1,6 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: jmespath
+Description: Test recipe for Evergreen packages
+Publisher: EvergreenBenchmarkTest
+Version: '0.7.1'
