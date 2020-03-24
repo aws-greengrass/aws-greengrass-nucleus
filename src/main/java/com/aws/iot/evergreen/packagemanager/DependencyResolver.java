@@ -295,7 +295,8 @@ public class DependencyResolver {
         try {
             service = EvergreenService.locate(kernel.context, packageName);
         } catch (ServiceLoadException e) {
-            logger.atWarn().setCause(e).addKeyValue("packageName", packageName).log("Fail to load package");
+            logger.atDebug().setCause(e).addKeyValue("packageName", packageName).log(
+                    "Failed to get active package in Kernel");
             return Optional.empty();
         }
         return getServiceVersion(service);

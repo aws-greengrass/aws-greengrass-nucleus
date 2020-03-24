@@ -1,0 +1,8 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: s3transfer
+Description: Test recipe for Evergreen packages
+Publisher: EvergreenBenchmarkTest
+Version: '0.1.13'
+Dependencies:
+  botocore: '<2.0.0 >=1.3.0'

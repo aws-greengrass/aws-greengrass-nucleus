@@ -1,0 +1,23 @@
+services:
+  main:
+    lifecycle:
+      run:
+        sleep 100
+    dependencies:
+      - s3transfer:INSTALLED
+  s3transfer:
+    version: '0.2.1'
+    lifecycle:
+      install: echo INSTALLED
+  botocore:
+    version: '1.12.128'
+  docutils:
+    version: '0.14.0'
+  jmespath:
+    version: '0.9.5'
+  python-dateutil:
+    version: '2.8.1'
+  six:
+    version: '1.14.0'
+  urllib3:
+    version: '1.24.3'

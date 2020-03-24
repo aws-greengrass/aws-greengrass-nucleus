@@ -8,7 +8,16 @@ package com.aws.iot.evergreen.jmh;
 import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Warmup;
 
+@BenchmarkMode(Mode.AverageTime)
+@Fork(5)
+@Measurement(iterations = 1)
+@Warmup(iterations = 0)
 public class BasicExampleBenchmark {
 
     @Benchmark

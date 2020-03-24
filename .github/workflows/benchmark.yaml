@@ -31,13 +31,9 @@ jobs:
         run: >-
           java -jar src/test/evergreen-kernel-benchmark/target/benchmarks.jar
           -rf json
-          -f 5
-          -wi 0
           -jvmArgs "-Xms1m -Xmx128m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
           -prof com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler
-          -i 1
-          -bm avgt
       - name: Upload JMH Result
         uses: actions/upload-artifact@v1.0.0
         with:

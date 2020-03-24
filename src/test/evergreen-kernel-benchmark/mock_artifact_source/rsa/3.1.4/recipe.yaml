@@ -1,0 +1,8 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: rsa
+Description: Test recipe for Evergreen packages
+Publisher: EvergreenBenchmarkTest
+Version: '3.1.4'
+Dependencies:
+  pyasn1: '>= 0.1.3'
