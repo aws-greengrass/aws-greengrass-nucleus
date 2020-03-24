@@ -92,7 +92,7 @@ public class DeploymentService extends EvergreenService {
     @Getter
     private Future<Void> currentProcessStatus = null;
     private String currentJobId;
-    private boolean isConnectionResumed = false;
+    private AtomicBoolean isConnectionResumed = new AtomicBoolean(false);
 
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
@@ -110,7 +110,7 @@ public class DeploymentService extends EvergreenService {
             logger.info("Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
             // update the status of persisted deployments
             updateStatusOfPersistedDeployments();
-            isConnectionResumed = true;
+            isConnectionResumed.set(true);
         }
     };
 
@@ -228,8 +228,6 @@ public class DeploymentService extends EvergreenService {
         } catch (ExecutionException ex) {
             logger.error("Caught exception in connecting to cloud", ex);
             //TODO: retry when network is available
-            errored = true;
-            reportState(State.ERRORED);
         } catch (Exception e) {
             logger.error("Caught exception in initializing jobs helper", e);
             errored = true;
@@ -249,9 +247,9 @@ public class DeploymentService extends EvergreenService {
                     currentProcessStatus = null;
                 }
                 //If the connection was resumed after interruption then need to subscribe to mqtt topics again
-                if (isConnectionResumed) {
+                if (isConnectionResumed.get()) {
                     subscribeToJobsTopics();
-                    isConnectionResumed = false;
+                    isConnectionResumed.set(false);
                 }
                 Thread.sleep(pollingFrequency);
             } catch (InterruptedException ex) {
@@ -292,7 +290,10 @@ public class DeploymentService extends EvergreenService {
                 //TODO: Add retry logic for subscribing
             });
             reportState(State.RUNNING);
-        } catch (ExecutionException | InterruptedException ex) {
+        } catch (ExecutionException ex) {
+            logger.error("Caught exception in subscribing to topics", ex);
+            //TODO: Add retry logic
+        } catch (InterruptedException ex) {
             logger.error("Caught exception in subscribing to topics", ex);
             errored = true;
             reportState(State.ERRORED);
@@ -323,23 +324,21 @@ public class DeploymentService extends EvergreenService {
     private DeploymentDocument parseAndValidateJobDocument(Map<String, Object> jobDocument)
             throws InvalidRequestException {
         if (jobDocument == null) {
-            String errorMessage = "Job document cannot be empty";
-            throw new InvalidRequestException(errorMessage);
+            throw new InvalidRequestException("Job document cannot be empty");
         }
-        DeploymentDocument deploymentDocument = null;
+
         try {
+            DeploymentDocument deploymentDocument = null;
             String jobDocumentString = OBJECT_MAPPER.writeValueAsString(jobDocument);
             deploymentDocument = OBJECT_MAPPER.readValue(jobDocumentString, DeploymentDocument.class);
             return deploymentDocument;
         } catch (JsonProcessingException e) {
-            String errorMessage = "Unable to parse the job document";
-            throw new InvalidRequestException(errorMessage, e);
+            throw new InvalidRequestException("Unable to parse the job document", e);
         }
     }
 
     private void updateStatusOfPersistedDeployments() {
-        Topics processedDeployments =
-                kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, PROCESSED_DEPLOYMENTS_TOPICS);
+        Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.deepForEachTopic(topic -> {
             Map<String, Object> deploymentDetails = (HashMap) topic.getOnce();
             String jobId = topic.getName();
@@ -357,7 +356,6 @@ public class DeploymentService extends EvergreenService {
             iotJobsHelper.updateJobStatus(jobId, status, statusDetails).get();
         } catch (ExecutionException e) {
             logger.atWarn().kv("Status", status).log("Caught exception while updating job status");
-            //Persist the deployment
             storeDeploymentStatusInConfig(jobId, status, statusDetails);
         } catch (InterruptedException e) {
             errored = true;
@@ -367,8 +365,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void storeDeploymentStatusInConfig(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
-        Topics processedDeployments =
-                kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, PROCESSED_DEPLOYMENTS_TOPICS);
+        Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
         Topic thisJob = processedDeployments.createLeafChild(jobId);
         Map<String, Object> deploymentDetails = new HashMap<>();
         deploymentDetails.put("JobStatus", status);

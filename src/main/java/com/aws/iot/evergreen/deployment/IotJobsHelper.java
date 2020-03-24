@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
-import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
@@ -21,9 +20,7 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.iot.iotjobs.model.RejectedError;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
-import sun.nio.cs.UTF_32;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -48,13 +45,14 @@ public class IotJobsHelper {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             if (errorCode != 0) {
-                logger.error("Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
+                logger.atError().kv("errorCode", CRT.awsErrorString(errorCode)).log("Connection interrupted: ");
             }
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.info("Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
+            logger.atInfo().kv("session", (sessionPresent ? "existing session" : "clean session"))
+                    .log("Connection resumed: ");
         }
     };
 
@@ -66,7 +64,7 @@ public class IotJobsHelper {
      */
     public void connectToAwsIot() throws ExecutionException, InterruptedException {
         connection.connect().get();
-        logger.info("Connection established to Iot cloud");
+        logger.atInfo().log("Connection established to Iot cloud");
     }
 
     /**
