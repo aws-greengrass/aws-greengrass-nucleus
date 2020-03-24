@@ -48,15 +48,9 @@ public class KernelConfigResolver {
      * @param document      deployment document
      * @param rootPackages  root level packages
      * @return a kernel config map
-     * @throws InterruptedException when the running thread is interrupted
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
-                                       Set<String> rootPackages) throws InterruptedException {
-
-        //Map<Object, Object> servicesConfig = new HashMap<>();
-
-        //packagesToDeploy.forEach(packageIdentifier -> servicesConfig
-        //        .put(packageIdentifier.getName(), getServiceConfig(packageIdentifier, document)));
+                                       Set<String> rootPackages) {
 
         Map<Object, Object> servicesConfig = packagesToDeploy.stream()
                 .collect(Collectors.toMap(packageIdentifier -> packageIdentifier.getName(),
