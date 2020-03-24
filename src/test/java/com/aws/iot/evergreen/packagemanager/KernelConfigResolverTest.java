@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -84,8 +85,6 @@ public class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(
                         Arrays.asList(rootPackageDeploymentConfig, dependencyPackageDeploymentConfig)).build();
 
-        Set<PackageIdentifier> rootPackagesToRemove = Collections.emptySet();
-
         when(packageCache.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(packageCache.getRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackage);
         when(kernel.getMain()).thenReturn(mainService);
@@ -96,7 +95,7 @@ public class KernelConfigResolverTest {
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
         Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, rootPackagesToRemove);
+                kernelConfigResolver.resolve(packagesToDeploy, document, Collections.singleton(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
@@ -125,8 +124,6 @@ public class KernelConfigResolverTest {
 
         Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
 
-        Set<PackageIdentifier> rootPackagesToRemove = Collections.emptySet();
-
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
                         Collections.emptyList());
@@ -142,7 +139,7 @@ public class KernelConfigResolverTest {
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
         Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, rootPackagesToRemove);
+                kernelConfigResolver.resolve(packagesToDeploy, document, Collections.singleton(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
@@ -156,50 +153,6 @@ public class KernelConfigResolverTest {
     }
 
     @Test
-    public void GIVEN_deployment_removes_root_package_WHEN_config_resolution_requested_THEN_remove_service()
-            throws Exception {
-        // GIVEN
-        PackageIdentifier rootPackageIdentifier =
-                new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
-        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
-
-        Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
-
-        Set<PackageIdentifier> rootPackagesToRemove = new HashSet<>(
-                Arrays.asList(new PackageIdentifier("RemovedService", new Semver("3.4", Semver.SemverType.NPM))));
-
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
-                        Collections.emptyList());
-        DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
-                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
-
-        when(packageCache.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
-        when(kernel.getMain()).thenReturn(mainService);
-        when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
-        when(alreadyRunningService.getName()).thenReturn("RemovedService");
-
-        // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
-        Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, rootPackagesToRemove);
-
-        // THEN
-        // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
-        assertThat("Must contain main service", servicesConfig.containsKey("main"));
-        assertThat("Must contain top level package service", servicesConfig.containsKey(TEST_INPUT_PACKAGE_A));
-
-        // dependencies
-        assertThat("Main service must depend on updated service",
-                   dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
-        assertThat("Main service must not depend on removed service",
-                   !dependencyListContains("main", "RemovedService", servicesConfig));
-
-    }
-
-    @Test
     public void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_parameters_should_be_interpolated()
             throws Exception {
         // GIVEN
@@ -209,8 +162,6 @@ public class KernelConfigResolverTest {
 
         Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
-
-        Set<PackageIdentifier> rootPackagesToRemove = Collections.emptySet();
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", new HashSet<>(
@@ -227,7 +178,7 @@ public class KernelConfigResolverTest {
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
         Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, rootPackagesToRemove);
+                kernelConfigResolver.resolve(packagesToDeploy, document, Collections.singleton(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
