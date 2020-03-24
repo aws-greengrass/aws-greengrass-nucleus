@@ -3,6 +3,8 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
@@ -18,8 +20,10 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
@@ -40,13 +44,28 @@ public class DeploymentTask implements Callable<Void> {
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", document.getDeploymentId()).log("Start deployment task");
-            List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document);
+
+            // TODO: DA compute the root level packages to remove by looking across root level packages
+            //  of all groups, when multi group support is added.
+            Set<String> currentRootPackages = kernel.getMain().getDependencies().keySet().stream()
+                    .filter((evergreenService) -> evergreenService instanceof GenericExternalService)
+                    .map(EvergreenService::getName).collect(Collectors.toSet());
+
+            Set<String> rootPackagesToRemove = currentRootPackages.stream()
+                    .filter(packageName -> !document.getRootPackages().contains(packageName))
+                    .collect(Collectors.toSet());
+
+            List<PackageIdentifier> desiredPackages = dependencyResolver
+                    .resolveDependencies(document, rootPackagesToRemove);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
             packageCache.preparePackages(desiredPackages).get();
-            // TODO : Compute the set of packages to be removed from the fleet - package information
-            // and pass it to the config resolver
-            Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, new HashSet<>());
+
+            Set<String> newRootPackages = new HashSet<>(currentRootPackages);
+            newRootPackages.removeAll(rootPackagesToRemove);
+            newRootPackages.addAll(document.getRootPackages());
+
+            Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, newRootPackages);
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();

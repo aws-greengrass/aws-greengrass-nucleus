@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.packagemanager;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -44,20 +45,24 @@ public class KernelConfigResolver {
      * transform it to a kernel config key-value pair.
      *
      * @param packagesToDeploy     package identifiers for resolved packages that are to be deployed
-     * @param document             deployment document
-     * @param rootPackagesToRemove top level packages that need to be removed as part of current deployment
+     * @param document      deployment document
+     * @param rootPackages  root level packages
      * @return a kernel config map
      * @throws InterruptedException when the running thread is interrupted
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
-                                       Set<PackageIdentifier> rootPackagesToRemove) throws InterruptedException {
+                                       Set<String> rootPackages) throws InterruptedException {
 
-        Map<Object, Object> servicesConfig = new HashMap<>();
+        //Map<Object, Object> servicesConfig = new HashMap<>();
 
-        packagesToDeploy.forEach(packageIdentifier -> servicesConfig
-                .put(packageIdentifier.getName(), getServiceConfig(packageIdentifier, document)));
+        //packagesToDeploy.forEach(packageIdentifier -> servicesConfig
+        //        .put(packageIdentifier.getName(), getServiceConfig(packageIdentifier, document)));
 
-        servicesConfig.put(kernel.getMain().getName(), getUpdatedMainConfig(rootPackagesToRemove, document));
+        Map<Object, Object> servicesConfig = packagesToDeploy.stream()
+                .collect(Collectors.toMap(packageIdentifier -> packageIdentifier.getName(),
+                        packageIdentifier -> getServiceConfig(packageIdentifier, document)));
+
+        servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
         // Services need to be under the services namespace in kernel config
         return Collections.singletonMap(SERVICE_NAMESPACE_CONFIG_KEY, servicesConfig);
@@ -135,19 +140,19 @@ public class KernelConfigResolver {
 
 
     /*
-     * Recompute main service dependencies for deployment.
+     * Compute the config for main service
      */
-    private Map<Object, Object> getUpdatedMainConfig(Set<PackageIdentifier> rootPackagesToRemove,
-                                                     DeploymentDocument document) {
-        Set<String> kernelDependencies =
-                kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
-                        .collect(Collectors.toSet());
-        kernelDependencies
-                .removeAll(rootPackagesToRemove.stream().map(PackageIdentifier::getName).collect(Collectors.toSet()));
-        kernelDependencies.addAll(document.getRootPackages());
-        Map<Object, Object> mainLifecycleMap = new HashMap<>();
-        mainLifecycleMap.put(SERVICE_DEPENDENCIES_CONFIG_KEY, new ArrayList<>(kernelDependencies));
-        return mainLifecycleMap;
+    private Map<Object, Object> getMainConfig(Set<String> rootPackages) {
+
+        Map<Object, Object> mainServiceConfig = new HashMap<>();
+        ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
+        kernel.getMain().getDependencies().keySet().forEach(evergreenService -> {
+            if (!(evergreenService instanceof GenericExternalService)) {
+                mainDependencies.add(evergreenService.getName());
+            }
+        });
+        mainServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, mainDependencies);
+        return mainServiceConfig;
     }
 
     /*

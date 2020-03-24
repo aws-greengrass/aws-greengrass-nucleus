@@ -54,12 +54,14 @@ public class DependencyResolver {
      * running packages on the device.
      *
      * @param document deployment document
+     * @param rootPackagesToRemove root level packages to be removed
      * @return a list of packages to be run on the device
      * @throws PackageVersionConflictException when a package version conflict cannot be resolved
      * @throws IOException                     when a package cannot be retrieved from the package store
      * @throws PackagingException              for other package errors
      */
-    public List<PackageIdentifier> resolveDependencies(final DeploymentDocument document)
+    public List<PackageIdentifier> resolveDependencies(final DeploymentDocument document,
+                                                       Set<String> rootPackagesToRemove)
             throws PackageVersionConflictException, IOException, PackagingException {
 
         // A map of package version constraints {packageName => {dependingPackageName => versionConstraint}} to be
@@ -85,6 +87,9 @@ public class DependencyResolver {
         mergeActiveRootPackages(rootPackagesToResolve, packageNameToVersionConstraints);
         logger.atInfo().setEventType("resolve-dependencies-start").addKeyValue("rootPackages", rootPackagesToResolve)
                 .addKeyValue("versionConstraints", packageNameToVersionConstraints).log();
+
+        rootPackagesToResolve.removeAll(rootPackagesToRemove);
+        packageNameToVersionConstraints.keySet().removeAll(rootPackagesToRemove);
 
         // Map of package name and resolved version
         Map<String, Semver> resolvedPackageNameToVersion = new HashMap<>();

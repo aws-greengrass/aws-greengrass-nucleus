@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -44,8 +46,11 @@ public class DeploymentTaskTest {
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private Kernel mockKernel;
+    @Mock
+    private EvergreenService mainService;
     private DeploymentDocument deploymentDocument =
-            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
+                    .rootPackages(Collections.EMPTY_LIST).build();
 
     private Logger logger = LogManager.getLogger("unit test");
 
@@ -56,6 +61,9 @@ public class DeploymentTaskTest {
         deploymentTask =
                 new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
                         logger, deploymentDocument);
+
+        when(mockKernel.getMain()).thenReturn(mainService);
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
     }
 
     @Test
@@ -64,7 +72,7 @@ public class DeploymentTaskTest {
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
         verify(mockKernel).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
@@ -73,11 +81,11 @@ public class DeploymentTaskTest {
     @Test
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_with_conflicted_dependency_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument))
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_SET))
                 .thenThrow(new PackageVersionConflictException(""));
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageVersionConflictException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
@@ -86,11 +94,11 @@ public class DeploymentTaskTest {
     @Test
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument)).thenThrow(
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_SET)).thenThrow(
                 new PackagingException("mock error"));
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackagingException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
@@ -107,7 +115,7 @@ public class DeploymentTaskTest {
         t.interrupt();
         Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get());
         assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
@@ -122,7 +130,7 @@ public class DeploymentTaskTest {
 
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(InterruptedException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
