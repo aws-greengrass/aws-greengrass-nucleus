@@ -62,8 +62,12 @@ public class DeploymentTaskTest {
     private Map<String, Object> jobDocument;
 
     private DeploymentDocument deploymentDocument =
+<<<<<<< HEAD
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();;
 >>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
+=======
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
+>>>>>>> Persisting job execution number
 
     private final Logger logger = LogManager.getLogger("unit test");
 
@@ -90,12 +94,15 @@ public class DeploymentTaskTest {
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
 <<<<<<< HEAD
+<<<<<<< HEAD
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageStore).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
 =======
         ArgumentCaptor<DeploymentDocument> deploymentDocumentArgumentCaptor =
                 ArgumentCaptor.forClass(DeploymentDocument.class);
+=======
+>>>>>>> Persisting job execution number
         verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument));
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());

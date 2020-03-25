@@ -134,13 +134,7 @@ public class DeploymentService extends EvergreenService {
         if (response.execution == null) {
             return;
         }
-
         JobExecutionData jobExecutionData = response.execution;
-        currentJobId = jobExecutionData.jobId;
-        currentJobExecutionNumber = jobExecutionData.executionNumber;
-        logger.atInfo()
-                .log("Received job description for job id : {} and status {}", currentJobId, jobExecutionData.status);
-        logger.addDefaultKeyValue("JobId", currentJobId);
         if (jobExecutionData.status == JobStatus.IN_PROGRESS) {
             //TODO: Check the currently running process,
             // if it is same as this jobId then do nothing. If not then there is something wrong
@@ -152,6 +146,11 @@ public class DeploymentService extends EvergreenService {
                 //If the cancel is not successful
                 return;
             }
+            currentJobId = jobExecutionData.jobId;
+            currentJobExecutionNumber = jobExecutionData.executionNumber;
+            logger.atInfo().log("Received job description for job id : {} and status {}", currentJobId,
+                    jobExecutionData.status);
+            logger.addDefaultKeyValue("JobId", currentJobId);
             iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, currentJobExecutionNumber, null);
             logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
 
@@ -365,7 +364,8 @@ public class DeploymentService extends EvergreenService {
             String status = deploymentDetails.get("JobStatus").toString();
             logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Updating status of persisted deployment");
             try {
-                iotJobsHelper.updateJobStatus(jobId, JobStatus.valueOf(status), currentJobExecutionNumber,
+                iotJobsHelper.updateJobStatus(jobId, JobStatus.valueOf(status),
+                        (Long) deploymentDetails.get("JobExecutionNumber"),
                         (HashMap<String, String>) deploymentDetails.get("StatusDetails")).get();
             } catch (ExecutionException e) {
                 logger.atWarn().kv("Status", status).setCause(e).log("Caught exception while updating job status");
@@ -384,7 +384,7 @@ public class DeploymentService extends EvergreenService {
                                      HashMap<String, String> statusDetails) throws InterruptedException {
         Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
         if (!processedDeployments.isEmpty()) {
-            storeDeploymentStatusInConfig(jobId, status, statusDetails);
+            storeDeploymentStatusInConfig(jobId, status, executionNumber, statusDetails);
             updateStatusOfPersistedDeployments();
         } else {
             try {
@@ -392,7 +392,7 @@ public class DeploymentService extends EvergreenService {
             } catch (ExecutionException e) {
                 logger.atWarn().kv("Status", status).setCause(e).log("Caught exception while updating job status");
                 if (e.getCause() instanceof MqttException) {
-                    storeDeploymentStatusInConfig(jobId, status, statusDetails);
+                    storeDeploymentStatusInConfig(jobId, status, executionNumber, statusDetails);
                 }
                 //TODO: Retry in case of any other exception
             }
@@ -400,12 +400,14 @@ public class DeploymentService extends EvergreenService {
         logger.addDefaultKeyValue("JobId", "");
     }
 
-    private void storeDeploymentStatusInConfig(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
+    private void storeDeploymentStatusInConfig(String jobId, JobStatus status, Long executionNumber,
+                                               HashMap<String, String> statusDetails) {
         Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
-        Topic thisJob = processedDeployments.createLeafChild(jobId);
         Map<String, Object> deploymentDetails = new HashMap<>();
         deploymentDetails.put("JobStatus", status);
         deploymentDetails.put("StatusDetails", statusDetails);
+        deploymentDetails.put("JobExecutionNumber", executionNumber);
+        Topic thisJob = processedDeployments.createLeafChild(jobId);
         thisJob.setValue(deploymentDetails);
     }
 
