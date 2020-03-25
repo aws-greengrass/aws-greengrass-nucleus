@@ -60,8 +60,8 @@ public class DeploymentService extends EvergreenService {
     //TODO: Change this to be taken from config or user input. Maybe as part of deployment document
     private static final Path LOCAL_ARTIFACT_SOURCE =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
-    private static final Integer MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
-    private static final Integer MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
+    private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
+    private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
@@ -101,13 +101,14 @@ public class DeploymentService extends EvergreenService {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             if (errorCode != 0) {
-                logger.warn("Connection interrupted: " + errorCode + ": " + CRT.awsErrorString(errorCode));
+                logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
             }
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.info("Connection resumed: " + (sessionPresent ? "existing session" : "clean session"));
+            logger.atInfo().kv("session", (sessionPresent ? "existing session" : "clean session"))
+                    .log("Connection resumed: ");
             isConnectionResumed.set(true);
         }
     };
