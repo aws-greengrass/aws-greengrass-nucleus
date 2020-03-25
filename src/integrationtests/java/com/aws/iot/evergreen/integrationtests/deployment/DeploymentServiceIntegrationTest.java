@@ -185,12 +185,13 @@ class DeploymentServiceIntegrationTest {
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
 
-        assertThat("Only contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal", services.size() == 5);
-        assertThat("Must contain main", services.contains("main"));
-        assertThat("Must contain YellowSignal", services.contains("YellowSignal"));
-        assertThat("Must contain CustomerApp", services.contains("CustomerApp"));
-        assertThat("Must contain Mosquitto", services.contains("Mosquitto"));
-        assertThat("Must contain GreenSignal", services.contains("GreenSignal"));
+        //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
+        assertEquals(5, services.size());
+        assertTrue(services.contains("main"));
+        assertTrue(services.contains("YellowSignal"));
+        assertTrue(services.contains("CustomerApp"));
+        assertTrue(services.contains("Mosquitto"));
+        assertTrue(services.contains("GreenSignal"));
 
         result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "YellowAndRedSignal.json").toURI(), System.currentTimeMillis());
@@ -199,15 +200,14 @@ class DeploymentServiceIntegrationTest {
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
 
-        //"Only contain main, YellowSignal, RedSignal"
+        //"should contain main, YellowSignal, RedSignal"
         assertEquals(3, services.size());
-        assertThat("Must contain main", services.contains("main"));
-        assertThat("Must contain YellowSignal", services.contains("YellowSignal"));
-        assertThat("Must contain RedSignal", services.contains("RedSignal"));
+        assertTrue(services.contains("main"));
+        assertTrue(services.contains("YellowSignal"));
+        assertTrue(services.contains("RedSignal"));
         assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "CustomerApp"));
         assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "GreenSignal"));
-
     }
 
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) {
