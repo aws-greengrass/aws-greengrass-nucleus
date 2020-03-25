@@ -410,6 +410,9 @@ public class EvergreenService implements InjectionActions {
                     setBackingTask(() -> {
                         try {
                             install();
+                        } catch (InterruptedException t) {
+                            logger.atWarn("service-install-interrupted")
+                                    .log("Service interrupted while running install");
                         } catch (Throwable t) {
                             reportState(State.ERRORED);
                             logger.atError().setEventType("service-install-error").setCause(t).log();
@@ -453,6 +456,9 @@ public class EvergreenService implements InjectionActions {
                                 try {
                                     // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
                                     startup();
+                                } catch (InterruptedException i) {
+                                    logger.atWarn("service-run-interrupted")
+                                            .log("Service interrupted while running startup");
                                 } catch (Throwable t) {
                                     reportState(State.ERRORED);
                                     logger.atError().setEventType("service-runtime-error").setCause(t).log();
@@ -481,9 +487,12 @@ public class EvergreenService implements InjectionActions {
                     Future<?> shutdownFuture = context.get(ExecutorService.class).submit(() -> {
                         try {
                             shutdown();
+                        } catch (InterruptedException i) {
+                            logger.atWarn("service-shutdown-interrupted")
+                                    .log("Service interrupted while running shutdown");
                         } catch (Throwable t) {
-                            logger.atError().setEventType("service-shutdown-error").setCause(t).log();
                             reportState(State.ERRORED);
+                            logger.atError().setEventType("service-shutdown-error").setCause(t).log();
                         } finally {
                             stopping.countDown();
                         }
@@ -526,7 +535,15 @@ public class EvergreenService implements InjectionActions {
                     }
                     break;
                 case ERRORED:
-                    handleError();
+                    try {
+                        handleError();
+                    } catch (InterruptedException e) {
+                        logger.atWarn("service-errorhandler-interrupted")
+                                .log("Service interrupted while running error handler");
+                        // Since we run the error handler in this thread, that means we should rethrow
+                        // in order to shutdown this thread since we were requested to stop
+                        throw e;
+                    }
                     //TODO: Set service to broken state if error happens too often
                     if (!desiredState.isPresent()) {
                         requestStart();
@@ -571,6 +588,7 @@ public class EvergreenService implements InjectionActions {
 
     /**
      * Custom handler to handle error.
+     *
      * @throws InterruptedException if the thread is interrupted while handling the error
      */
     public void handleError() throws InterruptedException {
@@ -808,6 +826,10 @@ public class EvergreenService implements InjectionActions {
             while (!isClosed.get()) {
                 try {
                     startStateTransition();
+                    return;
+                } catch (InterruptedException i) {
+                    logger.atWarn().setEventType("service-state-transition-interrupted")
+                            .log("Service lifecycle thread interrupted. Thread will exit now");
                     return;
                 } catch (Throwable e) {
                     logger.atError().setEventType("service-state-transition-error")
