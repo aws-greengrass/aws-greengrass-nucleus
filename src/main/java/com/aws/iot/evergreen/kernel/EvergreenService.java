@@ -258,7 +258,7 @@ public class EvergreenService implements InjectionActions {
             if (!WhatHappened.changed.equals(what)) {
                 return;
             }
-            Iterable<String> depList = (Iterable<String>) externalDependenciesTopic.getOnce();
+            Iterable<String> depList = (Iterable<String>) node.getOnce();
             logger.atInfo().log("Setting up dependencies again", String.join(",", depList));
             try {
                 setupDependencies(depList);
@@ -704,15 +704,16 @@ public class EvergreenService implements InjectionActions {
      * Add a dependency.
      *
      * @param dependentEvergreenService the service to add as a dependency.
-     * @param when                      the state that the dependent service must be in before starting the current
+     * @param startWhen                      the state that the dependent service must be in before starting the current
      *                                  service.
      * @param isDefault                 True if the dependency is added without explicit declaration
      *                                  in 'dependencies' Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public synchronized void addDependency(EvergreenService dependentEvergreenService, State when, boolean isDefault)
+    public synchronized void addDependency(
+            EvergreenService dependentEvergreenService, State startWhen, boolean isDefault)
             throws InputValidationException {
-        if (dependentEvergreenService == null || when == null) {
+        if (dependentEvergreenService == null || startWhen == null) {
             throw new InputValidationException("One or more parameters was null");
         }
 
@@ -722,9 +723,9 @@ public class EvergreenService implements InjectionActions {
                 dependentEvergreenService.getStateTopic().subscribe(subscriber);
                 context.get(Kernel.class).clearODcache();
                 this.requestRestart();
-                return new DependencyInfo(when, isDefault, subscriber);
+                return new DependencyInfo(startWhen, isDefault, subscriber);
             }
-            dependencyInfo.startWhen = when;
+            dependencyInfo.startWhen = startWhen;
             // if a dependency is added as both a default and a non-default, treat it as default dependency
             if (!dependencyInfo.isDefaultDependency) {
                 dependencyInfo.isDefaultDependency = isDefault;
