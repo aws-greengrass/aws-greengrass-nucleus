@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecTest {
     @Test
-    void test() {
+    void test() throws InterruptedException {
         if (Exec.isWindows) {
             return;
         }
@@ -32,7 +32,7 @@ class ExecTest {
     }
 
     @Test
-    void test2() {
+    void test2() throws InterruptedException {
         //        System.out.println(Exec.sh("printenv;java --version"));
         //        assertFalse(Exec.successful("java --version|egrep -i -q '(jdk|jre) *17\\.'"));
         //        assertTrue(Exec.successful("java --version|egrep -i -q '(jdk|jre) *11\\.'"));

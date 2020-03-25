@@ -137,27 +137,27 @@ public class Exec implements Closeable {
         a.accept(sw.toString());
     }
 
-    public static String cmd(String... command) {
-        return new Exec().withExec(command).asString();
+    public static String cmd(String... command) throws InterruptedException {
+        return new Exec().withExec(command).execAndGetStringOutput();
     }
 
-    public static String sh(String command) {
+    public static String sh(String command) throws InterruptedException {
         return sh((File) null, command);
     }
 
-    public static String sh(File dir, String command) {
-        return new Exec().cd(dir).withShell(command).asString();
+    public static String sh(File dir, String command) throws InterruptedException {
+        return new Exec().cd(dir).withShell(command).execAndGetStringOutput();
     }
 
-    public static String sh(Path dir, String command) {
+    public static String sh(Path dir, String command) throws InterruptedException {
         return sh(dir.toFile(), command);
     }
 
-    public static boolean successful(boolean ignoreStderr, String command) {
+    public static boolean successful(boolean ignoreStderr, String command) throws InterruptedException {
         return new Exec().withShell(command).successful(ignoreStderr);
     }
 
-    public boolean successful(boolean ignoreStderr) {
+    public boolean successful(boolean ignoreStderr) throws InterruptedException {
         exec();
         return (ignoreStderr || stderrc.nlines == 0) && process.exitValue() == 0;
     }
@@ -305,7 +305,7 @@ public class Exec implements Closeable {
         return this;
     }
 
-    private void exec() {
+    private void exec() throws InterruptedException {
         try {
             process = Runtime.getRuntime().exec(cmds, environment, dir);
             stderrc = new Copier(process.getErrorStream(), stderr);
@@ -329,11 +329,18 @@ public class Exec implements Closeable {
                         (stderr != null ? stderr : stdout).accept("\n[TIMEOUT after InterruptedException]\n");
                         process.destroyForcibly();
                     }
+                    throw ie;
                 }
                 stderrc.join(5000);
                 stdoutc.join(5000);
             }
         } catch (Throwable ex) {
+            // If the throwable is InterruptedException, then the thread was interrupted
+            // while we were executing. We rethrow the exception so that the caller knows
+            // to be interrupted and stop processing so that the thread can shutdown gracefully
+            if (ex instanceof InterruptedException) {
+                throw (InterruptedException) ex;
+            }
             if (stderr != null) {
                 appendStackTrace(ex, stderr);
             }
@@ -344,15 +351,16 @@ public class Exec implements Closeable {
      * Get the stdout and stderr output as a string.
      *
      * @return String of output.
+     * @throws InterruptedException if thread is interrupted while executing
      */
-    public String asString() {
+    public String execAndGetStringOutput() throws InterruptedException {
         StringBuilder sb = new StringBuilder();
         Consumer<CharSequence> f = sb::append;
         withOut(f).withErr(f).exec();
         return sb.toString().trim();
     }
 
-    public void background(IntConsumer cb) {
+    public void background(IntConsumer cb) throws InterruptedException {
         whenDone = cb;
         exec();
     }
@@ -464,7 +472,6 @@ public class Exec implements Closeable {
             } catch (Throwable t) {
                 // nothing that can go wrong here worries us, they're
                 // all EOFs
-                // appendStackTrace(t, out);
             }
             if (whenDone != null && numberOfCopiers.decrementAndGet() <= 0) {
                 try {

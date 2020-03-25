@@ -17,7 +17,7 @@ public interface ShellRunner {
 
     Exec setup(String note, String command, EvergreenService onBehalfOf);
 
-    boolean successful(Exec e, String command, IntConsumer background);
+    boolean successful(Exec e, String command, IntConsumer background) throws InterruptedException;
 
     class Default implements ShellRunner {
         private static final Logger logger = LogManager.getLogger(ShellRunner.class);
@@ -48,7 +48,7 @@ public interface ShellRunner {
         }
 
         @Override
-        public boolean successful(Exec e, String command, IntConsumer background) {
+        public boolean successful(Exec e, String command, IntConsumer background) throws InterruptedException {
             if (background != null) {
                 e.background(background);
             } else if (!e.successful(true)) {

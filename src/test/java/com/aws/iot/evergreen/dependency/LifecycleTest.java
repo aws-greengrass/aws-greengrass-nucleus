@@ -8,6 +8,12 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -26,12 +32,13 @@ public class LifecycleTest {
     public void T1() {
         cd = new CountDownLatch(2);
         Context context = new Context();
-        java.util.concurrent.ScheduledThreadPoolExecutor ses = new java.util.concurrent.ScheduledThreadPoolExecutor(2);
-        context.put(java.util.concurrent.ScheduledThreadPoolExecutor.class, ses);
-        context.put(java.util.concurrent.ScheduledExecutorService.class, ses);
-        context.put(java.util.concurrent.Executor.class, ses);
-        context.put(java.util.concurrent.ExecutorService.class, ses);
-        context.put(java.util.concurrent.ThreadPoolExecutor.class, ses);
+        ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
+        ExecutorService cachedPool = Executors.newCachedThreadPool();
+        context.put(ScheduledThreadPoolExecutor.class, ses);
+        context.put(ScheduledExecutorService.class, ses);
+        context.put(Executor.class, cachedPool);
+        context.put(ExecutorService.class, cachedPool);
+        context.put(ThreadPoolExecutor.class, ses);
         c1 v = context.get(c1.class);
         context.get(c1.class).requestStart();
         context.get(c2.class).requestStart();
@@ -111,7 +118,7 @@ public class LifecycleTest {
         }
 
         @Override
-        public void startup() {
+        public void startup() throws InterruptedException {
             System.out.println("Startup " + this);
             assertNotNull(C3);
             startupCalled = true;
@@ -121,7 +128,7 @@ public class LifecycleTest {
         }
 
         @Override
-        public void shutdown() {
+        public void shutdown() throws InterruptedException {
             shutdownCalled = true;
             System.out.println("Shutdown " + this);
             super.shutdown();
@@ -163,7 +170,7 @@ public class LifecycleTest {
         }
 
         @Override
-        public void install() {
+        public void install() throws InterruptedException {
             installCalled = true;
             System.out.println("Invoked install " + this);
             super.install();
@@ -171,7 +178,7 @@ public class LifecycleTest {
         }
 
         @Override
-        public void startup() {
+        public void startup() throws InterruptedException {
             startupCalled = true;
             super.startup();
             System.out.println("Startup called " + this);
@@ -182,7 +189,7 @@ public class LifecycleTest {
         }
 
         @Override
-        public void shutdown() {
+        public void shutdown() throws InterruptedException {
             shutdownCalled = true;
             System.out.println("Shutdown " + this);
             super.shutdown();
