@@ -63,7 +63,7 @@ public class EvergreenService implements InjectionActions {
     private Future backingTask;
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
-    private Thread lifeCycleThread;
+    private Future<?> lifecycleFuture;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // A state event can be a state transition event, or a desired state updated notification.
@@ -202,8 +202,7 @@ public class EvergreenService implements InjectionActions {
             if (clazz == null) {
                 Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
                 if (si != null) {
-                    staticLogger.atDebug().addKeyValue("serviceName", name)
-                            .log("Attempt to load service from plugins");
+                    staticLogger.atDebug().addKeyValue("serviceName", name).log("Attempt to load service from plugins");
                     clazz = si.get(name);
                 }
             }
@@ -255,8 +254,7 @@ public class EvergreenService implements InjectionActions {
                 return;
             }
             Iterable<String> depList = (Iterable<String>) dependenciesTopic.getOnce();
-            logger.atInfo().log("Setting up dependencies again",
-                                String.join(",", depList));
+            logger.atInfo().log("Setting up dependencies again", String.join(",", depList));
             try {
                 setupDependencies(depList);
             } catch (Exception e) {
@@ -412,6 +410,9 @@ public class EvergreenService implements InjectionActions {
                     setBackingTask(() -> {
                         try {
                             install();
+                        } catch (InterruptedException t) {
+                            logger.atWarn("service-install-interrupted")
+                                    .log("Service interrupted while running install");
                         } catch (Throwable t) {
                             reportState(State.ERRORED);
                             logger.atError().setEventType("service-install-error").setCause(t).log();
@@ -455,6 +456,9 @@ public class EvergreenService implements InjectionActions {
                                 try {
                                     // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
                                     startup();
+                                } catch (InterruptedException i) {
+                                    logger.atWarn("service-run-interrupted")
+                                            .log("Service interrupted while running startup");
                                 } catch (Throwable t) {
                                     reportState(State.ERRORED);
                                     logger.atError().setEventType("service-runtime-error").setCause(t).log();
@@ -480,17 +484,19 @@ public class EvergreenService implements InjectionActions {
                     // doesn't handle desiredState in STOPPING.
                     // Not use setBackingTask because it will cancel the existing task.
                     CountDownLatch stopping = new CountDownLatch(1);
-                    Thread stopThread = new Thread(() -> {
+                    Future<?> shutdownFuture = context.get(ExecutorService.class).submit(() -> {
                         try {
                             shutdown();
+                        } catch (InterruptedException i) {
+                            logger.atWarn("service-shutdown-interrupted")
+                                    .log("Service interrupted while running shutdown");
                         } catch (Throwable t) {
-                            logger.atError().setEventType("service-shutdown-error").setCause(t).log();
                             reportState(State.ERRORED);
+                            logger.atError().setEventType("service-shutdown-error").setCause(t).log();
                         } finally {
                             stopping.countDown();
                         }
                     });
-                    stopThread.start();
 
                     boolean stopSucceed = stopping.await(15, TimeUnit.SECONDS);
 
@@ -498,8 +504,8 @@ public class EvergreenService implements InjectionActions {
                     if (State.ERRORED.equals(getReportState().orElse(null)) || !stopSucceed) {
                         updateStateAndBroadcast(State.ERRORED);
                         // If the thread is still running, then kill it
-                        if (stopThread.isAlive()) {
-                            stopThread.interrupt();
+                        if (!shutdownFuture.isDone()) {
+                            shutdownFuture.cancel(true);
                         }
                         continue;
                     } else {
@@ -529,7 +535,15 @@ public class EvergreenService implements InjectionActions {
                     }
                     break;
                 case ERRORED:
-                    handleError();
+                    try {
+                        handleError();
+                    } catch (InterruptedException e) {
+                        logger.atWarn("service-errorhandler-interrupted")
+                                .log("Service interrupted while running error handler");
+                        // Since we run the error handler in this thread, that means we should rethrow
+                        // in order to shutdown this thread since we were requested to stop
+                        throw e;
+                    }
                     //TODO: Set service to broken state if error happens too often
                     if (!desiredState.isPresent()) {
                         requestStart();
@@ -574,8 +588,10 @@ public class EvergreenService implements InjectionActions {
 
     /**
      * Custom handler to handle error.
+     *
+     * @throws InterruptedException if the thread is interrupted while handling the error
      */
-    public void handleError() {
+    public void handleError() throws InterruptedException {
     }
 
     private synchronized void setBackingTask(Runnable r, String db) {
@@ -617,28 +633,29 @@ public class EvergreenService implements InjectionActions {
     /**
      * Called when this service is known to be needed to make sure that required
      * additional software is installed.
+     *
+     * @throws InterruptedException if the install task was interrupted while running
      */
-    protected void install() {
+    protected void install() throws InterruptedException {
     }
 
     /**
      * Called when all dependencies are RUNNING. If there are no dependencies,
      * it is called right after postInject.  The service doesn't transition to RUNNING
      * until *after* this state is complete.
+     *
+     * @throws InterruptedException if the startup task was interrupted while running
      */
-    protected void startup() {
+    protected void startup() throws InterruptedException {
         reportState(State.RUNNING);
-    }
-
-    @Deprecated
-    public void run() {
-        reportState(State.FINISHED);
     }
 
     /**
      * Called when the object's state leaves RUNNING.
+     *
+     * @throws InterruptedException if the shutdown task was interrupted while running
      */
-    protected void shutdown() {
+    protected void shutdown() throws InterruptedException {
         Periodicity t = periodicityInformation;
         if (t != null) {
             t.shutdown();
@@ -665,7 +682,7 @@ public class EvergreenService implements InjectionActions {
                 }
                 requestStop();
                 isClosed.set(true);
-                lifeCycleThread.join();
+                lifecycleFuture.get();
                 closeFuture.complete(null);
             } catch (Exception e) {
                 closeFuture.completeExceptionally(e);
@@ -718,10 +735,8 @@ public class EvergreenService implements InjectionActions {
     }
 
     private Iterable<String> createDependenciesList(ConcurrentHashMap<EvergreenService, State> dependencies) {
-        return dependencies.entrySet()
-                           .stream()
-                           .map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
-                           .collect(Collectors.toList());
+        return dependencies.entrySet().stream().map((entry) -> entry.getKey().getName() + ":" + entry.getValue())
+                .collect(Collectors.toList());
     }
 
     private List<EvergreenService> getDependers() {
@@ -747,8 +762,8 @@ public class EvergreenService implements InjectionActions {
             }
         };
         // subscribing to depender state changes
-        dependers.forEach(dependerEvergreenService ->
-                dependerEvergreenService.getStateTopic().subscribe(dependerExitWatcher));
+        dependers.forEach(
+                dependerEvergreenService -> dependerEvergreenService.getStateTopic().subscribe(dependerExitWatcher));
 
         synchronized (dependersExitedLock) {
             while (!dependersExited(dependers)) {
@@ -757,8 +772,8 @@ public class EvergreenService implements InjectionActions {
             }
         }
         // removing state change watchers
-        dependers.forEach(dependerEvergreenService ->
-                dependerEvergreenService.getStateTopic().remove(dependerExitWatcher));
+        dependers.forEach(
+                dependerEvergreenService -> dependerEvergreenService.getStateTopic().remove(dependerExitWatcher));
     }
 
     private boolean dependersExited(List<EvergreenService> dependers) {
@@ -807,11 +822,14 @@ public class EvergreenService implements InjectionActions {
     @Override
     public void postInject() {
         initDependenciesTopic();
-        //TODO: Use better threadPool mechanism
-        lifeCycleThread = new Thread(() -> {
+        lifecycleFuture = context.get(ExecutorService.class).submit(() -> {
             while (!isClosed.get()) {
                 try {
                     startStateTransition();
+                    return;
+                } catch (InterruptedException i) {
+                    logger.atWarn().setEventType("service-state-transition-interrupted")
+                            .log("Service lifecycle thread interrupted. Thread will exit now");
                     return;
                 } catch (Throwable e) {
                     logger.atError().setEventType("service-state-transition-error")
@@ -821,19 +839,17 @@ public class EvergreenService implements InjectionActions {
                 }
             }
         });
-        lifeCycleThread.start();
     }
 
     private Map<EvergreenService, State> getDependencyStateMap(Iterable<String> dependencyList) throws Exception {
         HashMap<EvergreenService, State> ret = new HashMap<>();
         for (String dependency : dependencyList) {
-            String [] dependencyInfo = dependency.split(":");
+            String[] dependencyInfo = dependency.split(":");
             if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
                 throw new Exception("Bad dependency syntax");
             }
-            Pair<EvergreenService, State> dep
-                    = parseSingleDependency(dependencyInfo[0],
-                                            dependencyInfo.length > 1 ? dependencyInfo[1] : null);
+            Pair<EvergreenService, State> dep =
+                    parseSingleDependency(dependencyInfo[0], dependencyInfo.length > 1 ? dependencyInfo[1] : null);
             ret.put(dep.getLeft(), dep.getRight());
         }
         return ret;

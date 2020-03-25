@@ -108,14 +108,6 @@ public class IPCService extends EvergreenService {
     }
 
     /**
-     * Do nothing in "run" since we started up the server in "startup".
-     */
-    @Override
-    public void run() {
-        logger.atInfo().setEventType("ipc-run").log("Do nothing. IPC Service should be started with startup()");
-    }
-
-    /**
      * Shutdown the IPC server.
      */
     @Override
