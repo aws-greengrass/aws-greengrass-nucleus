@@ -14,19 +14,6 @@
       ]
     },
     {
-      "Name": "Mosquitto",
-      "ResolvedVersion": "1.0.0",
-      "Dependencies": [
-        {
-          "Name": "GreenSignal"
-        }
-      ]
-    },
-    {
-      "Name": "GreenSignal",
-      "ResolvedVersion": "1.0.0"
-    },
-    {
       "Name": "YellowSignal",
       "ResolvedVersion": "1.0.0"
     }

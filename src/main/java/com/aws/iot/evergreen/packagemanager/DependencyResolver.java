@@ -84,7 +84,7 @@ public class DependencyResolver {
         }
 
         // Merge the active root packages on the device
-        mergeActiveRootPackages(rootPackagesToResolve, document, packageNameToVersionConstraints);
+        mergeActiveRootPackages(rootPackagesToResolve, packageNameToVersionConstraints);
         logger.atInfo().setEventType("resolve-dependencies-start").addKeyValue("rootPackages", rootPackagesToResolve)
                 .addKeyValue("versionConstraints", packageNameToVersionConstraints).log();
 
@@ -304,14 +304,15 @@ public class DependencyResolver {
         return getServiceVersion(service);
     }
 
-    private void mergeActiveRootPackages(Set<String> rootPackagesToResolve, DeploymentDocument document,
+    private void mergeActiveRootPackages(Set<String> rootPackagesToResolve,
                                          Map<String, Map<String, String>> packageNameToVersionConstraints) {
 
         Set<EvergreenService> activeServices = kernel.getMain().getDependencies().keySet();
         for (EvergreenService evergreenService : activeServices) {
             String serviceName = evergreenService.getName();
             // add version constraints for package not in deployment document but is active in device
-            if (rootPackagesToResolve.contains(serviceName) && !document.getRootPackages().contains(serviceName)) {
+            if (rootPackagesToResolve.contains(serviceName)
+                    && !packageNameToVersionConstraints.keySet().contains(serviceName)) {
                 String version = getServiceVersion(evergreenService).get();
                 packageNameToVersionConstraints.putIfAbsent(serviceName, new HashMap<>());
                 packageNameToVersionConstraints.get(serviceName).putIfAbsent(ROOT_REQUIREMENT_KEY, version);
