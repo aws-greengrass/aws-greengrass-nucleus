@@ -51,7 +51,7 @@ public class KernelConfigResolver {
      * @throws InterruptedException when the running thread is interrupted
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
-                                       Set<String> rootPackages) throws InterruptedException {
+                                       List<String> rootPackages) throws InterruptedException {
 
         Map<Object, Object> servicesConfig = packagesToDeploy.stream()
                 .collect(Collectors.toMap(packageIdentifier -> packageIdentifier.getName(),
@@ -137,7 +137,7 @@ public class KernelConfigResolver {
     /*
      * Compute the config for main service
      */
-    private Map<Object, Object> getMainConfig(Set<String> rootPackages) {
+    private Map<Object, Object> getMainConfig(List<String> rootPackages) {
 
         Map<Object, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);

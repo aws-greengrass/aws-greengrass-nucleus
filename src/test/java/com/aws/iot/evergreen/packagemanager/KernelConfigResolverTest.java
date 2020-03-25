@@ -95,7 +95,7 @@ public class KernelConfigResolverTest {
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
         Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Collections.singleton(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
@@ -139,7 +139,7 @@ public class KernelConfigResolverTest {
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
         Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Collections.singleton(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
@@ -178,7 +178,7 @@ public class KernelConfigResolverTest {
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
         Map<Object, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Collections.singleton(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config

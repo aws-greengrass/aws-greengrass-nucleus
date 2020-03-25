@@ -62,8 +62,6 @@ public class DeploymentTaskTest {
                 new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
                         logger, deploymentDocument);
 
-        when(mockKernel.getMain()).thenReturn(mainService);
-        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
     }
 
     @Test
@@ -72,35 +70,35 @@ public class DeploymentTaskTest {
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageCache).preparePackages(anyList());
-        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
+        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
 
     @Test
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_with_conflicted_dependency_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_SET))
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_LIST))
                 .thenThrow(new PackageVersionConflictException(""));
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageVersionConflictException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
-        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
+        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
 
     @Test
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_SET)).thenThrow(
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_LIST)).thenThrow(
                 new PackagingException("mock error"));
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackagingException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageCache, times(0)).preparePackages(anyList());
-        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
+        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
 
@@ -115,9 +113,9 @@ public class DeploymentTaskTest {
         t.interrupt();
         Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get());
         assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageCache).preparePackages(anyList());
-        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anySet());
+        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
 
@@ -125,14 +123,14 @@ public class DeploymentTaskTest {
     public void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_interrupted_THEN_deploymentTask_aborted()
             throws Exception {
         when(mockPackageCache.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
-        when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anySet()))
+        when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList()))
                 .thenThrow(new InterruptedException());
 
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(InterruptedException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_SET);
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageCache).preparePackages(anyList());
-        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
+        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
 }
