@@ -41,6 +41,7 @@ public class IotJobsHelperTest {
 
     private static final String THING_NAME = "TEST_THING";
     private static final String TEST_JOB_ID = "TestJobId";
+    private static final Long TEST_JOB_EXECUTION_NUMBER = 1234L;
 
     @Mock
     private IotJobsClient mockIotJobsClient;
@@ -131,7 +132,7 @@ public class IotJobsHelperTest {
     public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_successfully() {
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
-        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
+        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
         verify(mockIotJobsClient).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
@@ -153,6 +154,7 @@ public class IotJobsHelperTest {
                 eq(QualityOfService.AT_LEAST_ONCE));
         UpdateJobExecutionRequest publishRequest = publishRequestCaptor.getValue();
         assertEquals(TEST_JOB_ID, publishRequest.jobId);
+        assertEquals(TEST_JOB_EXECUTION_NUMBER, publishRequest.executionNumber);
         assertEquals(JobStatus.IN_PROGRESS, publishRequest.status);
         assertEquals(statusDetails, publishRequest.statusDetails);
         assertEquals(THING_NAME, publishRequest.thingName);
@@ -162,7 +164,7 @@ public class IotJobsHelperTest {
     public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_failed() {
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
-        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
+        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
         verify(mockIotJobsClient).SubscribeToUpdateJobExecutionRejected(requestArgumentCaptor.capture(),
@@ -185,6 +187,7 @@ public class IotJobsHelperTest {
         UpdateJobExecutionRequest publishRequest = publishRequestCaptor.getValue();
         assertEquals(TEST_JOB_ID, publishRequest.jobId);
         assertEquals(JobStatus.IN_PROGRESS, publishRequest.status);
+        assertEquals(TEST_JOB_EXECUTION_NUMBER, publishRequest.executionNumber);
         assertEquals(statusDetails, publishRequest.statusDetails);
         assertEquals(THING_NAME, publishRequest.thingName);
     }
