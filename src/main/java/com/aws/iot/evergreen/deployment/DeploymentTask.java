@@ -3,8 +3,6 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
@@ -18,13 +16,10 @@ import lombok.AllArgsConstructor;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
@@ -46,17 +41,17 @@ public class DeploymentTask implements Callable<Void> {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", document.getDeploymentId()).log("Start deployment task");
 
-            // TODO: DA compute the root level packages by looking across root level packages
+            // TODO: DA compute list of all root level packages by looking across root level packages
             //  of all groups, when multi group support is added.
-            List<String> newRootPackages = new ArrayList<>(document.getRootPackages());
+            List<String> rootPackages = new ArrayList<>(document.getRootPackages());
 
             List<PackageIdentifier> desiredPackages = dependencyResolver
-                    .resolveDependencies(document, newRootPackages);
+                    .resolveDependencies(document, rootPackages);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
             packageCache.preparePackages(desiredPackages).get();
 
-            Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, newRootPackages);
+            Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, rootPackages);
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
