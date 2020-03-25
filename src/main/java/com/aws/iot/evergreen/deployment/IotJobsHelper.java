@@ -106,10 +106,14 @@ public class IotJobsHelper {
                                                       Long executionNumber,
                                                       HashMap<String, String> statusDetailsMap) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> Persisting deployment status during MQTT connection breakage
 =======
         logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Updating job status");
 >>>>>>> Adding execution number to the job update call
+=======
+        logger.atDebug().kv("JobId", jobId).kv("Status", status).log("Updating job status");
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;

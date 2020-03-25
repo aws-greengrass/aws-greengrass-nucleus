@@ -14,10 +14,15 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+<<<<<<< HEAD
 import java.util.Collections;
+=======
+import java.util.Map;
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -30,13 +35,16 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class DeploymentTaskTest {
+
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
@@ -45,20 +53,34 @@ public class DeploymentTaskTest {
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private Kernel mockKernel;
+<<<<<<< HEAD
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
                     .rootPackages(Collections.EMPTY_LIST).build();
+=======
+    @Mock
+    private Map<String, Object> jobDocument;
+
+    private DeploymentDocument deploymentDocument =
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();;
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
 
     private final Logger logger = LogManager.getLogger("unit test");
 
     private DeploymentTask deploymentTask;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws Exception {
         deploymentTask =
+<<<<<<< HEAD
                 new DeploymentTask(mockDependencyResolver, mockPackageStore, mockKernelConfigResolver, mockKernel,
                         logger, deploymentDocument);
 
+=======
+                spy(new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
+                        logger, jobDocument));
+        doReturn(deploymentDocument).when(deploymentTask).parseAndValidateJobDocument(eq(jobDocument));
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
     }
 
     @Test
@@ -67,9 +89,17 @@ public class DeploymentTaskTest {
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
+<<<<<<< HEAD
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageStore).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
+=======
+        ArgumentCaptor<DeploymentDocument> deploymentDocumentArgumentCaptor =
+                ArgumentCaptor.forClass(DeploymentDocument.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument));
+        verify(mockPackageCache).preparePackages(anyList());
+        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
         verify(mockKernel).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
 
