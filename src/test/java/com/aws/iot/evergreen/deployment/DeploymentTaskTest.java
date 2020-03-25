@@ -11,13 +11,14 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageCache;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -31,15 +32,17 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class DeploymentTaskTest {
+
+    private static Map<String, Object> jobDocument;
+
+    private static DeploymentDocument deploymentDocument;
 
     @Mock
     private DependencyResolver mockDependencyResolver;
@@ -49,22 +52,26 @@ public class DeploymentTaskTest {
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private Kernel mockKernel;
-    @Mock
-    private Map<String, Object> jobDocument;
-
-    private DeploymentDocument deploymentDocument =
-            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
 
     private Logger logger = LogManager.getLogger("unit test");
 
-    private DeploymentTask deploymentTask;
+    private DeploymentTask deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageCache,
+            mockKernelConfigResolver, mockKernel,logger, jobDocument);
+
+    @BeforeAll
+    public static void initialize() {
+        Long currentTimestamp = System.currentTimeMillis();
+        jobDocument = new HashMap<>();
+        jobDocument.put("DeploymentId", "TestDeployment");
+        jobDocument.put("Timestamp", currentTimestamp);
+        deploymentDocument =
+                DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(currentTimestamp).build();
+    }
 
     @BeforeEach
-    public void setup() throws Exception {
-        deploymentTask =
-                spy(new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
-                        logger, jobDocument));
-        doReturn(deploymentDocument).when(deploymentTask).parseAndValidateJobDocument(eq(jobDocument));
+    public void setup() {
+        deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
+                        logger, jobDocument);
     }
 
     @Test

@@ -69,7 +69,7 @@ public class DeploymentTask implements Callable<Void> {
         return null;
     }
 
-    protected DeploymentDocument parseAndValidateJobDocument(Map<String, Object> jobDocument)
+    private DeploymentDocument parseAndValidateJobDocument(Map<String, Object> jobDocument)
             throws InvalidRequestException {
 
         if (jobDocument == null || jobDocument.isEmpty()) {
