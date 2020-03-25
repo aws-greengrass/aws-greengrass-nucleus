@@ -95,6 +95,7 @@ public class IotJobsHelper {
      *
      * @param jobId            The jobId to be updated
      * @param status           The {@link JobStatus} to which to update
+     * @param executionNumber  The job execution number
      * @param statusDetailsMap map with job status details
      */
 <<<<<<< HEAD
@@ -102,8 +103,13 @@ public class IotJobsHelper {
     public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap) {
 =======
     public CompletableFuture<Integer> updateJobStatus(String jobId, JobStatus status,
+                                                      Long executionNumber,
                                                       HashMap<String, String> statusDetailsMap) {
+<<<<<<< HEAD
 >>>>>>> Persisting deployment status during MQTT connection breakage
+=======
+        logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Updating job status");
+>>>>>>> Adding execution number to the job update call
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
@@ -126,6 +132,7 @@ public class IotJobsHelper {
 
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
+        updateJobRequest.executionNumber = executionNumber;
         updateJobRequest.status = status;
         updateJobRequest.statusDetails = statusDetailsMap;
         updateJobRequest.thingName = thingName;
