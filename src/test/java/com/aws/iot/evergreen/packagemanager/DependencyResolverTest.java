@@ -201,7 +201,8 @@ public class DependencyResolverTest {
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA),
                     Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), "", new HashSet<>(),
                             new ArrayList<>())), "mockGroup1", 1L);
-            List<PackageIdentifier> result = resolver.resolveDependencies(doc , Collections.EMPTY_SET);
+            List<PackageIdentifier> result = resolver.resolveDependencies(doc , Arrays.asList(pkgA));
+
 
             assertEquals(4, result.size());
             assertThat(result, containsInAnyOrder(new PackageIdentifier(pkgA, v1_0_0),
@@ -258,7 +259,7 @@ public class DependencyResolverTest {
                     new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), "", new HashSet<>(), new ArrayList<>()),
                     new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), "", new HashSet<>(), new ArrayList<>())
             ), "mockGroup1", 1L);
-            List<PackageIdentifier> result = resolver.resolveDependencies(doc, Collections.EMPTY_SET);
+            List<PackageIdentifier> result = resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2));
 
             assertEquals(4, result.size());
             assertThat(result, containsInAnyOrder(new PackageIdentifier(pkgA, v1_0_0),
@@ -270,7 +271,7 @@ public class DependencyResolverTest {
                     new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), "", new HashSet<>(), new ArrayList<>()),
                     new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), "", new HashSet<>(), new ArrayList<>())
             ), "mockGroup1", 1L);
-            result = resolver.resolveDependencies(doc, Collections.EMPTY_SET);
+            result = resolver.resolveDependencies(doc, Arrays.asList(pkgB2, pkgA));
 
             assertEquals(4, result.size());
             assertThat(result, containsInAnyOrder(new PackageIdentifier(pkgA, v1_0_0),
@@ -325,7 +326,7 @@ public class DependencyResolverTest {
             ), "mockGroup1", 1L);
 
             Exception thrown = assertThrows(PackageVersionConflictException.class,
-                    () -> resolver.resolveDependencies(doc, Collections.EMPTY_SET));
+                    () -> resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2)));
             assertEquals("Conflicts in resolving package: C1. Version constraints from upstream packages: " +
                     "{B2-v1.1.0=>1.1, B1-v1.0.0=<1.0}", thrown.getMessage());
 
@@ -336,7 +337,7 @@ public class DependencyResolverTest {
             ), "mockGroup1", 1L);
 
             thrown = assertThrows(PackageVersionConflictException.class,
-                    () -> resolver.resolveDependencies(doc2, Collections.EMPTY_SET));
+                    () -> resolver.resolveDependencies(doc2, Arrays.asList(pkgB2, pkgA)));
             assertEquals("Package version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0",
                     thrown.getMessage());
         }
@@ -387,9 +388,7 @@ public class DependencyResolverTest {
 
             DependencyResolver resolver = spy(new DependencyResolver(mockPackageStore, kernel));
             doReturn(Optional.of(v1_0_0.toString())).when(resolver).getPackageVersionIfActive(pkgC1);
-            doReturn(Optional.of(v1_0_0.toString())).when(resolver).getServiceVersion(mockServiceB1);
             doReturn(Optional.of(v1_0_0.toString())).when(resolver).getServiceVersion(mockServiceB2);
-            doReturn(Optional.of(v1_0_0.toString())).when(resolver).getServiceVersion(mockServiceD);
 
             // top-level package order: A, B2
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB1), Arrays.asList(
@@ -397,7 +396,8 @@ public class DependencyResolverTest {
                     new DeploymentPackageConfiguration(pkgB1, v1_1_0.toString(), "", new HashSet<>(), new ArrayList<>())
             ), "mockGroup1", 1L);
 
-            List<PackageIdentifier> result = resolver.resolveDependencies(doc, Collections.singleton(pkgD));
+            List<PackageIdentifier> result = resolver
+                    .resolveDependencies(doc,Arrays.asList(pkgA, pkgB1, pkgB2));
 
             assertEquals(4, result.size());
             assertThat(result, containsInAnyOrder(new PackageIdentifier(pkgA, v1_0_0),
