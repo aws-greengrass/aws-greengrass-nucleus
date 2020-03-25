@@ -6,9 +6,12 @@
 package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.deployment.DeploymentTask;
+<<<<<<< HEAD
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
+=======
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -72,7 +75,7 @@ class DeploymentServiceIntegrationTest {
     private static PackageStore packageStore;
     private static KernelConfigResolver kernelConfigResolver;
 
-    private DeploymentDocument sampleDeploymentDocument;
+    private Map<String, Object> samplejobDocument;
     private static Kernel kernel;
 
     private static Map<String, Long> outputMessagesToTimestamp;
@@ -212,14 +215,20 @@ class DeploymentServiceIntegrationTest {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) {
         try {
-            sampleDeploymentDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
+            samplejobDocument = OBJECT_MAPPER.readValue(new File(uri), HashMap.class);
         } catch (Exception e) {
             fail("Failed to create Deployment document object from sample job document", e.getCause());
         }
+<<<<<<< HEAD
         sampleDeploymentDocument.setTimestamp(timestamp);
         DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
                         sampleDeploymentDocument);
+=======
+        samplejobDocument.put("Timestamp", timestamp);
+        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver,
+                kernel, logger, samplejobDocument);
+>>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
     }
