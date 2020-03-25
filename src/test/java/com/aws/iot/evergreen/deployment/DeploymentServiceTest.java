@@ -65,6 +65,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private static final String MOCK_CERTIFICATE_PATH = "/home/secrets/certificate.pem.cert";
     private static final String MOCK_PRIVATE_KEY_PATH = "/home/secrets/privateKey.pem.key";
     private static final String MOCK_ROOTCA_PATH = "/home/secrets/rootCA.pem";
+    private static final Long TEST_JOB_EXECUTION_NUMBER = 1234L;
 
     @Mock
     Topic deviceParamTopic;
@@ -207,7 +208,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             CompletableFuture<Integer> cf = new CompletableFuture<>();
             cf.complete(1);
-            when(mockIotJobsHelper.updateJobStatus(any(), any(), any())).thenReturn(cf);
+            when(mockIotJobsHelper.updateJobStatus(any(), any(), any(), any())).thenReturn(cf);
             startDeploymentServiceInAnotherThread();
 
             verify(mockIotJobsHelper).subscribeToGetNextJobDecription(describeJobConsumerCaptor.capture(), any());
@@ -216,12 +217,14 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             response.execution = getTestJobExecutionData();
             consumer.accept(response);
 
-            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
+                    eq(TEST_JOB_EXECUTION_NUMBER), any());
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
 
-            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),
+                    eq(TEST_JOB_EXECUTION_NUMBER), any());
             deploymentService.shutdown();
         }
 
@@ -237,7 +240,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             CompletableFuture<Integer> cf = new CompletableFuture<>();
             cf.complete(1);
-            when(mockIotJobsHelper.updateJobStatus(any(), any(), any())).thenReturn(cf);
+            when(mockIotJobsHelper.updateJobStatus(any(), any(), any(), any())).thenReturn(cf);
             startDeploymentServiceInAnotherThread();
 
             verify(mockIotJobsHelper).subscribeToGetNextJobDecription(describeJobConsumerCaptor.capture(), any());
@@ -246,11 +249,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             response.execution = getTestJobExecutionData();
             consumer.accept(response);
 
-            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
+                    eq(TEST_JOB_EXECUTION_NUMBER), any());
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
-            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), any());
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED),
+                    eq(TEST_JOB_EXECUTION_NUMBER), any());
             deploymentService.shutdown();
         }
 
@@ -266,9 +271,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             CompletableFuture<Integer> cf = new CompletableFuture<>();
             cf.complete(1);
             doReturn(cf).when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
-                    eq(null));
+                    eq(TEST_JOB_EXECUTION_NUMBER), eq(null));
             doReturn(exceptionCf, cf).when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
                     eq(JobStatus.SUCCEEDED),
+                    eq(TEST_JOB_EXECUTION_NUMBER),
                     eq(null));
 
             InOrder mockExecutorServiceInOrder = inOrder(mockExecutorService);
@@ -287,13 +293,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             response.execution = getTestJobExecutionData();
             consumer.accept(response);
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
-                    eq(JobStatus.IN_PROGRESS), any());
+                    eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER), any());
             mockExecutorServiceInOrder.verify(mockExecutorService).submit(any(DeploymentTask.class));
 
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(5).toMillis());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
-                    eq(JobStatus.SUCCEEDED), any());
+                    eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
             Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             assertEquals(1,processedDeployments.size());
@@ -304,7 +310,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             callback.onConnectionResumed(true);
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
-                    eq(JobStatus.SUCCEEDED), any());
+                    eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
             processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             assertEquals(0,processedDeployments.size());
@@ -353,14 +359,16 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             CompletableFuture<Integer> cf = new CompletableFuture<>();
             cf.complete(1);
             doReturn(cf).when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
-                    eq(null));
+                    eq(TEST_JOB_EXECUTION_NUMBER), eq(null));
             doReturn(cf).when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.IN_PROGRESS),
-                    eq(null));
+                    eq(TEST_JOB_EXECUTION_NUMBER), eq(null));
             doReturn(exceptionCf, cf).when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
                     eq(JobStatus.SUCCEEDED),
+                    eq(TEST_JOB_EXECUTION_NUMBER),
                     eq(null));
             doReturn(exceptionCf, cf).when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2),
                     eq(JobStatus.FAILED),
+                    eq(TEST_JOB_EXECUTION_NUMBER),
                     eq(null));
 
             InOrder mockExecutorServiceInOrder = inOrder(mockExecutorService);
@@ -380,13 +388,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             response.execution = getTestJobExecutionData();
             consumer.accept(response);
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
-                    eq(JobStatus.IN_PROGRESS), any());
+                    eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER), any());
             mockExecutorServiceInOrder.verify(mockExecutorService).submit(any(DeploymentTask.class));
 
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
-                    eq(JobStatus.SUCCEEDED), any());
+                    eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
 
             Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
@@ -395,13 +403,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             response.execution = getTestJobExecutionData(TEST_JOB_ID_2);
             consumer.accept(response);
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2),
-                    eq(JobStatus.IN_PROGRESS), any());
+                    eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER), any());
             mockExecutorServiceInOrder.verify(mockExecutorService).submit(any(DeploymentTask.class));
 
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2),
-                    eq(JobStatus.FAILED), any());
+                    eq(JobStatus.FAILED), eq(TEST_JOB_EXECUTION_NUMBER), any());
             processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             assertEquals(2,processedDeployments.size());
@@ -411,9 +419,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             callback.onConnectionResumed(true);
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1),
-                    eq(JobStatus.SUCCEEDED), any());
+                    eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2),
-                    eq(JobStatus.FAILED), any());
+                    eq(JobStatus.FAILED), eq(TEST_JOB_EXECUTION_NUMBER), any());
             processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             assertEquals(0,processedDeployments.size());
@@ -438,6 +446,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         JobExecutionData jobExecutionData = new JobExecutionData();
         jobExecutionData.status = JobStatus.QUEUED;
         jobExecutionData.jobId = TEST_JOB_ID_1;
+        jobExecutionData.executionNumber = TEST_JOB_EXECUTION_NUMBER;
         if(jobId.length > 0) {
             jobExecutionData.jobId = jobId[0];
         }
