@@ -53,7 +53,7 @@ public class DeploymentTaskTest {
     private Map<String, Object> jobDocument;
 
     private DeploymentDocument deploymentDocument =
-            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();;
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
 
     private Logger logger = LogManager.getLogger("unit test");
 
@@ -73,8 +73,6 @@ public class DeploymentTaskTest {
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        ArgumentCaptor<DeploymentDocument> deploymentDocumentArgumentCaptor =
-                ArgumentCaptor.forClass(DeploymentDocument.class);
         verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument));
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
