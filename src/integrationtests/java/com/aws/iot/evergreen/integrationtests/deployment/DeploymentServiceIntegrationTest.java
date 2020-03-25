@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -198,7 +199,8 @@ class DeploymentServiceIntegrationTest {
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
 
-        assertThat("Only contain main, YellowSignal, RedSignal", services.size() == 3);
+        //"Only contain main, YellowSignal, RedSignal"
+        assertEquals(3, services.size());
         assertThat("Must contain main", services.contains("main"));
         assertThat("Must contain YellowSignal", services.contains("YellowSignal"));
         assertThat("Must contain RedSignal", services.contains("RedSignal"));
