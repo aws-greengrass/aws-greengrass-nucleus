@@ -676,6 +676,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             } catch (ServiceLoadException e) {
                 logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
                         .log("Could not locate EvergreenService to close service");
+                // No need to handle the error when trying to stop a non-existing service.
             }
         });
         // waiting for removed service to close before removing reference and config entry
@@ -683,14 +684,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             serviceClosedFuture.get();
         }
         serviceToRemove.forEach(serviceName -> {
-            try {
-                context.remove(serviceName);
-                findTopics("services", serviceName).remove();
-            } catch (Exception e) {
-                // TODO: better error handling.
-                logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                        .log("Cloud not clean up resources while removing");
-            }
+            context.remove(serviceName);
+            findTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, serviceName).remove();
         });
     }
 
