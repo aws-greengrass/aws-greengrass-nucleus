@@ -19,9 +19,7 @@ import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -40,12 +38,10 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -92,6 +88,7 @@ public class DeploymentService extends EvergreenService {
     @Getter
     private Future<Void> currentProcessStatus = null;
     private String currentJobId;
+    private Long currentJobExecutionNumber;
     private AtomicBoolean isConnectionResumed = new AtomicBoolean(false);
 
     @Setter
@@ -138,6 +135,7 @@ public class DeploymentService extends EvergreenService {
 
         JobExecutionData jobExecutionData = response.execution;
         currentJobId = jobExecutionData.jobId;
+        currentJobExecutionNumber = jobExecutionData.executionNumber;
         logger.atInfo()
                 .log("Received job description for job id : {} and status {}", currentJobId, jobExecutionData.status);
         logger.addDefaultKeyValue("JobId", currentJobId);
@@ -152,7 +150,7 @@ public class DeploymentService extends EvergreenService {
                 //If the cancel is not successful
                 return;
             }
-            iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, null);
+            iotJobsHelper.updateJobStatus(currentJobId, JobStatus.IN_PROGRESS, currentJobExecutionNumber, null);
 
             logger.info("Updated the status of JobsId {} to {}", currentJobId, JobStatus.IN_PROGRESS);
 
@@ -165,7 +163,7 @@ public class DeploymentService extends EvergreenService {
                         .log("Caught InvalidRequestException while processing a deployment");
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("error", e.getMessage());
-                updateJobWithStatus(currentJobId, JobStatus.FAILED, statusDetails);
+                updateJobWithStatus(currentJobId, JobStatus.FAILED, currentJobExecutionNumber, statusDetails);
                 return;
             }
             //Starting the job processing in another thread
@@ -243,7 +241,7 @@ public class DeploymentService extends EvergreenService {
                     logger.info("Getting the status of the current process");
 
                     currentProcessStatus.get();
-                    updateJobWithStatus(currentJobId, JobStatus.SUCCEEDED, null);
+                    updateJobWithStatus(currentJobId, JobStatus.SUCCEEDED, currentJobExecutionNumber,null);
                     currentProcessStatus = null;
                 }
                 //If the connection was resumed after interruption then need to subscribe to mqtt topics again
@@ -261,7 +259,7 @@ public class DeploymentService extends EvergreenService {
                         .log("Caught exception while getting the status of the Job");
                 Throwable t = e.getCause();
                 if (t instanceof NonRetryableDeploymentTaskFailureException) {
-                    updateJobWithStatus(currentJobId, JobStatus.FAILED, null);
+                    updateJobWithStatus(currentJobId, JobStatus.FAILED, currentJobExecutionNumber, null);
                 }
                 currentProcessStatus = null;
                 //TODO: Handle retryable error
@@ -346,16 +344,18 @@ public class DeploymentService extends EvergreenService {
             logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Updating status of persisted deployment");
             //Removing the topic from config before it can be added again if the update fails again
             processedDeployments.remove(topic);
-            updateJobWithStatus(jobId, JobStatus.valueOf(status),
+            updateJobWithStatus(jobId, JobStatus.valueOf(status), currentJobExecutionNumber,
                     (HashMap<String, String>) deploymentDetails.get("StatusDetails"));
         });
     }
 
-    private void updateJobWithStatus(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
+    private void updateJobWithStatus(String jobId, JobStatus status, Long executionNumber, HashMap<String,
+                                     String> statusDetails) {
         try {
-            iotJobsHelper.updateJobStatus(jobId, status, statusDetails).get();
+            iotJobsHelper.updateJobStatus(jobId, status, executionNumber, statusDetails).get();
         } catch (ExecutionException e) {
-            logger.atWarn().kv("Status", status).log("Caught exception while updating job status");
+            logger.atWarn().kv("Status", status).setCause(e)
+                    .log("Caught exception while updating job status");
             storeDeploymentStatusInConfig(jobId, status, statusDetails);
         } catch (InterruptedException e) {
             errored = true;
