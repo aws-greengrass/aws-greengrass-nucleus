@@ -69,7 +69,7 @@ public class DependencyResolverBenchmark {
 
         @Benchmark
         public List<PackageIdentifier> measure() throws Exception {
-            result = resolver.resolveDependencies(jobDoc);
+            result = resolver.resolveDependencies(jobDoc, Arrays.asList("boto3", "awscli"));
             return result;
         }
 
