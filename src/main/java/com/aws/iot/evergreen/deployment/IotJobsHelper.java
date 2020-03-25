@@ -101,7 +101,7 @@ public class IotJobsHelper {
     public CompletableFuture<Integer> updateJobStatus(String jobId, JobStatus status,
                                                       Long executionNumber,
                                                       HashMap<String, String> statusDetailsMap) {
-        logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Updating job status");
+        logger.atDebug().kv("JobId", jobId).kv("Status", status).log("Updating job status");
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;

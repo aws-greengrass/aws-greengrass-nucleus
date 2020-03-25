@@ -14,9 +14,11 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -29,13 +31,16 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class DeploymentTaskTest {
+
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
@@ -44,18 +49,22 @@ public class DeploymentTaskTest {
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private Kernel mockKernel;
+    @Mock
+    private Map<String, Object> jobDocument;
+
     private DeploymentDocument deploymentDocument =
-            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();;
 
     private Logger logger = LogManager.getLogger("unit test");
 
     private DeploymentTask deploymentTask;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws Exception {
         deploymentTask =
-                new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
-                        logger, deploymentDocument);
+                spy(new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
+                        logger, jobDocument));
+        doReturn(deploymentDocument).when(deploymentTask).parseAndValidateJobDocument(eq(jobDocument));
     }
 
     @Test
@@ -64,7 +73,9 @@ public class DeploymentTaskTest {
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument);
+        ArgumentCaptor<DeploymentDocument> deploymentDocumentArgumentCaptor =
+                ArgumentCaptor.forClass(DeploymentDocument.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument));
         verify(mockPackageCache).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anySet());
         verify(mockKernel).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
