@@ -11,16 +11,20 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.Collections;
 =======
+=======
+import java.util.HashMap;
+>>>>>>> Removing spying from DeploymentTaskTest
 import java.util.Map;
 >>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
 import java.util.concurrent.CompletableFuture;
@@ -35,15 +39,17 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class DeploymentTaskTest {
+
+    private static Map<String, Object> jobDocument;
+
+    private static DeploymentDocument deploymentDocument;
 
     @Mock
     private DependencyResolver mockDependencyResolver;
@@ -53,6 +59,7 @@ public class DeploymentTaskTest {
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private Kernel mockKernel;
+<<<<<<< HEAD
 <<<<<<< HEAD
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
@@ -68,12 +75,26 @@ public class DeploymentTaskTest {
 =======
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
 >>>>>>> Persisting job execution number
+=======
+>>>>>>> Removing spying from DeploymentTaskTest
 
     private final Logger logger = LogManager.getLogger("unit test");
 
-    private DeploymentTask deploymentTask;
+    private DeploymentTask deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageCache,
+            mockKernelConfigResolver, mockKernel,logger, jobDocument);
+
+    @BeforeAll
+    public static void initialize() {
+        Long currentTimestamp = System.currentTimeMillis();
+        jobDocument = new HashMap<>();
+        jobDocument.put("DeploymentId", "TestDeployment");
+        jobDocument.put("Timestamp", currentTimestamp);
+        deploymentDocument =
+                DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(currentTimestamp).build();
+    }
 
     @BeforeEach
+<<<<<<< HEAD
     public void setup() throws Exception {
         deploymentTask =
 <<<<<<< HEAD
@@ -85,6 +106,11 @@ public class DeploymentTaskTest {
                         logger, jobDocument));
         doReturn(deploymentDocument).when(deploymentTask).parseAndValidateJobDocument(eq(jobDocument));
 >>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
+=======
+    public void setup() {
+        deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
+                        logger, jobDocument);
+>>>>>>> Removing spying from DeploymentTaskTest
     }
 
     @Test
