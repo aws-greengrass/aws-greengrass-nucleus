@@ -487,7 +487,7 @@ public class Context implements Closeable {
                             //                            .getName()
                             //                            + " = " + v);
                             if (asService != null && v instanceof EvergreenService) {
-                                asService.addDependency((EvergreenService) v,
+                                asService.addOrUpdateDependency((EvergreenService) v,
                                         startWhen == null ? State.RUNNING : startWhen.value(), true);
                             }
                             logger.atTrace().addKeyValue("class", f.getName()).setEventType("class-inject-complete")

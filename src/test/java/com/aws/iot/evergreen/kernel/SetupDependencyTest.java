@@ -33,7 +33,7 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         Mockito.when(dep1.getStateTopic()).thenReturn(depStateTopic);
 
         // WHEN
-        evergreenService.addDependency(dep1, State.INSTALLED, false);
+        evergreenService.addOrUpdateDependency(dep1, State.INSTALLED, false);
 
         // THEN
         Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
@@ -50,14 +50,14 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         Mockito.when(depStateTopic.subscribe(Mockito.any(Subscriber.class))).thenReturn(depStateTopic);
         Mockito.when(dep1.getStateTopic()).thenReturn(depStateTopic);
 
-        evergreenService.addDependency(dep1, State.INSTALLED, false);
+        evergreenService.addOrUpdateDependency(dep1, State.INSTALLED, false);
 
         Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
         Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1));
 
         // WHEN
-        evergreenService.addDependency(dep1, State.RUNNING, true);
+        evergreenService.addOrUpdateDependency(dep1, State.RUNNING, true);
 
         // THEN
         dependencies = evergreenService.getDependencies();

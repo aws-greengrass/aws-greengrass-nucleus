@@ -730,7 +730,7 @@ public class EvergreenService implements InjectionActions {
      *                                  in 'dependencies' Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public synchronized void addDependency(
+    public synchronized void addOrUpdateDependency(
             EvergreenService dependentEvergreenService, State startWhen, boolean isDefault)
             throws InputValidationException {
         if (dependentEvergreenService == null || startWhen == null) {
@@ -938,7 +938,7 @@ public class EvergreenService implements InjectionActions {
                 if (!oldDependencies.containsKey(dependentEvergreenService)) {
                     hasNewService.set(true);
                 }
-                addDependency(dependentEvergreenService, startWhen, false);
+                addOrUpdateDependency(dependentEvergreenService, startWhen, false);
             } catch (InputValidationException e) {
                 logger.atWarn().setCause(e).setEventType("add-dependency")
                         .log("Unable to add dependency {}", dependentEvergreenService);
