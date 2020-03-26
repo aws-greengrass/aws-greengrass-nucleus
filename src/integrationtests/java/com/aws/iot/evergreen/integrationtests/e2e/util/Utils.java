@@ -62,13 +62,16 @@ public class Utils {
 
     public static String createJob(String document, String[] targets) {
         String jobId = UUID.randomUUID().toString();
+        createJobWithId(document, targets, jobId);
+        return jobId;
+    }
 
+    public static void createJobWithId(String document, String[] targets, String jobId) {
         retryIot(() -> iotClient.createJob(
                 CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
                         .document(document).description("E2E Test: " + new Date())
                         .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build()));
         createdJobs.add(jobId);
-        return jobId;
     }
 
     public static void waitForJobToComplete(String jobId, Duration timeout) throws TimeoutException {

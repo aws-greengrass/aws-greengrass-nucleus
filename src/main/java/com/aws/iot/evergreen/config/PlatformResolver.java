@@ -19,7 +19,7 @@ public class PlatformResolver {
                 "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
     }};
 
-    private static final Map<String, Integer> RANKS = initializeRanks();
+    public static final Map<String, Integer> RANKS = initializeRanks();
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
     @SuppressWarnings({"checkstyle:emptycatchblock"})
