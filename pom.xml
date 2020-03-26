@@ -171,6 +171,11 @@
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
                     <argLine>${surefire.argLine} -Xms1m</argLine>
+                    <properties>
+                        <configurationParameters>
+                            junit.jupiter.execution.timeout.default = 5m
+                        </configurationParameters>
+                    </properties>
                 </configuration>
                 <executions>
                     <execution>
@@ -221,7 +226,7 @@
                     <threshold>Low</threshold>
                     <xmlOutput>true</xmlOutput>
                     <findbugsXmlOutputDirectory>${project.build.directory}/findbugs</findbugsXmlOutputDirectory>
-                    <excludeFilterFile>findbugs-exclude.xml</excludeFilterFile>
+                    <excludeFilterFile>codestyle/findbugs-exclude.xml</excludeFilterFile>
                 </configuration>
                 <executions>
                     <execution>
@@ -245,7 +250,7 @@
                 </dependencies>
                 <configuration>
                     <logViolationsToConsole>true</logViolationsToConsole>
-                    <configLocation>checkstyle.xml</configLocation>
+                    <configLocation>codestyle/checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
                     <skip>${skipTests}</skip>
@@ -327,6 +332,27 @@
                             <dataFile>${project.build.directory}/aggregate.exec</dataFile>
                             <outputDirectory>target/jacoco-report</outputDirectory>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <!-- Current violations should not be exceeded. Try to decrease these over time -->
+                    <maxAllowedViolations>95</maxAllowedViolations>
+                    <printFailingErrors>true</printFailingErrors>
+                    <analysisCache>true</analysisCache> <!-- enable incremental analysis -->
+                    <rulesets>
+                        <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>
+                    </rulesets>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

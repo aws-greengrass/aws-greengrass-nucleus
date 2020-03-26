@@ -54,7 +54,7 @@ public class KernelConfigResolver {
                                        List<String> rootPackages) throws InterruptedException {
 
         Map<Object, Object> servicesConfig = packagesToDeploy.stream()
-                .collect(Collectors.toMap(packageIdentifier -> packageIdentifier.getName(),
+                .collect(Collectors.toMap(PackageIdentifier::getName,
                         packageIdentifier -> getServiceConfig(packageIdentifier, document)));
 
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
@@ -64,7 +64,7 @@ public class KernelConfigResolver {
     }
 
     /*
-     * Processe lifecycle section of each package and add it to the config.
+     * Processes lifecycle section of each package and add it to the config.
      */
     private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document) {
 
@@ -79,7 +79,7 @@ public class KernelConfigResolver {
         // TODO : Package recipe format is not in alignment with the changed Kernel config syntax,
         // which leads to inconsistent naming, e.g. lifecycle per new Kernel config syntax is one of several config
         // keys while per current package recipe format it's the entire config for that package
-        // These incosistencies need to be addressed
+        // These inconsistencies need to be addressed
 
         // Interpolate parameters
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, pkg);
@@ -157,7 +157,7 @@ public class KernelConfigResolver {
                                                                                             String packageName,
                                                                                             String packageVersion) {
         return document.getDeploymentPackageConfigurationList().stream()
-                .filter(packageConfig -> packageName.equals(packageConfig.getPackageName()) && packageVersion.toString()
+                .filter(packageConfig -> packageName.equals(packageConfig.getPackageName()) && packageVersion
                         .equals(packageConfig.getResolvedVersion())).findAny();
     }
 

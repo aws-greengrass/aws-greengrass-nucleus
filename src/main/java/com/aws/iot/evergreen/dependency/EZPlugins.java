@@ -19,12 +19,13 @@ import java.nio.file.StandardCopyOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 
 public class EZPlugins {
-    private final ArrayList<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
+    private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
     private Path trustedCacheDirectory;
     private Path untrustedCacheDirectory;
@@ -74,9 +75,10 @@ public class EZPlugins {
         }
     }
 
-    private void loadPlugins(boolean trusted, Path p) throws MalformedURLException {
-        URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()});
-        loadPlugins(trusted, cl);
+    private void loadPlugins(boolean trusted, Path p) throws IOException {
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()})) {
+            loadPlugins(trusted, cl);
+        }
     }
 
     /**
