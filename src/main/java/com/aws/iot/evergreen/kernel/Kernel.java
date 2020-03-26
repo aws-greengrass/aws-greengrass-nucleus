@@ -5,9 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -45,10 +43,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -484,23 +482,35 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
-            CountDownLatch allServicesExitedLatch = new CountDownLatch(d.length);
 
+            CompletableFuture[] arr = new CompletableFuture[d.length];
             for (int i = d.length; --i >= 0; ) { // shutdown in reverse order
+                String serviceName = d[i].getName();
                 try {
-                    d[i].close();
-                    d[i].getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-                        if (((State) t.getOnce()).isClosable()) {
-                            allServicesExitedLatch.countDown();
+                    arr[i] = d[i].close();
+                    arr[i].whenComplete((v, t) -> {
+                        if (t != null) {
+                            logger.atError().setEventType("service-shutdown-error")
+                                    .addKeyValue("serviceName", serviceName)
+                                    .setCause((Throwable) t).log();
                         }
+
                     });
                 } catch (Throwable t) {
-                    logger.atError().setEventType("service-shutdown-error").addKeyValue("serviceName", d[i].getName())
+                    logger.atError().setEventType("service-shutdown-error")
+                            .addKeyValue("serviceName", serviceName)
                             .setCause(t).log();
+                    arr[i] = CompletableFuture.completedFuture(Optional.empty());
                 }
             }
 
-            allServicesExitedLatch.await(timeoutSeconds, TimeUnit.SECONDS);
+            try {
+                CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
+                combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
+            } catch (Throwable t) {
+                logger.atError().setEventType("services-shutdown-errored").setCause(t).log();
+            }
+
             // Wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = context.get(ScheduledExecutorService.class);
             ExecutorService executorService = context.get(ExecutorService.class);
