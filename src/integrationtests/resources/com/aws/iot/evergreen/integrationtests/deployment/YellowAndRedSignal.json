@@ -1,0 +1,24 @@
+{
+  "DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
+  "RootPackages": [
+    "RedSignal", "YellowSignal"
+  ],
+  "Packages": [
+    {
+      "Name": "RedSignal",
+      "ResolvedVersion": "1.0.0"
+    },
+    {
+      "Name": "YellowSignal",
+      "ResolvedVersion": "1.0.0",
+      "Parameters": [
+        {
+          "type": "STRING",
+          "name": "message",
+          "value": "This is not a test"
+        }
+      ]
+    }
+  ],
+  "Timestamp": 1592574829000
+}

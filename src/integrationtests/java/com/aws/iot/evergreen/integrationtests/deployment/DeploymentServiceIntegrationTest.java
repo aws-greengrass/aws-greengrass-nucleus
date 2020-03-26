@@ -7,7 +7,10 @@ package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.deployment.DeploymentTask;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
@@ -42,8 +45,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -158,6 +164,50 @@ class DeploymentServiceIntegrationTest {
         countDownLatch.await(60, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         Log4jLogEventBuilder.removeGlobalListener(listener);
+    }
+
+    /**
+     * First deployment contains packages yellow and customerApp
+     * Second deployment updates the root packages to yellow and red. Red is added, customerApp is removed
+     * and no update for yellow
+     *
+     * @throws Exception
+     */
+    @Test
+    @Order(3)
+    void GIVEN_services_running_WHEN_service_added_and_deleted_THEN_add_remove_service_accordingly()
+            throws Exception {
+
+        Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
+                "CustomerAppAndYellowSignal.json").toURI(), System.currentTimeMillis());
+        result.get();
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+
+        //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
+        assertEquals(5, services.size());
+        assertTrue(services.contains("main"));
+        assertTrue(services.contains("YellowSignal"));
+        assertTrue(services.contains("CustomerApp"));
+        assertTrue(services.contains("Mosquitto"));
+        assertTrue(services.contains("GreenSignal"));
+
+        result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
+                "YellowAndRedSignal.json").toURI(), System.currentTimeMillis());
+        result.get();
+        services = kernel.orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+
+        //"should contain main, YellowSignal, RedSignal"
+        assertEquals(3, services.size());
+        assertTrue(services.contains("main"));
+        assertTrue(services.contains("YellowSignal"));
+        assertTrue(services.contains("RedSignal"));
+        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "CustomerApp"));
+        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "Mosquitto"));
+        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "GreenSignal"));
     }
 
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) {
