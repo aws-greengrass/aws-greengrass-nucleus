@@ -160,7 +160,7 @@ class DeploymentServiceIntegrationTest {
 
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
-        result.get(60, TimeUnit.SECONDS);
+        result.get(30, TimeUnit.SECONDS);
         countDownLatch.await(60, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         Log4jLogEventBuilder.removeGlobalListener(listener);
@@ -180,7 +180,7 @@ class DeploymentServiceIntegrationTest {
 
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "CustomerAppAndYellowSignal.json").toURI(), System.currentTimeMillis());
-        result.get(60, TimeUnit.SECONDS);;
+        result.get(30, TimeUnit.SECONDS);;
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
@@ -195,7 +195,7 @@ class DeploymentServiceIntegrationTest {
 
         result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "YellowAndRedSignal.json").toURI(), System.currentTimeMillis());
-        result.get(60, TimeUnit.SECONDS);
+        result.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
