@@ -487,7 +487,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             for (int i = d.length; --i >= 0; ) { // shutdown in reverse order
                 String serviceName = d[i].getName();
                 try {
-                    arr[i] = d[i].close();
+                    arr[i] = (CompletableFuture) d[i].close();
                     arr[i].whenComplete((v, t) -> {
                         if (t != null) {
                             logger.atError().setEventType("service-shutdown-error")
@@ -507,7 +507,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             try {
                 CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
                 combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 logger.atError().setEventType("services-shutdown-errored").setCause(t).log();
             }
 

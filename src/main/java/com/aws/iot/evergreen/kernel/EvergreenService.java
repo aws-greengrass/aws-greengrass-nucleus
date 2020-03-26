@@ -692,7 +692,7 @@ public class EvergreenService implements InjectionActions {
      *
      * @return future completes when the lifecycle thread shuts down.
      */
-    public CompletableFuture<Void> close() {
+    public Future<Void> close() {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
         context.get(Executor.class).execute(() -> {
             try {
