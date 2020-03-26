@@ -3,9 +3,15 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
+import com.aws.iot.evergreen.config.PlatformResolver;
+import com.aws.iot.evergreen.util.Serializer;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -14,6 +20,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -76,10 +83,11 @@ public class Package {
                    @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
                    @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
                    @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
-                   @JsonProperty("Lifecycle") Map<String, Object> lifecycle,
-                   @JsonProperty("Artifacts") List<String> artifacts,
-                   @JsonProperty("Dependencies") Map<String, String> dependencies,
-                   @JsonProperty("Requires") List<String> requires) {
+                   @JsonProperty("Lifecycle") @JsonDeserialize(
+                           using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
+                   @JsonProperty("Artifacts") List<String> artifacts, @JsonProperty("Dependencies") @JsonDeserialize(
+            using = MapFieldDeserializer.class) Map<String, String> dependencies,
+                   @JsonProperty("Requires") List<String> requires) throws SemverException {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -98,5 +106,17 @@ public class Package {
     @JsonSerialize(using = SemverSerializer.class)
     public Semver getVersion() {
         return version;
+    }
+
+    private static class MapFieldDeserializer extends JsonDeserializer<Map<String, Object>> {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Map<String, Object> deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
+                throws IOException {
+            Map<Object, Object> map =
+                    Serializer.getObjectMapper().convertValue(jsonParser.readValueAsTree(), Map.class);
+
+            return (Map<String, Object>) PlatformResolver.resolvePlatform(map);
+        }
     }
 }

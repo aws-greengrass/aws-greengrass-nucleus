@@ -6,9 +6,8 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnsupportedRecipeFormatException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
-import com.fasterxml.jackson.databind.MapperFeature;
+import com.aws.iot.evergreen.util.Serializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AllArgsConstructor;
@@ -32,13 +31,9 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 @AllArgsConstructor
 public class LocalPackageStore implements PackageStore {
 
-    // TODO: This is temporary. Once all the separate PRs for Package Manager are merged in, this needs to move
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
     private static final String PACKAGE_RECIPE_CANNOT_BE_NULL = "Package Recipe cannot be null";
 
-    static {
-        OBJECT_MAPPER.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
-    }
+    private static final ObjectMapper OBJECT_MAPPER = Serializer.getObjectMapper();
 
     private final Path cacheFolder;
 
