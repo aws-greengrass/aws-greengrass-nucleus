@@ -42,6 +42,7 @@ public class IotJobsHelperTest {
     private static final String THING_NAME = "TEST_THING";
     private static final String TEST_JOB_ID = "TestJobId";
     private static final Long TEST_JOB_EXECUTION_NUMBER = 1234L;
+    private static final String REJECTION_MESSAGE = "Job update rejected";
 
     @Mock
     private IotJobsClient mockIotJobsClient;
@@ -60,6 +61,9 @@ public class IotJobsHelperTest {
 
     @Captor
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorCaptor;
+
+    @Captor
+    ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobUpdateAcceptedHandler;
 
     @Captor
     ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> updateJobExecutionResponseCaptor;
@@ -90,8 +94,8 @@ public class IotJobsHelperTest {
     @Test
     public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_subscribe_to_getNextJobDescription()
             throws Exception {
-        CompletableFuture<Integer> integerCompletableFuture = mock(CompletableFuture.class);
-        when(integerCompletableFuture.get()).thenReturn(1);
+        CompletableFuture<Integer> integerCompletableFuture = new CompletableFuture<>();
+        integerCompletableFuture.complete(1);
         when(mockIotJobsClient.SubscribeToDescribeJobExecutionAccepted(
                 any(DescribeJobExecutionSubscriptionRequest.class),
                 eq(QualityOfService.AT_LEAST_ONCE), eq(describeJobConsumer))).thenReturn(integerCompletableFuture);
@@ -99,7 +103,7 @@ public class IotJobsHelperTest {
                 any(DescribeJobExecutionSubscriptionRequest.class),
                 eq(QualityOfService.AT_LEAST_ONCE), eq(rejectedErrorConsumer))).thenReturn(integerCompletableFuture);
 
-        iotJobsHelper.subscribeToGetNextJobDecription(describeJobConsumer, rejectedErrorConsumer);
+        iotJobsHelper.subscribeToGetNextJobDescription(describeJobConsumer, rejectedErrorConsumer);
         ArgumentCaptor<DescribeJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(DescribeJobExecutionSubscriptionRequest.class);
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionAccepted(requestArgumentCaptor.capture(), eq(
@@ -129,12 +133,23 @@ public class IotJobsHelperTest {
     }
 
     @Test
-    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_successfully() {
+    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_successfully()
+    throws Exception {
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
-        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
+        CompletableFuture cf = new CompletableFuture();
+        cf.complete(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
+        when(mockIotJobsClient.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClient).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
+                    eq(QualityOfService.AT_LEAST_ONCE), updateJobExecutionResponseCaptor.capture());
+            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = updateJobExecutionResponseCaptor.getValue();
+            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
+            jobResponseConsumer.accept(mockJobExecutionResponse);
+            return cf;
+        });
+        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
         verify(mockIotJobsClient).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
                 eq(QualityOfService.AT_LEAST_ONCE), updateJobExecutionResponseCaptor.capture());
 
@@ -142,9 +157,6 @@ public class IotJobsHelperTest {
         assertEquals(TEST_JOB_ID,actualRequest.jobId);
         assertEquals(THING_NAME, actualRequest.thingName);
 
-        Consumer<UpdateJobExecutionResponse> jobResponseConsumer = updateJobExecutionResponseCaptor.getValue();
-        UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
-        jobResponseConsumer.accept(mockJobExecutionResponse);
         verify(mockMqttClientConnection).unsubscribe(eq(IotJobsHelper.UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace(
                 "{thingName}", THING_NAME).replace("{jobId}", TEST_JOB_ID)));
 
@@ -161,22 +173,34 @@ public class IotJobsHelperTest {
     }
 
     @Test
-    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_failed() {
-        HashMap<String, String> statusDetails = new HashMap<>();
-        statusDetails.put("type", "test" );
-        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
+    public void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_failed()
+            throws Exception {
+        CompletableFuture cf = new CompletableFuture();
+        cf.complete(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
-        verify(mockIotJobsClient).SubscribeToUpdateJobExecutionRejected(requestArgumentCaptor.capture(),
-                eq(QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
+        when(mockIotJobsClient.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClient).SubscribeToUpdateJobExecutionRejected(requestArgumentCaptor.capture(),
+                    eq(QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
+            Consumer<RejectedError> rejectedErrorConsumer = rejectedErrorCaptor.getValue();
+            RejectedError mockRejectError = new RejectedError();
+            mockRejectError.message = REJECTION_MESSAGE;
+            rejectedErrorConsumer.accept(mockRejectError);
+            return cf;
+        });
+        HashMap<String, String> statusDetails = new HashMap<>();
+        statusDetails.put("type", "test" );
+        try {
+            iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
+        } catch (ExecutionException e) {
+            //verify that exception is thrown with the expected message
+            assertTrue(e.getCause().getMessage().equals(REJECTION_MESSAGE));
+        }
 
         UpdateJobExecutionSubscriptionRequest actualRequest = requestArgumentCaptor.getValue();
         assertEquals(TEST_JOB_ID,actualRequest.jobId);
         assertEquals(THING_NAME, actualRequest.thingName);
 
-        Consumer<RejectedError> rejectedErrorConsumer = rejectedErrorCaptor.getValue();
-        RejectedError mockRejectError = mock(RejectedError.class);
-        rejectedErrorConsumer.accept(mockRejectError);
         verify(mockMqttClientConnection).unsubscribe(eq(IotJobsHelper.UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace(
                 "{thingName}", THING_NAME).replace("{jobId}", TEST_JOB_ID)));
 
