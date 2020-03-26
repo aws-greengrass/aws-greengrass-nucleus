@@ -69,6 +69,7 @@ public class EvergreenService implements InjectionActions {
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
     private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
+    private final Object stateEventLock = new Object();
 
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
@@ -128,7 +129,9 @@ public class EvergreenService implements InjectionActions {
         logger.atInfo().setEventType("service-set-state").addKeyValue("currentState", currentState)
                 .addKeyValue("newState", newState).log();
 
-        synchronized (this.state) {
+        // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
+        // across different services.
+        synchronized (State.class) {
             prevState = currentState;
             this.state.setValue(newState);
             context.globalNotifyStateChanged(this, prevState, newState);
@@ -286,6 +289,20 @@ public class EvergreenService implements InjectionActions {
         return periodicityInformation != null;
     }
 
+    /**
+     * Returns true if the service has reached its desired state.
+     * @return
+     */
+    public boolean reachedDesiredState() {
+        synchronized (desiredStateList) {
+            return desiredStateList.isEmpty()
+                    // when reachedDesiredState() is called in global state listener,
+                    // service lifecycle thread hasn't drained the desiredStateList yet.
+                    // Therefore adding this check.
+                    || desiredStateList.stream().allMatch(s -> s == getState());
+        }
+    }
+
     private Optional<State> peekOrRemoveFirstDesiredState(State activeState) {
         synchronized (desiredStateList) {
             if (desiredStateList.isEmpty()) {
@@ -315,17 +332,19 @@ public class EvergreenService implements InjectionActions {
     }
 
     @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
-    private synchronized void enqueueStateEvent(Object event) {
-        if (event instanceof State) {
-            // override existing reportState
-            stateEventQueue.clear();
-            stateEventQueue.offer(event);
-        } else {
-            stateEventQueue.offer(event);
+    private void enqueueStateEvent(Object event) {
+        synchronized (stateEventLock) {
+            if (event instanceof State) {
+                // override existing reportState
+                stateEventQueue.clear();
+                stateEventQueue.offer(event);
+            } else {
+                stateEventQueue.offer(event);
 
-            // Ignore returned value of offer().
-            // If enqueue isn't successful, the event queue has contents and there is no need to send another
-            // trigger to process state transition.
+                // Ignore returned value of offer().
+                // If enqueue isn't successful, the event queue has contents and there is no need to send another
+                // trigger to process state transition.
+            }
         }
     }
 
@@ -436,13 +455,13 @@ public class EvergreenService implements InjectionActions {
                     }
                     continue;
                 case INSTALLED:
+                    stopBackingTask();
                     if (!desiredState.isPresent()) {
                         break;
                     }
 
                     switch (desiredState.get()) {
                         case FINISHED:
-                            stopBackingTask();
                             updateStateAndBroadcast(State.FINISHED);
                             continue;
                         case RUNNING:
@@ -604,6 +623,7 @@ public class EvergreenService implements InjectionActions {
         if (bt != null) {
             backingTask = null;
             if (!bt.isDone()) {
+                logger.info("Stopping backingTask {}", bt);
                 bt.cancel(true);
             }
         }

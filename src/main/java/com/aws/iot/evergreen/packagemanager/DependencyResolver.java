@@ -54,12 +54,14 @@ public class DependencyResolver {
      * running packages on the device.
      *
      * @param document deployment document
+     * @param newRootPackages new root level packages
      * @return a list of packages to be run on the device
      * @throws PackageVersionConflictException when a package version conflict cannot be resolved
      * @throws IOException                     when a package cannot be retrieved from the package store
      * @throws PackagingException              for other package errors
      */
-    public List<PackageIdentifier> resolveDependencies(final DeploymentDocument document)
+    public List<PackageIdentifier> resolveDependencies(final DeploymentDocument document,
+                                                       List<String> newRootPackages)
             throws PackageVersionConflictException, IOException, PackagingException {
 
         // A map of package version constraints {packageName => {dependingPackageName => versionConstraint}} to be
@@ -70,7 +72,7 @@ public class DependencyResolver {
         Map<String, Map<String, String>> packageNameToVersionConstraints = new HashMap<>();
 
         // List of root packages to be resolved
-        Set<String> rootPackagesToResolve = new LinkedHashSet<>(document.getRootPackages());
+        Set<String> rootPackagesToResolve = new LinkedHashSet<>(newRootPackages);
 
         // Get a list of package configurations with pinned versions
         for (DeploymentPackageConfiguration dpc : document.getDeploymentPackageConfigurationList()) {
@@ -302,27 +304,24 @@ public class DependencyResolver {
         return getServiceVersion(service);
     }
 
-    private void mergeActiveRootPackages(Set<String> rootPackages,
-                                    Map<String, Map<String, String>> packageNameToVersionConstraints) {
-        Set<EvergreenService> activeServices = kernel.getMain().getDependencies().keySet();
-        for (EvergreenService s: activeServices) {
-            Optional<String> version = getServiceVersion(s);
-            if (!version.isPresent()) {
-                // Assume 1P services if version is not present. 1P services don't need resolution
-                continue;
-            }
+    private void mergeActiveRootPackages(Set<String> rootPackagesToResolve,
+                                         Map<String, Map<String, String>> packageNameToVersionConstraints) {
 
-            String serviceName = s.getName();
-            if (!rootPackages.contains(serviceName)) {
-                // If the service package does not exist in root packages, still use the current version on the device
-                rootPackages.add(serviceName);
+        Set<EvergreenService> activeServices = kernel.getMain().getDependencies().keySet();
+        for (EvergreenService evergreenService : activeServices) {
+            String serviceName = evergreenService.getName();
+            // add version constraints for package not in deployment document but is active in device
+            if (rootPackagesToResolve.contains(serviceName)
+                    && !packageNameToVersionConstraints.keySet().contains(serviceName)) {
+                String version = getServiceVersion(evergreenService).get();
                 packageNameToVersionConstraints.putIfAbsent(serviceName, new HashMap<>());
-                packageNameToVersionConstraints.get(serviceName).putIfAbsent(ROOT_REQUIREMENT_KEY, version.get());
-                logger.atDebug().addKeyValue("packageName", serviceName).addKeyValue("version", version.get())
+                packageNameToVersionConstraints.get(serviceName).putIfAbsent(ROOT_REQUIREMENT_KEY, version);
+                logger.atDebug().addKeyValue("packageName", serviceName).addKeyValue("version", version)
                         .log("Merge active root packages");
             }
         }
     }
+
 
     protected Optional<String> getServiceVersion(final EvergreenService service) {
         Node versionNode = service.config.getChild(KernelConfigResolver.VERSION_CONFIG_KEY);

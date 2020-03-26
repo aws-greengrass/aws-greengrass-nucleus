@@ -105,14 +105,15 @@ public class GenericExternalService extends EvergreenService {
                     }
                 }
             });
-            runScript = currentScript;
-            reportState(State.RUNNING);
 
             if (result == RunStatus.NothingDone) {
-                this.requestStop();
+                this.reportState(State.FINISHED);
                 logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
             } else if (result == RunStatus.Errored) {
                 serviceErrored();
+            } else {
+                reportState(State.RUNNING);
+                runScript = currentScript;
             }
         }
     }
