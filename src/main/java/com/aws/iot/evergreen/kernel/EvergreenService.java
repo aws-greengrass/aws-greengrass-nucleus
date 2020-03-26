@@ -722,15 +722,15 @@ public class EvergreenService implements InjectionActions {
                 Subscriber subscriber = createDependencySubscriber(dependentEvergreenService);
                 dependentEvergreenService.getStateTopic().subscribe(subscriber);
                 context.get(Kernel.class).clearODcache();
-                this.requestRestart();
                 return new DependencyInfo(startWhen, isDefault, subscriber);
+            } else {
+                dependencyInfo.startWhen = startWhen;
+                // if a dependency is added as both a default and a non-default, treat it as default dependency
+                if (!dependencyInfo.isDefaultDependency) {
+                    dependencyInfo.isDefaultDependency = isDefault;
+                }
+                return dependencyInfo;
             }
-            dependencyInfo.startWhen = startWhen;
-            // if a dependency is added as both a default and a non-default, treat it as default dependency
-            if (!dependencyInfo.isDefaultDependency) {
-                dependencyInfo.isDefaultDependency = isDefault;
-            }
-            return dependencyInfo;
         });
     }
 
@@ -894,6 +894,7 @@ public class EvergreenService implements InjectionActions {
     }
 
     private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
+        Map<EvergreenService, State> oldDependencies = new HashMap<>(getDependencies());
         Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
 
         Set<EvergreenService> removedDependencies = dependencies.entrySet().stream()
@@ -907,18 +908,29 @@ public class EvergreenService implements InjectionActions {
             removedDependencies.forEach(dependency -> {
                 DependencyInfo dependencyInfo = dependencies.remove(dependency);
                 dependency.getStateTopic().remove(dependencyInfo.stateTopicSubscriber);
-                context.get(Kernel.class).clearODcache();
             });
+            context.get(Kernel.class).clearODcache();
         }
 
+        AtomicBoolean hasNewService = new AtomicBoolean(false);
         shouldHaveDependencies.forEach((dependentEvergreenService, startWhen) -> {
             try {
+                if (!oldDependencies.containsKey(dependentEvergreenService)) {
+                    hasNewService.set(true);
+                }
                 addDependency(dependentEvergreenService, startWhen, false);
             } catch (InputValidationException e) {
                 logger.atWarn().setCause(e).setEventType("add-dependency")
                         .log("Unable to add dependency {}", dependentEvergreenService);
             }
         });
+
+        if (hasNewService.get()) {
+            requestRestart();
+        } else if (!dependencyReady() && !getState().equals(State.FINISHED)) {
+            // if dependency 'startWhen' changed, restart this service.
+            requestRestart();
+        }
     }
 
     @Override
