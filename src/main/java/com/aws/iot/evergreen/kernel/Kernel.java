@@ -286,7 +286,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             mainService = getMain();
             autostart.forEach(s -> {
                 try {
-                    mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING);
+                    mainService.addOrUpdateDependency(EvergreenService.locate(context, s), State.RUNNING, true);
                 } catch (ServiceLoadException se) {
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
