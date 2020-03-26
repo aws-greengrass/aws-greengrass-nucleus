@@ -5,6 +5,9 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.CommitableFile;
 import com.aws.iot.evergreen.util.CrashableSupplier;
 import lombok.AllArgsConstructor;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -21,6 +24,7 @@ import software.amazon.awssdk.services.iot.model.DeleteCertificateRequest;
 import software.amazon.awssdk.services.iot.model.DeleteJobRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingRequest;
 import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
+import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
@@ -28,6 +32,7 @@ import software.amazon.awssdk.services.iot.model.InternalException;
 import software.amazon.awssdk.services.iot.model.InternalFailureException;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.IotException;
+import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.JobStatus;
 import software.amazon.awssdk.services.iot.model.KeyPair;
 import software.amazon.awssdk.services.iot.model.LimitExceededException;
@@ -43,6 +48,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -50,6 +57,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeoutException;
+
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 
 public class Utils {
     public static final IotClient iotClient = IotClient.builder().build();
@@ -65,13 +79,16 @@ public class Utils {
 
     public static String createJob(String document, String... targets) {
         String jobId = UUID.randomUUID().toString();
+        createJobWithId(document, targets, jobId);
+        return jobId;
+    }
 
+    public static void createJobWithId(String document, String[] targets, String jobId) {
         retryIot(() -> iotClient.createJob(
                 CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
                         .document(document).description("E2E Test: " + new Date())
                         .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build()));
         createdJobs.add(jobId);
-        return jobId;
     }
 
     public static void waitForJobToComplete(String jobId, Duration timeout) throws TimeoutException {
@@ -82,6 +99,26 @@ public class Utils {
                     retryIot(() -> iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build())).job()
                             .status();
             if (status.ordinal() > JobStatus.IN_PROGRESS.ordinal()) {
+                return;
+            }
+            // Wait a little bit before checking again
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ignored) {
+            }
+        }
+        throw new TimeoutException();
+    }
+
+    public static void waitForJobToReachExecutionStatus(String jobId, String thingName, Duration timeout,
+                                                        JobExecutionStatus targetStatus) throws TimeoutException {
+        Instant start = Instant.now();
+
+        while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
+            JobExecutionStatus status = retryIot(() -> iotClient.describeJobExecution(
+                    DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingName).build()))
+                    .execution().status();
+            if (status.ordinal() >= targetStatus.ordinal()) {
                 return;
             }
             // Wait a little bit before checking again
@@ -130,6 +167,29 @@ public class Utils {
                 .endpointAddress());
         createdThings.add(info);
         return info;
+    }
+
+    public static ThingInfo setupIotResourcesAndInjectIntoKernel(Kernel kernel, Path tempRootDir) throws IOException {
+        String rootCaFilePath = tempRootDir.resolve("rootCA.pem").toString();
+        String privateKeyFilePath = tempRootDir.resolve("privKey.key").toString();
+        String certificateFilePath = tempRootDir.resolve("thingCert.crt").toString();
+
+        downloadRootCAToFile(new File(rootCaFilePath));
+        ThingInfo thing = createThing();
+        try (CommitableFile cf = CommitableFile.of(new File(privateKeyFilePath).toPath(), true)) {
+            cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
+        }
+        try (CommitableFile cf = CommitableFile.of(new File(certificateFilePath).toPath(), true)) {
+            cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
+        }
+
+        Topics deploymentServiceTopics = kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privateKeyFilePath);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).withValue(certificateFilePath);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(rootCaFilePath);
+        return thing;
     }
 
     public static void cleanAllCreatedThings() {
@@ -190,7 +250,8 @@ public class Utils {
 
     public static <T, E extends IotException> T retryIot(CrashableSupplier<T, E> func) {
         return retry(DEFAULT_RETRIES, DEFAULT_INITIAL_BACKOFF_MS, func, ThrottlingException.class,
-                InternalException.class, InternalFailureException.class, LimitExceededException.class);
+                InternalException.class, InternalFailureException.class, LimitExceededException.class,
+                ResourceNotFoundException.class);
     }
 
     @SuppressWarnings({"PMD.AssignmentInOperand", "PMD.AvoidCatchingThrowable"})

@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
@@ -14,7 +13,6 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -29,9 +27,7 @@ import software.amazon.awssdk.services.iot.model.JobExecution;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.JobStatus;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -39,12 +35,6 @@ import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -53,9 +43,6 @@ class DeploymentE2ETest {
     @TempDir
     static Path tempRootDir;
 
-    private static String rootCaFilePath;
-    private static String privateKeyFilePath;
-    private static String certificateFilePath;
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
@@ -65,9 +52,6 @@ class DeploymentE2ETest {
     @BeforeAll
     static void beforeAll() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        rootCaFilePath = tempRootDir.resolve("rootCA.pem").toString();
-        privateKeyFilePath = tempRootDir.resolve("privKey.key").toString();
-        certificateFilePath = tempRootDir.resolve("thingCert.crt").toString();
     }
 
     @AfterEach
@@ -84,7 +68,7 @@ class DeploymentE2ETest {
 
     private void launchKernel(String configFile) throws IOException, InterruptedException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
-        setupIotResourcesAndInjectIntoKernel();
+        thing = Utils.setupIotResourcesAndInjectIntoKernel(kernel, tempRootDir);
         injectKernelPackageManagementDependencies();
         kernel.launch();
 
@@ -199,24 +183,6 @@ class DeploymentE2ETest {
                 jobExecution.statusDetails().detailsMap().get("error"));
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
-    }
-
-    private void setupIotResourcesAndInjectIntoKernel() throws IOException {
-        Utils.downloadRootCAToFile(new File(rootCaFilePath));
-        thing = Utils.createThing();
-        try (CommitableFile cf = CommitableFile.of(new File(privateKeyFilePath).toPath(), true)) {
-            cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
-        }
-        try (CommitableFile cf = CommitableFile.of(new File(certificateFilePath).toPath(), true)) {
-            cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
-        }
-
-        Topics deploymentServiceTopics = kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privateKeyFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).withValue(certificateFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(rootCaFilePath);
     }
 
     private void injectKernelPackageManagementDependencies() {

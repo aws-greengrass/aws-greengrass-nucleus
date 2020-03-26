@@ -54,8 +54,8 @@ public class DeploymentService extends EvergreenService {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
-    private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID = "JobId";
-    private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID = "JobId";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
     private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS = "StatusDetails";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
