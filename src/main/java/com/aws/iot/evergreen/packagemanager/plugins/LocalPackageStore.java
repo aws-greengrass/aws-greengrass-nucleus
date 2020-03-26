@@ -6,7 +6,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnsupportedRecipeFormatException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
-import com.aws.iot.evergreen.util.Serializer;
+import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -33,7 +33,7 @@ public class LocalPackageStore implements PackageStore {
 
     private static final String PACKAGE_RECIPE_CANNOT_BE_NULL = "Package Recipe cannot be null";
 
-    private static final ObjectMapper OBJECT_MAPPER = Serializer.getObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
 
     private final Path cacheFolder;
 

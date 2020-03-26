@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
 import com.aws.iot.evergreen.config.PlatformResolver;
-import com.aws.iot.evergreen.util.Serializer;
+import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -114,7 +114,7 @@ public class Package {
         public Map<String, Object> deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
                 throws IOException {
             Map<Object, Object> map =
-                    Serializer.getObjectMapper().convertValue(jsonParser.readValueAsTree(), Map.class);
+                    SerializerFactory.getRecipeSerializer().convertValue(jsonParser.readValueAsTree(), Map.class);
 
             return (Map<String, Object>) PlatformResolver.resolvePlatform(map);
         }
