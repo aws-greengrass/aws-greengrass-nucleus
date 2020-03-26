@@ -507,8 +507,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             try {
                 CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
                 combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-            } catch (Exception t) {
-                logger.atError().setEventType("services-shutdown-errored").setCause(t).log();
+            } catch (Exception e) {
+                logger.atError().setEventType("services-shutdown-errored").setCause(e).log();
             }
 
             // Wait for tasks in the executor to end.
