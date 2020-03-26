@@ -17,7 +17,7 @@ import java.util.Set;
 
 public final class PlatformResolver {
     private static final Set<String> SUPPORTED_PLATFORMS = initializeSupportedPlatforms();
-    private static final Map<String, Integer> RANKS = initializeRanks();
+    public static final Map<String, Integer> RANKS = initializeRanks();
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
 
     private static Set<String> initializeSupportedPlatforms() {
