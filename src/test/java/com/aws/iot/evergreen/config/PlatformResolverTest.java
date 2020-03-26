@@ -39,20 +39,21 @@ public class PlatformResolverTest {
 
     @Test
     public void testPlatformResolve() throws Exception {
-        InputStream inputStream = getClass().getResourceAsStream("testPlatformResolv.yaml");
-        assertNotNull(inputStream);
-        Object resolvedConfig = invokePlatformResolve(new HashMap<String, Integer>() {{
-                                                          put("macos", 99);
-                                                          put("linux", 1);
-                                                      }}, //forcing platform to resolve to macos
-                (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
+        try (InputStream inputStream = getClass().getResourceAsStream("testPlatformResolv.yaml")) {
+            assertNotNull(inputStream);
+            Object resolvedConfig = invokePlatformResolve(new HashMap<String, Integer>() {{
+                                                              put("macos", 99);
+                                                              put("linux", 1);
+                                                          }}, //forcing platform to resolve to macos
+                    (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
 
-        inputStream = getClass().getResourceAsStream("testPlatformResolvExpected.yaml");
-        assertNotNull(inputStream);
-        Object expectedResolved = JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            try (InputStream inputStream2 = getClass().getResourceAsStream("testPlatformResolvExpected.yaml")) {
+                assertNotNull(inputStream2);
+                Object expectedResolved = JSON.std.with(new YAMLFactory()).anyFrom(inputStream2);
 
-        String prettyPrintJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(resolvedConfig);
-        assertEquals(resolvedConfig, expectedResolved,
-                "actual resolved config: \n" + prettyPrintJson);
+                String prettyPrintJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(resolvedConfig);
+                assertEquals(resolvedConfig, expectedResolved, "actual resolved config: \n" + prettyPrintJson);
+            }
+        }
     }
 }

@@ -45,6 +45,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
 @ExtendWith(MockitoExtension.class)
 public class DeploymentServiceTest extends EGServiceTestUtil {
 
@@ -136,7 +137,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_report_succeeded_job_status()
                 throws ExecutionException, InterruptedException {
-            CompletableFuture<Void> mockFuture = new CompletableFuture<Void>();
+            CompletableFuture<Void> mockFuture = new CompletableFuture<>();
             mockFuture.complete(null);
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
@@ -160,7 +161,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status()
                 throws ExecutionException, InterruptedException {
-            CompletableFuture<Void> mockFuture = new CompletableFuture<Void>();
+            CompletableFuture<Void> mockFuture = new CompletableFuture<>();
             Throwable t = new NonRetryableDeploymentTaskFailureException(null);
             mockFuture.completeExceptionally(t);
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);

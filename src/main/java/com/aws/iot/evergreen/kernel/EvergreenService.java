@@ -913,10 +913,10 @@ public class EvergreenService implements InjectionActions {
 
     private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
         Map<EvergreenService, State> oldDependencies = new HashMap<>(getDependencies());
-        Map<EvergreenService, State> shouldHaveDependencies = getDependencyStateMap(dependencyList);
+        Map<EvergreenService, State> keptDependencies = getDependencyStateMap(dependencyList);
 
         Set<EvergreenService> removedDependencies = dependencies.entrySet().stream()
-                .filter(e -> !shouldHaveDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
+                .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
         if (!removedDependencies.isEmpty()) {
@@ -931,7 +931,7 @@ public class EvergreenService implements InjectionActions {
         }
 
         AtomicBoolean hasNewService = new AtomicBoolean(false);
-        shouldHaveDependencies.forEach((dependentEvergreenService, startWhen) -> {
+        keptDependencies.forEach((dependentEvergreenService, startWhen) -> {
             try {
                 if (!oldDependencies.containsKey(dependentEvergreenService)) {
                     hasNewService.set(true);

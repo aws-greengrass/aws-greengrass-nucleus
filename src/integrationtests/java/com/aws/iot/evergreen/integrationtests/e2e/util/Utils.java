@@ -60,7 +60,10 @@ public class Utils {
     private static final int DEFAULT_RETRIES = 5;
     private static final int DEFAULT_INITIAL_BACKOFF_MS = 100;
 
-    public static String createJob(String document, String[] targets) {
+    private Utils() {
+    }
+
+    public static String createJob(String document, String... targets) {
         String jobId = UUID.randomUUID().toString();
 
         retryIot(() -> iotClient.createJob(
@@ -166,6 +169,7 @@ public class Utils {
         downloadFileFromURL(ROOT_CA_URL, f);
     }
 
+    @SuppressWarnings("PMD.AvoidFileStream")
     public static void downloadFileFromURL(String url, File f) throws IOException {
         try (ReadableByteChannel readableByteChannel = Channels.newChannel(new URL(url).openStream());
              FileOutputStream fileOutputStream = new FileOutputStream(f)) {
@@ -184,11 +188,12 @@ public class Utils {
         public String endpoint;
     }
 
-    public static <T, E extends IotException> T retryIot(CrashableSupplier<T, E> func) throws E {
+    public static <T, E extends IotException> T retryIot(CrashableSupplier<T, E> func) {
         return retry(DEFAULT_RETRIES, DEFAULT_INITIAL_BACKOFF_MS, func, ThrottlingException.class,
                 InternalException.class, InternalFailureException.class, LimitExceededException.class);
     }
 
+    @SuppressWarnings({"PMD.AssignmentInOperand", "PMD.AvoidCatchingThrowable"})
     @SafeVarargs
     public static <T, E extends Throwable> T retry(int tries, int initialBackoffMillis, CrashableSupplier<T, E> func,
                                                    Class<? extends Throwable>... retryableExceptions) throws E {

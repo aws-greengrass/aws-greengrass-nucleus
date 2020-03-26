@@ -5,7 +5,7 @@
   ~ SPDX-License-Identifier: Apache-2.0
   -->
 
-<ruleset name="Custom Rules"
+<ruleset name="Custom Test Class Rules"
          xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
@@ -13,7 +13,8 @@
         Evergreen Custom Rules
     </description>
 
-    <exclude-pattern>.*Test.*</exclude-pattern>
+    <exclude-pattern>.*</exclude-pattern>
+    <include-pattern>.*Test.*</include-pattern>
 
     <rule ref="category/java/bestpractices.xml">
         <exclude name="AvoidReassigningParameters"/>
@@ -21,6 +22,11 @@
         <exclude name="ArrayIsStoredDirectly"/>
         <exclude name="GuardLogStatement"/>
         <exclude name="AccessorMethodGeneration"/>
+        <exclude name="JUnitAssertionsShouldIncludeMessage"/>
+        <exclude name="JUnitTestContainsTooManyAsserts"/>
+        <exclude name="JUnitTestsShouldIncludeAssert"/>
+        <exclude name="SystemPrintln"/>
+        <exclude name="DoubleBraceInitialization"/>
     </rule>
     <rule ref="category/java/codestyle.xml">
         <exclude name="LocalVariableCouldBeFinal"/>
@@ -36,6 +42,9 @@
         <exclude name="LongVariable"/>
         <exclude name="AtLeastOneConstructor"/>
         <exclude name="TooManyStaticImports"/>
+        <exclude name="MethodNamingConventions"/>
+        <exclude name="UseUnderscoresInNumericLiterals"/>
+        <exclude name="LocalVariableNamingConventions"/>
     </rule>
     <rule ref="category/java/design.xml">
         <exclude name="LoosePackageCoupling"/>
@@ -50,6 +59,8 @@
         <exclude name="ExcessiveMethodLength"/>
         <exclude name="ExcessiveImports"/>
         <exclude name="TooManyFields"/>
+        <exclude name="SignatureDeclareThrowsException"/>
+        <exclude name="CollapsibleIfStatements"/>
     </rule>
     <rule ref="category/java/errorprone.xml">
         <exclude name="DataflowAnomalyAnalysis"/>
@@ -59,12 +70,8 @@
         <exclude name="EmptyCatchBlock"/> <!-- Checkstyle already finds this issue -->
         <exclude name="AvoidFieldNameMatchingMethodName"/>
         <exclude name="UseProperClassLoader"/>
-        <exclude name="ConstructorCallsOverridableMethod"/>
-    </rule>
-    <rule ref="category/java/errorprone.xml/AvoidDuplicateLiterals">
-        <properties>
-            <property name="skipAnnotations" value="true"/>
-        </properties>
+        <exclude name="AvoidDuplicateLiterals"/>
+        <exclude name="JUnitSpelling"/>
     </rule>
     <rule ref="category/java/multithreading.xml">
         <exclude name="DoNotUseThreads"/>
@@ -93,7 +100,7 @@
             <property name="xpath">
                 <value>
                     <![CDATA[
-//PrimaryExpression[pmd-java:typeIs("java.util.concurrent.Future")and (PrimaryPrefix/Name[contains(@Image, "get")] and PrimarySuffix[@ArgumentCount=0]) or (PrimarySuffix/MemberSelector/MethodReference[@Image="get"])]
+//PrimaryExpression[pmd-java:typeIs("java.util.concurrent.Future") and (PrimaryPrefix/Name[contains(@Image, "get")] and PrimarySuffix[@ArgumentCount=0]) or (PrimarySuffix/MemberSelector/MethodReference[@Image="get"])]
 ]]>
                 </value>
             </property>

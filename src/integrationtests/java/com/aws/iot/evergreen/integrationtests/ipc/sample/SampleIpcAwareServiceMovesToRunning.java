@@ -6,10 +6,18 @@ package com.aws.iot.evergreen.integrationtests.ipc.sample;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
+import com.aws.iot.evergreen.ipc.exceptions.IPCClientException;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
+import com.aws.iot.evergreen.ipc.services.lifecycle.exceptions.LifecycleIPCException;
 
-public class SampleIpcAwareServiceMovesToRunning {
-    public static void main(String[] args) throws Exception {
+import java.io.IOException;
+
+public final class SampleIpcAwareServiceMovesToRunning {
+    private SampleIpcAwareServiceMovesToRunning() {
+    }
+
+    public static void main(String[] args)
+            throws InterruptedException, IPCClientException, LifecycleIPCException, IOException {
         IPCClient client = new IPCClientImpl(KernelIPCClientConfig.builder().build());
         LifecycleImpl c = new LifecycleImpl(client);
         c.reportState("RUNNING");

@@ -14,8 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class TestHelper {
-
+public final class TestHelper {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
     public static final String MONITORING_SERVICE_PACKAGE_NAME = "MonitoringService";
     public static final String CONVEYOR_BELT_PACKAGE_NAME = "ConveyorBelt";
@@ -23,6 +22,13 @@ public class TestHelper {
     public static final String NO_DEFAULT_CONFIG_PACKAGE_NAME = "NoDefaultPlatformConfig";
     public static final String LOG_PACKAGE_NAME = "Log";
     public static final String COOL_DB_PACKAGE_NAME = "Cool-Database";
+
+    static {
+        OBJECT_MAPPER.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
+    }
+
+    private TestHelper() {
+    }
 
     public static Path getPathForLocalWorkingDirectory() throws URISyntaxException, IOException {
         Path path = Paths.get(TestHelper.class.getResource("plugins").toURI()).resolve("test_cache_working");
@@ -48,10 +54,6 @@ public class TestHelper {
             throws URISyntaxException {
         Path rootPath = Paths.get(TestHelper.class.getResource("test_packages").toURI());
         return rootPath.resolve(testPackageName + "-" + testPackageVersion);
-    }
-
-    static {
-        OBJECT_MAPPER.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
     }
 
     public static Package getPackageObject(String recipe) throws IOException {

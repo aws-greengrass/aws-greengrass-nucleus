@@ -55,6 +55,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -505,7 +506,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             try {
                 CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
                 combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-            } catch (Exception e) {
+            } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 logger.atError().setEventType("services-shutdown-errored").setCause(e).log();
             }
 

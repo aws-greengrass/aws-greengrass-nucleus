@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class GenericExternalServiceTest extends AbstractBaseITCase {
+class GenericExternalServiceTest extends BaseITCase {
 
 
     @Test

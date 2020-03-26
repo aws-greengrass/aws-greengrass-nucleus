@@ -165,6 +165,29 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <!-- Current violations should not be exceeded. Try to decrease these over time -->
+                    <maxAllowedViolations>89</maxAllowedViolations>
+                    <printFailingErrors>true</printFailingErrors>
+                    <rulesets>
+                        <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>
+                        <ruleset>codestyle/pmd-eg-tests-ruleset.xml</ruleset>
+                    </rulesets>
+                    <includeTests>true</includeTests>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0-M4</version>
                 <configuration>
@@ -332,27 +355,6 @@
                             <dataFile>${project.build.directory}/aggregate.exec</dataFile>
                             <outputDirectory>target/jacoco-report</outputDirectory>
                         </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <!-- Current violations should not be exceeded. Try to decrease these over time -->
-                    <maxAllowedViolations>95</maxAllowedViolations>
-                    <printFailingErrors>true</printFailingErrors>
-                    <analysisCache>true</analysisCache> <!-- enable incremental analysis -->
-                    <rulesets>
-                        <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>
-                    </rulesets>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
                     </execution>
                 </executions>
             </plugin>

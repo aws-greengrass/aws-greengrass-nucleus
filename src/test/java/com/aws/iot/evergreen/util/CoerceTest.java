@@ -72,8 +72,8 @@ public class CoerceTest {
         t("foo, , baz", "foo", "", "baz");
     }
 
-    void t(String T, String... expect) {
-        String[] t = Coerce.toStringArray(T);
+    void t(String s, String... expect) {
+        String[] t = Coerce.toStringArray(s);
         int len = t.length;
         assertEquals(len, expect.length);
         for (int i = 0; i < len; i++) {

@@ -104,7 +104,7 @@ public class DeploymentE2ETest {
 
         // Create job targeting our DUT
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
-        String[] targets = new String[]{thing.thingArn};
+        String[] targets = {thing.thingArn};
         String jobId = Utils.createJob(document, targets);
 
         // Wait up to 5 minutes for the job to complete
