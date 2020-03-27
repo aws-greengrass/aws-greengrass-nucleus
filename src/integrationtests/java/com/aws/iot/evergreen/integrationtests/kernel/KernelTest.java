@@ -153,7 +153,7 @@ class KernelTest extends AbstractBaseITCase {
         kernel.launch();
         assertionLatch.await(60, TimeUnit.SECONDS);
 
-        kernel.shutdownNow();
+        kernel.shutdown();
 
         if (!expectedStateTransitionList.isEmpty()) {
             expectedStateTransitionList.forEach(e -> System.err.println(
