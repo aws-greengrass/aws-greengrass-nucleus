@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.deployment;
 
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -178,6 +177,7 @@ public class DeploymentService extends EvergreenService {
                     jobExecutionData.status);
             storeDeploymentStatusInConfig(currentJobId, JobStatus.IN_PROGRESS, currentJobExecutionNumber,
                     new HashMap<>());
+            updateStatusOfPersistedDeployments();
             DeploymentTask deploymentTask;
             deploymentTask = new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver, kernel, logger,
                     response.execution.jobDocument);
@@ -413,11 +413,8 @@ public class DeploymentService extends EvergreenService {
             this.iotJobsHelper = iotJobsHelperFactory
                     .getIotJobsHelper(thingName, certificateFilePath, privateKeyPath, rootCAPath, clientEndpoint,
                             callbacks);
-        } catch (NullPointerException e) {
-            throw new DeviceConfigurationException("Required configuration not found for communicating with Iot Jobs",
-                    e);
         } catch (Exception e) {
-            throw new DeviceConfigurationException("Invalid configuration found for communicating with Iot Jobs", e);
+            throw new DeviceConfigurationException("Device not configured for communicating with Iot Jobs", e);
         }
         logger.atInfo().kv("privateKeyPath", privateKeyPath).kv("certificatePath", certificateFilePath)
                 .kv("rootCAPath", rootCAPath).kv("MqttEndpoint", clientEndpoint).kv("thingName", thingName)
@@ -483,58 +480,61 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void updateStatusOfPersistedDeployments() {
-        if (!isConnectedToCloud.get()) {
-            logger.atInfo().log("Not connected to cloud so cannot udpate the status of deployments");
-            return;
-        }
-        synchronized(this.config) {
-            Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
-            ArrayList<Topic> deployments = new ArrayList<>();
-            processedDeployments.forEach(d->deployments.add((Topic)d));
-            //Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
-            ArrayList<Topic> sortedByTimestamp =
-                    (ArrayList<Topic>) deployments.stream().sorted(new Comparator<Topic>() {
-                @Override
-                public int compare(Topic o1, Topic o2) {
-                    if(Long.valueOf(o1.getModtime()) > Long.valueOf(o2.getModtime())) {
-                        return 1;
-                    }
-                    return -1;
-                }
-            }).collect(Collectors.toList());
-
-            Iterator iterator = sortedByTimestamp.iterator();
-            while (iterator.hasNext()) {
-                Topic topic = (Topic) iterator.next();
-                Map<String, Object> deploymentDetails = (HashMap) topic.getOnce();
-                String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
-                String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
-                logger.atInfo().kv("Modified time", topic.getModtime()).kv("JobId", jobId).kv("Status", status)
-                        .kv("StatusDetails",
-                                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS).toString())
-                        .log("Updating status of persisted deployment");
-                try {
-                    iotJobsHelper.updateJobStatus(jobId, JobStatus.valueOf(status), (Long) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_EXECUTION_NUMBER),
-                            (HashMap<String, String>) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS));
-                } catch (ExecutionException e) {
-                    if (e.getCause() instanceof MqttException) {
-                        //caused due to connectivity issue
-                        logger.atWarn().log("Caught exception while updating job status");
-                        break;
-                    }
-                    //This happens when job status update gets rejected from the Iot Cloud
-                    //Want to remove this job from the list and continue updating others
-                    logger.atError().kv("Status", status).kv("JobId", jobId).setCause(e).log("Job status update rejected");
-                } catch (TimeoutException e) {
-                    //assuming this is due to network issue
-                    logger.info("Timed out while updating the job status");
-                    break;
-                } catch (InterruptedException e) {
-                    logger.atWarn().kv("JobId", jobId).kv("Status", status).log("Caught exception while updating the job status");
-                }
-                processedDeployments.remove(topic);
+        new Thread(()->{
+            if (!isConnectedToCloud.get()) {
+                logger.atInfo().log("Not connected to cloud so cannot udpate the status of deployments");
+                return;
             }
-        }
+            synchronized(this.config) {
+                Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
+                ArrayList<Topic> deployments = new ArrayList<>();
+                processedDeployments.forEach(d->deployments.add((Topic)d));
+                //Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
+                ArrayList<Topic> sortedByTimestamp =
+                        (ArrayList<Topic>) deployments.stream().sorted(new Comparator<Topic>() {
+                            @Override
+                            public int compare(Topic o1, Topic o2) {
+                                if(Long.valueOf(o1.getModtime()) > Long.valueOf(o2.getModtime())) {
+                                    return 1;
+                                }
+                                return -1;
+                            }
+                        }).collect(Collectors.toList());
+
+                Iterator iterator = sortedByTimestamp.iterator();
+                while (iterator.hasNext()) {
+                    Topic topic = (Topic) iterator.next();
+                    Map<String, Object> deploymentDetails = (HashMap) topic.getOnce();
+                    String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
+                    String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
+                    logger.atInfo().kv("Modified time", topic.getModtime()).kv("JobId", jobId).kv("Status", status)
+                            .kv("StatusDetails",
+                                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS).toString())
+                            .log("Updating status of persisted deployment");
+                    try {
+                        iotJobsHelper.updateJobStatus(jobId, JobStatus.valueOf(status), (Long) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_EXECUTION_NUMBER),
+                                (HashMap<String, String>) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS));
+                    } catch (ExecutionException e) {
+                        if (e.getCause() instanceof MqttException) {
+                            //caused due to connectivity issue
+                            logger.atWarn().log("Caught exception while updating job status");
+                            break;
+                        }
+                        //This happens when job status update gets rejected from the Iot Cloud
+                        //Want to remove this job from the list and continue updating others
+                        logger.atError().kv("Status", status).kv("JobId", jobId).setCause(e).log("Job status update rejected");
+                    } catch (TimeoutException e) {
+                        //assuming this is due to network issue
+                        logger.info("Timed out while updating the job status");
+                        break;
+                    } catch (InterruptedException e) {
+                        logger.atWarn().kv("JobId", jobId).kv("Status", status).log("Caught exception while updating the job status");
+                    }
+                    processedDeployments.remove(topic);
+                }
+            }
+        }).start();
+
     }
 
     private void storeDeploymentStatusInConfig(String jobId, JobStatus status, Long executionNumber,
@@ -612,7 +612,8 @@ public class DeploymentService extends EvergreenService {
                 builder.withCertificateAuthorityFromPath(null, rootCAPath).withEndpoint(clientEndpoint)
                         .withClientId(UUID.randomUUID().toString()).withCleanSession(true)
                         .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks)
-                        .withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT).withPingTimeoutMs(MQTT_PING_TIMEOUT);
+                        .withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT).withPingTimeoutMs(MQTT_PING_TIMEOUT)
+                        .withPort((short)8883);
 
                 MqttClientConnection connection = builder.build();
                 IotJobsClient iotJobsClient = new IotJobsClient(connection);
