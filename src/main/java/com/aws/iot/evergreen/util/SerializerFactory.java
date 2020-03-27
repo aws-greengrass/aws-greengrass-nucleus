@@ -6,12 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 public final class SerializerFactory {
-    private static final ObjectMapper RECIPE_SERIALIZER = new ObjectMapper(new YAMLFactory());
-
-    static {
-        RECIPE_SERIALIZER.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
-        RECIPE_SERIALIZER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-    }
+    private static final ObjectMapper RECIPE_SERIALIZER =
+            new ObjectMapper(new YAMLFactory()).configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true)
+                    .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     public static ObjectMapper getRecipeSerializer() {
         return RECIPE_SERIALIZER;
