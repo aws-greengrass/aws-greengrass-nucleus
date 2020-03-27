@@ -63,7 +63,7 @@ def main():
     cw = boto3.client("cloudwatch")  # type: Client
     datapoints = []
     event_type = os.getenv("GITHUB_EVENT_NAME", "pull_request")
-    secondary_metric_names = []
+    secondary_metric_names = set()
 
     # Generate CloudWatch metrics from our benchmarks
     for benchmark in report:
@@ -91,7 +91,7 @@ def main():
                     "Unit": convert_units(values["scoreUnit"]),
                     "Dimensions": dims
                 })
-                secondary_metric_names.append(metric_name)
+                secondary_metric_names.add(metric_name)
 
     if event_type == "push":
         # Put metrics up to CloudWatch in batches of 20 (their max limit)
