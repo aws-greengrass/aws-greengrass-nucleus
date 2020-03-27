@@ -16,11 +16,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-@SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder"})
-public class Utils {
+@SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"})
+public final class Utils {
     public static final Path HOME_PATH = Paths.get(System.getProperty("user.home"));
     private static final char[] rsChars = "abcdefghjklmnpqrstuvwxyz0123456789".toCharArray();
     private static final char[] hex = "0123456789ABCDEF".toCharArray();
+    private static final int OCTAL_RADIX = 8;
+    private static final int BASE_10 = 10;
+    private static final String TRUNCATED_STRING = "...";
     private static SecureRandom random;
 
     private Utils() {
@@ -32,6 +35,7 @@ public class Utils {
      * @param closeable object to be closed.
      * @return error if any.
      */
+    @SuppressWarnings({"PMD.UnnecessaryLocalBeforeReturn", "PMD.AvoidCatchingThrowable"})
     public static Throwable close(Object closeable) {
         if (closeable instanceof Closeable) {
             try {
@@ -51,6 +55,7 @@ public class Utils {
      * @param flushable object to be flushed.
      * @return error if any.
      */
+    @SuppressWarnings({"PMD.UnnecessaryLocalBeforeReturn", "PMD.AvoidCatchingThrowable"})
     public static Throwable flush(Object flushable) {
         if (flushable instanceof Flushable) {
             try {
@@ -210,14 +215,9 @@ public class Utils {
         for (int i = 0; i < limit; i++) {
             char c = cs.charAt(i);
             if (c != '"') {
-                if (c != '\\') {
-                    sb.append(c);
-                } else {
+                if (c == '\\') {
                     try {
                         switch (c = cs.charAt(++i)) {
-                            default:
-                                sb.append(c);
-                                break;
                             case 'b':
                                 sb.append('\b');
                                 break;
@@ -230,14 +230,19 @@ public class Utils {
                             case 't':
                                 sb.append('\t');
                                 break;
-                            case 'u': {
+                            case 'u':
                                 sb.append((char) Utils.parseLongChecked(cs, i + 1, i + 5, 16));
                                 i += 4;
-                            }
+                                break;
+                            default:
+                                sb.append(c);
+                                break;
                         }
-                    } catch (Throwable t) {
+                    } catch (NumberFormatException t) {
                         break; // bogus string format: ignore quietly
                     }
+                } else {
+                    sb.append(c);
                 }
             }
         }
@@ -285,7 +290,7 @@ public class Utils {
                 }
             }
             if (len < l0) {
-                sb.append("...");
+                sb.append(TRUNCATED_STRING);
                 olen += 3;
             }
             sb.append('"');
@@ -314,7 +319,7 @@ public class Utils {
             sb.append('[');
             for (int i = 0; i < len; i++) {
                 if (olen >= maxLength) {
-                    sb.append("...");
+                    sb.append(TRUNCATED_STRING);
                     olen += 3;
                     break;
                 }
@@ -331,7 +336,7 @@ public class Utils {
             int slot = 0;
             for (Map.Entry<?, ?> me : ((Map<?, ?>) o).entrySet()) {
                 if (olen >= maxLength) {
-                    sb.append("...");
+                    sb.append(TRUNCATED_STRING);
                     olen += 3;
                     break;
                 }
@@ -351,7 +356,7 @@ public class Utils {
             int slot = 0;
             for (Object obj : (Iterable) o) {
                 if (olen >= maxLength) {
-                    sb.append("...");
+                    sb.append(TRUNCATED_STRING);
                     olen += 3;
                     break;
                 }
@@ -400,10 +405,10 @@ public class Utils {
                 return;
             }
         }
-        if (value >= 10) {
-            appendLong(value / 10, out);
+        if (value >= BASE_10) {
+            appendLong(value / BASE_10, out);
         }
-        out.append((char) ('0' + value % 10));
+        out.append((char) ('0' + value % BASE_10));
     }
 
     public static long parseLong(CharSequence str) {
@@ -429,6 +434,7 @@ public class Utils {
      * @return the parsed long.
      * @throws NumberFormatException if the input string does not represent a long.
      */
+    @SuppressWarnings("PMD.PrematureDeclaration")
     public static long parseLongChecked(CharSequence str, int pos, int limit, int radix) {
         CharBuffer buf = CharBuffer.wrap(str, pos, limit);
         long res = parseLong(buf, radix);
@@ -444,8 +450,8 @@ public class Utils {
      * @param str input string.
      * @return long value from the string.
      */
+    @SuppressWarnings("PMD.MissingBreakInSwitch")
     public static long parseLong(CharBuffer str) {
-        long ret;
         boolean neg = false;
         int radix = 10;
         char c;
@@ -466,7 +472,7 @@ public class Utils {
                     radix = 8;
                     break;
                 default:
-                    if (radix == 8) {
+                    if (radix == OCTAL_RADIX) {
                         switch (c) {
                             case 'x':
                             case 'X':
@@ -485,7 +491,7 @@ public class Utils {
                     break scanPrefix;
             }
         }
-        ret = parseLong(str, radix);
+        long ret = parseLong(str, radix);
         return neg ? -ret : ret;
     }
 

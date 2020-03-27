@@ -26,7 +26,6 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRe
 
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

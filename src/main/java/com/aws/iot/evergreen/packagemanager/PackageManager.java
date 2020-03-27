@@ -59,14 +59,12 @@ public class PackageManager {
     //TODO mock package store in unit tests, remove this constructor
     @Deprecated
     PackageManager(final PackageRegistry packageRegistry, final Path cacheDirPath, final Path mockDirPath) {
-
         this.localCache = new LocalPackageStore(cacheDirPath);
         this.mockPackageRepository = new LocalPackageStore(mockDirPath);
         this.packageRegistry = packageRegistry;
     }
 
     PackageManager(final PackageRegistry packageRegistry, PackageStore localCache, PackageStore mockRepository) {
-
         this.localCache = localCache;
         this.packageRegistry = packageRegistry;
         this.mockPackageRepository = mockRepository;
@@ -99,7 +97,7 @@ public class PackageManager {
         try {
             downloadedPackages = downloadPackages(pendingDownloadPackages);
         } catch (IOException | PackagingException e) {
-            throw new PackageDownloadException("not all the packages have been successfully downloaded");
+            throw new PackageDownloadException("not all the packages have been successfully downloaded", e);
         }
         if (pendingDownloadPackages.size() != downloadedPackages.size()) {
             throw new PackageDownloadException("not all the packages have been successfully downloaded");
@@ -165,13 +163,13 @@ public class PackageManager {
                     }
                     PackageRegistryEntry.Reference dependOnBy =
                             dependencyPackageEntry.getDependsOnBy().get(proposedPackage.getName());
-                    if (dependOnBy != null) {
-                        dependOnBy.setVersion(proposedPackage.getVersion());
-                        dependOnBy.setConstraint(proposedPackage.getVersionConstraint());
-                    } else {
+                    if (dependOnBy == null) {
                         dependencyPackageEntry.getDependsOnBy().put(proposedPackage.getName(),
                                 new PackageRegistryEntry.Reference(proposedPackage.getName(),
                                         proposedPackage.getVersion(), proposedDependency.getVersionConstraint()));
+                    } else {
+                        dependOnBy.setVersion(proposedPackage.getVersion());
+                        dependOnBy.setConstraint(proposedPackage.getVersionConstraint());
                     }
 
                     processingQueue.add(proposedDependency);
@@ -235,7 +233,7 @@ public class PackageManager {
         Optional<Package> packageOptional;
         try {
             packageOptional = localCache.getPackage(packageEntry.getName(), packageEntry.getVersion());
-        } catch (Exception e) {
+        } catch (IOException | PackagingException e) {
             throw new PackageLoadingException(String.format("failed to load package %s from package store", name), e);
         }
 
@@ -262,20 +260,21 @@ public class PackageManager {
         }
     }
 
+    @SuppressWarnings("PMD.EmptyIfStmt")
     private PackageMetadata getDependencyPackageMetadata(String dependencyName, PackageMetadata packageMetadata) {
         // Check if we can find this dependency in deployment info
         PackageMetadata dependencyPackageMetadata = null;
-        if (packageMetadata != null) {
+        if (packageMetadata == null) {
+            // Resolved dependency subtree is different from the proposed one in deployment,
+            // hence dependency package was not found in deployment info
+            // TODO : Handle this scenario, where will previously set parameter values come from?
+        } else {
             for (PackageMetadata dependencyFromDeployment : packageMetadata.getDependsOn()) {
                 if (dependencyName.equals(dependencyFromDeployment.getName())) {
                     dependencyPackageMetadata = dependencyFromDeployment;
                     break;
                 }
             }
-        } else {
-            // Resolved depdency subtree is different from the proposed one in deployment,
-            // hence dependency package was not found in deployment info
-            // TODO : Handle this scenario, where will previously set parameter values come from?
         }
         return dependencyPackageMetadata;
     }

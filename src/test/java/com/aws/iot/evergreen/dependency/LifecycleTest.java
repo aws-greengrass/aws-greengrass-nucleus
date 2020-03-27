@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+@SuppressWarnings({"PMD.CloseResource", "PMD.NonStaticInitializer"})
 public class LifecycleTest {
     static int seq;
     static CountDownLatch cd;
@@ -99,7 +100,8 @@ public class LifecycleTest {
     public static class c2 extends EvergreenService {
         final String id = "c2/" + ++seq;
         //        @Inject @StartWhen(NEW) c1 parent;
-        public boolean shutdownCalled, startupCalled;
+        public boolean shutdownCalled;
+        public boolean startupCalled;
         @Inject
         c3 C3;
 
@@ -158,7 +160,9 @@ public class LifecycleTest {
         final String id = "c1/" + ++seq;
         @Inject
         public c2 C2;
-        public boolean shutdownCalled, startupCalled, installCalled;
+        public boolean shutdownCalled;
+        public boolean startupCalled;
+        public boolean installCalled;
 
         {
             System.out.println("Creating  " + this);

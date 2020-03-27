@@ -95,6 +95,7 @@ public class IotJobsHelper {
      * @param status           The {@link JobStatus} to which to update
      * @param statusDetailsMap map with job status details
      */
+    @SuppressWarnings("PMD.LooseCoupling")
     public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap) {
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;

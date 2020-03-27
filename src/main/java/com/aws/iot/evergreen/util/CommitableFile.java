@@ -15,7 +15,8 @@ import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
  * made permanent.  If it is closed or the process exits before the commit, the old
  * version of the file remains.
  */
-public class CommitableFile extends FileOutputStream implements Commitable {
+@SuppressWarnings("PMD.AvoidFileStream")
+public final class CommitableFile extends FileOutputStream implements Commitable {
     private final Path newVersion;
     private final Path target;
     private final Path backup;
