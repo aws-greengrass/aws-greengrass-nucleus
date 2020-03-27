@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.util;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.Getter;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -41,14 +42,15 @@ import javax.annotation.Nullable;
  * .background(exc -> System.out.println("exit "+exc));
  * </pre>
  */
-@SuppressWarnings({"checkstyle:emptycatchblock"})
-public class Exec implements Closeable {
+@SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable", "PMD.AssignmentInOperand"})
+public final class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
     private static final Consumer<CharSequence> NOP = s -> {
     };
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
+    @SuppressWarnings("PMD.LooseCoupling")
     private static final LinkedList<Path> paths = new LinkedList<>();
     private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
             "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
@@ -74,7 +76,6 @@ public class Exec implements Closeable {
                     }
                 } catch (Throwable ignored) {
                 }
-                //                    System.out.println("Read from process: "+path);
             });
             bg.start();
             // TODO: configurable timeout?
@@ -91,16 +92,16 @@ public class Exec implements Closeable {
     private String[] environment = defaultEnvironment;
     private String[] cmds;
     private File dir = userdir;
-    private Process process;
+    Process process;
     private long timeout = -1;
     private TimeUnit timeunit = TimeUnit.SECONDS;
-    private IntConsumer whenDone;
-    private Consumer<CharSequence> stdout = NOP;
-    private Consumer<CharSequence> stderr = NOP;
+    IntConsumer whenDone;
+    Consumer<CharSequence> stdout = NOP;
+    Consumer<CharSequence> stderr = NOP;
     private Copier stderrc;
     private Copier stdoutc;
     private boolean closed = false;
-    private AtomicInteger numberOfCopiers;
+    AtomicInteger numberOfCopiers;
 
     public static void setDefaultEnv(String key, CharSequence value) {
         defaultEnvironment = setenv(defaultEnvironment, key, value, false);
@@ -159,7 +160,7 @@ public class Exec implements Closeable {
 
     public boolean successful(boolean ignoreStderr) throws InterruptedException {
         exec();
-        return (ignoreStderr || stderrc.nlines == 0) && process.exitValue() == 0;
+        return (ignoreStderr || stderrc.getNlines() == 0) && process.exitValue() == 0;
     }
 
     /**
@@ -291,6 +292,7 @@ public class Exec implements Closeable {
         return this;
     }
 
+    @SuppressWarnings("PMD.SystemPrintln")
     public Exec withDumpOut() {
         return withOut(l -> System.out.println("stderr: " + l)).withErr(l -> System.out.println("stdout: " + l));
     }
@@ -305,6 +307,7 @@ public class Exec implements Closeable {
         return this;
     }
 
+    @SuppressWarnings("PMD.AvoidRethrowingException")
     private void exec() throws InterruptedException {
         try {
             process = Runtime.getRuntime().exec(cmds, environment, dir);
@@ -318,7 +321,7 @@ public class Exec implements Closeable {
                         process.waitFor();
                     } else {
                         if (!process.waitFor(timeout, timeunit)) {
-                            (stderr != null ? stderr : stdout).accept("\n[TIMEOUT]\n");
+                            (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
                             process.destroyForcibly();
                         }
                     }
@@ -326,7 +329,7 @@ public class Exec implements Closeable {
                     // We just got interrupted by something like the cancel(true) in setBackingTask
                     // Give the process a touch more time to exit cleanly
                     if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                        (stderr != null ? stderr : stdout).accept("\n[TIMEOUT after InterruptedException]\n");
+                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
                         process.destroyForcibly();
                     }
                     throw ie;
@@ -334,13 +337,12 @@ public class Exec implements Closeable {
                 stderrc.join(5000);
                 stdoutc.join(5000);
             }
+        } catch (InterruptedException ex) {
+            // The thread was interrupted while we were executing. We rethrow the exception
+            // so that the caller knows to be interrupted and stop processing so that the
+            // thread can shutdown gracefully
+            throw ex;
         } catch (Throwable ex) {
-            // If the throwable is InterruptedException, then the thread was interrupted
-            // while we were executing. We rethrow the exception so that the caller knows
-            // to be interrupted and stop processing so that the thread can shutdown gracefully
-            if (ex instanceof InterruptedException) {
-                throw (InterruptedException) ex;
-            }
             if (stderr != null) {
                 appendStackTrace(ex, stderr);
             }
@@ -365,10 +367,11 @@ public class Exec implements Closeable {
         exec();
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     synchronized void setClosed() {
         if (!closed) {
             final IntConsumer wd = whenDone;
-            final int exit = process != null ? process.exitValue() : -1;
+            final int exit = process == null ? -1 : process.exitValue();
             closed = true;
             process = null;
             stderrc = null;
@@ -405,17 +408,19 @@ public class Exec implements Closeable {
 
     @Override
     public synchronized void close() throws IOException {
-        if (!closed) {
-            Process p = process;
-            if (p != null) {
-                p.destroy();
-                // TODO: configurable timeout?
-                if (!waitClosed(2000)) {
-                    p.destroyForcibly();
-                    if (!waitClosed(5000)) {
-                        throw new IOException("Could not stop " + this);
-                    }
-                }
+        if (closed) {
+            return;
+        }
+        Process p = process;
+        if (p == null) {
+            return;
+        }
+        p.destroy();
+        // TODO: configurable timeout?
+        if (!waitClosed(2000)) {
+            p.destroyForcibly();
+            if (!waitClosed(5000)) {
+                throw new IOException("Could not stop " + this);
             }
         }
     }
@@ -431,9 +436,11 @@ public class Exec implements Closeable {
     private class Copier extends Thread {
         private final Consumer<CharSequence> out;
         private final InputStream in;
-        int nlines = 0;
+        @Getter
+        private int nlines = 0;
 
         Copier(InputStream i, Consumer<CharSequence> s) {
+            super();
             in = i;
             out = s;
             // Set as a daemon thread so that it dies when the main thread exits
@@ -449,6 +456,7 @@ public class Exec implements Closeable {
         }
 
         @Override
+        @SuppressWarnings("PMD.AssignmentInOperand")
         public void run() {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
                 StringBuilder sb = new StringBuilder();

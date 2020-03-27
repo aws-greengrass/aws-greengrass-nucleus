@@ -18,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -249,10 +248,6 @@ public class KernelConfigResolverTest {
                 (Iterable<String>)getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
         return StreamSupport.stream(dependencyList.spliterator(), false)
                             .anyMatch(itr -> itr.equals(dependencyName));
-    }
-
-    private Iterable<String> getServiceDependencies(String serviceName, Map<Object, Object> config) {
-        return (Iterable<String>)getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
     }
 
     private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {

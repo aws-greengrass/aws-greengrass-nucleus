@@ -3,7 +3,7 @@ package com.aws.iot.evergreen.integrationtests.kernel;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.Kernel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class KernelShutdownTest extends AbstractBaseITCase {
+class KernelShutdownTest extends BaseITCase {
 
     private Kernel kernel;
 
@@ -32,19 +32,15 @@ class KernelShutdownTest extends AbstractBaseITCase {
         AtomicBoolean sleeperBClosed = new AtomicBoolean(false);
 
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.isClosable()) {
+            if ("main".equals(service.getName()) && newState.isClosable()) {
                 mainClosed.set(true);
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (mainClosed.get()) {
-                if (service.getName().equals("sleeperA") && newState.isClosable()) {
-                    sleeperAClosed.set(true);
-                }
+            if (mainClosed.get() && "sleeperA".equals(service.getName()) && newState.isClosable()) {
+                sleeperAClosed.set(true);
             }
-            if (sleeperAClosed.get()) {
-                if (service.getName().equals("sleeperB") && newState.isClosable()) {
-                    sleeperBClosed.set(true);
-                }
+            if (sleeperAClosed.get() && "sleeperB".equals(service.getName()) && newState.isClosable()) {
+                sleeperBClosed.set(true);
             }
         });
 

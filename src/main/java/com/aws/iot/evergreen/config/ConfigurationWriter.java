@@ -107,7 +107,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                 out.append(',');
                 n.appendNameTo(out);
                 out.append(',');
-                Coerce.toParseableString(n.getOnce(), out);
+                Coerce.appendParseableString(n.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
                 logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())

@@ -14,10 +14,12 @@ public class AppendableWriter extends Writer {
     private final Appendable appendable;
 
     public AppendableWriter(Appendable appendable) {
+        super();
         this.appendable = appendable;
     }
 
     @Override
+    @SuppressWarnings("PMD.AssignmentInOperand")
     public void write(@Nonnull char[] buf, int offset, int len) throws IOException {
         while (--len >= 0) {
             appendable.append(buf[offset++]);

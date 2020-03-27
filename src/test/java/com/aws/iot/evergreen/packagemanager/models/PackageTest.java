@@ -13,6 +13,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,8 +60,8 @@ public class PackageTest {
         Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
         Package monitorServicePkgCopy = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
-        assertTrue(monitorServicePkg.equals(monitorServicePkgCopy));
-        assertTrue(monitorServicePkg.hashCode() == monitorServicePkgCopy.hashCode());
+        assertEquals(monitorServicePkg, monitorServicePkgCopy);
+        assertEquals(monitorServicePkg.hashCode(), monitorServicePkgCopy.hashCode());
     }
 
     @Test
@@ -75,8 +76,8 @@ public class PackageTest {
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0");
         Package monitorService11Pkg = TestHelper.getPackageObject(monitorService11RecipeContents);
 
-        assertFalse(monitorServicePkg.equals(monitorService11Pkg));
-        assertFalse(monitorServicePkg.hashCode() == monitorService11Pkg.hashCode());
+        assertNotEquals(monitorServicePkg, monitorService11Pkg);
+        assertNotEquals(monitorServicePkg.hashCode(), monitorService11Pkg.hashCode());
     }
 
     @Test
@@ -91,11 +92,11 @@ public class PackageTest {
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.CONVEYOR_BELT_PACKAGE_NAME, "1.0.0");
         Package conveyorBeltPkg = TestHelper.getPackageObject(conveyorBeltRecipeContents);
 
-        assertFalse(monitorServicePkg.equals(conveyorBeltPkg));
-        assertFalse(monitorServicePkg.hashCode() == conveyorBeltPkg.hashCode());
+        assertNotEquals(monitorServicePkg, conveyorBeltPkg);
+        assertNotEquals(monitorServicePkg.hashCode(), conveyorBeltPkg.hashCode());
 
         // Input is not a package
-        assertFalse(monitorServicePkg.equals(conveyorBeltRecipeContents));
+        assertNotEquals(monitorServicePkg, conveyorBeltRecipeContents);
     }
 
     @Test

@@ -69,18 +69,18 @@ class PackageManagerTest {
     //  T
     @Test
     void GIVEN_proposed_tree_WHEN_new_device_THEN_decide_package_version() throws PackageVersionConflictException {
-        PackageMetadata T1 = new PackageMetadata("T", "2.0.0", ">=1.0.0");
-        PackageMetadata B =
-                new PackageMetadata("B", "1.0.0", ">=1.0.0", Collections.singleton(T1), Collections.emptySet());
-        PackageMetadata T2 = new PackageMetadata("T", "2.0.0", ">=2.0.0");
-        PackageMetadata Q =
-                new PackageMetadata("Q", "1.0.0", ">=1.0.0", Collections.singleton(T2), Collections.emptySet());
+        PackageMetadata t1 = new PackageMetadata("T", "2.0.0", ">=1.0.0");
+        PackageMetadata b =
+                new PackageMetadata("B", "1.0.0", ">=1.0.0", Collections.singleton(t1), Collections.emptySet());
+        PackageMetadata t2 = new PackageMetadata("T", "2.0.0", ">=2.0.0");
+        PackageMetadata q =
+                new PackageMetadata("Q", "1.0.0", ">=1.0.0", Collections.singleton(t2), Collections.emptySet());
 
-        PackageMetadata A = new PackageMetadata("A", "1.0.0", ">=1.0.0", new HashSet<>(Arrays.asList(B, Q)),
+        PackageMetadata a = new PackageMetadata("A", "1.0.0", ">=1.0.0", new HashSet<>(Arrays.asList(b, q)),
                 Collections.emptySet());
 
         Map<String, PackageRegistryEntry> devicePackages = new HashMap<>();
-        packageManager.resolveDependencies(A, devicePackages);
+        packageManager.resolveDependencies(a, devicePackages);
 
         assertThat(devicePackages.size(), is(4));
         assertThat(devicePackages.get("A").getVersion().getValue(), is("1.0.0"));

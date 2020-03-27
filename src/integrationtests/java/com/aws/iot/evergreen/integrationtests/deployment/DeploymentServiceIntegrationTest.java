@@ -180,7 +180,7 @@ class DeploymentServiceIntegrationTest {
 
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "CustomerAppAndYellowSignal.json").toURI(), System.currentTimeMillis());
-        result.get(30, TimeUnit.SECONDS);;
+        result.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
@@ -210,8 +210,8 @@ class DeploymentServiceIntegrationTest {
         assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "GreenSignal"));
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) {
-
         try {
             sampleDeploymentDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         } catch (Exception e) {

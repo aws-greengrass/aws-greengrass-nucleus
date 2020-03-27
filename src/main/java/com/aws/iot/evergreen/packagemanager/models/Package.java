@@ -71,6 +71,7 @@ public class Package {
      * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
                    @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
                    @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
@@ -78,7 +79,7 @@ public class Package {
                    @JsonProperty("Lifecycle") Map<String, Object> lifecycle,
                    @JsonProperty("Artifacts") List<String> artifacts,
                    @JsonProperty("Dependencies") Map<String, String> dependencies,
-                   @JsonProperty("Requires") List<String> requires) throws SemverException {
+                   @JsonProperty("Requires") List<String> requires) {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -86,11 +87,11 @@ public class Package {
         this.version = new Semver(version.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
-        this.packageParameters = packageParameters != null ? packageParameters : Collections.emptySet();
-        this.lifecycle = lifecycle != null ? lifecycle : Collections.emptyMap();
-        this.artifacts = artifacts != null ? artifacts : Collections.emptyList();
-        this.dependencies = dependencies != null ? dependencies : Collections.emptyMap();
-        this.requires = requires != null ? requires : Collections.emptyList();
+        this.packageParameters = packageParameters == null ? Collections.emptySet() : packageParameters;
+        this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
+        this.artifacts = artifacts == null ? Collections.emptyList() : artifacts;
+        this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
+        this.requires = requires == null ? Collections.emptyList() : requires;
         this.dependencyPackages = new HashSet<>();
     }
 

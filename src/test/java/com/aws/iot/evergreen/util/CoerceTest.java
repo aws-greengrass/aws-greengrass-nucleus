@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import static com.aws.iot.evergreen.util.Coerce.toBoolean;
 import static com.aws.iot.evergreen.util.Coerce.toDouble;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
-import static com.aws.iot.evergreen.util.Coerce.toQuotedString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -43,9 +42,9 @@ public class CoerceTest {
 
     @Test
     public void T3() {
-        assertEquals("\"xx\"", toQuotedString("xx"));
-        assertEquals("\"x\\nx\"", toQuotedString("x\nx"));
-        assertEquals("\"x\\nx\\u0022\"", toQuotedString("x\nx\""));
+        assertEquals("\"xx\"", Coerce.toQuotedString("xx"));
+        assertEquals("\"x\\nx\"", Coerce.toQuotedString("x\nx"));
+        assertEquals("\"x\\nx\\u0022\"", Coerce.toQuotedString("x\nx\""));
     }
 
     @Test
@@ -73,8 +72,8 @@ public class CoerceTest {
         t("foo, , baz", "foo", "", "baz");
     }
 
-    void t(String T, String... expect) {
-        String[] t = Coerce.toStringArray(T);
+    void t(String s, String... expect) {
+        String[] t = Coerce.toStringArray(s);
         int len = t.length;
         assertEquals(len, expect.length);
         for (int i = 0; i < len; i++) {

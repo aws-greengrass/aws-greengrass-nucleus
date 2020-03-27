@@ -44,15 +44,12 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
 
-    private EvergreenService.GlobalStateChangeListener onServiceChange = (service, oldState, newState) -> {
+    private final EvergreenService.GlobalStateChangeListener onServiceChange = (service, oldState, newState) -> {
         Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
         if (callbacks != null) {
             callbacks.values().forEach(x -> x.accept(oldState, newState));
         }
     };
-
-    public LifecycleIPCAgent() {
-    }
 
     @Override
     public void postInject() {
@@ -131,7 +128,9 @@ public class LifecycleIPCAgent implements InjectionActions {
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
                     } catch (IOException | InterruptedException | ExecutionException e) {
                         // Log
-                        e.printStackTrace();
+                        log.atError("error-sending-lifecycle-update")
+                                .kv("context", context)
+                                .log("Error sending lifecycle update to client", e);
                     }
                 }
             });

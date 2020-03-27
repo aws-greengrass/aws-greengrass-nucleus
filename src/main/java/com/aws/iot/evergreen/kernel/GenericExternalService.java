@@ -19,6 +19,7 @@ import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
@@ -119,6 +120,7 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void shutdown() {
         inShutdown = true;
         try {
@@ -168,6 +170,7 @@ public class GenericExternalService extends EvergreenService {
     }
 
     // TODO: return Exec along with RunStatus instead of setting currentScript in this function
+    @SuppressWarnings("PMD.CloseResource")
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         final EZTemplates templateEngine = context.get(EZTemplates.class);
@@ -204,13 +207,13 @@ public class GenericExternalService extends EvergreenService {
 
     boolean shouldSkip(Topics n) {
         Node skipif = n.getChild("skipif");
-        if (skipif != null && skipif instanceof Topic) {
+        if (skipif instanceof Topic) {
             Topic tp = (Topic) skipif;
             String expr = String.valueOf(tp.getOnce()).trim();
             boolean neg = false;
             if (expr.startsWith("!")) {
                 expr = expr.substring(1).trim();
-                neg = !neg;
+                neg = true;
             }
             expr = context.get(EZTemplates.class).rewrite(expr).toString();
             Matcher m = skipcmd.matcher(expr);
