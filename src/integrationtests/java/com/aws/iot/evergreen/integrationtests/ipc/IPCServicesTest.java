@@ -78,7 +78,7 @@ class IPCServicesTest {
 
     @AfterAll
     static void teardown() {
-        kernel.shutdownNow();
+        kernel.shutdown();
     }
 
     @Test
