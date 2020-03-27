@@ -92,7 +92,7 @@ public class DeploymentE2ETest {
 
         // Create job targeting our DUT
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
-        String[] targets = new String[]{thing.thingArn};
+        String[] targets = {thing.thingArn};
         String jobId = Utils.createJob(document, targets);
 
         // Wait up to 5 minutes for the job to complete
@@ -100,7 +100,7 @@ public class DeploymentE2ETest {
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
         assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "CustomerApp").getState());
-        kernel.shutdownNow();
+        kernel.shutdown();
 
         // Make sure that IoT Job was marked as successful
         assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(

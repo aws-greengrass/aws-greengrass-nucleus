@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
-public class Coerce {
+public final class Coerce {
     public static final Object removed = new Object() {
         @Override
         public String toString() {
@@ -216,7 +216,7 @@ public class Coerce {
         }
         StringBuilder sb = new StringBuilder();
         try {
-            toQuotedString(o, sb);
+            appendQuotedString(o, sb);
         } catch (IOException ignored) {
         }
         return sb.toString();
@@ -229,7 +229,7 @@ public class Coerce {
      * @param out appendable to append to.
      * @throws IOException if the append fails.
      */
-    public static void toQuotedString(Object o, Appendable out) throws IOException {
+    public static void appendQuotedString(Object o, Appendable out) throws IOException {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
         }
@@ -253,6 +253,7 @@ public class Coerce {
                         default:
                             out.append("\\u");
                             appendHexString(c, out, 4);
+                            break;
                     }
                 } else {
                     out.append(c);
@@ -269,7 +270,7 @@ public class Coerce {
      * @param out appendable to write to.
      * @throws IOException if the append fails.
      */
-    public static void toParseableString(Object o, Appendable out) throws IOException {
+    public static void appendParseableString(Object o, Appendable out) throws IOException {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
         }
@@ -278,7 +279,7 @@ public class Coerce {
         } else if (o instanceof Boolean || o instanceof Number) {
             out.append(o.toString());
         } else {
-            toQuotedString(o, out);
+            appendQuotedString(o, out);
         }
     }
 
@@ -319,7 +320,7 @@ public class Coerce {
                 return li;
             }
             return d;
-        } catch (Throwable ignored) {
+        } catch (NumberFormatException ignored) {
         }
         if ("null".equals(s)) {
             return null;

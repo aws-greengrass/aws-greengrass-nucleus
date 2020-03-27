@@ -4,6 +4,8 @@ package com.aws.iot.evergreen.kernel.exceptions;
  * Generic checked exception to be used when an invalid input is provided.
  */
 public class InputValidationException extends Exception {
+    static final long serialVersionUID = -3387516993124229948L;
+
     public InputValidationException() {
         super();
     }

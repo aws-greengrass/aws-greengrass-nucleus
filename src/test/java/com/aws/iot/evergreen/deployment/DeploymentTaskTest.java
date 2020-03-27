@@ -3,7 +3,6 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -22,6 +21,7 @@ import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
@@ -46,13 +45,11 @@ public class DeploymentTaskTest {
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private Kernel mockKernel;
-    @Mock
-    private EvergreenService mainService;
-    private DeploymentDocument deploymentDocument =
+    private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
                     .rootPackages(Collections.EMPTY_LIST).build();
 
-    private Logger logger = LogManager.getLogger("unit test");
+    private final Logger logger = LogManager.getLogger("unit test");
 
     private DeploymentTask deploymentTask;
 
@@ -92,8 +89,8 @@ public class DeploymentTaskTest {
     @Test
     public void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_LIST)).thenThrow(
-                new PackagingException("mock error"));
+        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.EMPTY_LIST))
+                .thenThrow(new PackagingException("mock error"));
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackagingException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
@@ -111,7 +108,7 @@ public class DeploymentTaskTest {
         t.start();
 
         t.interrupt();
-        Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get());
+        Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get(5, TimeUnit.SECONDS));
         assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.EMPTY_LIST);
         verify(mockPackageCache).preparePackages(anyList());

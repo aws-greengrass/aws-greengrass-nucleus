@@ -24,7 +24,7 @@ import static com.aws.iot.evergreen.util.Utils.parseLong;
 /**
  * Support for services that are periodic. For now, it's very simplistic.
  */
-public class Periodicity {
+public final class Periodicity {
     /**
      * Just using raw milliseconds: finer precision isn't realistic at this
      * point.
@@ -33,17 +33,17 @@ public class Periodicity {
     private final Topic phase;
     private final Topic fuzz;
     private final EvergreenService service;
-    private ScheduledFuture future;
+    private ScheduledFuture<?> future;
 
     private static final float DEFAULT_FUZZ_FACTOR = 0.5f;
 
-    private Periodicity(Topic i, Topic f, Topic p, EvergreenService s) throws IllegalArgumentException {
+    private Periodicity(Topic i, Topic f, Topic p, EvergreenService s) {
         // f is a random "fuzz factor" to add some noise to the phase offset so that
         // if (for example) there are many devices doing periodic reports,they don't all
         // do it at the same time
-        interval = i != null ? i : Topic.of(s.context, "interval", TimeUnit.MINUTES.toMillis(5));
-        fuzz = f != null ? f : Topic.of(s.context, "fuzz", 0.5);
-        phase = p != null ? p : Topic.of(s.context, "phase", 0);
+        interval = i == null ? Topic.of(s.context, "interval", TimeUnit.MINUTES.toMillis(5)) : i;
+        fuzz = f == null ? Topic.of(s.context, "fuzz", 0.5) : f;
+        phase = p == null ? Topic.of(s.context, "phase", 0) : p;
         service = s;
     }
 
@@ -81,10 +81,9 @@ public class Periodicity {
                 return null;
             }
             return ret;
-        } catch (Throwable t) {
-            s.logger.atError().setCause(t).setEventType("service-invalid-config")
-                    .addKeyValue("parameter", Utils.deepToString(n)).addKeyValue("serviceName", s.getName())
-                    .log("Unparseable periodic parameter");
+        } catch (NumberFormatException t) {
+            s.logger.atError("service-invalid-config").setCause(t).kv("parameter", Utils.deepToString(n))
+                    .kv(EvergreenService.SERVICE_NAME_KEY, s.getName()).log("Unparseable periodic parameter");
             s.serviceErrored(t);
         }
         return null;
@@ -92,6 +91,7 @@ public class Periodicity {
 
     // TODO: use of parseInterval to parse the phase offset is wholly inadequate: it should
     // allow for all sorts of complexity, like being relative to local time (eg. 2am)
+    @SuppressWarnings("PMD.DefaultLabelNotLastInSwitchStmt")
     static long parseInterval(String v) {
         CharBuffer p = CharBuffer.wrap(v);
         long n = parseLong(p);
@@ -136,12 +136,8 @@ public class Periodicity {
         return n * tu;
     }
 
-    public static long parseTime(String v) {
-        return 100 + System.currentTimeMillis();  // TODO: replace this total hack
-    }
-
     private synchronized void start(ScheduledExecutorService ses, Runnable r) {
-        Future f = future;
+        Future<?> f = future;
         if (f != null) {
             f.cancel(false);
         }
@@ -157,7 +153,7 @@ public class Periodicity {
             if (fuzzFactor > 1) {
                 fuzzFactor = 1;
             }
-        } catch (Throwable t) {
+        } catch (NumberFormatException t) {
             service.logger.atWarn().addKeyValue("factor", Coerce.toString(fuzz)).setCause(t)
                     .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default");
             fuzzFactor = DEFAULT_FUZZ_FACTOR;
@@ -177,8 +173,9 @@ public class Periodicity {
     /**
      * Shutdown the periodic task.
      */
+    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void shutdown() {
-        Future f = future;
+        Future<?> f = future;
         if (f != null) {
             f.cancel(true);
             future = null;

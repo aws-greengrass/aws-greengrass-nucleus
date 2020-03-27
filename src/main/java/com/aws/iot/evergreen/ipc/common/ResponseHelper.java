@@ -9,7 +9,10 @@ import io.netty.channel.ChannelHandlerContext;
 
 import java.io.IOException;
 
-public class ResponseHelper {
+public final class ResponseHelper {
+    private ResponseHelper() {
+    }
+
     /**
      * Send a message in response over the channel.
      *

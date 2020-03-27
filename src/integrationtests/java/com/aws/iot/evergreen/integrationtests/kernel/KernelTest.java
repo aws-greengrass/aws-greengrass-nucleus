@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-class KernelTest extends AbstractBaseITCase {
+class KernelTest extends BaseITCase {
     private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
             {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
                     //new ExpectedStdoutPattern("docs.docker.com/", "docker hello world"),
@@ -38,6 +38,7 @@ class KernelTest extends AbstractBaseITCase {
     private static final CountDownLatch[] COUNT_DOWN_LATCHES =
             {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
 
+    @SuppressWarnings("PMD.AssignmentInOperand")
     @Test
     void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
 
@@ -153,7 +154,7 @@ class KernelTest extends AbstractBaseITCase {
         kernel.launch();
         assertionLatch.await(60, TimeUnit.SECONDS);
 
-        kernel.shutdownNow();
+        kernel.shutdown();
 
         if (!expectedStateTransitionList.isEmpty()) {
             expectedStateTransitionList.forEach(e -> System.err.println(

@@ -18,6 +18,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
 public class UtilsTest {
 
     private static void testLparse1(String s, long expecting, String remaining) {

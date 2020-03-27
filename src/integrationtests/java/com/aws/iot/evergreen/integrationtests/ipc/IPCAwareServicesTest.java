@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Exec;
@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class IPCAwareServicesTest extends AbstractBaseITCase {
+class IPCAwareServicesTest extends BaseITCase {
 
     private static final String SAMPLE_IPC_AWARE_SERVICE_NAME = "main";
 
@@ -31,7 +31,6 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
         // start kernel
         kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("ipc_aware_main.yaml").toString());
-        kernel.launch();
     }
 
     @AfterEach
@@ -48,6 +47,7 @@ class IPCAwareServicesTest extends AbstractBaseITCase {
             }
         };
         kernel.context.addGlobalStateChangeListener(listener);
+        kernel.launch();
 
         // waiting for main to transition to running
         boolean isRunning = serviceRunning.await(60, TimeUnit.SECONDS);

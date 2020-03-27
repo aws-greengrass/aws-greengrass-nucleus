@@ -1,8 +1,9 @@
 ---
 services:
   plain:
-    startup:
-      all: "{platform.invoke} {args}"
+    lifecycle:
+      startup:
+        all: "{platform.invoke} {args}"
 
   sleeperB:
     lifecycle:

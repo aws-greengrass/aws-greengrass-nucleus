@@ -5,9 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -16,7 +14,6 @@ import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
@@ -45,9 +42,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,6 +55,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -67,11 +67,12 @@ import static com.aws.iot.evergreen.util.Utils.deepToString;
  * Evergreen-kernel.
  */
 @SuppressFBWarnings(value = "EQ_DOESNT_OVERRIDE_EQUALS", justification = "We don't need equality")
+@SuppressWarnings({"PMD.AvoidCatchingThrowable"})
 public class Kernel extends Configuration /*implements Runnable*/ {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
-    private static final String done = new String(" missing ".toCharArray()); // unique marker
-    private final Map<String, Class> serviceImplementors = new HashMap<>();
-    private final List<String> serviceServerURLList = new ArrayList<>();
+    private static final String done = " missing "; // unique marker
+    public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
+    private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
     public Path rootPath;
     public Path configPath;
     public Path clitoolPath;
@@ -89,8 +90,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String[] args;
     private String arg;
     private int argpos = 0;
-    private boolean serviceServerURLListIsPopulated;
-    private AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
+    private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
 
     /**
      * Construct the Kernel and global Context.
@@ -118,13 +118,14 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param args user-provided arguments
      */
+    @SuppressWarnings("PMD.AssignmentInOperand")
     public Kernel parseArgs(String... args) {
         this.args = args;
 
         // Get root path from System Property/JVM argument. Default to home path
         String rootAbsolutePath = System.getProperty("root", System.getProperty("user.home"));
         if (Utils.isEmpty(rootAbsolutePath) || !ensureCreated(Paths.get(rootAbsolutePath))) {
-            System.err.println(rootAbsolutePath + ": not a valid root directory");
+            logger.atError().log("{}: not a valid root directory", rootAbsolutePath);
             broken = true;
         }
 
@@ -147,16 +148,12 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         haveRead = true;
                     } catch (Throwable ex) {
                         broken = true;
-                        System.out.println("Can't read " + arg + ": " + ex.getLocalizedMessage());
+                        logger.atError().log("Can't read config file {}", arg, ex.getLocalizedMessage());
                     }
                     break;
                 case "-log":
                 case "-l":
                     lookup("log", "file").setValue(getArg());
-                    break;
-                case "-search":
-                case "-s":
-                    addServiceSearchURL(getArg());
                     break;
                 case "-main":
                     mainServiceName = getArg();
@@ -165,7 +162,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     writeConfig(new OutputStreamWriter(System.out, StandardCharsets.UTF_8));
                     break;
                 default:
-                    System.err.println("Undefined command line argument: " + arg);
+                    logger.atError().log("Undefined command line argument: {}", arg);
                     broken = true;
                     break;
             }
@@ -189,6 +186,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     if ((value = System.getProperty(expr)) == null && (value = System.getenv(expr)) == null) {
                         value = find(splitPath(expr));
                     }
+                    break;
             }
             return value;
         });
@@ -214,7 +212,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * Startup the Kernel and all services.
      */
     public Kernel launch() {
-        System.out.println("root path = " + rootPath + "\n\t" + configPath);
+        logger.atInfo().log("root path = {}. config path = {}", rootPath, configPath);
         installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
         Queue<String> autostart = new LinkedList<>();
         if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath) || !ensureCreated(
@@ -227,8 +225,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             pim.setCacheDirectory(rootPath.resolve("plugins"));
             pim.annotated(ImplementsService.class, cl -> {
                 if (!EvergreenService.class.isAssignableFrom(cl)) {
-                    System.err.println(
-                            cl + " needs to be a subclass of EvergreenService in order to use ImplementsService");
+                    logger.atError()
+                            .log("{} needs to be a subclass of EvergreenService in order to use ImplementsService", cl);
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
@@ -236,16 +234,16 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     autostart.add(is.name());
                 }
                 serviceImplementors.put(is.name(), cl);
-                System.out.println("Found Plugin: " + cl.getSimpleName());
+                logger.atInfo().log("Found Plugin: {}", cl.getSimpleName());
             });
 
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
                 context.put("service-implementors", serviceImplementors);
             }
-            System.out.println("serviceImplementors: " + deepToString(serviceImplementors));
+            logger.atInfo().log("serviceImplementors: {}", deepToString(serviceImplementors));
         } catch (Throwable t) {
-            System.err.println("Error launching plugins: " + t);
+            logger.atError().log("Error launching plugins", t);
         }
         Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
         Path configurationFile = configPath.resolve("config.yaml"); //Paths.get(deTilde("~root/config/config.yaml"));
@@ -263,9 +261,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         read(transactionLogPath);
                     }
                 }
-                //                if(size()<=1) {
-                //                    read(Kernel.class.getResource("default.yaml"));
-                //                }
                 tlog = ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
                 tlog.flushImmediately(true);
             } catch (Throwable ioe) {
@@ -275,8 +270,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 return this;
             }
         }
-        //        if (broken)
-        //            System.exit(126);
+        if (broken) {
+            throw new RuntimeException("Kernel is broken and cannot start. View logs for the reason why it is broken.");
+        }
         if (!forReal) {
             context.put(ShellRunner.class, context.get(ShellRunner.Dryrun.class));
         }
@@ -284,7 +280,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             mainService = getMain();
             autostart.forEach(s -> {
                 try {
-                    mainService.addDependency(EvergreenService.locate(context, s), State.RUNNING);
+                    mainService.addOrUpdateDependency(EvergreenService.locate(context, s), State.RUNNING, true);
                 } catch (ServiceLoadException se) {
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
@@ -358,6 +354,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void clearODcache() {
         cachedOD = null;
     }
@@ -455,7 +452,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             return;
         }
         orderedDependencies().forEach(l -> {
-            logger.atInfo().setEventType("service-install").addKeyValue("serviceName", l.getName()).log();
+            logger.atInfo().setEventType("service-install").addKeyValue(EvergreenService.SERVICE_NAME_KEY, l.getName())
+                    .log();
             l.requestStart();
         });
     }
@@ -469,7 +467,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param timeoutSeconds Timeout in seconds
      */
-    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED")
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
+    @SuppressWarnings("PMD.AssignmentInOperand")
     public void shutdown(int timeoutSeconds) {
         if (broken) {
             return;
@@ -482,23 +481,35 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
-            CountDownLatch allServicesExitedLatch = new CountDownLatch(d.length);
 
+            CompletableFuture[] arr = new CompletableFuture[d.length];
             for (int i = d.length; --i >= 0; ) { // shutdown in reverse order
+                String serviceName = d[i].getName();
                 try {
-                    d[i].close();
-                    d[i].getStateTopic().subscribe((WhatHappened what, Topic t) -> {
-                        if (((State) t.getOnce()).isClosable()) {
-                            allServicesExitedLatch.countDown();
+                    arr[i] = (CompletableFuture) d[i].close();
+                    arr[i].whenComplete((v, t) -> {
+                        if (t != null) {
+                            logger.atError().setEventType("service-shutdown-error")
+                                    .addKeyValue("serviceName", serviceName)
+                                    .setCause((Throwable) t).log();
                         }
+
                     });
                 } catch (Throwable t) {
-                    logger.atError().setEventType("service-shutdown-error").addKeyValue("serviceName", d[i].getName())
+                    logger.atError().setEventType("service-shutdown-error")
+                            .addKeyValue(EvergreenService.SERVICE_NAME_KEY, serviceName)
                             .setCause(t).log();
+                    arr[i] = CompletableFuture.completedFuture(Optional.empty());
                 }
             }
 
-            allServicesExitedLatch.await(timeoutSeconds, TimeUnit.SECONDS);
+            try {
+                CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
+                combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
+            } catch (ExecutionException | InterruptedException | TimeoutException e) {
+                logger.atError().setEventType("services-shutdown-errored").setCause(e).log();
+            }
+
             // Wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = context.get(ScheduledExecutorService.class);
             ExecutorService executorService = context.get(ExecutorService.class);
@@ -548,35 +559,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         return arg = args == null || argpos >= args.length ? done : args[argpos++];
     }
 
-    Collection<String> getServiceServerURLList() {
-        if (!serviceServerURLListIsPopulated) {
-            serviceServerURLListIsPopulated = true;
-            addServiceSearchURLs(System.getProperty("ServiceSearchList"));
-            addServiceSearchURLs(System.getenv("ServiceSearchList"));
-            addServiceSearchURLs(find("system", "ServiceSearchList"));
-            addServiceSearchURL(EvergreenService.class.getResource("/config"));
-        }
-        return serviceServerURLList;
-    }
-
-    private void addServiceSearchURLs(Object urls) {
-        for (String s : Coerce.toStringArray(urls)) {
-            addServiceSearchURL(s);
-        }
-    }
-
-    private void addServiceSearchURL(Object url) {
-        if (url != null) {
-            String u = url.toString();
-            if (!u.endsWith("/")) {
-                u += "/";
-            }
-            if (!serviceServerURLList.contains(u)) {
-                serviceServerURLList.add(u);
-            }
-        }
-    }
-
     public Topics findServiceTopic(String name) {
         return this.findTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, name);
     }
@@ -601,82 +583,97 @@ public class Kernel extends Configuration /*implements Runnable*/ {
 
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get("services");
         List<String> removedServices = getRemovedServicesNames(serviceConfig);
-        logger.atDebug("merge-config").kv("removedServices", removedServices).log();
+        logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("removedServices", removedServices).log();
 
-        Map<String, CountDownLatch> servicesRunningLatches = new HashMap<>();
-        serviceConfig.forEach((key, v) -> servicesRunningLatches.put(key, new CountDownLatch(1)));
-
-        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
-            if (serviceConfig.containsKey(service.getName()) && newState.equals(State.RUNNING)) {
-                servicesRunningLatches.get(service.getName()).countDown();
-            }
-        };
-
+        Set<EvergreenService> servicesToTrack = new HashSet<>();
         context.get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
-            context.runOnPublishQueueAndWait(() -> {
-                try {
-                    mergeMap(timestamp, newConfig);
-                    context.addGlobalStateChangeListener(listener);
-                    serviceConfig.keySet().forEach(serviceName -> {
+            try {
+                mergeMap(timestamp, newConfig);
+                for (String serviceName : serviceConfig.keySet()) {
+                    EvergreenService eg = EvergreenService.locate(context, serviceName);
+                    if (State.NEW.equals(eg.getState())) {
+                        eg.requestStart();
+                    }
+                    servicesToTrack.add(eg);
+                }
+
+                // wait until topic listeners finished processing mergeMap changes.
+                context.runOnPublishQueueAndWait(() -> {
+                    logger.atInfo(MERGE_CONFIG_EVENT_KEY)
+                            .kv("serviceToTrack", servicesToTrack)
+                            .log("applied new service config. Waiting for services to complete update");
+
+                    // polling to wait for all services started.
+                    context.get(ExecutorService.class).submit(() -> {
+                        //TODO: Add timeout
                         try {
-                            EvergreenService eg = EvergreenService.locate(context, serviceName);
-                            eg.requestStart();
-                        } catch (ServiceLoadException e) {
-                            logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                                    .log("Could not locate EvergreenService for modified service");
+                            while (!totallyCompleteFuture.isCancelled()) {
+                                if (servicesToTrack.stream().allMatch(service -> {
+                                    if (!service.reachedDesiredState()) {
+                                        return false;
+                                    }
+                                    State state = service.getState();
+                                    if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
+                                        return true;
+                                    }
+                                    return false;
+                                })) {
+                                    break;
+                                }
+                                Thread.sleep(1000); // hardcoded
+                            }
+                            if (totallyCompleteFuture.isCancelled()) {
+                                logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv("deploymentId", deploymentId)
+                                    .log("merge-config-cancelled");
+                                return;
+                            }
+
+                            removeServices(removedServices);
+                            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deploymentId", deploymentId)
+                                .log("All services updated");
+
+                            totallyCompleteFuture.complete(null);
+                        } catch (Throwable t) {
+                            //TODO: handle different throwables. Revert changes if applicable.
+                            totallyCompleteFuture.completeExceptionally(t);
                         }
                     });
-                } catch (Throwable e) {
-                    totallyCompleteFuture.completeExceptionally(e);
-                }
-            });
-        });
-        // execute logic to close and clean up removed services.
-        context.get(Executor.class).execute(() -> {
-            try {
-                for (Map.Entry<String, CountDownLatch> entry : servicesRunningLatches.entrySet()) {
-                    logger.atDebug("merge-config").log("Waiting for service {} to be running", entry.getKey());
-                    entry.getValue().await();
-                }
-                List<Future<Void>> serviceClosedFutures = new ArrayList<>();
-                removedServices.forEach(serviceName -> {
-                    try {
-                        EvergreenService eg = EvergreenService.locate(context, serviceName);
-                        serviceClosedFutures.add(eg.close());
-                    } catch (ServiceLoadException e) {
-                        logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                                .log("Could not locate EvergreenService to close service");
-                    }
                 });
-                // waiting for removed service to close before removing reference and config entry
-                for (Future serviceClosedFuture : serviceClosedFutures) {
-                    serviceClosedFuture.get();
-                }
-                removedServices.forEach(serviceName -> {
-                    try {
-                        context.remove(serviceName);
-                        findTopics("services", serviceName).remove();
-                    } catch (Exception e) {
-                        logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
-                                .log("Cloud not clean up resources while removing");
-                    }
-                });
-
-                totallyCompleteFuture.complete(null);
             } catch (Throwable e) {
                 totallyCompleteFuture.completeExceptionally(e);
             }
         });
-        totallyCompleteFuture.thenRun(() -> context.removeGlobalStateChangeListener(listener));
+
         return totallyCompleteFuture;
+    }
+
+    private void removeServices(List<String> serviceToRemove) throws InterruptedException, ExecutionException {
+        List<Future<Void>> serviceClosedFutures = new ArrayList<>();
+        serviceToRemove.forEach(serviceName -> {
+            try {
+                EvergreenService eg = EvergreenService.locate(context, serviceName);
+                serviceClosedFutures.add(eg.close());
+            } catch (ServiceLoadException e) {
+                logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                        .log("Could not locate EvergreenService to close service");
+                // No need to handle the error when trying to stop a non-existing service.
+            }
+        });
+        // waiting for removed service to close before removing reference and config entry
+        for (Future<?> serviceClosedFuture : serviceClosedFutures) {
+            serviceClosedFuture.get();
+        }
+        serviceToRemove.forEach(serviceName -> {
+            context.remove(serviceName);
+            findTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, serviceName).remove();
+        });
     }
 
     //TODO: handle removing services that are running within in the JVM but defined via config
     private List<String> getRemovedServicesNames(Map<String, Object> serviceConfig) {
         return orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(EvergreenService::getName)
-                .filter(serviceName -> !serviceConfig.containsKey(serviceName))
+                .map(EvergreenService::getName).filter(serviceName -> !serviceConfig.containsKey(serviceName))
                 .collect(Collectors.toList());
 
     }

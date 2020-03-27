@@ -133,7 +133,7 @@ class DeploymentServiceIntegrationTest {
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument.json").toURI(), System.currentTimeMillis());
 
-        result.get();
+        result.get(60, TimeUnit.SECONDS);
 
         countDownLatch.await(60, TimeUnit.SECONDS);
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
@@ -160,7 +160,7 @@ class DeploymentServiceIntegrationTest {
 
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
-        result.get();
+        result.get(30, TimeUnit.SECONDS);
         countDownLatch.await(60, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         Log4jLogEventBuilder.removeGlobalListener(listener);
@@ -180,7 +180,7 @@ class DeploymentServiceIntegrationTest {
 
         Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "CustomerAppAndYellowSignal.json").toURI(), System.currentTimeMillis());
-        result.get();
+        result.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
@@ -195,7 +195,7 @@ class DeploymentServiceIntegrationTest {
 
         result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
                 "YellowAndRedSignal.json").toURI(), System.currentTimeMillis());
-        result.get();
+        result.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
@@ -210,8 +210,8 @@ class DeploymentServiceIntegrationTest {
         assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "GreenSignal"));
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) {
-
         try {
             sampleDeploymentDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         } catch (Exception e) {

@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.Test;
@@ -21,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 public class ConfigurationTest {
     final Configuration config = new Configuration(new Context());
 
@@ -108,7 +108,7 @@ public class ConfigurationTest {
 
             Topic testValue = testConfig.lookup("number");
             testValue.validate((nv, ov) -> {
-                int v = Coerce.toInt(nv);
+                int v = toInt(nv);
                 if (v < 0) {
                     v = 0;
                 }
