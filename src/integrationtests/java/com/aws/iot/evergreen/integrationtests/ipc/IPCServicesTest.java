@@ -109,7 +109,7 @@ class IPCServicesTest {
         // we're looking it up based on service type only
         LookupResourceRequest fuzzyLookup =
                 LookupResourceRequest.builder().resource(resource.toBuilder().name(null).build()).build();
-        lookupResults = c.lookupResources(lookup);
+        lookupResults = c.lookupResources(fuzzyLookup);
         assertEquals(1, lookupResults.size());
         assertEquals(resource, lookupResults.get(0));
 

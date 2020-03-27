@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Exec;
@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class IPCAwareServicesTest extends AbstractBaseITCase {
+class IPCAwareServicesTest extends BaseITCase {
 
     private static final String SAMPLE_IPC_AWARE_SERVICE_NAME = "main";
 

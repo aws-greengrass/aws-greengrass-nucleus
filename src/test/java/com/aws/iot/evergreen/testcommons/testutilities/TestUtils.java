@@ -9,7 +9,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public class TestUtils {
+@SuppressWarnings("PMD.AvoidCatchingThrowable")
+public final class TestUtils {
+    private TestUtils() {
+    }
+
     /**
      * Wraps a given biconsumer function so that once it is called, the completable future can
      * complete with the exception, or with a success.

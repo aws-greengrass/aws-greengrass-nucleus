@@ -34,6 +34,7 @@ public class LocalPackageStore implements PackageStore {
 
     // TODO: This is temporary. Once all the separate PRs for Package Manager are merged in, this needs to move
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
+    private static final String PACKAGE_RECIPE_CANNOT_BE_NULL = "Package Recipe cannot be null";
 
     static {
         OBJECT_MAPPER.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
@@ -143,7 +144,7 @@ public class LocalPackageStore implements PackageStore {
      */
     @Override
     public void cachePackageArtifacts(final Package curPackageRecipe) throws PackagingException {
-        Objects.requireNonNull(curPackageRecipe, "Package Recipe cannot be null");
+        Objects.requireNonNull(curPackageRecipe, PACKAGE_RECIPE_CANNOT_BE_NULL);
 
         Path destRootPkgPath = getPackageVersionStorageRoot(curPackageRecipe, cacheFolder);
 
@@ -171,7 +172,7 @@ public class LocalPackageStore implements PackageStore {
      */
     @Override
     public void cachePackageRecipeAndArtifacts(final Package curPackage) throws PackagingException {
-        Objects.requireNonNull(curPackage, "Package Recipe cannot be null");
+        Objects.requireNonNull(curPackage, PACKAGE_RECIPE_CANNOT_BE_NULL);
         try {
             String recipeContents = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(curPackage);
             cachePackageRecipeAndArtifacts(curPackage, recipeContents);
@@ -186,11 +187,10 @@ public class LocalPackageStore implements PackageStore {
     @Override
     public void cachePackageRecipeAndArtifacts(final Package curPackageRecipe, final String recipeContents)
             throws PackagingException {
-        Objects.requireNonNull(curPackageRecipe, "Package Recipe cannot be null");
+        Objects.requireNonNull(curPackageRecipe, PACKAGE_RECIPE_CANNOT_BE_NULL);
         Objects.requireNonNull(recipeContents, "Package Recipe raw string cannot be null");
 
         Path destRootPkgPath = getPackageVersionStorageRoot(curPackageRecipe, cacheFolder);
-        Path pkgRecipePath = destRootPkgPath.resolve(Constants.RECIPE_FILE_NAME);
 
         try {
             Files.createDirectories(destRootPkgPath);
@@ -199,6 +199,7 @@ public class LocalPackageStore implements PackageStore {
                     "Failed to create folder for " + destRootPkgPath.toString(), e);
         }
 
+        Path pkgRecipePath = destRootPkgPath.resolve(Constants.RECIPE_FILE_NAME);
         try {
             Files.write(pkgRecipePath, recipeContents.getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
@@ -214,7 +215,7 @@ public class LocalPackageStore implements PackageStore {
     @Override
     public void copyPackageArtifactsToPath(final Package curPackageRecipe, final Path destPath)
             throws PackagingException {
-        Objects.requireNonNull(curPackageRecipe, "Package Recipe cannot be null");
+        Objects.requireNonNull(curPackageRecipe, PACKAGE_RECIPE_CANNOT_BE_NULL);
 
         Path srcRootPkgPath = getPackageVersionStorageRoot(curPackageRecipe, cacheFolder);
         Path destRootPkgPath = getPackageVersionStorageRoot(curPackageRecipe, destPath);
@@ -225,6 +226,7 @@ public class LocalPackageStore implements PackageStore {
     /**
      * Copy all artifacts to a path.
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void copyPackageArtifactsToPath(Package curPackageRecipe, Path srcRootPkgPath, Path destRootPkgPath)
             throws PackagingException {
         if (!Files.exists(srcRootPkgPath) || !Files.isDirectory(srcRootPkgPath)) {

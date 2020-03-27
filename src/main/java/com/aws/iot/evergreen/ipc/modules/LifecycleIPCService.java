@@ -27,8 +27,7 @@ import javax.inject.Inject;
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = "lifecycleipc", autostart = true)
 public class LifecycleIPCService extends EvergreenService {
-
-    private ObjectMapper mapper = new CBORMapper();
+    private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
 
     @Inject
     private IPCRouter router;
@@ -74,12 +73,12 @@ public class LifecycleIPCService extends EvergreenService {
             switch (lifecycleServiceOpCodes) {
                 case REGISTER_LISTENER:
                     LifecycleListenRequest listenRequest =
-                            mapper.readValue(applicationMessage.getPayload(), LifecycleListenRequest.class);
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), LifecycleListenRequest.class);
                     lifecycleGenericResponse = agent.listenToStateChanges(listenRequest, context);
                     break;
                 case REPORT_STATE:
                     StateChangeRequest stateChangeRequest =
-                            mapper.readValue(applicationMessage.getPayload(), StateChangeRequest.class);
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), StateChangeRequest.class);
                     lifecycleGenericResponse = agent.reportState(stateChangeRequest, context);
                     break;
                 default:
@@ -90,7 +89,7 @@ public class LifecycleIPCService extends EvergreenService {
             }
 
             ApplicationMessage responseMessage = ApplicationMessage.builder().version(applicationMessage.getVersion())
-                    .payload(mapper.writeValueAsBytes(lifecycleGenericResponse)).build();
+                    .payload(CBOR_MAPPER.writeValueAsBytes(lifecycleGenericResponse)).build();
             fut.complete(new Message(responseMessage.toByteArray()));
         } catch (Throwable e) {
             logger.atError().setEventType("lifecycle-error").setCause(e).log("Failed to handle message");
@@ -100,7 +99,7 @@ public class LifecycleIPCService extends EvergreenService {
                                 .errorMessage(e.getMessage()).build();
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
-                                .payload(mapper.writeValueAsBytes(response)).build();
+                                .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
                 logger.atError().setEventType("lifecycle-error").setCause(ex).log("Failed to send error response");

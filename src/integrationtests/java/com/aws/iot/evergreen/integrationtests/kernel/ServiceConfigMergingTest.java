@@ -6,22 +6,19 @@ package com.aws.iot.evergreen.integrationtests.kernel;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.integrationtests.AbstractBaseITCase;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -38,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ServiceConfigMergingTest extends AbstractBaseITCase {
+class ServiceConfigMergingTest extends BaseITCase {
     private Kernel kernel;
 
     @BeforeEach
@@ -118,11 +115,9 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
                 newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                        .equals(State.INSTALLED)) {
-                    mainRestarted.countDown();
-                }
+            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
+                    && oldState.equals(State.INSTALLED)) {
+                mainRestarted.countDown();
             }
         });
 
@@ -176,17 +171,14 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.countDown();
             }
-            if (newService2Started.getCount() == 0) {
-                if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
-                    newServiceStarted.countDown();
-                }
+            if (newService2Started.getCount() == 0 && service.getName().equals("new_service") && newState
+                    .equals(State.RUNNING)) {
+                newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0) {
-                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                        .equals(State.INSTALLED)) {
-                    mainRestarted.countDown();
-                }
+            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
+                    && oldState.equals(State.INSTALLED)) {
+                mainRestarted.countDown();
             }
         });
 
@@ -232,19 +224,19 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
 
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
             put("services", new HashMap<Object, Object>() {{
-                put("main",new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
                     put("dependencies", Arrays.asList("new_service"));
                 }});
 
-                put("new_service",new HashMap<Object, Object>() {{
-                    put("lifecycle",new HashMap<Object, Object>() {{
-                            put("run", "sleep 60");
+                put("new_service", new HashMap<Object, Object>() {{
+                    put("lifecycle", new HashMap<Object, Object>() {{
+                        put("run", "sleep 60");
                     }});
                     put("dependencies", Arrays.asList("new_service2"));
                 }});
 
-                put("new_service2",new HashMap<Object, Object>() {{
-                    put("lifecycle",new HashMap<Object, Object>() {{
+                put("new_service2", new HashMap<Object, Object>() {{
+                    put("lifecycle", new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
                 }});
@@ -270,17 +262,13 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.set(true);
             }
-            if (newService2Started.get()) {
-                if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
-                    newServiceStarted.set(true);
-                }
+            if (newService2Started.get() && service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
+                newServiceStarted.set(true);
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.get()) {
-                if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                        .equals(State.INSTALLED)) {
-                    mainRestarted.set(true);
-                }
+            if (newServiceStarted.get() && service.getName().equals("main") && newState.equals(State.RUNNING)
+                    && oldState.equals(State.INSTALLED)) {
+                mainRestarted.set(true);
             }
         };
         kernel.context.addGlobalStateChangeListener(listener);
@@ -299,7 +287,9 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         // WHEN
         AtomicBoolean stateChanged = new AtomicBoolean(false);
         listener = (service, oldState, newState) -> {
-            System.err.println("State shouldn't change in merging the same config: " + service.getName() + " " + oldState + " => " + newState);
+            System.err.println(
+                    "State shouldn't change in merging the same config: " + service.getName() + " " + oldState + " => "
+                            + newState);
             stateChanged.set(true);
         };
 
@@ -320,11 +310,9 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed()
-            throws Throwable {
+    void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i",
-                getClass().getResource("long_running_services.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
@@ -338,28 +326,23 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
 
         Map<Object, Object> currentConfig = new HashMap<>(kernel.toPOJO());
-        Map<String,Map> servicesConfig = (Map<String, Map>) currentConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
-        Iterator<String> itr = servicesConfig.keySet().iterator();
+        Map<String, Map> servicesConfig =
+                (Map<String, Map>) currentConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
 
         //removing all services in the current kernel config except sleeperB and main
-        while(itr.hasNext()){
-            String serviceName = itr.next();
-            if(!serviceName.equals("sleeperB") && !serviceName.equals("main")){
-                itr.remove();
-            }
-        }
-        List<String> dependencies = new ArrayList((List<String>)servicesConfig.get("main").get("dependencies")) ;
+        servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName) && !"main".equals(serviceName));
+        List<String> dependencies = new ArrayList<>((List<String>) servicesConfig.get("main").get("dependencies"));
         //removing main's dependency on sleeperA, Now sleeperA is an unused dependency
         dependencies.removeIf(s -> s.contains("sleeperA"));
-        servicesConfig.get("main").put("dependencies",dependencies);
+        servicesConfig.get("main").put("dependencies", dependencies);
         // updating service B's run
         ((Map) servicesConfig.get("sleeperB").get(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
-                .put("run","while true; do\n echo sleeperB_running; sleep 10\n done");
+                .put("run", "while true; do\n echo sleeperB_running; sleep 10\n done");
 
         Future<Void> future = kernel.mergeInNewConfig("id", System.currentTimeMillis(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("sleeperA") && newState.isClosable()) {
+            if ("sleeperA".equals(service.getName()) && newState.isClosable()) {
                 isSleeperAClosed.set(true);
             }
         });
@@ -374,15 +357,14 @@ class ServiceConfigMergingTest extends AbstractBaseITCase {
         assertEquals(State.RUNNING, main.getState());
         assertEquals(State.RUNNING, sleeperB.getState());
         // ensuring config value for sleeperA is removed
-        assertFalse(kernel.findTopics("services").children.contains("sleeperA"));
+        assertFalse(kernel.findTopics("services").children.containsKey("sleeperA"));
         // ensure kernel no longer holds a reference of sleeperA
-        assertThrows(ServiceLoadException.class, () ->  EvergreenService.locate(kernel.context, "sleeperA"));
+        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "sleeperA"));
 
         List<String> orderedDependencies = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(EvergreenService::getName)
-                .collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
-        assertEquals(Arrays.asList("sleeperB","main"), orderedDependencies);
+        assertEquals(Arrays.asList("sleeperB", "main"), orderedDependencies);
     }
 }

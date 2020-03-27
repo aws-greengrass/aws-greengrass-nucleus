@@ -10,7 +10,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
-public class CommitableWriter extends BufferedWriter implements Commitable {
+public final class CommitableWriter extends BufferedWriter implements Commitable {
     private final CommitableFile out;
     private boolean open = true;
 

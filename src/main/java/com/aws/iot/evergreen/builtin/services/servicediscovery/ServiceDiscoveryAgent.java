@@ -38,9 +38,6 @@ public class ServiceDiscoveryAgent implements InjectionActions {
     @Inject
     private Kernel kernel;
 
-    public ServiceDiscoveryAgent() {
-    }
-
     private static String resourceToPath(Resource r) {
         List<String> ll = new LinkedList<>();
         if (r.getName() != null) {

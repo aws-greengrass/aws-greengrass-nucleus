@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Singleton;
@@ -32,8 +33,8 @@ import javax.inject.Singleton;
 @ImplementsService(name = "SafeSystemUpdate", autostart = true)
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
-    private final LinkedHashMap<String, Crashable> pendingActions = new LinkedHashMap<>();
-    private final CopyOnWriteArrayList<DisruptableCheck> disruptableChecks = new CopyOnWriteArrayList<>();
+    private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
+    private final List<DisruptableCheck> disruptableChecks = new CopyOnWriteArrayList<>();
 
     public UpdateSystemSafelyService(Topics c) {
         super(c);
@@ -64,6 +65,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
         for (Map.Entry<String, Crashable> todo : pendingActions.entrySet()) {
             try {
@@ -90,7 +92,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
             synchronized (pendingActions) {
                 if (pendingActions.isEmpty()) {
                     try {
-                        pendingActions.wait(10000);
+                        pendingActions.wait(10_000);
                     } catch (InterruptedException e) {
                         logger.atWarn().log("Interrupted while waiting for pending Actions");
                     }

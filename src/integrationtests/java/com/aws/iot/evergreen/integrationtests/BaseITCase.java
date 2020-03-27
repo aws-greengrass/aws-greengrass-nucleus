@@ -13,7 +13,7 @@ import java.nio.file.Path;
  *
  * However, individual integration test could override the setup or just set up without extending this.
  */
-public abstract class AbstractBaseITCase {
+public class BaseITCase {
 
     @TempDir
     protected Path tempRootDir;

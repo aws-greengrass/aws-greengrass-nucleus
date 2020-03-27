@@ -59,7 +59,7 @@ public class DependencyResolverTest {
     @Mock
     private EvergreenService mainService;
     @BeforeAll
-    public static void Setup() {
+    public static void setup() {
         System.setProperty("log.fmt", "TEXT");
         System.setProperty("log.store", "CONSOLE");
         System.setProperty("log.level", "TRACE");
@@ -68,7 +68,7 @@ public class DependencyResolverTest {
     @Nested
     class MergeSemverRequirementsTest {
         @Spy
-        private DependencyResolver resolver = new DependencyResolver(mockPackageStore, kernel);
+        private final DependencyResolver resolver = new DependencyResolver(mockPackageStore, kernel);
 
         @Test
         public void GIVEN_list_of_version_ranges_WHEN_get_union_THEN_get_version_range() {
@@ -140,15 +140,15 @@ public class DependencyResolverTest {
     }
 
     @Nested
-    class ResolveDependenciesTest{
+    class ResolveDependenciesTest {
         private final Semver v1_2_0 = new Semver("1.2.0");
         private final Semver v1_1_0 = new Semver("1.1.0");
         private final Semver v1_0_0 = new Semver("1.0.0");
-        private final String pkgA = "A";
-        private final String pkgB1 = "B1";
-        private final String pkgB2 = "B2";
-        private final String pkgC1 = "C1";
-        private final String pkgD = "D";
+        private static final String pkgA = "A";
+        private static final String pkgB1 = "B1";
+        private static final String pkgB2 = "B2";
+        private static final String pkgC1 = "C1";
+        private static final String pkgD = "D";
 
         @Mock
         EvergreenService mockServiceB1;
