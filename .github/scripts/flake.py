@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--cmd', type=str, help='Command to run')
     parser.add_argument('-i', type=int, help='Iterations')
     parser.add_argument('--token', type=str, help='GitHub token')
+    parser.add_argument('--out-dir', type=str, help='Failed test output dir')
     parser.add_argument('-ff', action="store_true", help='Fail fast. If enabled, quit '
                                                          'after the first failure')
     args = parser.parse_args()
@@ -33,7 +34,7 @@ def main():
         # If the tests failed, then we should check which test(s) failed in order to report it
         if process.returncode != 0:
             print(f"Iteration {i + 1} failed, saving and parsing results now", flush=True)
-            parse_test_results(i, results)
+            parse_test_results(i, results, args.out_dir)
             if args.ff:
                 break
         else:
@@ -72,9 +73,8 @@ def main():
         print(issue, flush=True)
 
 
-def parse_test_results(iteration, previous_results):
+def parse_test_results(iteration, previous_results, failed_test_dir):
     report_dir = "target/surefire-reports/"
-    failed_test_dir = "failed_tests/"
 
     if not os.path.exists(report_dir):
         return
