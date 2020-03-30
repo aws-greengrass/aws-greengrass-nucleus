@@ -1,0 +1,26 @@
+name: Flake Finder
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  flake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Analyze Test Run
+        run: >-
+          pip3 -q install agithub &&
+          python3 .github/scripts/flake.py --cmd "mvn -ntp -q verify" -i 10 --token "${{ github.token }}"
+          --out-dir "failed_tests/"
+      - name: Upload Errors
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: Flaky test results
+          path: failed_tests/
