@@ -25,7 +25,7 @@ public class PlatformResolver {
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
     private static final Map<String, Integer> RANKS = initializeRanks();
 
-    @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME")
+    @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
     @SuppressWarnings({"checkstyle:emptycatchblock"})
     private static Map<String, Integer> initializeRanks() {
         Map<String, Integer> ranks = new HashMap<>();
@@ -135,5 +135,8 @@ public class PlatformResolver {
             return bestRankNode;
             */
         }
+    }
+
+    private PlatformResolver() {
     }
 }
