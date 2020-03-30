@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobRequest;
@@ -35,6 +36,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
@@ -80,6 +82,7 @@ public class DeploymentE2ETest {
         Utils.cleanAllCreatedJobs();
     }
 
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_blank_kernel_WHEN_deploy_new_services_e2e_THEN_new_services_deployed_and_job_is_successful()
             throws Exception {
@@ -110,12 +113,13 @@ public class DeploymentE2ETest {
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
     }
 
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_removes_packages_THEN_services_should_be_stopped_and_job_is_successful()
             throws Exception {
         // Target our DUT for deployments
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
-        String[] targets = new String[]{thing.thingArn};
+        String[] targets = {thing.thingArn};
 
         // First Deployment to have some services running in Kernel which can be removed later
         String document1 = new ObjectMapper().writeValueAsString(
