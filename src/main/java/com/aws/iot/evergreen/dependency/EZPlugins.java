@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.util.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 
+@SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
 public class EZPlugins {
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
