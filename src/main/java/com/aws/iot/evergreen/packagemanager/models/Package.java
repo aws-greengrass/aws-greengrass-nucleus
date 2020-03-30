@@ -87,7 +87,7 @@ public class Package {
                            using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
                    @JsonProperty("Artifacts") List<String> artifacts, @JsonProperty("Dependencies") @JsonDeserialize(
             using = MapFieldDeserializer.class) Map<String, String> dependencies,
-                   @JsonProperty("Requires") List<String> requires) throws SemverException {
+                   @JsonProperty("Requires") List<String> requires) {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
