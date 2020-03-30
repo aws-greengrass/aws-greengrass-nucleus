@@ -123,7 +123,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         this.args = args;
 
         // Get root path from System Property/JVM argument. Default to home path
-        String rootAbsolutePath = System.getProperty("root", System.getProperty("user.home"));
+        String rootAbsolutePath = deTilde(System.getProperty("root", System.getProperty("user.home")));
         if (Utils.isEmpty(rootAbsolutePath) || !ensureCreated(Paths.get(rootAbsolutePath))) {
             logger.atError().log("{}: not a valid root directory", rootAbsolutePath);
             broken = true;
