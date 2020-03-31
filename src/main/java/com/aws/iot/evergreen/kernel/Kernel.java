@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
@@ -122,15 +123,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Kernel parseArgs(String... args) {
         this.args = args;
 
-        // Get root path from System Property/JVM argument. Default to home path
-        String rootAbsolutePath = deTilde(System.getProperty("root", System.getProperty("user.home")));
-        if (Utils.isEmpty(rootAbsolutePath) || !ensureCreated(Paths.get(rootAbsolutePath))) {
-            logger.atError().log("{}: not a valid root directory", rootAbsolutePath);
-            broken = true;
-        }
-
-        lookup("system", "rootpath").dflt(rootAbsolutePath)
-                .subscribe((whatHappened, topic) -> initPaths((String) topic.getOnce()));
+        // Get root path from System Property/JVM argument. Default to subdirectory of home
+        String rootAbsolutePath = System.getProperty("root", "~/.evergreen");
 
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
@@ -161,12 +155,26 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 case "-print":
                     writeConfig(new OutputStreamWriter(System.out, StandardCharsets.UTF_8));
                     break;
+                case "-root":
+                case "-r":
+                    rootAbsolutePath = getArg();
+                    break;
                 default:
                     logger.atError().log("Undefined command line argument: {}", arg);
                     broken = true;
                     break;
             }
         }
+        if (Utils.isEmpty(rootAbsolutePath)) {
+            rootAbsolutePath = "~/.evergreen";
+        }
+        rootAbsolutePath = deTilde(rootAbsolutePath);
+        if (!ensureCreated(Paths.get(rootAbsolutePath))) {
+            logger.atError().log("{}: not a valid root directory", rootAbsolutePath);
+            broken = true;
+        }
+        lookup("system", "rootpath").dflt(rootAbsolutePath)
+                .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
         context.get(EZTemplates.class).addEvaluator(expr -> {
             Object value;
             switch (expr) {
@@ -551,6 +559,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         if (clitoolPath != null && s.startsWith("~bin/")) {
             s = clitoolPath.resolve(s.substring(5)).toString();
+        }
+        if (workPath != null && s.startsWith("~work/")) {
+            s = clitoolPath.resolve(s.substring(6)).toString();
         }
         return s;
     }
