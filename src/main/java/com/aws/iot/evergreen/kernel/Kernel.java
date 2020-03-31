@@ -604,7 +604,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                             .log("applied new service config. Waiting for services to complete update");
 
                     // polling to wait for all services started.
-                    context.get(ExecutorService.class).submit(() -> {
+                    context.get(ExecutorService.class).execute(() -> {
                         //TODO: Add timeout
                         try {
                             while (!totallyCompleteFuture.isCancelled()) {

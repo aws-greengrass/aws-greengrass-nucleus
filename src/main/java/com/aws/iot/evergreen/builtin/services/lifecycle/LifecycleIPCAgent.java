@@ -108,7 +108,7 @@ public class LifecycleIPCAgent implements InjectionActions {
     private BiConsumer<State, State> sendStateUpdateToListener(LifecycleListenRequest listenRequest,
                                                                ConnectionContext context) {
         return (oldState, newState) -> {
-            executor.submit(() -> {
+            executor.execute(() -> {
                 // Synchronize on context so that we only try to send 1 update at a time to a given client
                 synchronized (context) {
                     StateTransitionEvent stateTransitionEvent =
