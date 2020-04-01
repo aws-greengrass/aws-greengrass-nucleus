@@ -6,6 +6,9 @@
 package com.aws.iot.evergreen.deployment.exceptions;
 
 public class ConnectionUnavailableException extends Exception {
+
+    static final long serialVersionUID = -3387516993124229948L;
+
     public ConnectionUnavailableException(String message, Throwable e) {
         super(message, e);
     }
