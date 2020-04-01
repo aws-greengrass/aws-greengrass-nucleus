@@ -6,6 +6,9 @@
 package com.aws.iot.evergreen.deployment.exceptions;
 
 public class AWSIotException extends Exception {
+
+    static final long serialVersionUID = -3387516993124229948L;
+
     public AWSIotException(String message, Throwable e) {
         super(message, e);
     }

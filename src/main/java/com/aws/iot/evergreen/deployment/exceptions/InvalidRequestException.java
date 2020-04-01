@@ -5,6 +5,8 @@ package com.aws.iot.evergreen.deployment.exceptions;
 
 public class InvalidRequestException extends Exception {
 
+    static final long serialVersionUID = -3387516993124229948L;
+
     public InvalidRequestException(String message, Throwable e) {
         super(message, e);
     }
