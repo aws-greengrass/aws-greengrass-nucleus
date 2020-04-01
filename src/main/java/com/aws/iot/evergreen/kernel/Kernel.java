@@ -123,8 +123,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Kernel parseArgs(String... args) {
         this.args = args;
 
-        // Get root path from System Property/JVM argument. Default to subdirectory of home
-        String rootAbsolutePath = System.getProperty("root", "~/.evergreen");
+        // Get root path from System Property/JVM argument. Default handled after 'while'
+        String rootAbsolutePath = System.getProperty("root");
 
         while (!Objects.equals(getArg(), done)) {
             switch (arg) {
@@ -166,7 +166,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             }
         }
         if (Utils.isEmpty(rootAbsolutePath)) {
-            rootAbsolutePath = "~/.evergreen";
+            rootAbsolutePath = "~/.evergreen";  // Default to hidden subdirectory of home.
         }
         rootAbsolutePath = deTilde(rootAbsolutePath);
         if (!ensureCreated(Paths.get(rootAbsolutePath))) {
