@@ -74,9 +74,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     @Mock
     IotJobsHelper mockIotJobsHelper;
 
-    @Mock
-    DeploymentService.IotJobsHelperFactory mockIotJobsHelperFactory;
-
     @Spy
     Kernel mockKernel;
 
@@ -108,38 +105,38 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
 
-        when(config.findLeafChild(Mockito.any())).thenAnswer(invocationOnMock -> {
-            String parameterName = invocationOnMock.getArguments()[0].toString();
-            if (parameterName.equals(DeploymentService.DEVICE_PARAM_THING_NAME)) {
-                when(deviceParamTopic.getOnce()).thenReturn(MOCK_THING_NAME);
-                return deviceParamTopic;
-            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT)) {
-                when(deviceParamTopic.getOnce()).thenReturn(MOCK_CLIENT_ENDPOINT);
-                return deviceParamTopic;
-            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_PRIVATE_KEY_PATH)) {
-                when(deviceParamTopic.getOnce()).thenReturn(MOCK_PRIVATE_KEY_PATH);
-                return deviceParamTopic;
-            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_CERTIFICATE_FILE_PATH)) {
-                when(deviceParamTopic.getOnce()).thenReturn(MOCK_CERTIFICATE_PATH);
-                return deviceParamTopic;
-            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_ROOT_CA_PATH)) {
-                when(deviceParamTopic.getOnce()).thenReturn(MOCK_ROOTCA_PATH);
-                return deviceParamTopic;
-            }
-            return deviceParamTopic;
-        });
+//        when(config.findLeafChild(Mockito.any())).thenAnswer(invocationOnMock -> {
+//            String parameterName = invocationOnMock.getArguments()[0].toString();
+//            if (parameterName.equals(DeploymentService.DEVICE_PARAM_THING_NAME)) {
+//                when(deviceParamTopic.getOnce()).thenReturn(MOCK_THING_NAME);
+//                return deviceParamTopic;
+//            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT)) {
+//                when(deviceParamTopic.getOnce()).thenReturn(MOCK_CLIENT_ENDPOINT);
+//                return deviceParamTopic;
+//            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_PRIVATE_KEY_PATH)) {
+//                when(deviceParamTopic.getOnce()).thenReturn(MOCK_PRIVATE_KEY_PATH);
+//                return deviceParamTopic;
+//            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_CERTIFICATE_FILE_PATH)) {
+//                when(deviceParamTopic.getOnce()).thenReturn(MOCK_CERTIFICATE_PATH);
+//                return deviceParamTopic;
+//            } else if (parameterName.equals(DeploymentService.DEVICE_PARAM_ROOT_CA_PATH)) {
+//                when(deviceParamTopic.getOnce()).thenReturn(MOCK_ROOTCA_PATH);
+//                return deviceParamTopic;
+//            }
+//            return deviceParamTopic;
+//        });
 
         //Deployment service specific mocks
         when(mockKernel.deTilde(anyString())).thenAnswer(invocationOnMock -> {
             return invocationOnMock.getArguments()[0].toString();
         });
-        when(mockIotJobsHelperFactory.getIotJobsHelper(anyString(), anyString(), anyString(), anyString(),
-                anyString(), any(MqttClientConnectionEvents.class)))
-                .thenReturn(mockIotJobsHelper);
+//        when(mockIotJobsHelperFactory.getIotJobsHelper(anyString(), anyString(), anyString(), anyString(),
+//                anyString(), any(MqttClientConnectionEvents.class)))
+//                .thenReturn(mockIotJobsHelper);
 
         //Creating the class to be tested
         deploymentService =
-                new DeploymentService(config, mockIotJobsHelperFactory, mockExecutorService, mockKernel,
+                new DeploymentService(config, mockExecutorService, mockKernel,
                         dependencyResolver, packageCache, kernelConfigResolver);
     }
 
@@ -228,11 +225,11 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
-            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                     any());
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             verify(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
             deploymentService.shutdown();
         }
 
@@ -244,7 +241,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             Throwable t = new NonRetryableDeploymentTaskFailureException(null);
             mockFuture.completeExceptionally(t);
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
-            doNothing().when(mockIotJobsHelper).updateJobStatus(any(), any(), any(), any());
+            doNothing().when(mockIotJobsHelper).updateJobStatus(any(), any(), any());
             startDeploymentServiceInAnotherThread();
 
             verify(mockIotJobsHelper).subscribeToGetNextJobDescription(describeJobConsumerCaptor.capture(), any());
@@ -255,10 +252,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
-            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+            verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                     any());
             verify(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), any());
             deploymentService.shutdown();
         }
 
@@ -269,19 +266,19 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             mockFuture.complete(null);
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
             ExecutionException e = new ExecutionException(new MqttException("Connection error"));
-            doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+            doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                     any());
             doThrow(e).doNothing().when(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
 
             InOrder mockExecutorServiceInOrder = inOrder(mockExecutorService);
             InOrder mockIotJobsHelperInOrder = Mockito.inOrder(mockIotJobsHelper);
 
             startDeploymentServiceInAnotherThread();
             ArgumentCaptor<MqttClientConnectionEvents> callbackCaptor = ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
-            verify(mockIotJobsHelperFactory)
-                    .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(),
-                            callbackCaptor.capture());
+//            verify(mockIotJobsHelperFactory)
+//                    .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(),
+//                            callbackCaptor.capture());
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper)
                     .subscribeToGetNextJobDescription(describeJobConsumerCaptor.capture(), any());
@@ -293,13 +290,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             //Wait for the enough time after which deployment service would have updated the status of job
             Thread.sleep(Duration.ofSeconds(2).toMillis());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), 
                             any());
             mockExecutorServiceInOrder.verify(mockExecutorService).submit(any(DeploymentTask.class));
 
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),  any());
             Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             assertEquals(1, processedDeployments.size());
@@ -311,7 +308,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             //Wait for main thread to update the persisted deployment statuses
             Thread.sleep(Duration.ofSeconds(2).toMillis());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),  any());
             processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             assertEquals(0, processedDeployments.size());
@@ -327,9 +324,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).subscribeToEventNotifications(any());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper).subscribeToGetNextJobDescription(any(), any());
             ArgumentCaptor<MqttClientConnectionEvents> callbackCaptor = ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
-            verify(mockIotJobsHelperFactory)
-                    .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(),
-                            callbackCaptor.capture());
+//            verify(mockIotJobsHelperFactory)
+//                    .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(),
+//                            callbackCaptor.capture());
 
             callbackCaptor.getValue().onConnectionInterrupted(1);
             MqttClientConnectionEvents callback = callbackCaptor.getValue();
@@ -352,22 +349,22 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             mockFutureWitException.completeExceptionally(t);
             doReturn(mockFuture, mockFutureWitException).when(mockExecutorService).submit(any(DeploymentTask.class));
             ExecutionException executionException = new ExecutionException(new MqttException("Connection error"));
-            doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+            doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), 
                     any());
-            doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+            doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.IN_PROGRESS), 
                     any());
             doThrow(executionException).doThrow(executionException).doNothing().doNothing()
                     .when(mockIotJobsHelper).updateJobStatus(any(), or(eq(JobStatus.SUCCEEDED),
-                    eq(JobStatus.FAILED)), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    eq(JobStatus.FAILED)),  any());
 
             InOrder mockExecutorServiceInOrder = inOrder(mockExecutorService);
             InOrder mockIotJobsHelperInOrder = Mockito.inOrder(mockIotJobsHelper);
 
             startDeploymentServiceInAnotherThread();
             ArgumentCaptor<MqttClientConnectionEvents> callbackCaptor = ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
-            verify(mockIotJobsHelperFactory)
-                    .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(),
-                            callbackCaptor.capture());
+//            verify(mockIotJobsHelperFactory)
+//                    .getIotJobsHelper(anyString(), anyString(), anyString(), anyString(), anyString(),
+//                            callbackCaptor.capture());
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper)
                     .subscribeToGetNextJobDescription(describeJobConsumerCaptor.capture(), any());
@@ -395,13 +392,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             Thread.sleep(Duration.ofSeconds(2).toMillis());
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper)
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), eq(TEST_JOB_EXECUTION_NUMBER),
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), 
                             any());
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper, times(3))
-                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),  any());
 
             mockIotJobsHelperInOrder.verify(mockIotJobsHelper, times(1))
-                    .updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.FAILED), eq(TEST_JOB_EXECUTION_NUMBER), any());
+                    .updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.FAILED),  any());
 
             Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                     DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);

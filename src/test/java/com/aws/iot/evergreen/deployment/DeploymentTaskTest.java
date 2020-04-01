@@ -40,9 +40,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 public class DeploymentTaskTest {
 
-    private static Map<String, Object> jobDocument;
 
-    private static DeploymentDocument deploymentDocument;
+
 
     @Mock
     private DependencyResolver mockDependencyResolver;
@@ -55,23 +54,15 @@ public class DeploymentTaskTest {
 
     private Logger logger = LogManager.getLogger("unit test");
 
-    private DeploymentTask deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageCache,
-            mockKernelConfigResolver, mockKernel,logger, jobDocument);
+    private static DeploymentDocument deploymentDocument =
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis()).build();
+    private DeploymentTask deploymentTask;
 
-    @BeforeAll
-    public static void initialize() {
-        Long currentTimestamp = System.currentTimeMillis();
-        jobDocument = new HashMap<>();
-        jobDocument.put("DeploymentId", "TestDeployment");
-        jobDocument.put("Timestamp", currentTimestamp);
-        deploymentDocument =
-                DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(currentTimestamp).build();
-    }
 
     @BeforeEach
     public void setup() {
         deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageCache, mockKernelConfigResolver, mockKernel,
-                        logger, jobDocument);
+                        logger, deploymentDocument);
     }
 
     @Test

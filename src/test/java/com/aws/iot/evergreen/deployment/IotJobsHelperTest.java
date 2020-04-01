@@ -150,7 +150,7 @@ public class IotJobsHelperTest {
             jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
-        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
+        iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
         verify(mockIotJobsClient).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
                 eq(QualityOfService.AT_LEAST_ONCE), updateJobExecutionResponseCaptor.capture());
 
@@ -192,7 +192,7 @@ public class IotJobsHelperTest {
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
         try {
-            iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, TEST_JOB_EXECUTION_NUMBER, statusDetails);
+            iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
         } catch (ExecutionException e) {
             //verify that exception is thrown with the expected message
             assertTrue(e.getCause().getMessage().equals(REJECTION_MESSAGE));
@@ -212,7 +212,6 @@ public class IotJobsHelperTest {
         UpdateJobExecutionRequest publishRequest = publishRequestCaptor.getValue();
         assertEquals(TEST_JOB_ID, publishRequest.jobId);
         assertEquals(JobStatus.IN_PROGRESS, publishRequest.status);
-        assertEquals(TEST_JOB_EXECUTION_NUMBER, publishRequest.executionNumber);
         assertEquals(statusDetails, publishRequest.statusDetails);
         assertEquals(THING_NAME, publishRequest.thingName);
     }

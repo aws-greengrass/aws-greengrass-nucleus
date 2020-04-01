@@ -3,16 +3,34 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
+import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableException;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
+import com.aws.iot.evergreen.deployment.exceptions.InvalidRequestException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import javafx.util.Duration;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.io.ClientBootstrap;
+import software.amazon.awssdk.crt.io.EventLoopGroup;
+import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionSubscriptionRequest;
+import software.amazon.awssdk.iot.iotjobs.model.JobExecutionData;
+import software.amazon.awssdk.iot.iotjobs.model.JobExecutionSummary;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionsChangedEvent;
 import software.amazon.awssdk.iot.iotjobs.model.JobExecutionsChangedSubscriptionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -20,23 +38,36 @@ import software.amazon.awssdk.iot.iotjobs.model.RejectedError;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
+import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import javax.inject.Inject;
 
 @NoArgsConstructor
 public class IotJobsHelper {
 
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
+    private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
-    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = (long) Duration.minutes(5).toSeconds();
+    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = (long) Duration.ofMinutes(5).getSeconds();
 
     //The time it takes for device to publish a message
     //This value needs to be revisited and set to more realistic numbers
-    private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = (long) Duration.minutes(1).toSeconds();
+    private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = (long) Duration.ofMinutes(1).getSeconds();
 
     public static final String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC =
             "$aws/things/{thingName}/jobs/{jobId}/update" + "/accepted";
@@ -45,25 +76,64 @@ public class IotJobsHelper {
 
     private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
+    @Inject
+    private DeviceConfigurationHelper deviceConfigurationHelper;
+
     private String thingName;
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
+    private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
+    private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
+        /*
+         * This message is received when either of these things happen
+         * 1. Last job completed (successful/failed)
+         * 2. A new job was queued
+         * 3. A job was cancelled
+         * This message receives the list of Queued and InProgress jobs at the time of this message
+         */
+        Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
+        if (jobs.containsKey(JobStatus.QUEUED)) {
+            //Do not wait on the future in this async handler,
+            //as it will block the thread which establishes
+            // the MQTT connection. This will result in frozen MQTT connection
+            requestNextPendingJobDocument();
+        }
+        //TODO: If there was only one job, then indicate cancellation of that job.
+        // Empty list will be received.
+    };
 
     /**
-     * Connects to AWS Iot Cloud.
-     *
-     * @throws ExecutionException   if connecting fails
-     * @throws InterruptedException if interrupted while connecting
-     * @throws TimeoutException     if the operation does not complete within the given time
+     * Handler that gets invoked when a job description is received.
+     * Next pending job description is requested when an mqtt message
+     * is published using {@Code requestNextPendingJobDocument} in {@link IotJobsHelper}
      */
-    public void connectToAwsIot() throws ExecutionException, InterruptedException, TimeoutException {
-        connection.connect().get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-        logger.atInfo().log("Connection established to Iot cloud");
-    }
+    private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
+        if (response.execution == null) {
+            return;
+        }
+        JobExecutionData jobExecutionData = response.execution;
+
+        logger.atInfo().kv("JobId", jobExecutionData.jobId).kv("Status", jobExecutionData.status)
+                .log("Received Iot job description", jobExecutionData.jobId, jobExecutionData.status);
+
+        String documentString;
+        try {
+            documentString = OBJECT_MAPPER.writeValueAsString(jobExecutionData.jobDocument);
+        } catch (JsonProcessingException e) {
+            //TODO: Handle when job document is incorrect json.
+            // This should not happen as we are converting a HashMap
+            return;
+        }
+        Deployment deployment =
+                new Deployment(documentString, Deployment.DeploymentType.IOT_JOBS, jobExecutionData.jobId);
+
+        deploymentsQueue.offer(deployment);
+        logger.atInfo().kv("JobId", jobExecutionData.jobId).log("Added the job to the queue");
+    };
 
     /**
-     * Constructor to be used in unit tests.
+     * Constructor.
      *
      * @param thingName            The Iot thing name
      * @param mqttClientConnection Mqtt client connection already setup
@@ -73,6 +143,51 @@ public class IotJobsHelper {
         this.thingName = thingName;
         this.connection = mqttClientConnection;
         this.iotJobsClient = iotJobsClient;
+    }
+
+    /**
+     * Connects to AWS Iot Cloud.
+     *
+     * @param deploymentQueue The queue to which add the {@link DeploymentTask}
+     * @param callbacks       The callback methods to call when connection interruption or resume happens
+     * @throws InterruptedException           if interrupted while connecting
+     * @throws DeviceConfigurationException   if the device is not configured to communicate with AWS Iot cloud
+     * @throws AWSIotException                when an exception occurs in AWS Iot mqtt broker
+     * @throws ConnectionUnavailableException if the connection to AWS Iot cloud is not available
+     */
+    public void connectToAwsIot(LinkedBlockingQueue deploymentQueue, MqttClientConnectionEvents callbacks)
+            throws InterruptedException, DeviceConfigurationException, AWSIotException, ConnectionUnavailableException {
+
+        DeviceConfiguration deviceConfiguration = deviceConfigurationHelper.getDeviceConfiguration();
+        try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
+             HostResolver resolver = new HostResolver(eventLoopGroup);
+             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
+             //TODO: With MQTT proxy this will change
+             AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
+                     .newMtlsBuilderFromPath(deviceConfiguration.getCertificateFilePath(),
+                             deviceConfiguration.getPrivateKeyFilePath())) {
+            builder.withCertificateAuthorityFromPath(null, deviceConfiguration.getRootCAFilePath())
+                    .withEndpoint(deviceConfiguration.getMqttClientEndpoint())
+                    .withClientId(UUID.randomUUID().toString()).withCleanSession(true).withBootstrap(clientBootstrap)
+                    .withConnectionEventCallbacks(callbacks).withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT)
+                    .withPingTimeoutMs(MQTT_PING_TIMEOUT).withPort((short) 8883);
+            connection = builder.build();
+            try {
+                //TODO: Add retry for Throttling, Limit exceed exception
+                connection.connect().get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                throw new ConnectionUnavailableException(e);
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof MqttException) {
+                    throw new ConnectionUnavailableException(e);
+                }
+                throw new AWSIotException(e);
+            }
+            this.iotJobsClient = new IotJobsClient(connection);
+            this.deploymentsQueue = deploymentQueue;
+            this.thingName = deviceConfiguration.getThingName();
+            logger.atInfo().log("Connection established to Iot cloud");
+        }
     }
 
     /**
@@ -90,14 +205,12 @@ public class IotJobsHelper {
      *
      * @param jobId            The jobId to be updated
      * @param status           The {@link JobStatus} to which to update
-     * @param executionNumber  The job execution number
      * @param statusDetailsMap map with job status details
      * @throws ExecutionException   if update fails
      * @throws InterruptedException if the thread gets interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
-    public void updateJobStatus(String jobId, JobStatus status, Long executionNumber,
-                                HashMap<String, String> statusDetailsMap)
+    public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
             throws ExecutionException, InterruptedException, TimeoutException {
         logger.atDebug().kv("JobId", jobId).kv("Status", status).log("Updating job status");
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
@@ -107,25 +220,24 @@ public class IotJobsHelper {
         iotJobsClient.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
                     logger.atInfo().kv("JobId", jobId).kv("Status", status).log("Job status updated accepted");
-                    String topicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
+                    String acceptTopicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);
-                    connection.unsubscribe(topicForJobId);
+                    connection.unsubscribe(acceptTopicForJobId);
                     gotResponse.complete(null);
                 });
 
         iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
                     logger.atWarn().kv("JobId", jobId).kv("Status", status).log("Job status updated rejected");
-                    String topicForJobId = UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName)
+                    String rejectTopicForJobId = UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);
-                    connection.unsubscribe(topicForJobId);
-                    //Can this be due to duplicate messages being sent for the job?
+                    connection.unsubscribe(rejectTopicForJobId);
+                    //TODO: Can this be due to duplicate messages being sent for the job?
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
 
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
-        updateJobRequest.executionNumber = executionNumber;
         updateJobRequest.status = status;
         updateJobRequest.statusDetails = statusDetailsMap;
         updateJobRequest.thingName = thingName;
@@ -135,6 +247,52 @@ public class IotJobsHelper {
             gotResponse.completeExceptionally(e.getCause());
         }
         gotResponse.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Request the job description of the next available job for this Iot Thing.
+     * It publishes on the $aws/things/{thingName}/jobs/$next/get topic.
+     */
+    public void requestNextPendingJobDocument() {
+        DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
+        describeJobExecutionRequest.thingName = thingName;
+        describeJobExecutionRequest.jobId = "$next";
+        describeJobExecutionRequest.includeJobDocument = true;
+        //This method is specifically called from an async event notification handler. Async handler cannot block on
+        // this future as that will freeze the MQTT connection.
+        iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
+    }
+
+    /**
+     * Subscribe to the mqtt topics needed for getting Iot Jobs notifications.
+     *
+     * @throws InterruptedException           When operation is interrupted
+     * @throws AWSIotException                When there is an exception from the Iot cloud
+     * @throws ConnectionUnavailableException When connection to cloud is not available
+     */
+    public void subscribeToJobsTopics() throws InterruptedException, AWSIotException, ConnectionUnavailableException {
+        try {
+            //TODO: Add retry in case of Throttling, Timeout and LimitExceed exception
+            subscribeToEventNotifications(eventHandler);
+            subscribeToGetNextJobDescription(describeJobExecutionResponseConsumer, rejectedError -> {
+                logger.error("Job subscription got rejected", rejectedError);
+                //TODO: Add retry logic for subscribing
+            });
+            requestNextPendingJobDocument();
+        } catch (ExecutionException e) {
+            //TODO: If network is not available then it will throw MqttException
+            // If there is any other problem like thingName is not specified in the request then also
+            // it throws Mqtt exception. Need to distinguish between what is cause due to network unavailability
+            // and what is caused by other non-transient causes like invalid parameters
+            if (e.getCause() instanceof MqttException) {
+                throw new ConnectionUnavailableException(e);
+            }
+            //After the max retries have been exhausted or this is a non retryable exception
+            throw new AWSIotException("Caught exception while subscribing to Iot Jobs topics", e);
+        } catch (TimeoutException e) {
+            //After the max retries have been exhausted
+            throw new ConnectionUnavailableException("Timed out while subscribing to Iot Jobs topics", e);
+        }
     }
 
     /**
@@ -148,8 +306,8 @@ public class IotJobsHelper {
      * @throws InterruptedException if the thread gets interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
-    public void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
-                                                 Consumer<RejectedError> consumerReject)
+    protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
+                                                    Consumer<RejectedError> consumerReject)
             throws ExecutionException, InterruptedException, TimeoutException {
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
@@ -172,26 +330,12 @@ public class IotJobsHelper {
      * @throws InterruptedException When this thread was interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
-    public void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
+    protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
             throws ExecutionException, InterruptedException, TimeoutException {
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
         request.thingName = thingName;
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-    }
-
-    /**
-     * Request the job description of the next available job for this Iot Thing.
-     * It publishes on the $aws/things/{thingName}/jobs/$next/get topic.
-     */
-    public void requestNextPendingJobDocument() {
-        DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
-        describeJobExecutionRequest.thingName = thingName;
-        describeJobExecutionRequest.jobId = "$next";
-        describeJobExecutionRequest.includeJobDocument = true;
-        //This method is specifically called from an async event notification handler. Async handler cannot block on
-        // this future as that will freeze the MQTT connection.
-        iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
     }
 }
