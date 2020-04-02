@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobRequest;
+import software.amazon.awssdk.services.iot.model.JobExecution;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.JobStatus;
 
@@ -151,6 +152,53 @@ public class DeploymentE2ETest {
         assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build()).execution()
                 .status());
+        assertEquals(JobStatus.COMPLETED,
+                Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
+    void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error()
+            throws Exception {
+        // Target our DUT for deployments
+        // TODO: Eventually switch this to target using Thing Group instead of individual Thing
+        String[] targets = {thing.thingArn};
+
+        // First deployment to have some services running in Kernel
+        String document1 = new ObjectMapper().writeValueAsString(
+                DeploymentDocument.builder()
+                        .timestamp(System.currentTimeMillis())
+                        .deploymentId(UUID.randomUUID().toString())
+                        .rootPackages(Arrays.asList("SomeService"))
+                        .deploymentPackageConfigurationList(Arrays.asList(
+                                new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null)))
+                        .build());
+        String jobId1 = Utils.createJob(document1, targets);
+        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
+
+        // Second deployment contains dependency conflicts
+        String document2 = new ObjectMapper().writeValueAsString(
+                DeploymentDocument.builder()
+                        .timestamp(System.currentTimeMillis())
+                        .deploymentId(UUID.randomUUID().toString())
+                        .rootPackages(Arrays.asList("SomeService", "SomeOldService"))
+                        .deploymentPackageConfigurationList(Arrays.asList(
+                                new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null),
+                                new DeploymentPackageConfiguration("SomeOldService", "0.9.0", null, null, null)))
+                        .build());
+        String jobId2 = Utils.createJob(document2, targets);
+        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
+
+        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+        assertEquals(State.FINISHED, kernel.getMain().getState());
+        assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "SomeService").getState());
+
+        // Make sure IoT Job was marked as failed and provided correct reason
+        JobExecution jobExecution = Utils.iotClient.describeJobExecution(
+                DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build()).execution();
+        assertEquals(JobExecutionStatus.FAILED, jobExecution.status());
+        assertEquals("com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages: {SomeService-v1.0.0=1.0.0, SomeOldService-v0.9.0==0.9.0}",
+                jobExecution.statusDetails().detailsMap().get("error"));
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
     }
