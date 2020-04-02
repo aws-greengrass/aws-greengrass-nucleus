@@ -9,37 +9,34 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import javax.inject.Inject;
-import javax.inject.Named;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
  * Local Store Implementation for Evergreen Packages.
  */
-@AllArgsConstructor
-@NoArgsConstructor
 @Deprecated
+@AllArgsConstructor
 public class LocalPackageStoreDeprecated implements PackageStoreDeprecated {
 
     private static final String PACKAGE_RECIPE_CANNOT_BE_NULL = "Package Recipe cannot be null";
 
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
 
-    @Inject
-    @Named
-    private Path cacheFolder;
+    private final Path cacheFolder;
 
     private static Path getPackageStorageRoot(final String packageName, final Path cacheFolder) {
         return cacheFolder.resolve(packageName);
@@ -97,6 +94,35 @@ public class LocalPackageStoreDeprecated implements PackageStoreDeprecated {
         } catch (IOException e) {
             throw new UnsupportedRecipeFormatException(Constants.UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG, e);
         }
+    }
+
+    /**
+     * Get package from cache if it exists.
+     */
+    @Override
+    public List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
+        Path srcPkgRoot = getPackageStorageRoot(packageName, cacheFolder);
+        List<Semver> versions = new ArrayList<>();
+
+        if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
+            return versions;
+        }
+
+        File[] versionDirs = srcPkgRoot.toFile().listFiles(File::isDirectory);
+        if (versionDirs == null || versionDirs.length == 0) {
+            return versions;
+        }
+
+        try {
+            for (File versionDir : versionDirs) {
+                // TODO: Depending on platform, this may need to avoid failures on other things
+                versions.add(new Semver(versionDir.getName(), Semver.SemverType.NPM));
+            }
+        } catch (SemverException e) {
+            throw new UnexpectedPackagingException("Package Cache is corrupted! " + e.toString(), e);
+        }
+
+        return versions;
     }
 
     /**
@@ -191,11 +217,6 @@ public class LocalPackageStoreDeprecated implements PackageStoreDeprecated {
         Path destRootPkgPath = getPackageVersionStorageRoot(curPackageRecipe, destPath);
 
         copyPackageArtifactsToPath(curPackageRecipe, srcRootPkgPath, destRootPkgPath);
-    }
-
-    @Override
-    public List<Semver> getPackageVersionsIfExists(String packageName) throws UnexpectedPackagingException {
-        return null;
     }
 
     /**
