@@ -1,3 +1,6 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.config.Constants;
@@ -27,6 +30,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
+/**
+ * TODO Implement public methods
+ */
 @SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.IdenticalCatchBranches"})
 public class PackageStore {
     private static final Path LOCAL_CACHE_PATH =
