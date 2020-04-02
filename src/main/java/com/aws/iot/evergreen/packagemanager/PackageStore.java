@@ -134,7 +134,7 @@ public class PackageStore {
      *
      * @return Optional containing package recipe as a String
      */
-    public Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
+    private Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
         Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), LOCAL_CACHE_PATH);
 
@@ -155,11 +155,6 @@ public class PackageStore {
 
     private static Path getPackageStorageRoot(final String packageName, final Path cacheFolder) {
         return cacheFolder.resolve(packageName);
-    }
-
-    private static Path getPackageVersionStorageRoot(final Package curPackageRecipe, final Path cacheFolder) {
-        return getPackageVersionStorageRoot(curPackageRecipe.getPackageName(), curPackageRecipe.getVersion().toString(),
-                cacheFolder);
     }
 
     private static Path getPackageVersionStorageRoot(final String packageName, final String packageVersion,

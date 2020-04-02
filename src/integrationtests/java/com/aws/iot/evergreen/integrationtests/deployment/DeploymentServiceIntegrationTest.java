@@ -98,8 +98,8 @@ class DeploymentServiceIntegrationTest {
         kernel.parseArgs("-i",
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
-        dependencyResolver = new DependencyResolver(new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH), kernel);
         packageStore = new PackageStore();
+        dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }
 

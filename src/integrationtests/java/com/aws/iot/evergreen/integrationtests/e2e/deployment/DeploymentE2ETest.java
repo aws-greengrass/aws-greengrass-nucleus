@@ -70,7 +70,7 @@ public class DeploymentE2ETest {
 
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString());
         setupIotResourcesAndInjectIntoKernel();
-        injectKernelPackageManagementDependencies();
+//        injectKernelPackageManagementDependencies();
         kernel.launch();
     }
 
@@ -173,8 +173,8 @@ public class DeploymentE2ETest {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).setValue(rootCaFilePath);
     }
 
-    private static void injectKernelPackageManagementDependencies() {
-        kernel.context.getv(DependencyResolver.class)
-                .put(new DependencyResolver(new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH), kernel));
-    }
+//    private static void injectKernelPackageManagementDependencies() {
+//        kernel.context.getv(DependencyResolver.class)
+//                .put(new DependencyResolver(new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH), kernel));
+//    }
 }
