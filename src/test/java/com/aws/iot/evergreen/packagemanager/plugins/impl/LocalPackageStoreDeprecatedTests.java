@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
+import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,15 +22,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class LocalPackageStoreTests {
+public class LocalPackageStoreDeprecatedTests {
 
-    private LocalPackageStore testPackageStore;
-    private LocalPackageStore mockPackageStore;
+    private LocalPackageStoreDeprecated testPackageStore;
+    private LocalPackageStoreDeprecated mockPackageStore;
 
     @BeforeEach
     public void initStores() throws URISyntaxException, IOException {
-        testPackageStore = new LocalPackageStore(TestHelper.getPathForLocalTestCache());
-        mockPackageStore = new LocalPackageStore(TestHelper.getPathForMockRepository());
+        testPackageStore = new LocalPackageStoreDeprecated(TestHelper.getPathForLocalTestCache());
+        mockPackageStore = new LocalPackageStoreDeprecated(TestHelper.getPathForMockRepository());
     }
 
     @Test
