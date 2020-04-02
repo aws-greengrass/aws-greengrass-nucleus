@@ -38,7 +38,7 @@ class GenericExternalServiceTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_with_startup_timeout_WHEN_do_not_startup_within_timeout_THEN_move_service_to_errored()
+    void GIVEN_service_with_startup_timeout_WHEN_does_not_startup_within_timeout_THEN_move_service_to_errored()
             throws InterruptedException {
         Kernel kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_timesout.yaml").toString());

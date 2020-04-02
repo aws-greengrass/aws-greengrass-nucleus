@@ -14,10 +14,12 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +45,7 @@ public class mergeTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_complete_without_exception()
+    public void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()
             throws InterruptedException {
         Kernel kernel = new Kernel();
         when(mockMainService.getState()).thenReturn(State.RUNNING);
@@ -77,11 +79,11 @@ public class mergeTest {
                 new HashSet(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
         kernel.waitForServicesToStart(evergreenServices, future);
 
-        future.whenComplete((v, t) -> {
-            assertTrue(t instanceof ServiceInBrokenStateAfterDeploymentException);
-            EvergreenService brokenService = ((ServiceInBrokenStateAfterDeploymentException) t).getBrokenService();
-            assertEquals(mockMainService, brokenService);
-        });
+        ExecutionException t =
+                assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
+        ServiceInBrokenStateAfterDeploymentException ex = (ServiceInBrokenStateAfterDeploymentException) t.getCause();
+        EvergreenService brokenService = ex.getBrokenService();
+        assertEquals(mockMainService, brokenService);
     }
 
 }

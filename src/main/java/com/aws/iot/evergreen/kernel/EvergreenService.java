@@ -59,6 +59,7 @@ public class EvergreenService implements InjectionActions {
     public static final String SERVICE_NAME_KEY = "serviceName";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
+    public static final int DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
 
     public final Topics config;
     public Context context;
@@ -491,7 +492,7 @@ public class EvergreenService implements InjectionActions {
                                     // Default startup time is 120 seconds
                                     if (startUpTopic != null) {
                                         Integer timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
-                                                .dflt(120).getOnce();
+                                                .dflt(DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC).getOnce();
                                         Future<?> schedule =
                                                 context.get(ScheduledExecutorService.class).schedule(() -> {
                                                     if (!State.RUNNING.equals(getState())) {

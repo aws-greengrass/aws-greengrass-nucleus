@@ -6,7 +6,7 @@ import lombok.Getter;
 
 @SuppressFBWarnings(justification = "This does not need to be serializable", value = "SE_BAD_FIELD")
 public class ServiceInBrokenStateAfterDeploymentException extends Exception {
-    static final long serialVersionUID = -3387516993124229948L;
+
     @Getter
     private EvergreenService brokenService;
 
