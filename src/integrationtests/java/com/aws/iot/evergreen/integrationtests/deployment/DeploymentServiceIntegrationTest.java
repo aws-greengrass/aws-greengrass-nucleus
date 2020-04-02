@@ -18,7 +18,6 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
@@ -62,12 +61,10 @@ class DeploymentServiceIntegrationTest {
     private static final String TEST_CUSTOMER_APP_STRING_UPDATED = "Hello evergreen. This is a new value";
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
-    private static final Path LOCAL_CACHE_PATH = Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     private static ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE,
-            false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static Logger logger;
 
@@ -95,8 +92,7 @@ class DeploymentServiceIntegrationTest {
     static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i",
-                DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
+        kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
         packageStore = new PackageStore();
         dependencyResolver = new DependencyResolver(packageStore, kernel);
@@ -113,32 +109,33 @@ class DeploymentServiceIntegrationTest {
     public void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();
-        final List<String> listOfExpectedMessages = Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING,
-                TEST_CUSTOMER_APP_STRING);
+        final List<String> listOfExpectedMessages =
+                Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING, TEST_CUSTOMER_APP_STRING);
         countDownLatch = new CountDownLatch(3);
-        Consumer<EvergreenStructuredLogMessage> listener = m->{
+        Consumer<EvergreenStructuredLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if(messageOnStdout != null && listOfExpectedMessages.contains(messageOnStdout)) {
+            if (messageOnStdout != null && listOfExpectedMessages.contains(messageOnStdout)) {
                 //TODO: Deduping is needed, as currently kernel is running the GreenSignal and Mosquitto dependencies
                 // multiple times before the CustomerApp runs. This should not be the expected behavior. Sim to
                 // capture this https://sim.amazon.com/issues/P34042537
-                if(!outputMessagesToTimestamp.containsKey(messageOnStdout)) {
+                if (!outputMessagesToTimestamp.containsKey(messageOnStdout)) {
                     outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
                     countDownLatch.countDown();
                 }
             }
         };
         Log4jLogEventBuilder.addGlobalListener(listener);
-        Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
-                "SampleJobDocument.json").toURI(), System.currentTimeMillis());
+        Future<?> result = submitSampleJobDocument(
+                DeploymentServiceIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
+                System.currentTimeMillis());
 
         result.get(60, TimeUnit.SECONDS);
 
         countDownLatch.await(60, TimeUnit.SECONDS);
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
-        assertThat(listOfStdoutMessagesTapped, Matchers.containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING)
-                , Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
+        assertThat(listOfStdoutMessagesTapped, Matchers.containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
+                Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
         Log4jLogEventBuilder.removeGlobalListener(listener);
     }
 
@@ -148,18 +145,19 @@ class DeploymentServiceIntegrationTest {
             throws Exception {
         outputMessagesToTimestamp.clear();
         countDownLatch = new CountDownLatch(1);
-        Consumer<EvergreenStructuredLogMessage> listener = m->{
+        Consumer<EvergreenStructuredLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if(messageOnStdout != null && messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
+            if (messageOnStdout != null && messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
                 outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
                 countDownLatch.countDown();
             }
         };
         Log4jLogEventBuilder.addGlobalListener(listener);
 
-        Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
-                "SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
+        Future<?> result = submitSampleJobDocument(
+                DeploymentServiceIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
+                System.currentTimeMillis());
         result.get(30, TimeUnit.SECONDS);
         countDownLatch.await(60, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
@@ -175,11 +173,11 @@ class DeploymentServiceIntegrationTest {
      */
     @Test
     @Order(3)
-    void GIVEN_services_running_WHEN_service_added_and_deleted_THEN_add_remove_service_accordingly()
-            throws Exception {
+    void GIVEN_services_running_WHEN_service_added_and_deleted_THEN_add_remove_service_accordingly() throws Exception {
 
-        Future<?> result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
-                "CustomerAppAndYellowSignal.json").toURI(), System.currentTimeMillis());
+        Future<?> result = submitSampleJobDocument(
+                DeploymentServiceIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
+                System.currentTimeMillis());
         result.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
@@ -193,8 +191,9 @@ class DeploymentServiceIntegrationTest {
         assertTrue(services.contains("Mosquitto"));
         assertTrue(services.contains("GreenSignal"));
 
-        result = submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource(
-                "YellowAndRedSignal.json").toURI(), System.currentTimeMillis());
+        result = submitSampleJobDocument(
+                DeploymentServiceIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
+                System.currentTimeMillis());
         result.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
@@ -218,8 +217,9 @@ class DeploymentServiceIntegrationTest {
             fail("Failed to create Deployment document object from sample job document", e.getCause());
         }
         sampleDeploymentDocument.setTimestamp(timestamp);
-        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver,
-                kernel, logger, sampleDeploymentDocument);
+        DeploymentTask deploymentTask =
+                new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
+                        sampleDeploymentDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
     }
