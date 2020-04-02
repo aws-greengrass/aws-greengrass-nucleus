@@ -17,12 +17,10 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +43,9 @@ public class DependencyResolver {
     private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
 
-    @Setter
-    private PackageStore store;
+    @Inject
+    private PackageStore packageStore;
+
     @Inject
     private Kernel kernel;
 
@@ -138,6 +137,7 @@ public class DependencyResolver {
         logger.atDebug().setEventType("resolve-package-start").addKeyValue(PACKAGE_NAME_KEY, pkgName).log();
 
         // Compile a list of versions to explore for this package in order
+        //TODO return iterator
         List<Semver> versionsToExplore = getVersionsToExplore(pkgName, packageNameToVersionConstraints.get(pkgName));
         if (versionsToExplore.isEmpty()) {
             errorMessage = Optional.of(buildErrorMessage(pkgName, resolvedPackageNameToVersion,
@@ -238,6 +238,7 @@ public class DependencyResolver {
     }
 
     /**
+     * // TODO move to local package store
      * Get a ordered list of possible versions to explore for the given package.
      *
      * @param pkgName                     name of the package to be explored
@@ -278,9 +279,10 @@ public class DependencyResolver {
         }
 
         // Find out all available versions in package store
-        // TODO: Update priorities to be "version available on disk > latest version on the cloud > other versions on
-        // the cloud"
-        List<Semver> allVersions = store.getPackageVersionsIfExists(pkgName);
+        // TODO: shuyeh Update priorities to be "version available on disk > latest version on the cloud > other
+        //  versions on the cloud
+        // TODO clarify with Feng
+        List<Semver> allVersions = packageStore.getPackageVersionsIfExists(pkgName);
         for (Semver v : allVersions) {
             if (req.isSatisfiedBy(v) && !v.equals(activeVersion)) {
                 versionList.add(v);
@@ -338,7 +340,7 @@ public class DependencyResolver {
 
     private Package getPackage(final String pkgName, final Semver version) throws PackagingException, IOException {
         // TODO: handle exceptions with retry
-        Optional<Package> optionalPackage = store.getPackage(pkgName, version);
+        Optional<Package> optionalPackage = packageStore.getPackage(pkgName, version);
         if (!optionalPackage.isPresent()) {
             throw new UnexpectedPackagingException(
                     String.format("Fail to get details of package %s at version %s", pkgName, version));

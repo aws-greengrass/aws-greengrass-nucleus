@@ -14,7 +14,7 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
+import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -175,6 +175,6 @@ public class DeploymentE2ETest {
 
     private static void injectKernelPackageManagementDependencies() {
         kernel.context.getv(DependencyResolver.class)
-                .put(new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel));
+                .put(new DependencyResolver(new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH), kernel));
     }
 }

@@ -10,7 +10,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRegistryEntry;
-import com.aws.iot.evergreen.packagemanager.plugins.PackageStore;
+import com.aws.iot.evergreen.packagemanager.plugins.PackageStoreDeprecated;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,14 +52,14 @@ class PackageManagerTest {
     private PackageRegistry packageRegistry;
 
     @Mock
-    private PackageStore packageStore;
+    private PackageStoreDeprecated packageStoreDeprecated;
 
     @Mock
-    private PackageStore mockRepository;
+    private PackageStoreDeprecated mockRepository;
 
     @BeforeEach
     void beforeEach() {
-        this.packageManager = new PackageManager(packageRegistry, packageStore, mockRepository);
+        this.packageManager = new PackageManager(packageRegistry, packageStoreDeprecated, mockRepository);
     }
 
     //   A
@@ -169,13 +169,13 @@ class PackageManagerTest {
         activePackages.put("D", entryD);
 
         Package pkgA = new Package(null, "A", new Semver("1.0.0"), null, null, null, null, null, null, null);
-        when(packageStore.getPackage("A", new Semver("1.0.0"))).thenReturn(Optional.of(pkgA));
+        when(packageStoreDeprecated.getPackage("A", new Semver("1.0.0"))).thenReturn(Optional.of(pkgA));
         Package pkgB = new Package(null, "B", new Semver("1.0.0"), null, null, null, null, null, null, null);
-        when(packageStore.getPackage("B", new Semver("1.0.0"))).thenReturn(Optional.of(pkgB));
+        when(packageStoreDeprecated.getPackage("B", new Semver("1.0.0"))).thenReturn(Optional.of(pkgB));
         Package pkgC = new Package(null, "C", new Semver("1.0.0"), null, null, null, null, null, null, null);
-        when(packageStore.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
+        when(packageStoreDeprecated.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
         Package pkgD = new Package(null, "D", new Semver("1.0.0"), null, null, null, null, null, null, null);
-        when(packageStore.getPackage("D", new Semver("1.0.0"))).thenReturn(Optional.of(pkgD));
+        when(packageStoreDeprecated.getPackage("D", new Semver("1.0.0"))).thenReturn(Optional.of(pkgD));
         Package pkg = packageManager.loadPackage("A", null, activePackages, new HashMap<>());
 
         assertThat(pkg.getPackageName(), is("A"));
@@ -190,7 +190,7 @@ class PackageManagerTest {
 
     @Test
     void GIVEN_packages_registered_WHEN_load_package_from_store_THEN_store_throw_exception() throws Exception {
-        when(packageStore.getPackage(anyString(), any())).thenThrow(new IOException());
+        when(packageStoreDeprecated.getPackage(anyString(), any())).thenThrow(new IOException());
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
@@ -200,7 +200,7 @@ class PackageManagerTest {
 
     @Test
     void GIVEN_packages_registered_WHEN_load_package_from_store_THEN_store_return_nothing() throws Exception {
-        when(packageStore.getPackage(anyString(), any())).thenReturn(Optional.empty());
+        when(packageStoreDeprecated.getPackage(anyString(), any())).thenReturn(Optional.empty());
         PackageRegistryEntry entryA = new PackageRegistryEntry("A", new Semver("1.0.0"), Collections.emptyMap());
 
         assertThrows(PackageLoadingException.class,
@@ -242,11 +242,11 @@ class PackageManagerTest {
                         new PackageParameter("PackageC_param2", "PackageC_param2_default", "String")));
 
         Package pkgA = new Package(null, "A", new Semver("1.0.0"), null, null, packageAParams, null, null, null, null);
-        when(packageStore.getPackage("A", new Semver("1.0.0"))).thenReturn(Optional.of(pkgA));
+        when(packageStoreDeprecated.getPackage("A", new Semver("1.0.0"))).thenReturn(Optional.of(pkgA));
         Package pkgB = new Package(null, "B", new Semver("1.0.0"), null, null, packageBParams, null, null, null, null);
-        when(packageStore.getPackage("B", new Semver("1.0.0"))).thenReturn(Optional.of(pkgB));
+        when(packageStoreDeprecated.getPackage("B", new Semver("1.0.0"))).thenReturn(Optional.of(pkgB));
         Package pkgC = new Package(null, "C", new Semver("1.0.0"), null, null, packageCParams, null, null, null, null);
-        when(packageStore.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
+        when(packageStoreDeprecated.getPackage("C", new Semver("1.0.0"))).thenReturn(Optional.of(pkgC));
 
         PackageMetadata pkgMetadatsB = new PackageMetadata("B", "1.0.0", "1.0.0", Collections.emptySet(),
                 Collections.singleton(new PackageParameter("PackageB_param1", "PackageB_param1_value", "String")));

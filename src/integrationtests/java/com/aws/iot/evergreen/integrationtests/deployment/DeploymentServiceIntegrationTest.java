@@ -17,8 +17,8 @@ import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageCache;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
@@ -72,7 +72,7 @@ class DeploymentServiceIntegrationTest {
     private static Logger logger;
 
     private static DependencyResolver dependencyResolver;
-    private static PackageCache packageCache;
+    private static PackageStore packageStore;
     private static KernelConfigResolver kernelConfigResolver;
 
     private DeploymentDocument sampleDeploymentDocument;
@@ -98,9 +98,9 @@ class DeploymentServiceIntegrationTest {
         kernel.parseArgs("-i",
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
-        dependencyResolver = new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel);
-        packageCache = new PackageCache();
-        kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
+        dependencyResolver = new DependencyResolver(new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH), kernel);
+        packageStore = new PackageStore();
+        kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }
 
     @AfterAll
@@ -218,7 +218,7 @@ class DeploymentServiceIntegrationTest {
             fail("Failed to create Deployment document object from sample job document", e.getCause());
         }
         sampleDeploymentDocument.setTimestamp(timestamp);
-        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver,
+        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver,
                 kernel, logger, sampleDeploymentDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
