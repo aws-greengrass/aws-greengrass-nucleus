@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceInBrokenStateAfterDeploymentException;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -607,20 +608,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     context.get(ExecutorService.class).execute(() -> {
                         //TODO: Add timeout
                         try {
-                            while (!totallyCompleteFuture.isCancelled()) {
-                                if (servicesToTrack.stream().allMatch(service -> {
-                                    if (!service.reachedDesiredState()) {
-                                        return false;
-                                    }
-                                    State state = service.getState();
-                                    if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
-                                        return true;
-                                    }
-                                    return false;
-                                })) {
-                                    break;
-                                }
-                                Thread.sleep(1000); // hardcoded
+                            waitForServicesToStart(servicesToTrack, totallyCompleteFuture);
+                            if (totallyCompleteFuture.isCompletedExceptionally()) {
+                                return;
                             }
                             if (totallyCompleteFuture.isCancelled()) {
                                 logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv("deploymentId", deploymentId)
@@ -645,6 +635,33 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         });
 
         return totallyCompleteFuture;
+    }
+
+    protected void waitForServicesToStart(Set<EvergreenService> servicesToTrack,
+                                          CompletableFuture totallyCompleteFuture) throws InterruptedException {
+        while (!totallyCompleteFuture.isCancelled()) {
+            boolean allServicesRunning = true;
+            for (EvergreenService service : servicesToTrack) {
+                State state = service.getState();
+                // if any service is broken, set exception and return
+                if (State.BROKEN.equals(state)) {
+                    totallyCompleteFuture
+                            .completeExceptionally(new ServiceInBrokenStateAfterDeploymentException(service));
+                    return;
+                }
+                if (!service.reachedDesiredState()) {
+                    allServicesRunning = false;
+                }
+                if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
+                    continue;
+                }
+                allServicesRunning = false;
+            }
+            if (allServicesRunning) {
+                return;
+            }
+            Thread.sleep(1000); // hardcoded
+        }
     }
 
     private void removeServices(List<String> serviceToRemove) throws InterruptedException, ExecutionException {

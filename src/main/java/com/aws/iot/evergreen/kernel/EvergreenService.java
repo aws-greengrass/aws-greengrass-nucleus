@@ -40,8 +40,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.inject.Singleton;
@@ -53,6 +57,8 @@ public class EvergreenService implements InjectionActions {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
+    public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
+    public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
 
     public final Topics config;
     public Context context;
@@ -422,7 +428,7 @@ public class EvergreenService implements InjectionActions {
             while (desiredState.isPresent() && desiredState.get().equals(current)) {
                 desiredState = peekOrRemoveFirstDesiredState(current);
             }
-
+            AtomicReference<Future> triggerTimeOutFutureReference = new AtomicReference<>();
             switch (current) {
                 case BROKEN:
                     return;
@@ -477,8 +483,26 @@ public class EvergreenService implements InjectionActions {
                                             .log("Got interrupted while waiting for dependency ready");
                                     return;
                                 }
-
                                 try {
+                                    Topics startUpTopic = lifecycle != null
+                                            ? lifecycle.findInteriorChild(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)
+                                            : null;
+                                    // only schedule task to report error for services which use startup
+                                    // Default startup time is 120 seconds
+                                    if (startUpTopic != null) {
+                                        Integer timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
+                                                .dflt(120).getOnce();
+                                        Future<?> schedule =
+                                                context.get(ScheduledExecutorService.class).schedule(() -> {
+                                                    if (!State.RUNNING.equals(getState())) {
+                                                        logger.atWarn("service-startup-timed-out")
+                                                                .log("Service failed to startup within timeout");
+                                                        reportState(State.ERRORED);
+                                                    }
+                                                },
+                                                timeout, TimeUnit.SECONDS);
+                                        triggerTimeOutFutureReference.set(schedule);
+                                    }
                                     // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
                                     startup();
                                 } catch (InterruptedException i) {
@@ -607,6 +631,11 @@ public class EvergreenService implements InjectionActions {
                 State toState = (State) stateEvent;
                 logger.atInfo().setEventType("service-report-state").kv("state", toState).log();
                 updateStateAndBroadcast(toState);
+            }
+            // service transitioning to another state, cancelling task monitoring the timeout for startup
+            Future triggerTimeOutFuture = triggerTimeOutFutureReference.get();
+            if (triggerTimeOutFuture != null) {
+                triggerTimeOutFuture.cancel(true);
             }
         }
     }

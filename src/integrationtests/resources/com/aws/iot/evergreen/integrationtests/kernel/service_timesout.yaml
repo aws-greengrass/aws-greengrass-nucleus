@@ -1,0 +1,21 @@
+---
+services:
+  plain:
+    lifecycle:
+      startup:
+        all: "{platform.invoke} {args}"
+
+  ServiceA:
+    lifecycle:
+      startup:
+        timeout: 5
+        script: |-
+          date; echo sleeperA_starting_up; sleep 120
+  main:
+    dependencies:
+      - ServiceA
+    lifecycle:
+      run: |-
+        while true; do
+        date; echo main_running; sleep 5
+        done
