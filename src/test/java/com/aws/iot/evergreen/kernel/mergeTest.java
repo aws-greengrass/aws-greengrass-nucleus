@@ -6,7 +6,7 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.exceptions.ServiceInBrokenStateAfterDeploymentException;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -81,7 +81,7 @@ public class mergeTest {
 
         ExecutionException t =
                 assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
-        ServiceInBrokenStateAfterDeploymentException ex = (ServiceInBrokenStateAfterDeploymentException) t.getCause();
+        ServiceUpdateException ex = (ServiceUpdateException) t.getCause();
         EvergreenService brokenService = ex.getBrokenService();
         assertEquals(mockMainService, brokenService);
     }

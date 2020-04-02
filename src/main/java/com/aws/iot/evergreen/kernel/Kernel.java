@@ -10,7 +10,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.exceptions.ServiceInBrokenStateAfterDeploymentException;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -645,8 +645,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 State state = service.getState();
                 // if any service is broken, set exception and return
                 if (State.BROKEN.equals(state)) {
-                    totallyCompleteFuture
-                            .completeExceptionally(new ServiceInBrokenStateAfterDeploymentException(service));
+                    totallyCompleteFuture.completeExceptionally(
+                            new ServiceUpdateException("Service in broken state after deployment", service));
                     return;
                 }
                 if (!service.reachedDesiredState()) {
