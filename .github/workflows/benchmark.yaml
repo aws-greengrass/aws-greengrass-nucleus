@@ -20,8 +20,14 @@ jobs:
           aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
           aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
           aws-region: us-west-2
+      - uses: actions/cache@v1
+        with:
+          path: ~/.m2/repository
+          # Only restore maven cache for this exact commit. If we start incrementing the version
+          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build EG with Maven
-        run: mvn -ntp install -DskipTests=true
+        run: mvn -ntp install -DskipTests
       - name: Build benchmark with Maven
         run: mvn -ntp -f src/test/evergreen-kernel-benchmark install
       - name: JMH Benchmark
