@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 
 @SuppressFBWarnings(justification = "This does not need to be serializable", value = "SE_BAD_FIELD")
-public class ServiceInBrokenStateAfterDeploymentException extends Exception {
+public class ServiceInBrokenStateAfterDeploymentException extends DeploymentException {
 
     @Getter
     private EvergreenService brokenService;

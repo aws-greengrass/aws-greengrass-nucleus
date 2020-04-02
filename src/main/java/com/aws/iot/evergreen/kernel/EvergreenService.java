@@ -41,8 +41,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +58,7 @@ public class EvergreenService implements InjectionActions {
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final int DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
+    public static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
     public final Topics config;
     public Context context;
@@ -134,8 +133,8 @@ public class EvergreenService implements InjectionActions {
         }
 
         // TODO: Add validation
-        logger.atInfo().setEventType("service-set-state").kv("currentState", currentState).kv("newState", newState)
-                .log();
+        logger.atInfo().setEventType("service-set-state")
+                .kv(CURRENT_STATE_METRIC_NAME, currentState).kv("newState", newState).log();
 
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
         // across different services.
@@ -196,7 +195,6 @@ public class EvergreenService implements InjectionActions {
                 staticLogger.atInfo().setEventType("service-config-found").kv(SERVICE_NAME_KEY, name)
                         .log("Found service definition in configuration file");
             }
-            EvergreenService ret;
 
             // try to find service implementation class from plugins.
             Class<?> clazz = null;
@@ -222,6 +220,7 @@ public class EvergreenService implements InjectionActions {
                     clazz = si.get(name);
                 }
             }
+            EvergreenService ret;
             // If found class, try to load service class from plugins.
             if (clazz != null) {
                 try {
@@ -422,14 +421,14 @@ public class EvergreenService implements InjectionActions {
         while (!(isClosed.get() && getState().isClosable())) {
             Optional<State> desiredState;
             State current = getState();
-            logger.atInfo().setEventType("service-state-transition-start").kv("currentState", current).log();
+            logger.atInfo().setEventType("service-state-transition-start").kv(CURRENT_STATE_METRIC_NAME, current).log();
 
             // if already in desired state, remove the head of desired state list.
             desiredState = peekOrRemoveFirstDesiredState(current);
             while (desiredState.isPresent() && desiredState.get().equals(current)) {
                 desiredState = peekOrRemoveFirstDesiredState(current);
             }
-            AtomicReference<Future> triggerTimeOutFutureReference = new AtomicReference<>();
+            AtomicReference<Future> triggerTimeOutReference = new AtomicReference<>();
             switch (current) {
                 case BROKEN:
                     return;
@@ -451,7 +450,7 @@ public class EvergreenService implements InjectionActions {
                         } finally {
                             installLatch.countDown();
                         }
-                    }, "install");
+                    });
 
                     // TODO: Configurable timeout logic.
                     boolean ok = installLatch.await(120, TimeUnit.SECONDS);
@@ -502,7 +501,7 @@ public class EvergreenService implements InjectionActions {
                                                     }
                                                 },
                                                 timeout, TimeUnit.SECONDS);
-                                        triggerTimeOutFutureReference.set(schedule);
+                                        triggerTimeOutReference.set(schedule);
                                     }
                                     // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
                                     startup();
@@ -513,7 +512,7 @@ public class EvergreenService implements InjectionActions {
                                     reportState(State.ERRORED);
                                     logger.atError().setEventType("service-runtime-error").setCause(t).log();
                                 }
-                            }, "start");
+                            });
 
                             break;
                         default:
@@ -568,7 +567,7 @@ public class EvergreenService implements InjectionActions {
                         break;
                     }
 
-                    logger.atInfo().setEventType("service-state-transition").kv("currentState", getState())
+                    logger.atInfo().setEventType("service-state-transition").kv(CURRENT_STATE_METRIC_NAME, getState())
                             .kv("desiredState", desiredState).log();
                     switch (desiredState.get()) {
                         case NEW:
@@ -619,8 +618,8 @@ public class EvergreenService implements InjectionActions {
                             continue;
                     }
                 default:
-                    logger.atError().setEventType("service-invalid-state-error").kv("currentState", getState())
-                            .log("Unrecognized state");
+                    logger.atError().setEventType("service-invalid-state-error")
+                            .kv(CURRENT_STATE_METRIC_NAME, getState()).log("Unrecognized state");
                     break;
             }
 
@@ -634,7 +633,7 @@ public class EvergreenService implements InjectionActions {
                 updateStateAndBroadcast(toState);
             }
             // service transitioning to another state, cancelling task monitoring the timeout for startup
-            Future triggerTimeOutFuture = triggerTimeOutFutureReference.get();
+            Future triggerTimeOutFuture = triggerTimeOutReference.get();
             if (triggerTimeOutFuture != null) {
                 triggerTimeOutFuture.cancel(true);
             }
@@ -649,7 +648,7 @@ public class EvergreenService implements InjectionActions {
     public void handleError() throws InterruptedException {
     }
 
-    private synchronized void setBackingTask(Runnable r, String db) {
+    private synchronized void setBackingTask(Runnable r) {
         Future bt = backingTask;
         if (bt != null) {
             backingTask = null;
@@ -664,7 +663,7 @@ public class EvergreenService implements InjectionActions {
     }
 
     private void stopBackingTask() {
-        setBackingTask(null, null);
+        setBackingTask(null);
     }
 
     /**
@@ -683,7 +682,7 @@ public class EvergreenService implements InjectionActions {
     }
 
     public boolean isErrored() {
-        return !getState().isHappy() || error != null;
+        return getState().isHappy() && error == null ? false : true;
     }
 
     /**
@@ -894,9 +893,10 @@ public class EvergreenService implements InjectionActions {
                             .log("Service lifecycle thread interrupted. Thread will exit now");
                     return;
                 } catch (Throwable e) {
-                    logger.atError().setEventType("service-state-transition-error").kv("currentState", getState())
-                            .setCause(e).log();
-                    logger.atInfo().setEventType("service-state-transition-retry").kv("currentState", getState()).log();
+                    logger.atError().setEventType("service-state-transition-error")
+                            .kv(CURRENT_STATE_METRIC_NAME, getState()).setCause(e).log();
+                    logger.atInfo().setEventType("service-state-transition-retry")
+                            .kv(CURRENT_STATE_METRIC_NAME, getState()).log();
                 }
             }
         });
