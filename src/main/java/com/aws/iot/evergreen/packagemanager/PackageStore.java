@@ -39,6 +39,14 @@ public class PackageStore {
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
+    private Path packageStorePath = LOCAL_CACHE_PATH;
+
+    public PackageStore() {
+    }
+
+    public PackageStore(Path packageStorePath) {
+        this.packageStorePath = packageStorePath;
+    }
 
     /**
      * Get package versions with the most preferred version first.
@@ -75,7 +83,7 @@ public class PackageStore {
      */
     public Package getRecipe(PackageIdentifier pkg) {
         // TODO: to be implemented.
-        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH);
+        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(packageStorePath);
         try {
             return localPackageStore.getPackage(pkg.getName(), pkg.getVersion()).get();
         } catch (PackagingException e) {
@@ -92,7 +100,7 @@ public class PackageStore {
      *
      */
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
-        Path srcPkgRoot = getPackageStorageRoot(packageName, LOCAL_CACHE_PATH);
+        Path srcPkgRoot = getPackageStorageRoot(packageName, packageStorePath);
         List<Semver> versions = new ArrayList<>();
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
@@ -142,7 +150,7 @@ public class PackageStore {
      */
     private Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
-        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), LOCAL_CACHE_PATH);
+        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), packageStorePath);
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
             return Optional.empty();
