@@ -755,6 +755,11 @@ public class EvergreenService implements InjectionActions {
         }
 
         dependencies.compute(dependentEvergreenService, (dependentService, dependencyInfo) -> {
+            // If the dependency already exists, we should first remove the subscriber before creating the
+            // new subscriber with updated input.
+            if (dependencyInfo != null) {
+                dependentEvergreenService.getStateTopic().remove(dependencyInfo.stateTopicSubscriber);
+            }
             Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
             dependentEvergreenService.getStateTopic().subscribe(subscriber);
             context.get(Kernel.class).clearODcache();
