@@ -79,7 +79,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void startup() throws InterruptedException {
-        RunStatus result = run("startup", exit -> {
+        RunStatus result = run(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             runScript = null;
             if (getState() == State.INSTALLED) {
                 if (exit == 0) {
@@ -156,7 +156,7 @@ public class GenericExternalService extends EvergreenService {
      * @return the status of the run.
      */
     protected RunStatus run(String name, IntConsumer background) throws InterruptedException {
-        Node n = (lifecycle == null) ? null : lifecycle.getChild(name);
+        Node n = (getLifeCycleTopic() == null) ? null : getLifeCycleTopic().getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 

@@ -56,10 +56,10 @@ public class Topics extends Node implements Iterable<Node> {
 
     @Override
     public void copyFrom(Node from) {
-        assert (from != null);
+        assert from != null;
         if (from instanceof Topics) {
             ((Topics) from).forEach(n -> {
-                assert (n != null);
+                assert n != null;
                 if (n instanceof Topic) {
                     createLeafChild(n.getName()).copyFrom(n);
                 } else {
@@ -84,7 +84,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topic createLeafChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, Topics.this));
+        Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, this));
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
@@ -100,7 +100,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topics createInteriorChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, Topics.this));
+        Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, this));
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
@@ -196,7 +196,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public void remove(Node n) {
         if (!children.remove(n.getName(), n)) {
-            System.err.println("remove: Missing node " + n.getName() + " from " + toString());
+            logger.error("remove: Missing node {} from {}", n.getName(), toString());
         }
         n.fire(WhatHappened.removed);
         childChanged(WhatHappened.childRemoved, n);

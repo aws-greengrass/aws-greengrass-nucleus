@@ -56,6 +56,7 @@ public class EvergreenService implements InjectionActions {
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
+    public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final int DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
@@ -67,7 +68,8 @@ public class EvergreenService implements InjectionActions {
     private final Object dependersExitedLock = new Object();
     private final Topic state;
     private Throwable error;
-    private Future backingTask;
+    private Future backingTask = CompletableFuture.completedFuture(null);
+    private String backingTaskName;
     private Periodicity periodicityInformation;
     private State prevState = State.NEW;
     private Future<?> lifecycleFuture;
@@ -97,8 +99,6 @@ public class EvergreenService implements InjectionActions {
     // Service logger instance
     protected final Logger logger;
 
-    // Service lifecycle Topics
-    protected final Topics lifecycle;
 
     /**
      * Constructor for EvergreenService.
@@ -108,7 +108,6 @@ public class EvergreenService implements InjectionActions {
     public EvergreenService(Topics topics) {
         this.config = topics;
         this.context = topics.getContext();
-        this.lifecycle = topics.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
 
         // TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
@@ -316,7 +315,7 @@ public class EvergreenService implements InjectionActions {
                 return Optional.empty();
             }
             State first = desiredStateList.get(0);
-            if (first == activeState) {
+            if (first.equals(activeState)) {
                 desiredStateList.remove(first);
                 // ignore remove() return value as it's possible that desiredStateList update
             }
@@ -450,7 +449,7 @@ public class EvergreenService implements InjectionActions {
                         } finally {
                             installLatch.countDown();
                         }
-                    });
+                    }, "install");
 
                     // TODO: Configurable timeout logic.
                     boolean ok = installLatch.await(120, TimeUnit.SECONDS);
@@ -484,14 +483,21 @@ public class EvergreenService implements InjectionActions {
                                     return;
                                 }
                                 try {
-                                    Topics startUpTopic = lifecycle != null
-                                            ? lifecycle.findInteriorChild(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)
-                                            : null;
-                                    // only schedule task to report error for services which use startup
-                                    // Default startup time is 120 seconds
+                                    Topics startUpTopic = getStartUpTopic();
+                                    Integer timeout = null;
                                     if (startUpTopic != null) {
-                                        Integer timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
+                                        timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
                                                 .dflt(DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC).getOnce();
+                                        Topics runTopic = getRunTopic();
+                                        if (runTopic != null) {
+                                            timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
+                                                    .dflt(null).getOnce();
+                                        }
+                                    }
+                                    // only schedule task to report error for services if
+                                    // 1. using startup (default timeout is 120 seconds)
+                                    // 2. using run with timeout is explicitly specified (no default timeout)
+                                    if (timeout != null) {
                                         Future<?> schedule =
                                                 context.get(ScheduledExecutorService.class).schedule(() -> {
                                                     if (!State.RUNNING.equals(getState())) {
@@ -512,7 +518,7 @@ public class EvergreenService implements InjectionActions {
                                     reportState(State.ERRORED);
                                     logger.atError().setEventType("service-runtime-error").setCause(t).log();
                                 }
-                            });
+                            },  "start");
 
                             break;
                         default:
@@ -648,22 +654,25 @@ public class EvergreenService implements InjectionActions {
     public void handleError() throws InterruptedException {
     }
 
-    private synchronized void setBackingTask(Runnable r) {
+    private synchronized void setBackingTask(Runnable r, String action) {
         Future bt = backingTask;
-        if (bt != null) {
-            backingTask = null;
-            if (!bt.isDone()) {
-                logger.info("Stopping backingTask {}", bt);
-                bt.cancel(true);
-            }
+        String btName = backingTaskName;
+
+        if (!bt.isDone()) {
+            backingTask = CompletableFuture.completedFuture(null);
+            logger.info("Stopping backingTask {}", btName);
+            bt.cancel(true);
         }
+
         if (r != null) {
+            backingTaskName = action;
+            logger.info("Scheduling backingTask {}", backingTaskName);
             backingTask = context.get(ExecutorService.class).submit(r);
         }
     }
 
     private void stopBackingTask() {
-        setBackingTask(null);
+        setBackingTask(null, null);
     }
 
     /**
@@ -941,7 +950,8 @@ public class EvergreenService implements InjectionActions {
         return new Pair<>(d, x == null ? State.RUNNING : x);
     }
 
-    private synchronized void setupDependencies(Iterable<String> dependencyList) throws Exception {
+    private synchronized void setupDependencies(Iterable<String> dependencyList)
+            throws ServiceLoadException, InputValidationException {
         Map<EvergreenService, State> oldDependencies = new HashMap<>(getDependencies());
         Map<EvergreenService, State> keptDependencies = getDependencyStateMap(dependencyList);
 
@@ -1042,5 +1052,21 @@ public class EvergreenService implements InjectionActions {
         // true if the dependency isn't explicitly declared in config
         boolean isDefaultDependency;
         Subscriber stateTopicSubscriber;
+    }
+
+    protected Topics getLifeCycleTopic() {
+        return config.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+    }
+
+    protected Topics getStartUpTopic() {
+        return getLifeCycleTopic() == null
+                ? null
+                : getLifeCycleTopic().findInteriorChild(LIFECYCLE_STARTUP_NAMESPACE_TOPIC);
+    }
+
+    protected Topics getRunTopic() {
+        return getLifeCycleTopic() == null
+                ? null
+                : getLifeCycleTopic().findInteriorChild(LIFECYCLE_RUN_NAMESPACE_TOPIC);
     }
 }
