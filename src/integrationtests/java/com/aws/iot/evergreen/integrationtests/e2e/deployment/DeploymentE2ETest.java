@@ -61,15 +61,11 @@ class DeploymentE2ETest {
     private static Utils.ThingInfo thing;
 
     @BeforeAll
-    static void beforeAll() throws IOException {
+    static void beforeAll() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         rootCaFilePath = tempRootDir.resolve("rootCA.pem").toString();
         privateKeyFilePath = tempRootDir.resolve("privKey.key").toString();
         certificateFilePath = tempRootDir.resolve("thingCert.crt").toString();
-
-        kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString());
-        setupIotResourcesAndInjectIntoKernel();
-        kernel.launch();
     }
 
     @AfterAll
@@ -80,10 +76,18 @@ class DeploymentE2ETest {
         Utils.cleanAllCreatedJobs();
     }
 
+    private static void launchKernel(String configFile) throws IOException {
+        kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
+        setupIotResourcesAndInjectIntoKernel();
+        kernel.launch();
+    }
+
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_blank_kernel_WHEN_deploy_new_services_e2e_THEN_new_services_deployed_and_job_is_successful()
             throws Exception {
+        launchKernel("blank_config.yaml");
+
         // Create Job Doc
         String document = new ObjectMapper().writeValueAsString(
                 DeploymentDocument.builder().timestamp(System.currentTimeMillis())
@@ -114,6 +118,8 @@ class DeploymentE2ETest {
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_removes_packages_THEN_services_should_be_stopped_and_job_is_successful()
             throws Exception {
+        launchKernel("blank_config.yaml");
+
         // Target our DUT for deployments
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
         String[] targets = {thing.thingArn};
@@ -156,24 +162,14 @@ class DeploymentE2ETest {
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error()
             throws Exception {
+        launchKernel("some_service.yaml");
+
         // Target our DUT for deployments
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
         String[] targets = {thing.thingArn};
 
-        // First deployment to have some services running in Kernel
-        String document1 = new ObjectMapper().writeValueAsString(
-                DeploymentDocument.builder()
-                        .timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Arrays.asList("SomeService"))
-                        .deploymentPackageConfigurationList(Arrays.asList(
-                                new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null)))
-                        .build());
-        String jobId1 = Utils.createJob(document1, targets);
-        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
-
-        // Second deployment contains dependency conflicts
-        String document2 = new ObjectMapper().writeValueAsString(
+        // New deployment contains dependency conflicts
+        String document = new ObjectMapper().writeValueAsString(
                 DeploymentDocument.builder()
                         .timestamp(System.currentTimeMillis())
                         .deploymentId(UUID.randomUUID().toString())
@@ -182,17 +178,17 @@ class DeploymentE2ETest {
                                 new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null),
                                 new DeploymentPackageConfiguration("SomeOldService", "0.9.0", null, null, null)))
                         .build());
-        String jobId2 = Utils.createJob(document2, targets);
-        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
+        String jobId = Utils.createJob(document, targets);
+        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(5));
 
         // Make sure IoT Job was marked as failed and provided correct reason
         JobExecution jobExecution = Utils.iotClient.describeJobExecution(
-                DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build()).execution();
+                DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thing.thingName).build()).execution();
         assertEquals(JobExecutionStatus.FAILED, jobExecution.status());
         assertEquals("com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages: {SomeService-v1.0.0=1.0.0, SomeOldService-v0.9.0==0.9.0}",
                 jobExecution.statusDetails().detailsMap().get("error"));
         assertEquals(JobStatus.COMPLETED,
-                Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
+                Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
     }
 
     private static void setupIotResourcesAndInjectIntoKernel() throws IOException {
