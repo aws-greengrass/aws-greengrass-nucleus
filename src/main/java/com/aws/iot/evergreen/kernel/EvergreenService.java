@@ -755,19 +755,10 @@ public class EvergreenService implements InjectionActions {
         }
 
         dependencies.compute(dependentEvergreenService, (dependentService, dependencyInfo) -> {
-            if (dependencyInfo == null) {
-                Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
-                dependentEvergreenService.getStateTopic().subscribe(subscriber);
-                context.get(Kernel.class).clearODcache();
-                return new DependencyInfo(startWhen, isDefault, subscriber);
-            } else {
-                dependencyInfo.startWhen = startWhen;
-                // if a dependency is added as both a default and a non-default, treat it as default dependency
-                if (!dependencyInfo.isDefaultDependency) {
-                    dependencyInfo.isDefaultDependency = isDefault;
-                }
-                return dependencyInfo;
-            }
+            Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
+            dependentEvergreenService.getStateTopic().subscribe(subscriber);
+            context.get(Kernel.class).clearODcache();
+            return new DependencyInfo(startWhen, isDefault, subscriber);
         });
     }
 

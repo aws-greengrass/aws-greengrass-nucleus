@@ -249,8 +249,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch (Throwable t) {
             logger.atError().log("Error launching plugins", t);
         }
-        Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
-        Path configurationFile = configPath.resolve("config.yaml"); //Paths.get(deTilde("~root/config/config.yaml"));
         try {
             mainService = EvergreenService.locate(context, mainServiceName);
         } catch (ServiceLoadException sle) {
@@ -259,6 +257,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             logger.atError().setEventType("system-boot-error").setCause(rte);
             throw rte;
         }
+        Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
+        Path configurationFile = configPath.resolve("config.yaml"); //Paths.get(deTilde("~root/config/config.yaml"));
         try {
             if (haveRead) {
                 // new config file came in from the outside
