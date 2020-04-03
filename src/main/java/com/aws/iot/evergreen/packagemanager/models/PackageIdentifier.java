@@ -20,9 +20,11 @@ public class PackageIdentifier {
     String name;
     @JsonProperty("Version")
     Semver version;
+    @JsonProperty("ARN")
+    String arn;
 
     @Override
     public String toString() {
-        return String.format("%s-v%s", name, version);
+        return String.format("%s-v%s, ARN:%s", name, version, arn);
     }
 }

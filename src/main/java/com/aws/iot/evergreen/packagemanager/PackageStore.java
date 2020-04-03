@@ -4,12 +4,16 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.config.Constants;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnsupportedRecipeFormatException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
+import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
+import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +22,8 @@ import com.vdurmont.semver4j.SemverException;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
@@ -47,9 +54,14 @@ public class PackageStore {
         this.packageStorePath = packageStorePath;
     }
 
+    private Path recipeDirectory;
+
+    private Path artifactDirectory;
+
     /**
      * Get package versions with the most preferred version first.
-     * @param pkgName the package name
+     *
+     * @param pkgName           the package name
      * @param versionConstraint a version range
      * @return a iterator for package metadata with the most preferred one first
      */
@@ -65,11 +77,121 @@ public class PackageStore {
      * @param pkgs a list of packages.
      * @return a future to notify once this is finished.
      */
+<<<<<<< HEAD
+=======
+    @SuppressFBWarnings(value = "NP_NONNULL_PARAM_VIOLATION",
+            justification = "Waiting for package cache " + "implementation to be completed")
+>>>>>>> package store download with s3 presigned url
     public Future<Void> preparePackages(List<PackageIdentifier> pkgs) {
         // TODO: to be implemented.
         CompletableFuture<Void> completableFuture = new CompletableFuture<>();
         completableFuture.complete(null);
         return completableFuture;
+    }
+
+    private void preparePackage(PackageIdentifier packageIdentifier)
+            throws PackageLoadingException, PackageDownloadException {
+        Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
+        Package pkg = findPackageRecipe(recipePath);
+        if (pkg == null) {
+            pkg = downloadPackageRecipe(packageIdentifier.getArn(), recipePath);
+        }
+        downloadArtifactsIfNecessary(packageIdentifier, pkg.getArtifacts());
+    }
+
+    private Package findPackageRecipe(Path packageRecipe) throws PackageLoadingException {
+        byte[] recipeContent = loadPackageRecipeContent(packageRecipe);
+        if (recipeContent == null) {
+            return null;
+        }
+
+        try {
+            return OBJECT_MAPPER.readValue(recipeContent, Package.class);
+        } catch (IOException e) {
+            throw new PackageLoadingException(Constants.UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG, e);
+        }
+    }
+
+    private byte[] loadPackageRecipeContent(Path packageRecipe) throws PackageLoadingException {
+        if (!Files.exists(packageRecipe) || !Files.isRegularFile(packageRecipe)) {
+            return null;
+        }
+
+        try {
+            return Files.readAllBytes(packageRecipe);
+        } catch (IOException e) {
+            throw new PackageLoadingException("error", e);
+        }
+    }
+
+    private Package downloadPackageRecipe(String packageArn, Path saveToFile)
+            throws PackageDownloadException {
+        //TODO retrieve package recipe from cloud
+        //To pretend it working, load from local now
+        Package pkg;
+        try {
+            pkg = findPackageRecipe(LOCAL_CACHE_PATH.resolve(String.format("%s.yaml", packageArn)));
+        } catch (PackageLoadingException e) {
+            throw new PackageDownloadException("error", e);
+        }
+
+        try {
+            OBJECT_MAPPER.writeValue(new File(saveToFile.toString()), pkg);
+        } catch (IOException e) {
+            throw new PackageDownloadException("error", e);
+        }
+
+        return pkg;
+    }
+
+    private Path resolveRecipePath(String packageName, Semver packageVersion) {
+        return recipeDirectory.resolve(String.format("%s-%s.yaml", packageName, packageVersion.getValue()));
+    }
+
+    private void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<String> artifactList)
+            throws PackageLoadingException, PackageDownloadException {
+        if (artifactList.isEmpty()) {
+            return;
+        }
+
+        Path packageArtifactDirectory = resolveArtifactDirectoryPath(packageIdentifier.getName(),
+                packageIdentifier.getVersion());
+        if (Files.exists(packageArtifactDirectory) && Files.isDirectory(packageArtifactDirectory)) {
+            return;
+        }
+
+        for (String artifact : artifactList) {
+            URI artifactUri;
+            try {
+                artifactUri = new URI(artifact);
+            } catch (URISyntaxException e) {
+                throw new PackageLoadingException("error", e);
+            }
+
+            ArtifactDownloader downloader = selectArtifactDownloader(artifactUri);
+            try {
+                downloader.downloadArtifactToPath(packageIdentifier, artifactUri, packageArtifactDirectory);
+            } catch (IOException e) {
+                throw new PackageDownloadException("error", e);
+            }
+        }
+    }
+
+    private Path resolveArtifactDirectoryPath(String packageName, Semver packageVersion) {
+        return artifactDirectory.resolve(String.format("%s-%s", packageName, packageVersion.getValue()));
+    }
+
+    private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
+        String scheme = artifactUri.getScheme();
+        if (scheme == null) {
+            throw new PackageLoadingException("error");
+        }
+
+        try {
+            return ArtifactProvider.valueOf(scheme.toUpperCase()).getArtifactDownloader();
+        } catch (IllegalArgumentException e) {
+            throw new PackageLoadingException("error", e);
+        }
     }
 
     /**
@@ -93,8 +215,6 @@ public class PackageStore {
 
     /**
      * Get package from cache if it exists.
-     *
-     *
      */
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
         Path srcPkgRoot = getPackageStorageRoot(packageName, packageStorePath);
@@ -171,5 +291,19 @@ public class PackageStore {
     private static Path getPackageVersionStorageRoot(final String packageName, final String packageVersion,
                                                      final Path cacheFolder) {
         return getPackageStorageRoot(packageName, cacheFolder).resolve(packageVersion);
+    }
+
+    private enum ArtifactProvider {
+        GREENGRASS(new GreengrassRepositoryDownloader());
+
+        private ArtifactDownloader artifactDownloader;
+
+        ArtifactProvider(ArtifactDownloader artifactDownloader) {
+            this.artifactDownloader = artifactDownloader;
+        }
+
+        public ArtifactDownloader getArtifactDownloader() {
+            return artifactDownloader;
+        }
     }
 }
