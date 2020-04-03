@@ -43,15 +43,6 @@ class KernelTest extends BaseITCase {
             {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
 
     @Test
-    void GIVEN_invalid_root_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() {
-        System.setProperty("root", "");
-        Kernel kernel = new Kernel();
-        RuntimeException thrown = assertThrows(RuntimeException.class,
-                () -> kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString()));
-        assertTrue(thrown.getMessage().contains("is not a valid root directory"));
-    }
-
-    @Test
     void GIVEN_invalid_command_line_argument_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() {
         Kernel kernel = new Kernel();
         RuntimeException thrown = assertThrows(RuntimeException.class,

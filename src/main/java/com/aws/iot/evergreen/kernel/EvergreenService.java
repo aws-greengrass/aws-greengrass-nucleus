@@ -756,7 +756,7 @@ public class EvergreenService implements InjectionActions {
 
         dependencies.compute(dependentEvergreenService, (dependentService, dependencyInfo) -> {
             if (dependencyInfo == null) {
-                Subscriber subscriber = createDependencySubscriber(dependentEvergreenService);
+                Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
                 dependentEvergreenService.getStateTopic().subscribe(subscriber);
                 context.get(Kernel.class).clearODcache();
                 return new DependencyInfo(startWhen, isDefault, subscriber);
@@ -771,11 +771,10 @@ public class EvergreenService implements InjectionActions {
         });
     }
 
-    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService) {
+    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, State startWhenState) {
         return (WhatHappened what, Topic t) -> {
             if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
-                if (dependencies.containsKey(dependentEvergreenService)
-                        && !dependencyReady(dependentEvergreenService)) {
+                if (!dependencyReady(dependentEvergreenService, startWhenState)) {
                     this.requestRestart();
                     logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
                 }
@@ -838,16 +837,19 @@ public class EvergreenService implements InjectionActions {
 
     private boolean dependencyReady() {
         List<EvergreenService> ret =
-                dependencies.keySet().stream().filter(d -> !dependencyReady(d)).collect(Collectors.toList());
+                dependencies.entrySet()
+                        .stream()
+                        .filter(e -> !dependencyReady(e.getKey(), e.getValue().startWhen))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toList());
         if (!ret.isEmpty()) {
             logger.atDebug().setEventType("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
         }
         return ret.isEmpty();
     }
 
-    private boolean dependencyReady(EvergreenService v) {
+    private boolean dependencyReady(EvergreenService v, State startWhenState) {
         State state = v.getState();
-        State startWhenState = dependencies.get(v).startWhen;
         return state.isHappy() && (startWhenState == null || startWhenState.preceedsOrEqual(state));
     }
 

@@ -140,9 +140,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         read(deTilde(getArg()));
                         haveRead = true;
                     } catch (Throwable ex) {
-                        // Usually we don't want to log and throw at the same time because it can produce duplicate logs if the
-                        // handler of the exception also logs. However since we use structured logging, I decide to log the error
-                        // so that the future logging parser can parse the exceptions.
+                        // Usually we don't want to log and throw at the same time because it can produce duplicate logs
+                        // if the handler of the exception also logs. However since we use structured logging, I
+                        // decide to log the error so that the future logging parser can parse the exceptions.
                         RuntimeException rte =
                                 new RuntimeException(String.format("Can't read the config file %s", getArg()), ex);
                         logger.atError().setEventType("parse-args-error").setCause(rte);
