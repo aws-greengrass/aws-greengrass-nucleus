@@ -10,8 +10,8 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -38,7 +38,7 @@ public class DependencyResolverBenchmark {
     @Measurement(iterations = 20)
     @Warmup(iterations = 5)
     @State(Scope.Benchmark)
-    public static abstract class DRIntegration {
+    public abstract static class DRIntegration {
         private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",Arrays.asList("boto3", "awscli"), Arrays.asList(
                 new DeploymentPackageConfiguration("boto3", "1.9.128", "", new HashSet<>(), new ArrayList<>()),
                 new DeploymentPackageConfiguration("awscli", "1.16.144", "", new HashSet<>(), new ArrayList<>())
@@ -59,7 +59,7 @@ public class DependencyResolverBenchmark {
             // For now, hardcode to be under root of kernel package
             Path packagePath = Paths.get(System.getProperty("user.dir"))
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
-            resolver = new DependencyResolver(new LocalPackageStore(packagePath), kernel);
+            resolver = new DependencyResolver(new PackageStore(packagePath), kernel);
         }
 
         @TearDown(Level.Invocation)
