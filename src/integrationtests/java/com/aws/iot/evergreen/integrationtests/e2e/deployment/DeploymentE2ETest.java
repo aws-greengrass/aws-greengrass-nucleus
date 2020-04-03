@@ -104,7 +104,6 @@ public class DeploymentE2ETest {
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
         assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "CustomerApp").getState());
-        kernel.shutdown();
 
         // Make sure that IoT Job was marked as successful
         assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
@@ -188,10 +187,6 @@ public class DeploymentE2ETest {
                         .build());
         String jobId2 = Utils.createJob(document2, targets);
         Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
-
-        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
-        assertEquals(State.FINISHED, kernel.getMain().getState());
-        assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "SomeService").getState());
 
         // Make sure IoT Job was marked as failed and provided correct reason
         JobExecution jobExecution = Utils.iotClient.describeJobExecution(
