@@ -15,6 +15,9 @@ import com.aws.iot.evergreen.util.Exec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -106,12 +109,30 @@ public class GenericExternalService extends EvergreenService {
                     }
                 }
             });
+            String name= getName();
+            Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                    LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+            Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
+            if (timeout != null) {
+                Exec processToClose = currentScript;
+                context.get(ScheduledExecutorService.class).schedule(() -> {
+                        try {
+                            logger.atWarn("service-run-timed-out")
+                                    .log("Service failed to run within timeout, calling close in process");
+                            // sigint, sigterm will cause the process to exit with a non-zero exit code
+                            // which would move the service into errored state
+                            processToClose.close();
+                        } catch (IOException e) {
+                            logger.atError("").log("");
+                        }
+                }, timeout, TimeUnit.SECONDS);
+            }
 
             if (result == RunStatus.NothingDone) {
-                this.reportState(State.FINISHED);
+                reportState(State.FINISHED);
                 logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
             } else if (result == RunStatus.Errored) {
-                serviceErrored();
+                reportState(State.ERRORED);
             } else {
                 reportState(State.RUNNING);
                 runScript = currentScript;

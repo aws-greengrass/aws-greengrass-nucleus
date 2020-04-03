@@ -58,7 +58,7 @@ public class EvergreenService implements InjectionActions {
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
-    public static final int DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
+    public static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
     public final Topics config;
@@ -483,33 +483,30 @@ public class EvergreenService implements InjectionActions {
                                     return;
                                 }
                                 try {
-                                    Topics startUpTopic = getStartUpTopic();
-                                    Integer timeout = null;
-                                    if (startUpTopic != null) {
-                                        timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
-                                                .dflt(DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC).getOnce();
-                                        Topics runTopic = getRunTopic();
-                                        if (runTopic != null) {
-                                            timeout = (Integer) startUpTopic.findLeafChild(TIMEOUT_NAMESPACE_TOPIC)
-                                                    .dflt(null).getOnce();
-                                        }
-                                    }
-                                    // only schedule task to report error for services if
-                                    // 1. using startup (default timeout is 120 seconds)
-                                    // 2. using run with timeout is explicitly specified (no default timeout)
-                                    if (timeout != null) {
-                                        Future<?> schedule =
-                                                context.get(ScheduledExecutorService.class).schedule(() -> {
-                                                    if (!State.RUNNING.equals(getState())) {
-                                                        logger.atWarn("service-startup-timed-out")
-                                                                .log("Service failed to startup within timeout");
-                                                        reportState(State.ERRORED);
-                                                    }
-                                                },
-                                                timeout, TimeUnit.SECONDS);
+                                    Topics startupTopics = config.findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                            LIFECYCLE_STARTUP_NAMESPACE_TOPIC);
+                                    // only schedule task to report error for services with startup stage
+                                    // timeout for run stage is handled in generic external service
+                                    if (startupTopics != null) {
+                                        Topic timeOutTopic = startupTopics.findLeafChild(TIMEOUT_NAMESPACE_TOPIC);
+                                        // default time out is 120 seconds
+                                        Integer timeout = timeOutTopic == null
+                                                ? DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC
+                                                : (Integer) timeOutTopic.getOnce();
+
+
+                                        Future<?> schedule = context.get(ScheduledExecutorService.class)
+                                                .schedule(() -> {
+                                            if (!State.RUNNING.equals(getState())) {
+                                                logger.atWarn("service-startup-timed-out")
+                                                        .log("Service failed to startup within timeout");
+                                                reportState(State.ERRORED);
+                                            }
+                                        }, timeout, TimeUnit.SECONDS);
                                         triggerTimeOutReference.set(schedule);
                                     }
                                     // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
+                                    String name = getName();
                                     startup();
                                 } catch (InterruptedException i) {
                                     logger.atWarn("service-run-interrupted")
@@ -1058,15 +1055,4 @@ public class EvergreenService implements InjectionActions {
         return config.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
     }
 
-    protected Topics getStartUpTopic() {
-        return getLifeCycleTopic() == null
-                ? null
-                : getLifeCycleTopic().findInteriorChild(LIFECYCLE_STARTUP_NAMESPACE_TOPIC);
-    }
-
-    protected Topics getRunTopic() {
-        return getLifeCycleTopic() == null
-                ? null
-                : getLifeCycleTopic().findInteriorChild(LIFECYCLE_RUN_NAMESPACE_TOPIC);
-    }
 }

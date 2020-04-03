@@ -56,10 +56,10 @@ public class Topics extends Node implements Iterable<Node> {
 
     @Override
     public void copyFrom(Node from) {
-        assert from != null;
+        Objects.requireNonNull(from);
         if (from instanceof Topics) {
             ((Topics) from).forEach(n -> {
-                assert n != null;
+                Objects.requireNonNull(n);
                 if (n instanceof Topic) {
                     createLeafChild(n.getName()).copyFrom(n);
                 } else {
@@ -131,6 +131,41 @@ public class Topics extends Node implements Iterable<Node> {
             n = n.createInteriorChild(path[i]);
         }
         return n.createLeafChild(path[limit]);
+    }
+
+    /**
+     * Find, but do not create if missing, a topic (a name/value pair) in the
+     * config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find or create the Topic
+     */
+    public Topic find(String... path) {
+        int limit = path.length - 1;
+        Topics n = this;
+        for (int i = 0; i < limit; i++) {
+            n = n.findInteriorChild(path[i]);
+            if (n == null) {
+                return null;
+            }
+        }
+        return n.findLeafChild(path[limit]);
+    }
+
+    /**
+     * Find, but do not create if missing, a topics in the config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find or create the Topic
+     */
+    public Topics findTopics(String... path) {
+        int limit = path.length;
+        Topics n = this;
+        for (int i = 0; i < limit; i++) {
+            n = n.findInteriorChild(path[i]);
+            if (n == null) {
+                return null;
+            }
+        }
+        return n;
     }
 
     public void publish(Topic t) {
