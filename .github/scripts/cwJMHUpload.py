@@ -57,6 +57,8 @@ def convert_units(input_unit):
 
 def main():
     namespace = "Evergreen/Benchmark"
+    evergreen_jar_path = "target/Evergreen.jar"
+
     with open("jmh-result.json", "r") as f:
         report = json.load(f)
 
@@ -64,6 +66,27 @@ def main():
     datapoints = []
     event_type = os.getenv("GITHUB_EVENT_NAME", "pull_request")
     secondary_metric_names = set()
+
+    # Add jar size metric (if we can find the jar)
+    if os.path.exists(evergreen_jar_path):
+        jar_size = os.path.getsize(evergreen_jar_path)
+        jar_size_metric_name = "JarSize"
+        datapoints.append({
+            "MetricName": jar_size_metric_name,
+            "Value": int(jar_size),
+            "Dimensions": [
+                {
+                    "Name": "Benchmark",
+                    "Value": jar_size_metric_name
+                },
+                {
+                    "Name": "GitHub Event",
+                    "Value": event_type
+                }
+            ],
+            "Unit": "Bytes"
+        })
+        secondary_metric_names.add(jar_size_metric_name)
 
     # Generate CloudWatch metrics from our benchmarks
     for benchmark in report:

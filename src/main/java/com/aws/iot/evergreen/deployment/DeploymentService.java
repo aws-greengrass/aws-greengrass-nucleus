@@ -14,8 +14,7 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageCache;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,9 +73,10 @@ public class DeploymentService extends EvergreenService {
     @Inject
     private DependencyResolver dependencyResolver;
     @Inject
-    private PackageCache packageCache;
+    private PackageStore packageStore;
     @Inject
     private KernelConfigResolver kernelConfigResolver;
+
 
     private IotJobsHelper iotJobsHelper;
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -166,7 +166,7 @@ public class DeploymentService extends EvergreenService {
     private DeploymentTask createDeploymentTask(Map<String, Object> jobDocument) throws InvalidRequestException {
 
         DeploymentDocument deploymentDocument = parseAndValidateJobDocument(jobDocument);
-        return new DeploymentTask(dependencyResolver, packageCache, kernelConfigResolver, kernel, logger,
+        return new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
                 deploymentDocument);
     }
 
@@ -214,18 +214,18 @@ public class DeploymentService extends EvergreenService {
      * @param executorService      Executor service coming from kernel
      * @param kernel               The evergreen kernel
      * @param dependencyResolver   {@link DependencyResolver}
-     * @param packageCache         {@link PackageCache}
+     * @param packageStore         {@link PackageStore}
      * @param kernelConfigResolver {@link KernelConfigResolver}
      */
     public DeploymentService(Topics topics, IotJobsHelperFactory iotJobsHelperFactory, ExecutorService executorService,
-                             Kernel kernel, DependencyResolver dependencyResolver, PackageCache packageCache,
+                             Kernel kernel, DependencyResolver dependencyResolver, PackageStore packageStore,
                              KernelConfigResolver kernelConfigResolver) {
         super(topics);
         this.iotJobsHelperFactory = iotJobsHelperFactory;
         this.executorService = executorService;
         this.kernel = kernel;
         this.dependencyResolver = dependencyResolver;
-        this.packageCache = packageCache;
+        this.packageStore = packageStore;
         this.kernelConfigResolver = kernelConfigResolver;
     }
 
@@ -233,7 +233,6 @@ public class DeploymentService extends EvergreenService {
     public void startup() {
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
-        initialize();
         logger.info("Starting up the Deployment Service");
         String thingName = getStringParameterFromConfig(DEVICE_PARAM_THING_NAME);
         //TODO: Add any other checks to verify device provisioned to communicate with Iot Cloud
@@ -294,11 +293,6 @@ public class DeploymentService extends EvergreenService {
         if (iotJobsHelper != null) {
             iotJobsHelper.closeConnection();
         }
-    }
-
-    private void initialize() {
-        //TODO: Update then pacakge store to be used once it is designed. Probably remove this.
-        this.dependencyResolver.setStore(new LocalPackageStore(LOCAL_ARTIFACT_SOURCE));
     }
 
     private void initializeIotJobsHelper(String thingName) {

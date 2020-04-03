@@ -13,8 +13,6 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.packagemanager.DependencyResolver;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStore;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -49,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Tag("E2E")
-public class DeploymentE2ETest {
+class DeploymentE2ETest {
     @TempDir
     static Path tempRootDir;
 
@@ -71,7 +69,6 @@ public class DeploymentE2ETest {
 
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString());
         setupIotResourcesAndInjectIntoKernel();
-        injectKernelPackageManagementDependencies();
         kernel.launch();
     }
 
@@ -214,10 +211,5 @@ public class DeploymentE2ETest {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).setValue(privateKeyFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).setValue(certificateFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).setValue(rootCaFilePath);
-    }
-
-    private static void injectKernelPackageManagementDependencies() {
-        kernel.context.getv(DependencyResolver.class)
-                .put(new DependencyResolver(new LocalPackageStore(LOCAL_CACHE_PATH), kernel));
     }
 }
