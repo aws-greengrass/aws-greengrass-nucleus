@@ -10,7 +10,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
-public interface PackageStore {
+@Deprecated
+public interface PackageStoreDeprecated {
+    
     Optional<Package> getPackage(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException;
 

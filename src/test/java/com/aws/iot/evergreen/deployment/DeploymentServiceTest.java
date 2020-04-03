@@ -9,7 +9,7 @@ import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFai
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageCache;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +75,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private DependencyResolver dependencyResolver;
 
     @Mock
-    private PackageCache packageCache;
+    private PackageStore packageStore;
 
     @Mock
     private KernelConfigResolver kernelConfigResolver;
@@ -131,7 +131,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             //Creating the class to be tested
             deploymentService =
                     new DeploymentService(config, mockIotJobsHelperFactory, mockExecutorService, mockKernel,
-                            dependencyResolver, packageCache, kernelConfigResolver);
+                            dependencyResolver, packageStore, kernelConfigResolver);
         }
 
         @Test

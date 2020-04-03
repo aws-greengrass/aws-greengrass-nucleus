@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
@@ -393,7 +394,7 @@ public class EvergreenService implements InjectionActions {
             // don't override in the case of re-install
             int index = this.desiredStateList.indexOf(State.NEW);
             if (index == -1) {
-                setDesiredState(State.FINISHED, State.RUNNING);
+                setDesiredState(State.INSTALLED, State.RUNNING);
                 return;
             }
             this.desiredStateList.subList(index + 1, this.desiredStateList.size()).clear();
@@ -406,7 +407,7 @@ public class EvergreenService implements InjectionActions {
      */
     public final void requestReinstall() {
         synchronized (this.desiredStateList) {
-            setDesiredState(State.FINISHED, State.NEW, State.RUNNING);
+            setDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
         }
     }
 
@@ -534,7 +535,8 @@ public class EvergreenService implements InjectionActions {
                         }
                         continue;
                     } else {
-                        updateStateAndBroadcast(State.FINISHED);
+                        desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
+                        serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
                         continue;
                     }
 
@@ -545,20 +547,9 @@ public class EvergreenService implements InjectionActions {
 
                     logger.atInfo().setEventType("service-state-transition").kv("currentState", getState())
                             .kv("desiredState", desiredState).log();
-                    switch (desiredState.get()) {
-                        case NEW:
-                        case INSTALLED:
-                            updateStateAndBroadcast(State.NEW);
-                            continue;
-                        case RUNNING:
-                            updateStateAndBroadcast(State.INSTALLED);
-                            continue;
-                        default:
-                            // not allowed to set desired state to STOPPING, ERRORED, BROKEN
-                            logger.atError().setEventType("service-invalid-state-error")
-                                    .kv("desiredState", desiredState).log("Unexpected desired state");
-                    }
-                    break;
+                    serviceTerminatedMoveToDesiredState(desiredState.get());
+                    continue;
+
                 case ERRORED:
                     try {
                         handleError();
@@ -585,7 +576,8 @@ public class EvergreenService implements InjectionActions {
                             continue;
                         case STOPPING:
                             // not handled;
-                            updateStateAndBroadcast(State.FINISHED);
+                            desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
+                            serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
                             continue;
                         default:
                             logger.atError().setEventType("service-invalid-state-error").kv("previousState", prevState)
@@ -608,6 +600,30 @@ public class EvergreenService implements InjectionActions {
                 logger.atInfo().setEventType("service-report-state").kv("state", toState).log();
                 updateStateAndBroadcast(toState);
             }
+        }
+    }
+
+    /**
+     * Given the service is terminated, move to desired state.
+     * Only use in service lifecycle thread.
+     * @param desiredState the desiredState to go, not null
+     */
+    private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
+        switch (desiredState) {
+            case NEW:
+                updateStateAndBroadcast(State.NEW);
+                break;
+            case INSTALLED:
+            case RUNNING:
+                updateStateAndBroadcast(State.INSTALLED);
+                break;
+            case FINISHED:
+                updateStateAndBroadcast(State.FINISHED);
+                break;
+            default:
+                // not allowed to set desired state to STOPPING, ERRORED, BROKEN
+                logger.atError().setEventType("service-invalid-state-error")
+                        .addKeyValue("desiredState", desiredState).log("Unexpected desired state");
         }
     }
 

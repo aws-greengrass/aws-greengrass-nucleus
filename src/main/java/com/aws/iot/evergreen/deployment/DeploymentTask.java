@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageCache;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 @AllArgsConstructor
 public class DeploymentTask implements Callable<Void> {
     private final DependencyResolver dependencyResolver;
-    private final PackageCache packageCache;
+    private final PackageStore packageStore;
     private final KernelConfigResolver kernelConfigResolver;
     private final Kernel kernel;
     private final Logger logger;
@@ -49,7 +49,7 @@ public class DeploymentTask implements Callable<Void> {
                     .resolveDependencies(document, rootPackages);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
-            packageCache.preparePackages(desiredPackages).get();
+            packageStore.preparePackages(desiredPackages).get();
 
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, rootPackages);
             // Block this without timeout because it can take a long time for the device to update the config
