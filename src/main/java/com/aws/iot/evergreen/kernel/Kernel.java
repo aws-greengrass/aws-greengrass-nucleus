@@ -140,6 +140,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         read(deTilde(getArg()));
                         haveRead = true;
                     } catch (Throwable ex) {
+                        // Usually we don't want to log and throw at the same time because it can produce duplicate logs if the
+                        // handler of the exception also logs. However since we use structured logging, I decide to log the error
+                        // so that the future logging parser can parse the exceptions.
                         RuntimeException rte =
                                 new RuntimeException(String.format("Can't read the config file %s", getArg()), ex);
                         logger.atError().setEventType("parse-args-error").setCause(rte);
@@ -171,10 +174,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             rootAbsolutePath = "~/.evergreen";  // Default to hidden subdirectory of home.
         }
         rootAbsolutePath = deTilde(rootAbsolutePath);
-        if (!ensureCreated(Paths.get(rootAbsolutePath))) {
-            logger.atError().log("{}: not a valid root directory", rootAbsolutePath);
-            broken = true;
-        }
+
         lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
         context.get(EZTemplates.class).addEvaluator(expr -> {
@@ -212,7 +212,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Exec.addFirstPath(clitoolPath);
         workPath = Paths.get(deTilde(workPathName));
         Exec.setDefaultEnv("HOME", workPath.toString());
-        createPath(rootPath, configPath, clitoolPath, workPath);
+        createPaths(rootPath, configPath, clitoolPath, workPath);
     }
 
     /**
@@ -305,7 +305,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         return this;
     }
 
-    private void createPath(Path... paths) {
+    private void createPaths(Path... paths) {
         for (Path p: paths) {
             try {
                 Files.createDirectories(p,
@@ -538,9 +538,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         if (clitoolPath != null && s.startsWith("~bin/")) {
             s = clitoolPath.resolve(s.substring(5)).toString();
-        }
-        if (workPath != null && s.startsWith("~work/")) {
-            s = clitoolPath.resolve(s.substring(6)).toString();
         }
         return s;
     }
