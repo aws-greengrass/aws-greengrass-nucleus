@@ -26,7 +26,6 @@ public class PlatformResolver {
     private static final Map<String, Integer> RANKS = initializeRanks();
 
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     private static Map<String, Integer> initializeRanks() {
         Map<String, Integer> ranks = new HashMap<>();
         // figure out what OS we're running and add applicable tags
@@ -81,7 +80,6 @@ public class PlatformResolver {
         } catch (UnknownHostException ex) {
             logger.atError().log("Error getting hostname", ex);
         }
-
         return ranks;
     }
 

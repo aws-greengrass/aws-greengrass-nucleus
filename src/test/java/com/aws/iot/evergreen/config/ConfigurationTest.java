@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -16,9 +17,9 @@ import java.util.Map;
 
 import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 public class ConfigurationTest {
@@ -100,9 +101,9 @@ public class ConfigurationTest {
             assertNotNull(inputStream);
             //            System.out.println("resource: " + deepToString(inputStream, 200) + "\n\t" + getClass()
             //            .getName());
-            //            dump(config,"Before");
+//            dump(testConfig,"Before");
             testConfig.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
-            //            dump(config,"After");
+//            dump(testConfig,"After");
             Topics platforms = testConfig.findTopics("platforms");
             //            platforms.forEachTopicSet(n -> System.out.println(n.name));
 
@@ -124,9 +125,8 @@ public class ConfigurationTest {
             StringWriter sw = new StringWriter();
             JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(testConfig.toPOJO(), sw);
             String tc = sw.toString();
-            assertTrue(tc.contains("\"{platform.invoke} {name}\""), tc);
-            assertTrue(tc.contains("dependencies:\n" +
-                                           "    - \"greenlake\""));
+            assertThat(tc, StringContains.containsString("\"{platform.invoke} {name}\""));
+            assertThat(tc, StringContains.containsString("dependencies:\n    - \"greenlake\""));
         }
     }
 
