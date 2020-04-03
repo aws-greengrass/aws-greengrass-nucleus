@@ -1,0 +1,7 @@
+services:
+  simpleRun:
+    lifecycle:
+      run: |-
+        sleep 2
+        echo "RUN_SUCCESS"
+        exit 0

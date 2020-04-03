@@ -13,6 +13,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Map;
@@ -20,6 +22,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class KernelTest extends BaseITCase {
@@ -37,6 +41,41 @@ class KernelTest extends BaseITCase {
 
     private static final CountDownLatch[] COUNT_DOWN_LATCHES =
             {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
+
+    @Test
+    void GIVEN_invalid_root_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() {
+        System.setProperty("root", "");
+        Kernel kernel = new Kernel();
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString()));
+        assertTrue(thrown.getMessage().contains("is not a valid root directory"));
+    }
+
+    @Test
+    void GIVEN_invalid_command_line_argument_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() {
+        Kernel kernel = new Kernel();
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> kernel.parseArgs("-xyznonsense", "nonsense"));
+        assertTrue(thrown.getMessage().contains("Undefined command line argument"));
+    }
+
+    @Test
+    void GIVEN_create_path_fail_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() throws Exception {
+        // Make the root path not writeable so the create path method will fail
+        Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
+        Kernel kernel = new Kernel();
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString()));
+        assertTrue(thrown.getMessage().contains("Fail to create the path"));
+    }
+
+    @Test
+    void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException() {
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
+        assertThrows(RuntimeException.class, () -> kernel.launch());
+    }
 
     @SuppressWarnings("PMD.AssignmentInOperand")
     @Test

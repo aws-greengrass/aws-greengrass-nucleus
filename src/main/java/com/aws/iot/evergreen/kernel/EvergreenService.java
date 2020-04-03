@@ -80,7 +80,7 @@ public class EvergreenService implements InjectionActions {
     private static final Set<State> ALLOWED_STATES_FOR_REPORTING =
             new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED));
 
-    // dependencies that are explicilty declared by customer in config store.
+    // dependencies that are explicitly declared by customer in config store.
     private final Topic externalDependenciesTopic;
     // Services that this service depends on.
     // Includes both explicit declared dependencies and implicit ones added through 'autoStart' and @Inject annotation.
@@ -502,7 +502,7 @@ public class EvergreenService implements InjectionActions {
                     if (!desiredState.isPresent()) {
                         break;
                     }
-
+                    // desired state is different, let's transition to stopping state first.
                     updateStateAndBroadcast(State.STOPPING);
                     continue;
                 case STOPPING:
@@ -758,7 +758,8 @@ public class EvergreenService implements InjectionActions {
     private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService) {
         return (WhatHappened what, Topic t) -> {
             if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
-                if (!dependencyReady(dependentEvergreenService)) {
+                if (dependencies.containsKey(dependentEvergreenService)
+                        && !dependencyReady(dependentEvergreenService)) {
                     this.requestRestart();
                     logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
                 }
