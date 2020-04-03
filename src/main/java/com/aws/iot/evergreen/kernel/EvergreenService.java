@@ -67,6 +67,12 @@ public class EvergreenService implements InjectionActions {
     private State prevState = State.NEW;
     private Future<?> lifecycleFuture;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    // The number of continual occurrences from a state to ERRORED.
+    // This is not thread safe and should only be used inside reportState().
+    private Map<State, Integer> stateToErroredCount = new HashMap<>();
+    // The maximum number of ERRORED before transitioning the service state to BROKEN.
+    private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
@@ -158,8 +164,17 @@ public class EvergreenService implements InjectionActions {
             // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
             requestStop();
         }
-
-        enqueueStateEvent(newState);
+        State currentState = getState();
+        if (State.ERRORED.equals(newState)) {
+            stateToErroredCount.compute(currentState, (k, v) -> (v == null) ? 1 : v + 1);
+        } else {
+            stateToErroredCount.put(currentState, 0);
+        }
+        if (stateToErroredCount.get(currentState) > MAXIMUM_CONTINUAL_ERROR) {
+            enqueueStateEvent(State.BROKEN);
+        } else {
+            enqueueStateEvent(newState);
+        }
     }
 
     private Optional<State> getReportState() {
@@ -426,6 +441,7 @@ public class EvergreenService implements InjectionActions {
 
             switch (current) {
                 case BROKEN:
+                    logger.atError().setEventType("service-broken").log("service is broken. Deployment is needed");
                     return;
                 case NEW:
                     // if no desired state is set, don't do anything.
@@ -452,6 +468,8 @@ public class EvergreenService implements InjectionActions {
                     State reportState = getReportState().orElse(null);
                     if (State.ERRORED.equals(reportState) || !ok) {
                         updateStateAndBroadcast(State.ERRORED);
+                    } else if (State.BROKEN.equals(reportState)) {
+                        updateStateAndBroadcast(State.BROKEN);
                     } else {
                         updateStateAndBroadcast(State.INSTALLED);
                     }

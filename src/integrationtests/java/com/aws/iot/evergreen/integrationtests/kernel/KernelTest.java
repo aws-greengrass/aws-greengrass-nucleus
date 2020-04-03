@@ -134,6 +134,74 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
+    void GIVEN_service_install_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch serviceBroken = new CountDownLatch(1);
+        // Check that new_service starts and then main gets restarted
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("installerror") && newState.equals(State.BROKEN)) {
+                serviceBroken.countDown();
+            }
+        });
+        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
+        kernel.shutdown();
+    }
+
+    @Test
+    void GIVEN_service_install_fail_retry_succeed_WHEN_kernel_launches_THEN_service_install_succeeds() throws Exception {
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("config_install_error_retry.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch serviceRunning = new CountDownLatch(1);
+        // Check that new_service starts and then main gets restarted
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("installErrorRetry") && newState.equals(State.INSTALLED)) {
+                serviceRunning.countDown();
+            }
+        });
+        assertTrue(serviceRunning.await(60, TimeUnit.SECONDS));
+        kernel.shutdown();
+    }
+
+    @Test
+    void GIVEN_service_startup_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("config_startup_error.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch serviceBroken = new CountDownLatch(1);
+        // Check that new_service starts and then main gets restarted
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("startupError") && newState.equals(State.BROKEN)) {
+                serviceBroken.countDown();
+            }
+        });
+        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
+        kernel.shutdown();
+    }
+
+    @Test
+    void GIVEN_service_startup_fail_retry_succeed_WHEN_kernel_launches_THEN_service_startup_succeeds() throws Exception {
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("config_startup_error_retry.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch serviceRunning = new CountDownLatch(1);
+        // Check that new_service starts and then main gets restarted
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("startupErrorRetry") && newState.equals(State.RUNNING)) {
+                serviceRunning.countDown();
+            }
+        });
+        assertTrue(serviceRunning.await(60, TimeUnit.SECONDS));
+        kernel.shutdown();
+    }
+
+    @Test
     void GIVEN_expected_state_transitions_WHEN_services_error_out_THEN_all_expectations_should_be_seen()
             throws Exception {
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(

@@ -19,7 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -51,7 +51,7 @@ public final class Exec implements Closeable {
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
     @SuppressWarnings("PMD.LooseCoupling")
-    private static final LinkedList<Path> paths = new LinkedList<>();
+    private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
     private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
             "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
             "HOME=" + homedir, "USERHOME=" + homedir, "EVERGREEN_UID=" + EvergreenUid, "PWD=" + userdir,};
