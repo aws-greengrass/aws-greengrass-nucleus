@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import org.hamcrest.collection.IsCollectionWithSize;
 import org.hamcrest.collection.IsMapContaining;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +16,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -23,20 +25,28 @@ import static org.hamcrest.core.IsNot.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class PackageTest {
+    private static Map<String, Integer> backupRanks;
+    private static Field ranksField;
 
     @BeforeAll
     static void beforeAll() throws Exception {
-        Field ranksField = PlatformResolver.class.getDeclaredField("RANKS");
+        ranksField = PlatformResolver.class.getDeclaredField("RANKS");
         ranksField.setAccessible(true);
 
         Field modifiersField = Field.class.getDeclaredField("modifiers");
         modifiersField.setAccessible(true);
         modifiersField.setInt(ranksField, ranksField.getModifiers() & ~Modifier.FINAL);
 
+        backupRanks = (Map<String, Integer>) ranksField.get(null);
         ranksField.set(null, new HashMap<String, Integer>() {{
             put("macos", 99);
             put("linux", 1);
         }});
+    }
+
+    @AfterAll
+    static void afterAll() throws Exception {
+        ranksField.set(null, backupRanks);
     }
 
     @Test
