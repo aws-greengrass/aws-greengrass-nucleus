@@ -28,8 +28,9 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 /**
  * Local Store Implementation for Evergreen Packages.
  */
+@Deprecated
 @AllArgsConstructor
-public class LocalPackageStore implements PackageStore {
+public class LocalPackageStoreDeprecated implements PackageStoreDeprecated {
 
     private static final String PACKAGE_RECIPE_CANNOT_BE_NULL = "Package Recipe cannot be null";
 

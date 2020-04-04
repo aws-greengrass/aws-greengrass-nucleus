@@ -9,15 +9,21 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - uses: actions/cache@v1
+        with:
+          path: ~/.m2/repository
+          # Only restore maven cache for this exact commit. If we start incrementing the version
+          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build with Maven
-        run: mvn -ntp verify
+        run: mvn -ntp clean verify
       - name: Convert Jacoco to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
       - name: Upload Coverage
@@ -52,7 +58,7 @@ jobs:
           # Only delete artifacts older than this, measured in seconds.
           minimumAge: 5184000 # optional, default is 0. Set to 5.184e+6 (60 days)
   e2e-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build
     steps:
       - uses: actions/checkout@v2
@@ -60,6 +66,12 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - uses: actions/cache@v1
+        with:
+          path: ~/.m2/repository
+          # Only restore maven cache for this exact commit. If we start incrementing the version
+          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -67,12 +79,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
           aws-region: us-west-2
       - name: Build Tests
-        run: mvn -ntp generate-test-sources generate-test-resources test-compile
+        run: mvn -ntp generate-test-sources generate-test-resources test-compile -DskipTests
       - name: E2E Test
         run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""
   publish:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2

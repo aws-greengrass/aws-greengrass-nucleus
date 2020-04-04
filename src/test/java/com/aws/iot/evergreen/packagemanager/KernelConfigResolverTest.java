@@ -37,7 +37,7 @@ public class KernelConfigResolverTest {
     private Kernel kernel;
 
     @Mock
-    private PackageCache packageCache;
+    private PackageStore packageStore;
 
     @Mock
     private EvergreenService mainService;
@@ -84,15 +84,15 @@ public class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(
                         Arrays.asList(rootPackageDeploymentConfig, dependencyPackageDeploymentConfig)).build();
 
-        when(packageCache.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
-        when(packageCache.getRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackage);
+        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -129,14 +129,14 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageCache.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -169,13 +169,13 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageCache.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageCache, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
