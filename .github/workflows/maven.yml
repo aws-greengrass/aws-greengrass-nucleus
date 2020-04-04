@@ -24,6 +24,12 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build with Maven
         run: mvn -ntp clean verify
+      - name: Upload Failed Test Report
+        uses: actions/upload-artifact@v1.0.0
+        if: failed()
+        with:
+          name: Failed Test Report
+          path: target/surefire-reports
       - name: Convert Jacoco to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
       - name: Upload Coverage
@@ -82,6 +88,12 @@ jobs:
         run: mvn -ntp generate-test-sources generate-test-resources test-compile -DskipTests
       - name: E2E Test
         run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""
+      - name: Upload Failed Test Report
+        uses: actions/upload-artifact@v1.0.0
+        if: failed()
+        with:
+          name: Failed E2E Report
+          path: target/surefire-reports
   publish:
     needs: build
     runs-on: self-hosted
