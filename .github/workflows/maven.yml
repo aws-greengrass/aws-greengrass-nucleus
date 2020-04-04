@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -23,7 +23,7 @@ jobs:
           # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build with Maven
-        run: mvn -ntp verify
+        run: mvn -ntp clean verify
       - name: Convert Jacoco to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
       - name: Upload Coverage
@@ -58,7 +58,7 @@ jobs:
           # Only delete artifacts older than this, measured in seconds.
           minimumAge: 5184000 # optional, default is 0. Set to 5.184e+6 (60 days)
   e2e-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build
     steps:
       - uses: actions/checkout@v2
@@ -84,7 +84,7 @@ jobs:
         run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""
   publish:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2
