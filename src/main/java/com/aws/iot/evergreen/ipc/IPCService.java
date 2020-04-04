@@ -46,6 +46,7 @@ import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.MAX_PAYLOAD_SI
 public class IPCService extends EvergreenService {
     public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
     private static final int MAX_SO_BACKLOG = 128;
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     private static final String LOCAL_IP = "127.0.0.1";
     private final EventLoopGroup bossGroup = new NioEventLoopGroup();
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -73,7 +74,7 @@ public class IPCService extends EvergreenService {
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
             Topic kernelUri = config.parent.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
-            kernelUri.setValue(serverUri);
+            kernelUri.withValue(serverUri);
 
             super.startup();
             logger.atInfo().setEventType("ipc-started").addKeyValue("uri", serverUri).log();

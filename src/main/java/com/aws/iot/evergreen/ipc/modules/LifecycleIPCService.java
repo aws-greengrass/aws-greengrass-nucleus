@@ -61,6 +61,7 @@ public class LifecycleIPCService extends EvergreenService {
      * @param context caller request context
      * @return future containing our response
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Future<Message> handleMessage(Message message, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
 

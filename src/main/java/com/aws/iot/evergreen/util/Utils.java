@@ -450,7 +450,6 @@ public final class Utils {
      * @param str input string.
      * @return long value from the string.
      */
-    @SuppressWarnings("PMD.MissingBreakInSwitch")
     public static long parseLong(CharBuffer str) {
         boolean neg = false;
         int radix = 10;
@@ -484,6 +483,7 @@ public final class Utils {
                                 break;
                             default:
                                 str.position(str.position() - 1);
+                                break;
                         }
                     } else {
                         str.position(str.position() - 1);

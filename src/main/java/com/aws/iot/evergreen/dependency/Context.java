@@ -23,6 +23,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
+import java.util.Objects;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -44,11 +45,12 @@ import static com.aws.iot.evergreen.util.Utils.nullEmpty;
 public class Context implements Closeable {
     private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(Context.class);
+    private static final String classKeyword = "class";
     // magical
     private boolean shuttingDown = false;
     // global state change notification
     private CopyOnWriteArrayList<EvergreenService.GlobalStateChangeListener> listeners;
-    private BlockingDeque<Runnable> serialized = new LinkedBlockingDeque<>();
+    private final BlockingDeque<Runnable> serialized = new LinkedBlockingDeque<>();
     private final Thread publishThread = new Thread() {
         {
             setName("Serialized listener processor");
@@ -56,28 +58,25 @@ public class Context implements Closeable {
             //                setDaemon(true);
         }
 
-        @SuppressWarnings({"checkstyle:emptycatchblock"})
+        @SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable"})
         @Override
         public void run() {
             while (true) {
                 try {
                     Runnable task = serialized.takeFirst();
-                    try {
-                        task.run();
-                    } catch (Throwable t) {
-                        logger.atError().setEventType("run-on-publish-queue-error").setCause(t).log();
-                    }
-                } catch (InterruptedException ignored) {
+                    task.run();
+                } catch (InterruptedException ie) {
+                    logger.atWarn().log("Interrupted while running tasks. Publish thread will exit now.");
+                    return;
+                } catch (Throwable t) {
+                    logger.atError().setEventType("run-on-publish-queue-error").setCause(t).log();
                 }
             }
         }
     };
 
-    {
+    public Context() {
         parts.put(Context.class, new Value(Context.class, this));
-    }
-
-    {
         publishThread.start();
     }
 
@@ -131,7 +130,7 @@ public class Context implements Closeable {
         if (v == null) {
             return null;
         }
-        Object o = v.value;
+        Object o = v.targetValue;
         return o == null || !cl.isAssignableFrom(o.getClass()) ? null : (T) o;
     }
 
@@ -211,15 +210,14 @@ public class Context implements Closeable {
         }
         shuttingDown = true;
         forEach(v -> {
-            Object vv = v.value;
+            Object vv = v.targetValue;
             try {
                 if (vv instanceof Closeable) {
                     ((Closeable) vv).close();
-                    logger.atDebug().setEventType("context-shutdown").addKeyValue("class", Coerce.toString(vv)).log();
+                    logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(vv)).log();
                 }
-            } catch (Throwable t) {
-                logger.atError().setEventType("context-shutdown-error").setCause(t)
-                        .addKeyValue("class", Coerce.toString(vv)).log();
+            } catch (IOException t) {
+                logger.atError("context-shutdown-error", t).kv(classKeyword, Coerce.toString(vv)).log();
             }
         });
     }
@@ -249,9 +247,6 @@ public class Context implements Closeable {
     public synchronized void removeGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
         if (listeners != null) {
             listeners.remove(l);
-            if (listeners.isEmpty()) {
-                listeners = null;
-            }
         }
     }
 
@@ -279,6 +274,7 @@ public class Context implements Closeable {
      * @param r Crashable
      * @return Throwable resulting from running the Crashable (if any)
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Throwable runOnPublishQueueAndWait(Crashable r) {
         AtomicReference<Throwable> ret = new AtomicReference<>();
         CountDownLatch ready = new CountDownLatch(1);
@@ -287,7 +283,6 @@ public class Context implements Closeable {
                 r.run();
             } catch (Throwable t) {
                 ret.set(t);
-                logger.atError().setEventType("run-publish-queue-and-wait-error").setCause(t).log();
             }
             ready.countDown();
         });
@@ -320,7 +315,7 @@ public class Context implements Closeable {
 
     public class Value<T> implements Provider<T> {
         final Class<T> targetClass;
-        public volatile T value;
+        public volatile T targetValue;
         @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;
 
@@ -331,15 +326,16 @@ public class Context implements Closeable {
 
         @Override
         public final T get() {
-            T v = value;
+            T v = targetValue;
             if (v != null && injectionCompleted) {
                 return v;
             }
             return get0();
         }
 
+        @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
         private synchronized T get0() {
-            T v = value;
+            T v = targetValue;
             if (v != null) {
                 return v;
             }
@@ -397,12 +393,12 @@ public class Context implements Closeable {
          * @return new value
          */
         public final synchronized T put(T v) {
-            if (v == value) {
+            if (Objects.equals(v, targetValue)) {
                 return v;
             }
             if (v == null || targetClass.isAssignableFrom(v.getClass())) {
                 injectionCompleted = false;
-                value = v;
+                targetValue = v;
                 doInjection(v);
                 injectionCompleted = true;
                 return v; // only assign after injection is complete
@@ -412,14 +408,15 @@ public class Context implements Closeable {
         }
 
         public final synchronized <E extends Exception> T computeIfEmpty(CrashableFunction<Value, T, E> s) throws E {
-            T v = value;
+            T v = targetValue;
             return v == null ? put(s.apply(this)) : v;
         }
 
         public boolean isEmpty() {
-            return value == null;
+            return targetValue == null;
         }
 
+        @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
         private void doInjection(Object lvalue) {
             //            System.out.println("requestInject " + lvalue);
             if (lvalue == null) {
@@ -427,7 +424,7 @@ public class Context implements Closeable {
             }
             Class cl = lvalue.getClass();
             String className = cl.getName();
-            logger.atTrace().addKeyValue("class", className).setEventType("class-injection-start").log();
+            logger.atTrace("class-injection-start").kv(classKeyword, className).log();
 
             EvergreenService asService = lvalue instanceof EvergreenService ? (EvergreenService) lvalue : null;
             InjectionActions injectionActions = lvalue instanceof InjectionActions ? (InjectionActions) lvalue : null;
@@ -437,10 +434,9 @@ public class Context implements Closeable {
             if (injectionActions != null) {
                 try {
                     injectionActions.preInject();
-                    logger.atTrace().addKeyValue("class", className).setEventType("class-pre-inject-complete").log();
+                    logger.atTrace("class-pre-inject-complete").kv(classKeyword, className).log();
                 } catch (Throwable e) {
-                    logger.atError().setCause(e).addKeyValue("class", className).setEventType("class-pre-inject-error")
-                            .log();
+                    logger.atError("class-pre-inject-error", e).kv(classKeyword, className).log();
                     if (asService != null) {
                         asService.serviceErrored(e);
                     }
@@ -490,11 +486,9 @@ public class Context implements Closeable {
                                 asService.addOrUpdateDependency((EvergreenService) v,
                                         startWhen == null ? State.RUNNING : startWhen.value(), true);
                             }
-                            logger.atTrace().addKeyValue("class", f.getName()).setEventType("class-inject-complete")
-                                    .log();
+                            logger.atTrace("class-inject-complete").kv(classKeyword, f.getName()).log();
                         } catch (Throwable ex) {
-                            logger.atError().setCause(ex).addKeyValue("class", f.getName())
-                                    .setEventType("class-inject-error").log();
+                            logger.atError("class-inject-error", ex).kv(classKeyword, f.getName()).log();
                             if (asService != null) {
                                 asService.serviceErrored(ex);
                             }
@@ -507,18 +501,16 @@ public class Context implements Closeable {
             if (injectionActions != null && (asService == null || !asService.isErrored())) {
                 try {
                     injectionActions.postInject();
-                    logger.atTrace().addKeyValue("class", value.getClass()).setEventType("class-post-inject-complete")
-                            .log();
+                    logger.atTrace("class-post-inject-complete").kv(classKeyword, targetValue.getClass()).log();
                 } catch (Throwable e) {
-                    logger.atError().setCause(e).addKeyValue("class", value.getClass())
-                            .setEventType("class-post-inject-error").log();
+                    logger.atError("class-post-inject-error", e).kv(classKeyword, targetValue.getClass()).log();
                     if (asService != null) {
                         asService.serviceErrored(e);
                     }
                 }
             }
 
-            logger.atTrace().addKeyValue("class", className).setEventType("class-injection-complete").log();
+            logger.atTrace("class-injection-complete").kv(classKeyword, className).log();
         }
 
     }

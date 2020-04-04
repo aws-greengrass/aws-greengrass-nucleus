@@ -1,16 +1,16 @@
 ---
 services:
-
   main:
-    install:
-      all: echo All installed
+    lifecycle:
+      install:
+        all: echo All installed
+      run: |-
+        echo $PATH
+        pwd
+        printenv
+        while true; do
+        date; sleep 5; echo RUNNING
+        done
     dependencies:
       macos:
       linux:
-    run: |-
-      echo $PATH
-      pwd
-      printenv
-      while true; do
-      date; sleep 5; echo RUNNING
-      done

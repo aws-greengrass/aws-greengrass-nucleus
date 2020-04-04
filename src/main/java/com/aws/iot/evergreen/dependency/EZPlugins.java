@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
 public class EZPlugins {
+    private static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
     private Path trustedCacheDirectory;
@@ -38,7 +39,7 @@ public class EZPlugins {
     }
 
     public EZPlugins(Path d) {
-        setCacheDirectory(d);
+        withCacheDirectory(d);
     }
 
     private static void walk(Path p, Consumer<Path> action) throws IOException {
@@ -54,7 +55,7 @@ public class EZPlugins {
      * @return this
      */
     @SuppressWarnings({"checkstyle:emptycatchblock"})
-    public final EZPlugins setCacheDirectory(Path d) {
+    public final EZPlugins withCacheDirectory(Path d) {
         cacheDirectory = d;
         trustedCacheDirectory = cacheDirectory.resolve("trusted");
         untrustedCacheDirectory = cacheDirectory.resolve("untrusted");
@@ -93,7 +94,7 @@ public class EZPlugins {
         AtomicReference<IOException> e1 = new AtomicReference<>(null);
         ArrayList<URL> trustedFiles = new ArrayList<>();
         walk(trustedCacheDirectory, p -> {
-            if (p.toString().endsWith(".jar")) {
+            if (p.toString().endsWith(JAR_FILE_EXTENSION)) {
                 try {
                     trustedFiles.add(p.toUri().toURL());
                 } catch (MalformedURLException ex) {
@@ -111,10 +112,10 @@ public class EZPlugins {
             });
         }
         walk(untrustedCacheDirectory, p -> {
-            if (p.toString().endsWith(".jar")) {
+            if (p.toString().endsWith(JAR_FILE_EXTENSION)) {
                 try {
                     loadPlugins(false, p);
-                } catch (Throwable ex) {
+                } catch (IOException ex) {
                     e1.compareAndSet(null, new IOException("Error loading untrusted plugin " + p, ex));
                     ex.printStackTrace(System.out);
                 }
@@ -138,7 +139,7 @@ public class EZPlugins {
         try {
             walk(trusted ? trustedCacheDirectory : untrustedCacheDirectory, p -> {
                 String ps = p.getFileName().toString();
-                if (ps.endsWith(".jar")) {
+                if (ps.endsWith(JAR_FILE_EXTENSION)) {
                     s.add(ps);
                 }
             });
@@ -155,15 +156,19 @@ public class EZPlugins {
      * @throws IOException if deletion fails
      */
     public EZPlugins clearCache() throws IOException {
+        IOException ioe = new IOException("One or more file deletion failed");
         walk(cacheDirectory, p -> {
-            if (p.toString().endsWith(".jar")) {
+            if (p.toString().endsWith(JAR_FILE_EXTENSION)) {
                 try {
                     Files.delete(p);
-                } catch (Throwable ex) {
-                    ex.printStackTrace(System.out);
+                } catch (IOException e) {
+                    ioe.addSuppressed(e);
                 }
             }
         });
+        if (ioe.getSuppressed().length > 0) {
+            throw ioe;
+        }
         return this;
     }
 
@@ -177,7 +182,7 @@ public class EZPlugins {
      */
     public EZPlugins loadToCache(boolean trusted, URL u) throws IOException {
         String nm = Utils.namePart(u.getPath());
-        if (!nm.endsWith(".jar")) {
+        if (!nm.endsWith(JAR_FILE_EXTENSION)) {
             throw new IOException("Only .jar files can be cached: " + u);
         }
         Path d = (trusted ? trustedCacheDirectory : untrustedCacheDirectory).resolve(nm);
@@ -200,7 +205,7 @@ public class EZPlugins {
             throw new IOException("Filename was null");
         }
         String nm = p.toString();
-        if (!nm.endsWith(".jar")) {
+        if (!nm.endsWith(JAR_FILE_EXTENSION)) {
             throw new IOException("Only .jar files can be cached: " + u);
         }
         Path d = (trusted ? trustedCacheDirectory : untrustedCacheDirectory).resolve(nm);

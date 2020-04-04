@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.File;
 import java.io.IOException;
@@ -66,8 +65,6 @@ public class PackageStore {
      * @param pkgs a list of packages.
      * @return a future to notify once this is finished.
      */
-    @SuppressFBWarnings(value = "NP_NONNULL_PARAM_VIOLATION", justification = "Waiting for package cache "
-            + "implementation to be completed")
     public Future<Void> preparePackages(List<PackageIdentifier> pkgs) {
         // TODO: to be implemented.
         CompletableFuture<Void> completableFuture = new CompletableFuture<>();

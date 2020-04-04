@@ -19,9 +19,8 @@ public class AppendableWriter extends Writer {
     }
 
     @Override
-    @SuppressWarnings("PMD.AssignmentInOperand")
     public void write(@Nonnull char[] buf, int offset, int len) throws IOException {
-        while (--len >= 0) {
+        for (int i = 0; i < len; i++) {
             appendable.append(buf[offset++]);
         }
     }
