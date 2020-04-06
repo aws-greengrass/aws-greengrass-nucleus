@@ -81,7 +81,7 @@ public class EvergreenService implements InjectionActions {
     private static final Set<State> ALLOWED_STATES_FOR_REPORTING =
             new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED));
 
-    // dependencies that are explicilty declared by customer in config store.
+    // dependencies that are explicitly declared by customer in config store.
     private final Topic externalDependenciesTopic;
     // Services that this service depends on.
     // Includes both explicit declared dependencies and implicit ones added through 'autoStart' and @Inject annotation.
@@ -503,7 +503,7 @@ public class EvergreenService implements InjectionActions {
                     if (!desiredState.isPresent()) {
                         break;
                     }
-
+                    // desired state is different, let's transition to stopping state first.
                     updateStateAndBroadcast(State.STOPPING);
                     continue;
                 case STOPPING:
@@ -755,26 +755,22 @@ public class EvergreenService implements InjectionActions {
         }
 
         dependencies.compute(dependentEvergreenService, (dependentService, dependencyInfo) -> {
-            if (dependencyInfo == null) {
-                Subscriber subscriber = createDependencySubscriber(dependentEvergreenService);
-                dependentEvergreenService.getStateTopic().subscribe(subscriber);
-                context.get(Kernel.class).clearODcache();
-                return new DependencyInfo(startWhen, isDefault, subscriber);
-            } else {
-                dependencyInfo.startWhen = startWhen;
-                // if a dependency is added as both a default and a non-default, treat it as default dependency
-                if (!dependencyInfo.isDefaultDependency) {
-                    dependencyInfo.isDefaultDependency = isDefault;
-                }
-                return dependencyInfo;
+            // If the dependency already exists, we should first remove the subscriber before creating the
+            // new subscriber with updated input.
+            if (dependencyInfo != null) {
+                dependentEvergreenService.getStateTopic().remove(dependencyInfo.stateTopicSubscriber);
             }
+            Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
+            dependentEvergreenService.getStateTopic().subscribe(subscriber);
+            context.get(Kernel.class).clearODcache();
+            return new DependencyInfo(startWhen, isDefault, subscriber);
         });
     }
 
-    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService) {
+    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, State startWhenState) {
         return (WhatHappened what, Topic t) -> {
             if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
-                if (!dependencyReady(dependentEvergreenService)) {
+                if (!dependencyReady(dependentEvergreenService, startWhenState)) {
                     this.requestRestart();
                     logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
                 }
@@ -837,16 +833,19 @@ public class EvergreenService implements InjectionActions {
 
     private boolean dependencyReady() {
         List<EvergreenService> ret =
-                dependencies.keySet().stream().filter(d -> !dependencyReady(d)).collect(Collectors.toList());
+                dependencies.entrySet()
+                        .stream()
+                        .filter(e -> !dependencyReady(e.getKey(), e.getValue().startWhen))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toList());
         if (!ret.isEmpty()) {
             logger.atDebug().setEventType("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
         }
         return ret.isEmpty();
     }
 
-    private boolean dependencyReady(EvergreenService v) {
+    private boolean dependencyReady(EvergreenService v, State startWhenState) {
         State state = v.getState();
-        State startWhenState = dependencies.get(v).startWhen;
         return state.isHappy() && (startWhenState == null || startWhenState.preceedsOrEqual(state));
     }
 
