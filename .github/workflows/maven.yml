@@ -26,7 +26,7 @@ jobs:
         run: mvn -ntp clean verify
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
-        if: failed()
+        if: failure()
         with:
           name: Failed Test Report
           path: target/surefire-reports
@@ -90,7 +90,7 @@ jobs:
         run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
-        if: failed()
+        if: failure()
         with:
           name: Failed E2E Report
           path: target/surefire-reports
