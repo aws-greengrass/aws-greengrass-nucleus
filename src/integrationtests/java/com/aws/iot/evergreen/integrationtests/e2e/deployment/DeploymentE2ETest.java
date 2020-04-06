@@ -18,6 +18,7 @@ import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -59,8 +60,8 @@ class DeploymentE2ETest {
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
-    private static Kernel kernel;
-    private static Utils.ThingInfo thing;
+    private Kernel kernel;
+    private Utils.ThingInfo thing;
 
     @BeforeAll
     static void beforeAll() {
@@ -70,15 +71,19 @@ class DeploymentE2ETest {
         certificateFilePath = tempRootDir.resolve("thingCert.crt").toString();
     }
 
+    @AfterEach
+    void afterEach() {
+        kernel.shutdownNow();
+    }
+
     @AfterAll
     static void afterAll() {
-        kernel.shutdownNow();
         // Cleanup all IoT thing resources we created
         Utils.cleanAllCreatedThings();
         Utils.cleanAllCreatedJobs();
     }
 
-    private static void launchKernel(String configFile) throws IOException {
+    private void launchKernel(String configFile) throws IOException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
         setupIotResourcesAndInjectIntoKernel();
         injectKernelPackageManagementDependencies();
@@ -194,7 +199,7 @@ class DeploymentE2ETest {
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
     }
 
-    private static void setupIotResourcesAndInjectIntoKernel() throws IOException {
+    private void setupIotResourcesAndInjectIntoKernel() throws IOException {
         Utils.downloadRootCAToFile(new File(rootCaFilePath));
         thing = Utils.createThing();
         try (CommitableFile cf = CommitableFile.of(new File(privateKeyFilePath).toPath(), true)) {
@@ -212,7 +217,7 @@ class DeploymentE2ETest {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).setValue(rootCaFilePath);
     }
 
-    private static void injectKernelPackageManagementDependencies() {
+    private void injectKernelPackageManagementDependencies() {
         kernel.context.getv(DependencyResolver.class)
                 .put(new DependencyResolver(new PackageStore(LOCAL_CACHE_PATH), kernel));
     }
