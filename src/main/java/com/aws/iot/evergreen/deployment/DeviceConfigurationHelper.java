@@ -59,19 +59,19 @@ public class DeviceConfigurationHelper {
                                              String rootCAPath, String clientEndpoint)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
-        if (thingName != null && thingName.isEmpty()) {
+        if (thingName == null || thingName.isEmpty()) {
             errors.add("thingName cannot be empty");
         }
-        if (certificateFilePath != null && certificateFilePath.isEmpty()) {
+        if (certificateFilePath == null || certificateFilePath.isEmpty()) {
             errors.add("certificateFilePath cannot be empty");
         }
-        if (privateKeyPath != null && privateKeyPath.isEmpty()) {
+        if (privateKeyPath == null || privateKeyPath.isEmpty()) {
             errors.add("privateKeyPath cannot be empty");
         }
-        if (rootCAPath != null && rootCAPath.isEmpty()) {
+        if (rootCAPath == null || rootCAPath.isEmpty()) {
             errors.add("rootCAPath cannot be empty");
         }
-        if (clientEndpoint != null && clientEndpoint.isEmpty()) {
+        if (clientEndpoint == null || clientEndpoint.isEmpty()) {
             errors.add("clientEndpoint cannot be empty");
         }
         if (!errors.isEmpty()) {

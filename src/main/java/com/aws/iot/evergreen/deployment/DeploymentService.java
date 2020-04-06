@@ -98,8 +98,8 @@ public class DeploymentService extends EvergreenService {
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.atInfo().kv("session", (sessionPresent ? "existing session" : "clean session"))
-                    .log("Connection resumed: ");
+            logger.atInfo().kv("sessionPresent", (sessionPresent ? "true" : "false"))
+                    .log("Connection resumed");
             isConnectedToCloud.set(true);
             runInSeparateThread(() -> {
                 subscribeToIotJobTopics();
@@ -335,7 +335,12 @@ public class DeploymentService extends EvergreenService {
             Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
             ArrayList<Topic> deployments = new ArrayList<>();
             processedDeployments.forEach(d -> deployments.add((Topic) d));
-            //Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
+            // Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
+            // We want the statuses to be updated in the cloud in the order in which they were processed on the device.
+            // This will be accurate representation of what happened on the device, especially when deployment service
+            // processes multiple deployments in the order in which they come. Additionally, a customer workflow can
+            // depend on this order. If Group2 gets successfully updated before Group1 then customer workflow may
+            // error out.
             ArrayList<Topic> sortedByTimestamp =
                     (ArrayList<Topic>) deployments.stream().sorted(new Comparator<Topic>() {
                         @Override

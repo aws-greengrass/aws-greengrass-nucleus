@@ -54,9 +54,9 @@ import javax.inject.Inject;
 public class IotJobsHelper {
 
     protected static final String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC =
-            "$aws/things/{thingName}/jobs/{jobId}/update" + "/accepted";
+            "$aws/things/{thingName}/jobs/{jobId}/update/accepted";
     protected static final String UPDATE_SPECIFIC_JOB_REJECTED_TOPIC =
-            "$aws/things/{thingName}/jobs/{jobId}/update" + "/rejected";
+            "$aws/things/{thingName}/jobs/{jobId}/update/rejected";
 
     private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
     private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();

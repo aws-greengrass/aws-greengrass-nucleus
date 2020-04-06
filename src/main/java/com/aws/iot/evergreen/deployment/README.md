@@ -1,18 +1,18 @@
-#Models
+# Models
 1. [***DeploymentDocument***](/src/main/java/com/aws/iot/evergreen/deployment/model/DeploymentDocument.java) 
 Represents the json document which contains the desired state for the device 
 2. [***Deployment***](/src/main/java/com/aws/iot/evergreen/deployment/model/Deployment.java) Represents creation of a
  new desired state for the device. This can come from multiple sources like IotJobs, device shadow or local CLI. Each
   Deployment is uniquely identified
 
-#Startup
+# Startup
 1. [***DeploymentService***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentService.java) starts as an 
 evergreen service and initializes [***IotJobsHelper***](/src/main/java/com/aws/iot/evergreen/deployment/IotJobsHelper)
 2. *IotJobsHelper* connects to AWS Iot cloud and subscribes to the Iot jobs mqtt topics. *IotJobsHelper* and 
 *DeploymentService* communicate via a Queue.
  
-#Workflow
-##Successful deployment via IotJobs
+# Workflow
+## Successful deployment via IotJobs
 1. [***IotJobsHelper***](/src/main/java/com/aws/iot/evergreen/deployment/IotJobsHelper) receives notification when
     - A new job is created in cloud.
     - A job is completed (FAILED/SUCCEEDED)
@@ -29,7 +29,7 @@ the id of the deployment it is currently processing
 5. *DeploymentService* waits for the deployment to get completed and then updates the status of the job in the cloud.
  Service only processes one deployment at a time
 
-##Cancellation of deployment via IotJobs
+## Cancellation of deployment via IotJobs
 1. For cancellation of any job which was not yet processed by device does not require any action from device
 2. If a job "Job1" is in progress and user cancels "Job1" from cloud. Device will receive the notification and will 
 request the next pending job and will get either the next job in list or an empty list (if nothing is there)
