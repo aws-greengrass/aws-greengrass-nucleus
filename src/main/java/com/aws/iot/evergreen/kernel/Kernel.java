@@ -85,7 +85,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     boolean forReal = true;
     boolean haveRead = false;
     private String mainServiceName = "main";
-    private boolean broken = false;
     private ConfigurationWriter tlog;
     private EvergreenService mainService;
     private Collection<EvergreenService> cachedOD = null;
@@ -142,8 +141,13 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         read(deTilde(getArg()));
                         haveRead = true;
                     } catch (Throwable ex) {
-                        broken = true;
-                        logger.atError().log("Can't read config file {}", arg, ex.getLocalizedMessage());
+                        // Usually we don't want to log and throw at the same time because it can produce duplicate logs
+                        // if the handler of the exception also logs. However since we use structured logging, I
+                        // decide to log the error so that the future logging parser can parse the exceptions.
+                        RuntimeException rte =
+                                new RuntimeException(String.format("Can't read the config file %s", getArg()), ex);
+                        logger.atError().setEventType("parse-args-error").setCause(rte);
+                        throw rte;
                     }
                     break;
                 case "-log":
@@ -161,19 +165,17 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     rootAbsolutePath = getArg();
                     break;
                 default:
-                    logger.atError().log("Undefined command line argument: {}", arg);
-                    broken = true;
-                    break;
+                    RuntimeException rte =
+                            new RuntimeException(String.format("Undefined command line argument: %s", arg));
+                    logger.atError().setEventType("parse-args-error").setCause(rte);
+                    throw rte;
             }
         }
         if (Utils.isEmpty(rootAbsolutePath)) {
             rootAbsolutePath = "~/.evergreen";  // Default to hidden subdirectory of home.
         }
         rootAbsolutePath = deTilde(rootAbsolutePath);
-        if (!ensureCreated(Paths.get(rootAbsolutePath))) {
-            logger.atError().log("{}: not a valid root directory", rootAbsolutePath);
-            broken = true;
-        }
+
         lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
         context.get(EZTemplates.class).addEvaluator(expr -> {
@@ -211,10 +213,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Exec.addFirstPath(clitoolPath);
         workPath = Paths.get(deTilde(workPathName));
         Exec.setDefaultEnv("HOME", workPath.toString());
-        ensureCreated(configPath);
-        ensureCreated(clitoolPath);
-        ensureCreated(rootPath);
-        ensureCreated(workPath);
+        createPaths(rootPath, configPath, clitoolPath, workPath);
     }
 
     /**
@@ -223,12 +222,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Kernel launch() {
         logger.atInfo().log("root path = {}. config path = {}", rootPath, configPath);
         installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
-        Queue<String> autostart = new LinkedList<>();
-        if (!ensureCreated(configPath) || !ensureCreated(rootPath) || !ensureCreated(workPath) || !ensureCreated(
-                clitoolPath)) {
-            broken = true;
-        }
         Exec.setDefaultEnv("EVERGREEN_HOME", rootPath.toString());
+
+        Queue<String> autostart = new LinkedList<>();
         try {
             EZPlugins pim = context.get(EZPlugins.class);
             pim.setCacheDirectory(rootPath.resolve("plugins"));
@@ -254,39 +250,40 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch (Throwable t) {
             logger.atError().log("Error launching plugins", t);
         }
+        try {
+            mainService = EvergreenService.locate(context, mainServiceName);
+        } catch (ServiceLoadException sle) {
+            RuntimeException rte =
+                    new RuntimeException("Cannot load main service", sle);
+            logger.atError().setEventType("system-boot-error").setCause(rte);
+            throw rte;
+        }
         Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
         Path configurationFile = configPath.resolve("config.yaml"); //Paths.get(deTilde("~root/config/config.yaml"));
-        if (!broken) {
-            try {
-                if (haveRead) {
-                    // new config file came in from the outside
-                    writeEffectiveConfig(configurationFile);
-                    Files.deleteIfExists(transactionLogPath);
-                } else {
-                    if (Files.exists(configurationFile)) {
-                        read(configurationFile);
-                    }
-                    if (Files.exists(transactionLogPath)) {
-                        read(transactionLogPath);
-                    }
+        try {
+            if (haveRead) {
+                // new config file came in from the outside
+                writeEffectiveConfig(configurationFile);
+                Files.deleteIfExists(transactionLogPath);
+            } else {
+                if (Files.exists(configurationFile)) {
+                    read(configurationFile);
                 }
-                tlog = ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
-                tlog.flushImmediately(true);
-            } catch (Throwable ioe) {
-                // Too early in the boot to log a message
-                logger.atError().setEventType("system-config-error").setCause(ioe).log();
-                broken = true;
-                return this;
+                if (Files.exists(transactionLogPath)) {
+                    read(transactionLogPath);
+                }
             }
+            tlog = ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
+            tlog.flushImmediately(true);
+        } catch (Throwable ioe) {
+            logger.atError().setEventType("system-config-error").setCause(ioe).log();
+            throw new RuntimeException(ioe);
         }
-        if (broken) {
-            throw new RuntimeException("Kernel is broken and cannot start. View logs for the reason why it is broken.");
-        }
+
         if (!forReal) {
             context.put(ShellRunner.class, context.get(ShellRunner.Dryrun.class));
         }
         try {
-            mainService = getMain();
             autostart.forEach(s -> {
                 try {
                     mainService.addOrUpdateDependency(EvergreenService.locate(context, s), State.RUNNING, true);
@@ -298,33 +295,29 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             });
         } catch (Throwable ex) {
             logger.atError().setEventType("system-boot-error").setCause(ex)
-                    .log("***BOOT FAILED, SWITCHING TO FALLBACKMAIN*** ");
-            mainServiceName = "fallbackMain";
-            try {
-                mainService = getMain();
-            } catch (Throwable t) {
-                logger.atError().setEventType("system-boot-error").setCause(t)
-                        .log("***FALLBACK BOOT FAILED, ABANDON ALL HOPE*** ");
-            }
+                    .log("***BOOT FAILED, EXITING*** ");
+            // The error is not recoverable, throw the exception up.
+            throw ex;
         }
         writeEffectiveConfig();
-        try {
-            logger.atInfo().setEventType("system-start").addKeyValue("main", getMain()).log();
-            startupAllServices();
-        } catch (Throwable ex) {
-            logger.atError().setEventType("service-start-error").setCause(ex).log();
-        }
+        logger.atInfo().setEventType("system-start").addKeyValue("main", getMain()).log();
+        startupAllServices();
+
         return this;
     }
 
-    private boolean ensureCreated(Path p) {
-        try {
-            Files.createDirectories(p,
-                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
-            return true;
-        } catch (IOException ex) {
-            logger.atError().setEventType("file-path-create-error").setCause(ex).addKeyValue("filePath", p).log();
-            return false;
+    private void createPaths(Path... paths) {
+        for (Path p: paths) {
+            try {
+                Files.createDirectories(p,
+                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+            } catch (IOException ex) {
+                // It's okay to wrap this IOException in RuntimeException here because the IOException is not
+                // recoverable.
+                RuntimeException rte = new RuntimeException(String.format("Fail to create the path %s", p), ex);
+                logger.atError().setEventType("file-path-create-error").setCause(rte).addKeyValue("filePath", p).log();
+                throw rte;
+            }
         }
     }
 
@@ -332,14 +325,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * Get a reference to the main service.
      */
     public EvergreenService getMain() {
-        if (mainService == null) {
-            // TODO: move loading mainService into kernel launch
-            try {
-                mainService = EvergreenService.locate(context, mainServiceName);
-            } catch (ServiceLoadException e) {
-                logger.atError().setCause(e).log();
-            }
-        }
         return mainService;
     }
 
@@ -457,9 +442,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * Make all services startup in order.
      */
     public void startupAllServices() {
-        if (broken) {
-            return;
-        }
         orderedDependencies().forEach(l -> {
             logger.atInfo().setEventType("service-install").addKeyValue(EvergreenService.SERVICE_NAME_KEY, l.getName())
                     .log();
@@ -479,9 +461,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
     @SuppressWarnings("PMD.AssignmentInOperand")
     public void shutdown(int timeoutSeconds) {
-        if (broken) {
-            return;
-        }
         if (!isShutdownInitiated.compareAndSet(false, true)) {
             logger.info("Shutdown already initiated, returning...");
             return;
@@ -560,9 +539,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
         if (clitoolPath != null && s.startsWith("~bin/")) {
             s = clitoolPath.resolve(s.substring(5)).toString();
-        }
-        if (workPath != null && s.startsWith("~work/")) {
-            s = clitoolPath.resolve(s.substring(6)).toString();
         }
         return s;
     }
