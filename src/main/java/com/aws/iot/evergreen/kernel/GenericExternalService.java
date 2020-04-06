@@ -117,9 +117,8 @@ public class GenericExternalService extends EvergreenService {
                         try {
                             logger.atWarn("service-run-timed-out")
                                     .log("Service failed to run within timeout, calling close in process");
-                            // sigint, sigterm will cause the process to exit with a non-zero exit code
-                            // which would move the service into errored state
                             processToClose.close();
+                            reportState(State.ERRORED);
                         } catch (IOException e) {
                             logger.atError("").log("");
                         }
