@@ -185,9 +185,9 @@ public class EvergreenService implements InjectionActions {
             Configuration configuration = context.get(Configuration.class);
             Topics serviceRootTopics = configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
             if (serviceRootTopics == null || serviceRootTopics.isEmpty()) {
-                staticLogger.atWarn().setEventType("service-config-not-found").kv(SERVICE_NAME_KEY, name);
+                staticLogger.atWarn().setEventType("service-config-not-found").kv(SERVICE_NAME_KEY, name).log();
             } else {
-                staticLogger.atInfo().setEventType("service-config-found").kv(SERVICE_NAME_KEY, name)
+                staticLogger.atDebug().setEventType("service-config-found").kv(SERVICE_NAME_KEY, name)
                         .log("Found service definition in configuration file");
             }
             EvergreenService ret;
@@ -936,7 +936,7 @@ public class EvergreenService implements InjectionActions {
                 .collect(Collectors.toSet());
         if (!removedDependencies.isEmpty()) {
             logger.atInfo().setEventType("removing-unused-dependencies")
-                    .addKeyValue("removedDependencies", removedDependencies);
+                    .addKeyValue("removedDependencies", removedDependencies).log();
 
             removedDependencies.forEach(dependency -> {
                 DependencyInfo dependencyInfo = dependencies.remove(dependency);
