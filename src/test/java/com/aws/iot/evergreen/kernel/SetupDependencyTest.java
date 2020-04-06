@@ -1,7 +1,5 @@
 package com.aws.iot.evergreen.kernel;
 
-import java.util.Map;
-
 import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
@@ -10,6 +8,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import java.util.Map;
 
 public class SetupDependencyTest extends EGServiceTestUtil {
 
@@ -63,7 +63,7 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
         Assertions.assertEquals(State.RUNNING, dependencies.get(dep1));
-        // verify stateTopic listener isn't added duplicated
-        Mockito.verifyNoMoreInteractions(depStateTopic);
+        // Remove the previous subscriber.
+        Mockito.verify(depStateTopic).remove(Mockito.any(Subscriber.class));
     }
 }
