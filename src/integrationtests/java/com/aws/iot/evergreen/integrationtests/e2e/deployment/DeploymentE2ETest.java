@@ -13,6 +13,8 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.packagemanager.DependencyResolver;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -79,6 +81,7 @@ class DeploymentE2ETest {
     private static void launchKernel(String configFile) throws IOException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
         setupIotResourcesAndInjectIntoKernel();
+        injectKernelPackageManagementDependencies();
         kernel.launch();
     }
 
@@ -207,5 +210,10 @@ class DeploymentE2ETest {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).setValue(privateKeyFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).setValue(certificateFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).setValue(rootCaFilePath);
+    }
+
+    private static void injectKernelPackageManagementDependencies() {
+        kernel.context.getv(DependencyResolver.class)
+                .put(new DependencyResolver(new PackageStore(LOCAL_CACHE_PATH), kernel));
     }
 }
