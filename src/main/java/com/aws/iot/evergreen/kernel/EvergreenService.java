@@ -674,7 +674,7 @@ public class EvergreenService implements InjectionActions {
 
         if (r != null) {
             backingTaskName = action;
-            logger.info("Scheduling backingTask {}", backingTaskName);
+            logger.debug("Scheduling backingTask {}", backingTaskName);
             backingTask = context.get(ExecutorService.class).submit(r);
         }
     }
