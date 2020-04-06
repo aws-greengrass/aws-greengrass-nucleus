@@ -114,17 +114,18 @@ public class GenericExternalService extends EvergreenService {
             if (timeout != null) {
                 Exec processToClose = currentScript;
                 context.get(ScheduledExecutorService.class).schedule(() -> {
+                    if (processToClose.isRunning()) {
                         try {
                             logger.atWarn("service-run-timed-out")
                                     .log("Service failed to run within timeout, calling close in process");
                             processToClose.close();
-                            if (processToClose.isRunning()) {
-                                reportState(State.ERRORED);
-                            }
+                            reportState(State.ERRORED);
+
                         } catch (IOException e) {
                             logger.atError("service-close-error").setCause(e)
                                     .log("Error closing service after run timed out");
                         }
+                    }
                 }, timeout, TimeUnit.SECONDS);
             }
 
