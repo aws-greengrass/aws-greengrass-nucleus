@@ -189,7 +189,7 @@ public class EvergreenService implements InjectionActions {
         return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
             Configuration configuration = context.get(Configuration.class);
             Topics serviceRootTopics = configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
-            if (serviceRootTopics == null || serviceRootTopics.isEmpty()) {
+            if (serviceRootTopics.isEmpty()) {
                 staticLogger.atWarn().setEventType("service-config-not-found").kv(SERVICE_NAME_KEY, name);
             } else {
                 staticLogger.atInfo().setEventType("service-config-found").kv(SERVICE_NAME_KEY, name)
@@ -198,11 +198,7 @@ public class EvergreenService implements InjectionActions {
 
             // try to find service implementation class from plugins.
             Class<?> clazz = null;
-            Node n = null;
-
-            if (serviceRootTopics != null) {
-                n = serviceRootTopics.findLeafChild("class");
-            }
+            Node n = serviceRootTopics.findLeafChild("class");
 
             if (n != null) {
                 String cn = Coerce.toString(n);

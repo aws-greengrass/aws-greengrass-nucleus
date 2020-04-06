@@ -134,6 +134,20 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
+     * Find, and create if missing, a list of topics (name/value pairs) in the
+     * config file. Never returns null.
+     *
+     * @param path String[] of node names to traverse to find or create the Topics
+     */
+    public Topics lookupTopics(String... path) {
+        Topics n = this;
+        for (String s : path) {
+            n = n.createInteriorChild(s);
+        }
+        return n;
+    }
+
+    /**
      * Find, but do not create if missing, a topic (a name/value pair) in the
      * config file. Returns null if missing.
      *
@@ -142,13 +156,10 @@ public class Topics extends Node implements Iterable<Node> {
     public Topic find(String... path) {
         int limit = path.length - 1;
         Topics n = this;
-        for (int i = 0; i < limit; i++) {
+        for (int i = 0; i < limit && n != null; i++) {
             n = n.findInteriorChild(path[i]);
-            if (n == null) {
-                return null;
-            }
         }
-        return n.findLeafChild(path[limit]);
+        return n == null ? null : n.findLeafChild(path[limit]);
     }
 
     /**
@@ -159,11 +170,8 @@ public class Topics extends Node implements Iterable<Node> {
     public Topics findTopics(String... path) {
         int limit = path.length;
         Topics n = this;
-        for (int i = 0; i < limit; i++) {
+        for (int i = 0; i < limit && n != null; i++) {
             n = n.findInteriorChild(path[i]);
-            if (n == null) {
-                return null;
-            }
         }
         return n;
     }

@@ -656,8 +656,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 State state = service.getState();
                 // if any service is broken, set exception and return
                 if (State.BROKEN.equals(state)) {
-                    totallyCompleteFuture.completeExceptionally(
-                            new ServiceUpdateException("Service in broken state after deployment", service));
+                    totallyCompleteFuture.completeExceptionally(new ServiceUpdateException(
+                            String.format("Service %s in broken state after deployment", service.getName())));
                     return;
                 }
                 if (!service.reachedDesiredState()) {

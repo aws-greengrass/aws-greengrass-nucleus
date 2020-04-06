@@ -109,7 +109,6 @@ public class GenericExternalService extends EvergreenService {
                     }
                 }
             });
-            String name= getName();
             Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                     LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
             Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();

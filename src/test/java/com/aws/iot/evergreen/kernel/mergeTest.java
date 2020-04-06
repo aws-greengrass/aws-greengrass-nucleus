@@ -68,6 +68,7 @@ public class mergeTest {
             throws InterruptedException {
         Kernel kernel = new Kernel();
         when(mockMainService.getState()).thenReturn(State.BROKEN);
+        when(mockMainService.getName()).thenReturn("main");
         when(mockServiceA.getState()).thenReturn(State.RUNNING);
         when(mockServiceB.getState()).thenReturn(State.RUNNING);
 
@@ -82,8 +83,8 @@ public class mergeTest {
         ExecutionException t =
                 assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
         ServiceUpdateException ex = (ServiceUpdateException) t.getCause();
-        EvergreenService brokenService = ex.getBrokenService();
-        assertEquals(mockMainService, brokenService);
+
+        assertEquals("Service main in broken state after deployment",  ex.getMessage());
     }
 
 }
