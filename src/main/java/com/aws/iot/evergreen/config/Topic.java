@@ -40,12 +40,8 @@ public class Topic extends Node {
      */
     public Topic subscribe(Subscriber s) {
         if (listen(s)) {
-            try {
-                // invoke the new subscriber right away
-                s.published(WhatHappened.initialized, this);
-            } catch (Throwable ex) {
-                //TODO: do something less stupid
-            }
+            // invoke the new subscriber right away
+            s.published(WhatHappened.initialized, this);
         }
         return this;
     }
