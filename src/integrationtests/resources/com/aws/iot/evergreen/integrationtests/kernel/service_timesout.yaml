@@ -1,10 +1,5 @@
 ---
 services:
-  plain:
-    lifecycle:
-      startup:
-        all: "{platform.invoke} {args}"
-
   ServiceA:
     lifecycle:
       startup:

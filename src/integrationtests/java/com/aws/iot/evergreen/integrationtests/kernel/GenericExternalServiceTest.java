@@ -55,8 +55,8 @@ class GenericExternalServiceTest extends BaseITCase {
             }
         });
 
-        assertTrue(ServicesAErroredLatch.await(60, TimeUnit.SECONDS));
-        assertTrue(ServicesBErroredLatch.await(60, TimeUnit.SECONDS));
+        assertTrue(ServicesAErroredLatch.await(30, TimeUnit.SECONDS));
+        assertTrue(ServicesBErroredLatch.await(30, TimeUnit.SECONDS));
         kernel.shutdown();
     }
 }

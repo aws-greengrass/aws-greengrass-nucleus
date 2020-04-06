@@ -511,7 +511,7 @@ public class EvergreenService implements InjectionActions {
                                     reportState(State.ERRORED);
                                     logger.atError().setEventType("service-runtime-error").setCause(t).log();
                                 }
-                            },  "start");
+                            },"start");
 
                             break;
                         default:
