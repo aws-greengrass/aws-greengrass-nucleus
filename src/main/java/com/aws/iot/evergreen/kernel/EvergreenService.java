@@ -503,7 +503,6 @@ public class EvergreenService implements InjectionActions {
                                         triggerTimeOutReference.set(schedule);
                                     }
                                     // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
-                                    String name = getName();
                                     startup();
                                 } catch (InterruptedException i) {
                                     logger.atWarn("service-run-interrupted")
