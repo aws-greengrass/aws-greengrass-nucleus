@@ -3,11 +3,14 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
@@ -29,22 +32,13 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class KernelConfigResolverTest {
-    @Mock
-    private Kernel kernel;
-
-    @Mock
-    private PackageStore packageStore;
-
-    @Mock
-    private EvergreenService mainService;
-
-    @Mock
-    private EvergreenService alreadyRunningService;
-
     private static final String LIFECYCLE_CONFIG_ROOT_KEY = "lifecycle";
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";
@@ -54,9 +48,20 @@ public class KernelConfigResolverTest {
             "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
             "echo running service in Package %s with param {{params:%s_Param_2.value}}";
-
     private static final String TEST_INPUT_PACKAGE_A = "PackageA";
     private static final String TEST_INPUT_PACKAGE_B = "PackageB";
+    @Mock
+    private Kernel kernel;
+    @Mock
+    private PackageStore packageStore;
+    @Mock
+    private EvergreenService mainService;
+    @Mock
+    private EvergreenService alreadyRunningService;
+    @Mock
+    private Topics alreadyRunningServiceConfig;
+    @Mock
+    private Topic alreadyRunningServiceParameterConfig;
 
     @Test
     public void GIVEN_deployment_for_package_WHEN_config_resolution_requested_THEN_add_service_and_dependency_service()
@@ -87,6 +92,7 @@ public class KernelConfigResolverTest {
         when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(packageStore.getRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackage);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
@@ -99,17 +105,17 @@ public class KernelConfigResolverTest {
         // THEN
         // service config
         Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
-        assertThat("Must contain main service", servicesConfig.containsKey("main"));
-        assertThat("Must contain top level package service", servicesConfig.containsKey(TEST_INPUT_PACKAGE_A));
-        assertThat("Must contain dependency service", servicesConfig.containsKey(TEST_INPUT_PACKAGE_B));
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain dependency service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_B));
 
         // dependencies
         assertThat("Main service must depend on new service",
-                   dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
+                dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
-                   dependencyListContains("main", "IpcService", servicesConfig));
+                dependencyListContains("main", "IpcService", servicesConfig));
         assertThat("New service must depend on dependency service",
-                   dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
+                dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
     }
 
@@ -131,6 +137,7 @@ public class KernelConfigResolverTest {
 
         when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
@@ -143,12 +150,12 @@ public class KernelConfigResolverTest {
         // THEN
         // service config
         Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
-        assertThat("Must contain main service", servicesConfig.containsKey("main"));
-        assertThat("Must contain updated service", servicesConfig.containsKey(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain updated service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
         // dependencies
         assertThat("Main service must depend on updated service",
-                   dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
+                dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
     }
 
     @Test
@@ -171,6 +178,7 @@ public class KernelConfigResolverTest {
 
         when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
@@ -182,20 +190,75 @@ public class KernelConfigResolverTest {
         // THEN
         // service config
         Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
-        assertThat("Must contain main service", servicesConfig.containsKey("main"));
-        assertThat("Must contain top level package service", servicesConfig.containsKey(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
         // parameter interpolation
         Map<String, String> serviceInstallCommand =
                 (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
 
         assertThat("If parameter value was set in deployment, it should be used",
-                   serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY)
-                        .equals("echo installing service in Package PackageA with param PackageA_Param_1_value"));
+                serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
+                equalTo("echo installing service in Package PackageA " + "with param PackageA_Param_1_value"));
 
-        assertThat("If not parameter value was set in deployment, the default value should be used",
-                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig)
-                        .equals("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
+        assertThat("If no parameter value was set in deployment, the default value should be used",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("echo running service in Package " + "PackageA with param PackageA_Param_2_default_value"));
+
+    }
+
+    @Test
+    public void GIVEN_deployment_with_params_not_set_WHEN_previous_deployment_had_params_THEN_use_params_from_previous_deployment()
+            throws Exception {
+        // GIVEN
+        PackageIdentifier rootPackageIdentifier =
+                new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
+
+        Package rootPackage = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                        Collections.emptyList());
+        DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
+                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
+
+        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
+        when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
+        when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_1"))
+                .thenReturn(alreadyRunningServiceParameterConfig);
+        when(alreadyRunningServiceParameterConfig.getOnce()).thenReturn("PackageA_Param_1_value");
+        when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_2"))
+                .thenReturn(null);
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
+        Map<Object, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        // service config
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
+
+        // parameter interpolation
+        Map<String, String> serviceInstallCommand =
+                (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
+
+        assertThat("If parameter value was set in previous deployment but not in current deployment, previously "
+                        + "used values should be used", serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
+                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value"));
+
+        assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
 
     }
 
@@ -245,14 +308,13 @@ public class KernelConfigResolverTest {
 
     private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
         Iterable<String> dependencyList =
-                (Iterable<String>)getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
-        return StreamSupport.stream(dependencyList.spliterator(), false)
-                            .anyMatch(itr -> itr.equals(dependencyName));
+                (Iterable<String>) getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
+        return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
     }
 
     private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
         Map<Object, Object> map = getLifecycleConfig(serviceName, config);
-        return ((Map<Object, Object>)map.get(LIFECYCLE_CONFIG_ROOT_KEY)).get(key);
+        return ((Map<Object, Object>) map.get(LIFECYCLE_CONFIG_ROOT_KEY)).get(key);
     }
 
     private Map<Object, Object> getLifecycleConfig(String serviceName, Map<Object, Object> config) {

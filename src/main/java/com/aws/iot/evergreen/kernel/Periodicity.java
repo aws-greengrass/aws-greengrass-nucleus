@@ -55,7 +55,7 @@ public final class Periodicity {
      */
     @Nullable
     public static Periodicity of(EvergreenService s) {
-        Node n = s.config.getChild("periodic");
+        Node n = s.getServiceConfig().getChild("periodic");
         if (n == null) {
             return null;
         }

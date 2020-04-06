@@ -273,7 +273,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         };
         kernel.context.addGlobalStateChangeListener(listener);
 
-        EvergreenService main = EvergreenService.locate(kernel.context, "main");
+        EvergreenService main = kernel.locate("main");
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), newConfig).get(60, TimeUnit.SECONDS);
 
         // Verify that first merge succeeded.
@@ -347,8 +347,8 @@ class ServiceConfigMergingTest extends BaseITCase {
             }
         });
 
-        EvergreenService main = EvergreenService.locate(kernel.context, "main");
-        EvergreenService sleeperB = EvergreenService.locate(kernel.context, "sleeperB");
+        EvergreenService main = kernel.locate("main");
+        EvergreenService sleeperB = kernel.locate("sleeperB");
         // wait for merge to complete
         future.get(60, TimeUnit.SECONDS);
         //sleeperA should be closed
@@ -359,7 +359,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         // ensuring config value for sleeperA is removed
         assertFalse(kernel.findTopics("services").children.containsKey("sleeperA"));
         // ensure kernel no longer holds a reference of sleeperA
-        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "sleeperA"));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("sleeperA"));
 
         List<String> orderedDependencies = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
