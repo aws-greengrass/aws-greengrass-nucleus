@@ -449,9 +449,10 @@ public class EvergreenService implements InjectionActions {
                         }
                     }, "install");
 
-                    Integer installTimeOut = (Integer) config.lookup(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                            LIFECYCLE_INSTALL_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC)
-                            .dflt(DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC).getOnce();
+                    Topic installTimeOutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            LIFECYCLE_INSTALL_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+                    Integer installTimeOut = installTimeOutTopic == null
+                            ? DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC : (Integer) installTimeOutTopic.getOnce();
                     boolean ok = installLatch.await(installTimeOut, TimeUnit.SECONDS);
                     State reportState = getReportState().orElse(null);
                     if (State.ERRORED.equals(reportState) || !ok) {
