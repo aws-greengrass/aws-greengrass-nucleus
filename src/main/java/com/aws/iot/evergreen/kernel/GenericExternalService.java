@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 
 @SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
+    public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
@@ -118,9 +119,8 @@ public class GenericExternalService extends EvergreenService {
                         try {
                             logger.atWarn("service-run-timed-out")
                                     .log("Service failed to run within timeout, calling close in process");
-                            processToClose.close();
                             reportState(State.ERRORED);
-
+                            processToClose.close();
                         } catch (IOException e) {
                             logger.atError("service-close-error").setCause(e)
                                     .log("Error closing service after run timed out");

@@ -57,7 +57,6 @@ public class EvergreenService implements InjectionActions {
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
-    public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
@@ -511,7 +510,7 @@ public class EvergreenService implements InjectionActions {
                                     reportState(State.ERRORED);
                                     logger.atError().setEventType("service-runtime-error").setCause(t).log();
                                 }
-                            },"start");
+                            }, "start");
 
                             break;
                         default:
