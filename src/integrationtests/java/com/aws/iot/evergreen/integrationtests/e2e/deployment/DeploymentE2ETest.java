@@ -126,6 +126,7 @@ class DeploymentE2ETest {
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
     }
 
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_removes_packages_THEN_services_should_be_stopped_and_job_is_successful()
             throws Exception {
