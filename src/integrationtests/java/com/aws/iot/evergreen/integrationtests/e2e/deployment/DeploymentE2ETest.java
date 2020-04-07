@@ -143,7 +143,7 @@ class DeploymentE2ETest {
                         Arrays.asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null),
                                 new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null))).build());
         String jobId1 = Utils.createJob(document1, targets);
-        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(2));
+        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
 
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper().writeValueAsString(
@@ -152,7 +152,7 @@ class DeploymentE2ETest {
                         .deploymentPackageConfigurationList(Arrays.asList(
                                 new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
         String jobId2 = Utils.createJob(document2, targets);
-        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(2));
+        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
