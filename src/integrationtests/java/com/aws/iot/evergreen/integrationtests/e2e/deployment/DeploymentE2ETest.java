@@ -73,7 +73,7 @@ class DeploymentE2ETest {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdownNow();
+        kernel.shutdown();
     }
 
     @AfterAll
@@ -83,11 +83,16 @@ class DeploymentE2ETest {
         Utils.cleanAllCreatedJobs();
     }
 
-    private void launchKernel(String configFile) throws IOException {
+    private void launchKernel(String configFile) throws IOException, InterruptedException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
         setupIotResourcesAndInjectIntoKernel();
         injectKernelPackageManagementDependencies();
         kernel.launch();
+
+        // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
+        // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
+        // creating new IoT job here.
+        Thread.sleep(10_000);
     }
 
     @Test
