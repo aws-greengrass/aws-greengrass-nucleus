@@ -128,7 +128,7 @@ public class PackageStore {
             logger.atError().log(String.format("Failed to prepare package %s", packageIdentifier), e);
             prepared = false;
         }
-        logger.atInfo().setEventType("pre-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
+        logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
                 .addKeyValue("succeed", prepared).log();
         return prepared;
     }
