@@ -57,12 +57,7 @@ public class Configuration {
      * @param path String[] of node names to traverse to find or create the Topic
      */
     public Topic lookup(String... path) {
-        int limit = path.length - 1;
-        Topics n = root;
-        for (int i = 0; i < limit; i++) {
-            n = n.createInteriorChild(path[i]);
-        }
-        return n.createLeafChild(path[limit]);
+        return root.lookup(path);
     }
 
     /**
@@ -72,11 +67,7 @@ public class Configuration {
      * @param path String[] of node names to traverse to find or create the Topics
      */
     public Topics lookupTopics(String... path) {
-        Topics n = root;
-        for (String s : path) {
-            n = n.createInteriorChild(s);
-        }
-        return n;
+        return root.lookupTopics(path);
     }
 
     /**
@@ -86,12 +77,7 @@ public class Configuration {
      * @param path String[] of node names to traverse to find the Topic
      */
     public Topic find(String... path) {
-        int limit = path.length - 1;
-        Topics n = root;
-        for (int i = 0; i < limit && n != null; i++) {
-            n = n.findInteriorChild(path[i]);
-        }
-        return n == null ? null : n.findLeafChild(path[limit]);
+        return root.find(path);
     }
 
     /**
@@ -101,12 +87,7 @@ public class Configuration {
      * @param path String[] of node names to traverse to find the Topics
      */
     public Topics findTopics(String... path) {
-        int limit = path.length;
-        Topics n = root;
-        for (int i = 0; i < limit && n != null; i++) {
-            n = n.findInteriorChild(path[i]);
-        }
-        return n;
+        return root.findTopics(path);
     }
 
     public Topics getRoot() {
