@@ -90,7 +90,6 @@ class DeploymentE2ETest {
         kernel.launch();
     }
 
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_blank_kernel_WHEN_deploy_new_services_e2e_THEN_new_services_deployed_and_job_is_successful()
             throws Exception {
@@ -109,7 +108,7 @@ class DeploymentE2ETest {
         String jobId = Utils.createJob(document, targets);
 
         // Wait up to 5 minutes for the job to complete
-        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(5));
+        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
         assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "CustomerApp").getState());
@@ -122,7 +121,6 @@ class DeploymentE2ETest {
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
     }
 
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_removes_packages_THEN_services_should_be_stopped_and_job_is_successful()
             throws Exception {
@@ -140,7 +138,7 @@ class DeploymentE2ETest {
                         Arrays.asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null),
                                 new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null))).build());
         String jobId1 = Utils.createJob(document1, targets);
-        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
+        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(2));
 
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper().writeValueAsString(
@@ -149,7 +147,7 @@ class DeploymentE2ETest {
                         .deploymentPackageConfigurationList(Arrays.asList(
                                 new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
         String jobId2 = Utils.createJob(document2, targets);
-        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
+        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(2));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
@@ -166,7 +164,6 @@ class DeploymentE2ETest {
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
     }
 
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error()
             throws Exception {
@@ -187,7 +184,7 @@ class DeploymentE2ETest {
                                 new DeploymentPackageConfiguration("SomeOldService", "0.9.0", null, null, null)))
                         .build());
         String jobId = Utils.createJob(document, targets);
-        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(5));
+        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
 
         // Make sure IoT Job was marked as failed and provided correct reason
         JobExecution jobExecution = Utils.iotClient.describeJobExecution(
