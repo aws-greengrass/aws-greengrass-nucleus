@@ -46,13 +46,13 @@ public class DependencyResolverBenchmark {
 
         private DependencyResolver resolver;
         private List<PackageIdentifier> result;
+        private Kernel kernel;
 
         @Setup
         public void setup() {
-            Kernel kernel = new Kernel();
+            kernel = new Kernel();
             kernel.parseArgs("-i", DependencyResolverBenchmark.class.getResource(getConfigFile()).toString());
-            // We don't need to launch kernel here. Only configuration parsing and main service loading are
-            // required for this benchmarking.
+            kernel.launch();
 
             // TODO: Update local package store accordingly when the new implementation is ready
             // TODO: Figure out if there's a better way to load resource directory in local package store
@@ -65,6 +65,11 @@ public class DependencyResolverBenchmark {
         @TearDown(Level.Invocation)
         public void doTeardown() {
             ForcedGcMemoryProfiler.recordUsedMemory();
+        }
+
+        @TearDown(Level.Trial)
+        public void doShutdown() {
+            kernel.shutdown();
         }
 
         @Benchmark
