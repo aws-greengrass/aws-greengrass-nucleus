@@ -170,7 +170,7 @@
                 <version>3.13.0</version>
                 <configuration>
                     <!-- Current violations should not be exceeded. Try to decrease these over time -->
-                    <maxAllowedViolations>89</maxAllowedViolations>
+                    <maxAllowedViolations>81</maxAllowedViolations>
                     <printFailingErrors>true</printFailingErrors>
                     <rulesets>
                         <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>

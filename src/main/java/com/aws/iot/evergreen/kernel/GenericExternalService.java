@@ -15,12 +15,15 @@ import com.aws.iot.evergreen.util.Exec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
+    public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
@@ -79,7 +82,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void startup() throws InterruptedException {
-        RunStatus result = run("startup", exit -> {
+        RunStatus result = run(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             runScript = null;
             if (getState() == State.INSTALLED) {
                 if (exit == 0) {
@@ -106,12 +109,31 @@ public class GenericExternalService extends EvergreenService {
                     }
                 }
             });
+            Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                    LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+            Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
+            if (timeout != null) {
+                Exec processToClose = currentScript;
+                context.get(ScheduledExecutorService.class).schedule(() -> {
+                    if (processToClose.isRunning()) {
+                        try {
+                            logger.atWarn("service-run-timed-out")
+                                    .log("Service failed to run within timeout, calling close in process");
+                            reportState(State.ERRORED);
+                            processToClose.close();
+                        } catch (IOException e) {
+                            logger.atError("service-close-error").setCause(e)
+                                    .log("Error closing service after run timed out");
+                        }
+                    }
+                }, timeout, TimeUnit.SECONDS);
+            }
 
             if (result == RunStatus.NothingDone) {
-                this.reportState(State.FINISHED);
+                reportState(State.FINISHED);
                 logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
             } else if (result == RunStatus.Errored) {
-                serviceErrored();
+                reportState(State.ERRORED);
             } else {
                 reportState(State.RUNNING);
                 runScript = currentScript;
@@ -156,7 +178,7 @@ public class GenericExternalService extends EvergreenService {
      * @return the status of the run.
      */
     protected RunStatus run(String name, IntConsumer background) throws InterruptedException {
-        Node n = (lifecycle == null) ? null : lifecycle.getChild(name);
+        Node n = (getLifeCycleTopic() == null) ? null : getLifeCycleTopic().getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 

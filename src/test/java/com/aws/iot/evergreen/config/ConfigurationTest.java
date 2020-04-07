@@ -20,6 +20,7 @@ import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 public class ConfigurationTest {
@@ -130,8 +131,19 @@ public class ConfigurationTest {
         }
     }
 
-    void dump(Configuration c, String title) {
-        System.out.println("______________\n" + title);
-        c.deepForEachTopic(System.out::println);
+    @Test
+    public void GIVEN_empty_configuration_WHEN_topic_lookup_THEN_topic_created() {
+        assertNull(config.find("root", "leaf"));
+        Topic createdTopic = config.lookup("root", "leaf").dflt("defaultValue");
+        assertEquals(createdTopic, config.find("root", "leaf"));
+        assertEquals("defaultValue", createdTopic.getOnce());
     }
+
+    @Test
+    public void GIVEN_empty_configuration_WHEN_topics_lookup_THEN_topics_created() {
+        assertNull(config.findTopics("root", "child"));
+        Topics createdTopics = config.lookupTopics("root", "child");
+        assertEquals(createdTopics, config.findTopics("root", "child"));
+    }
+
 }
