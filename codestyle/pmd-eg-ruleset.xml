@@ -81,7 +81,7 @@
     </rule>
     <rule name="AvoidGettingFutureWithoutTimeout"
           language="java"
-          message="Calls to 'get' on Futures must have a timeout"
+          message="Calls to 'get()' on Futures must have a timeout"
           class="net.sourceforge.pmd.lang.rule.XPathRule">
         <description>
             Calls to Future.get() will block forever. This is almost always undesirable.
@@ -99,4 +99,25 @@
             </property>
         </properties>
     </rule>
+
+    <rule name="DoNotLogWithoutLogging"
+          language="java"
+          message="Calls to logger must end with '.log()'"
+          class="net.sourceforge.pmd.lang.rule.XPathRule">
+        <description>
+            Without a call to .log(), your logging won't actually be appended into the log.
+        </description>
+        <priority>1</priority>
+        <properties>
+            <property name="version" value="2.0"/>
+            <property name="xpath">
+                <value>
+                    <![CDATA[
+//PrimaryExpression[PrimaryPrefix[pmd-java:typeIs("com.aws.iot.evergreen.logging.api.Logger")] and PrimarySuffix[last()-1][@Image!="log"]]
+]]>
+                </value>
+            </property>
+        </properties>
+    </rule>
+
 </ruleset>
