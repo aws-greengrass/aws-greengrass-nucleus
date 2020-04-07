@@ -56,8 +56,10 @@ public class EvergreenService implements InjectionActions {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
+    public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
+    public static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     public static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
@@ -447,8 +449,10 @@ public class EvergreenService implements InjectionActions {
                         }
                     }, "install");
 
-                    // TODO: Configurable timeout logic.
-                    boolean ok = installLatch.await(120, TimeUnit.SECONDS);
+                    Integer installTimeOut = (Integer) config.lookup(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            LIFECYCLE_INSTALL_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC)
+                            .dflt(DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC).getOnce();
+                    boolean ok = installLatch.await(installTimeOut, TimeUnit.SECONDS);
                     State reportState = getReportState().orElse(null);
                     if (State.ERRORED.equals(reportState) || !ok) {
                         updateStateAndBroadcast(State.ERRORED);
