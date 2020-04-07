@@ -35,7 +35,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public static Topics errorNode(Context context, String name, String message) {
         Topics t = new Topics(context, name, null);
-        t.createLeafChild("error").withValue(0, message);
+        t.createLeafChild("error").withNewerValue(0, message);
         return t;
     }
 
@@ -192,7 +192,7 @@ public class Topics extends Node implements Iterable<Node> {
             if (value instanceof Map) {
                 createInteriorChild(key).mergeMap(lastModified, (Map) value);
             } else {
-                createLeafChild(key).withValue(lastModified, value);
+                createLeafChild(key).withNewerValue(lastModified, value);
             }
         });
     }

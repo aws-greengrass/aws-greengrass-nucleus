@@ -8,6 +8,8 @@ package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -93,7 +95,8 @@ class DeploymentE2ETest {
                         .deploymentId(UUID.randomUUID().toString())
                         .rootPackages(Collections.singletonList("CustomerApp")).deploymentPackageConfigurationList(
                         Collections.singletonList(
-                                new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
+                                new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
 
         // Create job targeting our DUT
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
@@ -130,7 +133,8 @@ class DeploymentE2ETest {
                         .deploymentId(UUID.randomUUID().toString())
                         .rootPackages(Arrays.asList("CustomerApp", "SomeService")).deploymentPackageConfigurationList(
                         Arrays.asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null),
-                                new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null))).build());
+                                new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
         String jobId1 = Utils.createJob(document1, targets);
         Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(2));
 
@@ -140,7 +144,8 @@ class DeploymentE2ETest {
                         .deploymentId(UUID.randomUUID().toString())
                         .rootPackages(Collections.singletonList("CustomerApp")).deploymentPackageConfigurationList(
                         Collections.singletonList(
-                                new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
+                                new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
         String jobId2 = Utils.createJob(document2, targets);
         Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(2));
 
@@ -175,7 +180,7 @@ class DeploymentE2ETest {
                         .deploymentPackageConfigurationList(Arrays.asList(
                                 new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null),
                                 new DeploymentPackageConfiguration("SomeOldService", "0.9.0", null, null, null)))
-                        .build());
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
         String jobId = Utils.createJob(document, targets);
         Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
 
@@ -205,7 +210,8 @@ class DeploymentE2ETest {
                 DeploymentDocument.builder().timestamp(System.currentTimeMillis())
                         .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
                         .deploymentPackageConfigurationList(Arrays.asList(
-                                new DeploymentPackageConfiguration("CustomerApp", "0.9.0", null, null, null))).build());
+                                new DeploymentPackageConfiguration("CustomerApp", "0.9.0", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
 
         // Create job targeting our DUT.
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
@@ -228,7 +234,8 @@ class DeploymentE2ETest {
                 DeploymentDocument.builder().timestamp(System.currentTimeMillis())
                         .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
                         .deploymentPackageConfigurationList(Arrays.asList(
-                                new DeploymentPackageConfiguration("CustomerApp", "0.9.1", null, null, null))).build());
+                                new DeploymentPackageConfiguration("CustomerApp", "0.9.1", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
 
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
         String jobId2 = Utils.createJob(document2, targets);
@@ -242,6 +249,61 @@ class DeploymentE2ETest {
         assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build()).execution()
                 .status());
+        assertEquals(JobStatus.COMPLETED,
+                Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
+    }
+
+    @Test
+    void GIVEN_deployment_fails_due_to_service_broken_WHEN_failure_policy_is_rollback_THEN_deployment_is_rolled_back_and_job_fails(
+            ExtensionContext context) throws Exception {
+
+        launchKernel("blank_config.yaml");
+
+        ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
+
+        // TODO: Eventually switch this to target using Thing Group instead of individual Thing
+        String[] targets = {thing.thingArn};
+
+        // Deploy some services that can be used for verification later
+        String document1 = new ObjectMapper().writeValueAsString(
+                DeploymentDocument.builder().timestamp(System.currentTimeMillis())
+                        .deploymentId(UUID.randomUUID().toString())
+                        .rootPackages(Arrays.asList("RedSignal", "YellowSignal")).deploymentPackageConfigurationList(
+                        Arrays.asList(new DeploymentPackageConfiguration("RedSignal", "1.0.0", null, null, null),
+                                new DeploymentPackageConfiguration("YellowSignal", "1.0.0", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+        String jobId1 = Utils.createJob(document1, targets);
+        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(2));
+
+        // Create a Job Doc with a faulty service (CustomerApp-0.9.0) requesting rollback on failure
+        String document2 = new ObjectMapper().writeValueAsString(
+                DeploymentDocument.builder().timestamp(System.currentTimeMillis())
+                        .deploymentId(UUID.randomUUID().toString())
+                        .rootPackages(Arrays.asList("RedSignal", "YellowSignal", "CustomerApp"))
+                        .deploymentPackageConfigurationList(Arrays.asList(
+                                new DeploymentPackageConfiguration("RedSignal", "1.0.0", null, null, null),
+                                new DeploymentPackageConfiguration("YellowSignal", "1.0.0", null, null, null),
+                                new DeploymentPackageConfiguration("CustomerApp", "0.9.0", null, null, null)))
+                        .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK).build());
+        String jobId2 = Utils.createJob(document2, targets);
+        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(2));
+
+        // Main should be INSTALLED state and CustomerApp should be stopped and removed
+        assertEquals(State.FINISHED, kernel.getMain().getState());
+        assertEquals(State.FINISHED, kernel.locate("RedSignal").getState());
+        assertEquals(State.FINISHED, kernel.locate("YellowSignal").getState());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("CustomerApp").getState());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto").getState());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal").getState());
+
+        // IoT Job should have failed.
+        assertEquals(JobExecutionStatus.FAILED, Utils.iotClient.describeJobExecution(
+                DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build()).execution()
+                .status());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE.name(), Utils.iotClient
+                .describeJobExecution(
+                        DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build())
+                .execution().statusDetails().detailsMap().get("detailed-deployment-status"));
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
     }

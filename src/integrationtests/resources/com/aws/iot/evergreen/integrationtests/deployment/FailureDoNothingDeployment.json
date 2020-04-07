@@ -1,11 +1,11 @@
 {
   "DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
   "RootPackages": [
-    "CustomerApp", "YellowSignal"
+    "BreakingService", "RedSignal"
   ],
   "Packages": [
     {
-      "Name": "CustomerApp",
+      "Name": "BreakingService",
       "ResolvedVersion": "1.0.0",
       "Dependencies": [
         {
@@ -14,7 +14,7 @@
       ]
     },
     {
-      "Name": "YellowSignal",
+      "Name": "RedSignal",
       "ResolvedVersion": "1.0.0"
     }
   ],
