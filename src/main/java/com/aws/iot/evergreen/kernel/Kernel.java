@@ -146,7 +146,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                         // decide to log the error so that the future logging parser can parse the exceptions.
                         RuntimeException rte =
                                 new RuntimeException(String.format("Can't read the config file %s", getArg()), ex);
-                        logger.atError().setEventType("parse-args-error").setCause(rte);
+                        logger.atError().setEventType("parse-args-error").setCause(rte).log();
                         throw rte;
                     }
                     break;
@@ -167,7 +167,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 default:
                     RuntimeException rte =
                             new RuntimeException(String.format("Undefined command line argument: %s", arg));
-                    logger.atError().setEventType("parse-args-error").setCause(rte);
+                    logger.atError().setEventType("parse-args-error").setCause(rte).log();
                     throw rte;
             }
         }
@@ -255,7 +255,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch (ServiceLoadException sle) {
             RuntimeException rte =
                     new RuntimeException("Cannot load main service", sle);
-            logger.atError().setEventType("system-boot-error").setCause(rte);
+            logger.atError().setEventType("system-boot-error").setCause(rte).log();
             throw rte;
         }
         Path transactionLogPath = configPath.resolve("config.tlog"); //Paths.get(deTilde("~root/config/config.tlog"));
