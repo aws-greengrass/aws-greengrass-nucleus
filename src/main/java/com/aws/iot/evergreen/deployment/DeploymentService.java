@@ -277,7 +277,9 @@ public class DeploymentService extends EvergreenService {
                         .log("Caught exception while getting the status of the Job");
                 Throwable t = e.getCause();
                 if (t instanceof NonRetryableDeploymentTaskFailureException) {
-                    updateJobAsFailed(currentJobId, null);
+                    HashMap<String, String> statusDetails = new HashMap<>();
+                    statusDetails.put("error", t.getMessage());
+                    updateJobAsFailed(currentJobId, statusDetails);
                 }
                 currentProcessStatus = null;
                 //TODO: Handle retryable error
