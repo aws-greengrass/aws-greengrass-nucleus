@@ -10,9 +10,12 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 
 public final class TestHelper {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
@@ -74,5 +77,23 @@ public final class TestHelper {
         Path path = rootPath.resolve(testPackageName).resolve(testPackageVersion).resolve("recipe.yaml");
         String recipeFmt = new String(Files.readAllBytes(path));
         return String.format(recipeFmt, rootPath.toString());
+    }
+
+    public static void cleanDirectory(Path pathToDirectory) throws IOException {
+        if (Files.exists(pathToDirectory)) {
+            Files.walkFileTree(pathToDirectory, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        }
     }
 }

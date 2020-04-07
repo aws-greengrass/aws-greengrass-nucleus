@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -45,11 +46,11 @@ public class DeploymentTask implements Callable<Void> {
             //  of all groups, when multi group support is added.
             List<String> rootPackages = new ArrayList<>(document.getRootPackages());
 
-            List<PackageIdentifier> desiredPackages = dependencyResolver
-                    .resolveDependencies(document, rootPackages);
+            List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document, rootPackages);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
-            packageStore.preparePackages(desiredPackages).get();
+            List<CompletableFuture<Boolean>> preparePackageFutures = packageStore.preparePackages(desiredPackages);
+            CompletableFuture.allOf(preparePackageFutures.toArray(new CompletableFuture[0])).get();
 
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, rootPackages);
             // Block this without timeout because it can take a long time for the device to update the config

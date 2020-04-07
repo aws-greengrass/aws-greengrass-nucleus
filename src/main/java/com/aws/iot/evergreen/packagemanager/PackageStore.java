@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.config.Constants;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
@@ -33,14 +35,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import javax.inject.Named;
 
 /**
  * TODO Implement public methods.
  */
 @SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.IdenticalCatchBranches"})
 public class PackageStore {
+    private static final Logger logger = LogManager.getLogger(PackageStore.class);
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
@@ -54,9 +57,15 @@ public class PackageStore {
         this.packageStorePath = packageStorePath;
     }
 
-    private Path recipeDirectory;
+    private final Path recipeDirectory;
 
-    private Path artifactDirectory;
+    private final Path artifactDirectory;
+
+    public PackageStore(@Named("RecipeDirectory") Path recipeDirectory,
+                        @Named("ArtifactDirectory") Path artifactDirectory) {
+        this.recipeDirectory = recipeDirectory;
+        this.artifactDirectory = artifactDirectory;
+    }
 
     /**
      * Get package versions with the most preferred version first.
@@ -75,8 +84,9 @@ public class PackageStore {
      * they don't exist.
      *
      * @param pkgs a list of packages.
-     * @return a future to notify once this is finished.
+     * @return a list of future to notify packages are prepared or not.
      */
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
     @SuppressFBWarnings(value = "NP_NONNULL_PARAM_VIOLATION",
@@ -87,110 +97,143 @@ public class PackageStore {
         CompletableFuture<Void> completableFuture = new CompletableFuture<>();
         completableFuture.complete(null);
         return completableFuture;
+=======
+    public List<CompletableFuture<Boolean>> preparePackages(List<PackageIdentifier> pkgs) {
+        return pkgs.stream().map(pkg -> CompletableFuture.supplyAsync(() -> preparePackage(pkg)))
+                .collect(Collectors.toList());
+>>>>>>> add unit tests
     }
 
-    private void preparePackage(PackageIdentifier packageIdentifier)
-            throws PackageLoadingException, PackageDownloadException {
+    private boolean preparePackage(PackageIdentifier packageIdentifier) {
+        logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
-        Package pkg = findPackageRecipe(recipePath);
-        if (pkg == null) {
-            pkg = downloadPackageRecipe(packageIdentifier.getArn(), recipePath);
+        boolean prepared = true;
+        try {
+            Package pkg = findPackageRecipe(recipePath);
+            if (pkg == null) {
+                pkg = downloadPackageRecipe(packageIdentifier);
+                savePackageToFile(pkg, recipePath);
+            }
+            List<URI> artifactURIList = pkg.getArtifacts().stream().map(e -> {
+                try {
+                    return new URI(e);
+                } catch (URISyntaxException ex) {
+                    String message = String.format("artifact URI %s is invalid", e);
+                    logger.atError().log(message, ex);
+                    throw new RuntimeException(message, ex);
+                }
+            }).collect(Collectors.toList());
+            downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
+        } catch (PackageLoadingException | PackageDownloadException e) {
+            logger.atError().log(String.format("Failed to prepare package %s", packageIdentifier), e);
+            prepared = false;
         }
-        downloadArtifactsIfNecessary(packageIdentifier, pkg.getArtifacts());
+        logger.atInfo().setEventType("pre-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue("succeed", prepared).log();
+        return prepared;
     }
 
-    private Package findPackageRecipe(Path packageRecipe) throws PackageLoadingException {
+    Package findPackageRecipe(Path packageRecipe) throws PackageLoadingException {
+        logger.atInfo().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", packageRecipe).log();
         byte[] recipeContent = loadPackageRecipeContent(packageRecipe);
-        if (recipeContent == null) {
+        if (recipeContent.length == 0) {
             return null;
         }
 
         try {
             return OBJECT_MAPPER.readValue(recipeContent, Package.class);
         } catch (IOException e) {
-            throw new PackageLoadingException(Constants.UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG, e);
+            throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", packageRecipe), e);
         }
     }
 
     private byte[] loadPackageRecipeContent(Path packageRecipe) throws PackageLoadingException {
         if (!Files.exists(packageRecipe) || !Files.isRegularFile(packageRecipe)) {
-            return null;
+            return new byte[0];
         }
 
         try {
             return Files.readAllBytes(packageRecipe);
         } catch (IOException e) {
-            throw new PackageLoadingException("error", e);
+            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", packageRecipe), e);
         }
     }
 
-    private Package downloadPackageRecipe(String packageArn, Path saveToFile)
-            throws PackageDownloadException {
+    private Package downloadPackageRecipe(PackageIdentifier packageIdentifier) throws PackageDownloadException {
+        logger.atInfo().setEventType("downloading-package-recipe").addKeyValue("packageIdentifier",
+                packageIdentifier).log();
         //TODO retrieve package recipe from cloud
-        //To pretend it working, load from local now
-        Package pkg;
+        //load from local now to pretend it working
         try {
-            pkg = findPackageRecipe(LOCAL_CACHE_PATH.resolve(String.format("%s.yaml", packageArn)));
+            return findPackageRecipe(LOCAL_CACHE_PATH.resolve(packageIdentifier.getName())
+                    .resolve(packageIdentifier.getVersion().getValue()).resolve("recipe.yaml"));
         } catch (PackageLoadingException e) {
-            throw new PackageDownloadException("error", e);
+            throw new PackageDownloadException(String.format("Failed to download package %s recipe", packageIdentifier),
+                    e);
         }
+    }
 
+    void savePackageToFile(Package pkg, Path saveToFile) throws PackageLoadingException {
         try {
             OBJECT_MAPPER.writeValue(new File(saveToFile.toString()), pkg);
         } catch (IOException e) {
-            throw new PackageDownloadException("error", e);
+            throw new PackageLoadingException(String.format("Failed to save package recipe to %s", saveToFile), e);
         }
-
-        return pkg;
     }
 
     private Path resolveRecipePath(String packageName, Semver packageVersion) {
         return recipeDirectory.resolve(String.format("%s-%s.yaml", packageName, packageVersion.getValue()));
     }
 
-    private void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<String> artifactList)
+    void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<URI> artifactList)
             throws PackageLoadingException, PackageDownloadException {
-        if (artifactList.isEmpty()) {
-            return;
-        }
-
-        Path packageArtifactDirectory = resolveArtifactDirectoryPath(packageIdentifier.getName(),
-                packageIdentifier.getVersion());
-        if (Files.exists(packageArtifactDirectory) && Files.isDirectory(packageArtifactDirectory)) {
-            return;
-        }
-
-        for (String artifact : artifactList) {
-            URI artifactUri;
+        Path packageArtifactDirectory =
+                resolveArtifactDirectoryPath(packageIdentifier.getName(), packageIdentifier.getVersion());
+        if (!Files.exists(packageArtifactDirectory) || !Files.isDirectory(packageArtifactDirectory)) {
             try {
-                artifactUri = new URI(artifact);
-            } catch (URISyntaxException e) {
-                throw new PackageLoadingException("error", e);
-            }
-
-            ArtifactDownloader downloader = selectArtifactDownloader(artifactUri);
-            try {
-                downloader.downloadArtifactToPath(packageIdentifier, artifactUri, packageArtifactDirectory);
+                Files.createDirectories(packageArtifactDirectory);
             } catch (IOException e) {
-                throw new PackageDownloadException("error", e);
+                throw new PackageLoadingException(
+                        String.format("Failed to create package artifact cache directory " + "%s",
+                                packageArtifactDirectory), e);
+            }
+        }
+
+        List<URI> artifactsNeedToDownload = determineArtifactsNeedToDownload(packageArtifactDirectory, artifactList);
+        logger.atInfo().setEventType("downloading-package-artifacts").addKeyValue("packageIdentifier",
+                packageIdentifier).addKeyValue("artifactsNeedToDownload", artifactsNeedToDownload).log();
+
+        for (URI artifact : artifactsNeedToDownload) {
+            ArtifactDownloader downloader = selectArtifactDownloader(artifact);
+            try {
+                downloader.downloadArtifactToPath(packageIdentifier, artifact, packageArtifactDirectory);
+            } catch (IOException e) {
+                throw new PackageDownloadException(
+                        String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
             }
         }
     }
 
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    private List<URI> determineArtifactsNeedToDownload(Path packageArtifactDirectory, List<URI> artifacts) {
+        //TODO implement proper idempotency logic to determine what artifacts need to download
+        return artifacts;
+    }
+
     private Path resolveArtifactDirectoryPath(String packageName, Semver packageVersion) {
-        return artifactDirectory.resolve(String.format("%s-%s", packageName, packageVersion.getValue()));
+        return artifactDirectory.resolve(packageName).resolve(packageVersion.getValue());
     }
 
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
         String scheme = artifactUri.getScheme();
         if (scheme == null) {
-            throw new PackageLoadingException("error");
+            throw new PackageLoadingException("artifact URI has no scheme");
         }
 
         try {
             return ArtifactProvider.valueOf(scheme.toUpperCase()).getArtifactDownloader();
         } catch (IllegalArgumentException e) {
-            throw new PackageLoadingException("error", e);
+            throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme), e);
         }
     }
 
@@ -293,7 +336,7 @@ public class PackageStore {
         return getPackageStorageRoot(packageName, cacheFolder).resolve(packageVersion);
     }
 
-    private enum ArtifactProvider {
+    enum ArtifactProvider {
         GREENGRASS(new GreengrassRepositoryDownloader());
 
         private ArtifactDownloader artifactDownloader;

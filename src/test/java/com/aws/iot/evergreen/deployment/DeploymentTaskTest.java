@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -63,7 +64,8 @@ public class DeploymentTaskTest {
 
     @Test
     public void GIVEN_deploymentDocument_WHEN_start_deploymentTask_THEN_succeeds() throws Exception {
-        when(mockPackageStore.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockPackageStore.preparePackages(anyList()))
+                .thenReturn(Collections.singletonList(CompletableFuture.completedFuture(true)));
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
@@ -102,7 +104,8 @@ public class DeploymentTaskTest {
     @Test
     public void GIVEN_deploymentDocument_WHEN_preparePackages_interrupted_THEN_deploymentTask_aborted()
             throws Exception {
-        lenient().when(mockPackageStore.preparePackages(anyList())).thenReturn(new CompletableFuture<>());
+        lenient().when(mockPackageStore.preparePackages(anyList()))
+                .thenReturn(Arrays.asList(new CompletableFuture<>(), new CompletableFuture<>()));
         FutureTask<Void> futureTask = new FutureTask<>(deploymentTask);
         Thread t = new Thread(futureTask);
         t.start();
@@ -119,7 +122,8 @@ public class DeploymentTaskTest {
     @Test
     public void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_interrupted_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockPackageStore.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockPackageStore.preparePackages(anyList()))
+                .thenReturn(Collections.singletonList(CompletableFuture.completedFuture(true)));
         when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList()))
                 .thenThrow(new InterruptedException());
 
