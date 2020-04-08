@@ -56,7 +56,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -67,7 +67,7 @@ class ServiceConfigMergingTest extends BaseITCase {
 
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
                     .equals(State.INSTALLED)) {
                 mainRestarted.countDown();
@@ -97,7 +97,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -110,7 +110,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service starts and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
                 newServiceStarted.countDown();
             }
@@ -152,7 +152,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -167,7 +167,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         CountDownLatch newServiceStarted = new CountDownLatch(1);
 
         // Check that new_service2 starts, then new_service, and then main gets restarted
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.countDown();
             }
@@ -245,7 +245,7 @@ class ServiceConfigMergingTest extends BaseITCase {
 
         // launch kernel
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
             }
@@ -258,7 +258,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         AtomicBoolean mainRestarted = new AtomicBoolean(false);
         AtomicBoolean newService2Started = new AtomicBoolean(false);
         AtomicBoolean newServiceStarted = new AtomicBoolean(false);
-        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
+        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState, latest) -> {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.set(true);
             }
@@ -286,7 +286,7 @@ class ServiceConfigMergingTest extends BaseITCase {
 
         // WHEN
         AtomicBoolean stateChanged = new AtomicBoolean(false);
-        listener = (service, oldState, newState) -> {
+        listener = (service, oldState, newState, latest) -> {
             System.err.println(
                     "State shouldn't change in merging the same config: " + service.getName() + " " + oldState + " => "
                             + newState);
@@ -341,7 +341,7 @@ class ServiceConfigMergingTest extends BaseITCase {
 
         Future<Void> future = kernel.mergeInNewConfig("id", System.currentTimeMillis(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if ("sleeperA".equals(service.getName()) && newState.isClosable()) {
                 isSleeperAClosed.set(true);
             }

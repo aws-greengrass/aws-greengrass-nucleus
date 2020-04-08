@@ -24,7 +24,7 @@ class GenericExternalServiceTest extends BaseITCase {
         kernel.parseArgs("-i", getClass().getResource("skipif_broken.yaml").toString());
 
         CountDownLatch testErrored = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if (service.getName().equals("test") && newState.equals(State.ERRORED)) {
                 testErrored.countDown();
             }
@@ -46,7 +46,7 @@ class GenericExternalServiceTest extends BaseITCase {
         CountDownLatch ServicesAErroredLatch = new CountDownLatch(1);
         CountDownLatch ServicesBErroredLatch = new CountDownLatch(1);
         // service sleeps for 120 seconds during startup and timeout is 5 seconds, service should transition to errored
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
             if("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)){
                 ServicesAErroredLatch.countDown();
             }

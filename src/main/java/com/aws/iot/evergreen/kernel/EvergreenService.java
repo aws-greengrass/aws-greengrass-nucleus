@@ -79,7 +79,7 @@ public class EvergreenService implements InjectionActions {
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
-    private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(1);
+    private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(10);
     private final Object stateEventLock = new Object();
 
     // DesiredStateList is used to set desired path of state transition.
@@ -142,7 +142,7 @@ public class EvergreenService implements InjectionActions {
         synchronized (State.class) {
             prevState = currentState;
             this.state.setValue(newState);
-            context.globalNotifyStateChanged(this, prevState, newState);
+            context.globalNotifyStateChanged(this, prevState, newState, stateEventQueue.isEmpty());
         }
     }
 
@@ -175,7 +175,6 @@ public class EvergreenService implements InjectionActions {
         }
         return Optional.empty();
     }
-
 
     /**
      * Locate an EvergreenService by name from the provided context.
@@ -335,12 +334,11 @@ public class EvergreenService implements InjectionActions {
         }
     }
 
-    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+    @SuppressFBWarnings({"RV_RETURN_VALUE_IGNORED_BAD_PRACTICE", "DB_DUPLICATE_BRANCHES"})
     private void enqueueStateEvent(Object event) {
         synchronized (stateEventLock) {
             if (event instanceof State) {
                 // override existing reportState
-                stateEventQueue.clear();
                 stateEventQueue.offer(event);
             } else {
                 stateEventQueue.offer(event);
@@ -412,7 +410,7 @@ public class EvergreenService implements InjectionActions {
             setDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
         }
     }
-
+   
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
         while (!(isClosed.get() && getState().isClosable())) {
@@ -1044,7 +1042,7 @@ public class EvergreenService implements InjectionActions {
     }
 
     public interface GlobalStateChangeListener {
-        void globalServiceStateChanged(EvergreenService l, State oldState, State newState);
+        void globalServiceStateChanged(EvergreenService l, State oldState, State newState, boolean latest);
     }
 
     /**

@@ -44,12 +44,13 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
 
-    private final EvergreenService.GlobalStateChangeListener onServiceChange = (service, oldState, newState) -> {
-        Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
-        if (callbacks != null) {
-            callbacks.values().forEach(x -> x.accept(oldState, newState));
-        }
-    };
+    private final EvergreenService.GlobalStateChangeListener onServiceChange =
+            (service, oldState, newState, latest) -> {
+                Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
+                if (callbacks != null) {
+                    callbacks.values().forEach(x -> x.accept(oldState, newState));
+                }
+            };
 
     @Override
     public void postInject() {

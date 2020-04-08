@@ -261,11 +261,12 @@ public class Context implements Closeable {
      * @param changedService the service which had a state change
      * @param oldState  the old state of the service
      * @param newState the new state of the service
+     * @param latest True if this is the latest state. False if there are more state changes coming.
      */
     public synchronized void globalNotifyStateChanged(EvergreenService changedService, final State oldState,
-                                                      final State newState) {
+                                                      final State newState, boolean latest) {
         if (listeners != null) {
-            listeners.forEach(s -> s.globalServiceStateChanged(changedService, oldState, newState));
+            listeners.forEach(s -> s.globalServiceStateChanged(changedService, oldState, newState, latest));
         }
     }
 

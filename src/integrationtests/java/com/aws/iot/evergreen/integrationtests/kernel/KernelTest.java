@@ -159,25 +159,26 @@ class KernelTest extends BaseITCase {
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
         Kernel kernel = new Kernel();
-        kernel.context.addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
-            if (expectedStateTransitionList.isEmpty()) {
-                return;
-            }
+        kernel.context.addGlobalStateChangeListener(
+                (EvergreenService service, State oldState, State newState, boolean latest) -> {
+                    if (expectedStateTransitionList.isEmpty()) {
+                        return;
+                    }
 
-            ExpectedStateTransition expected = expectedStateTransitionList.peek();
+                    ExpectedStateTransition expected = expectedStateTransitionList.peek();
 
-            if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
-                    .equals(expected.current)) {
-                System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
-                        expected.was, expected.current));
+                    if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
+                            .equals(expected.current)) {
+                        System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
+                                expected.was, expected.current));
 
-                expectedStateTransitionList.pollFirst();
+                        expectedStateTransitionList.pollFirst();
 
-                if (expectedStateTransitionList.isEmpty()) {
-                    assertionLatch.countDown();
-                }
-            }
-        });
+                        if (expectedStateTransitionList.isEmpty()) {
+                            assertionLatch.countDown();
+                        }
+                    }
+                });
 
         kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
         kernel.launch();
