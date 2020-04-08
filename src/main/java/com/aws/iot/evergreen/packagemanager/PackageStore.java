@@ -71,6 +71,7 @@ public class PackageStore {
 
     /**
      * PackageStore constructor.
+     *
      * @param packageStoreDirectory directory for caching package recipes and artifacts
      */
     public PackageStore(Path packageStoreDirectory) {
@@ -135,13 +136,13 @@ public class PackageStore {
         boolean prepared = true;
         try {
             Package pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
-            List<URI> artifactURIList = pkg.getArtifacts().stream().map(e -> {
+            List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
                 try {
-                    return new URI(e);
-                } catch (URISyntaxException ex) {
-                    String message = String.format("artifact URI %s is invalid", e);
-                    logger.atError().log(message, ex);
-                    throw new RuntimeException(message, ex);
+                    return new URI(artifactStr);
+                } catch (URISyntaxException e) {
+                    String message = String.format("artifact URI %s is invalid", artifactStr);
+                    logger.atError().log(message, e);
+                    throw new RuntimeException(message, e);
                 }
             }).collect(Collectors.toList());
             downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
