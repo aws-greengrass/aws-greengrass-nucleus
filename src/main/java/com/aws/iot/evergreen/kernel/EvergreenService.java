@@ -75,7 +75,7 @@ public class EvergreenService implements InjectionActions {
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
-    private Map<State, Integer> stateToErroredCount = new HashMap<>();
+    private final Map<State, Integer> stateToErroredCount = new HashMap<>();
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
 
@@ -166,9 +166,15 @@ public class EvergreenService implements InjectionActions {
             requestStop();
         }
         State currentState = getState();
-        if (State.ERRORED.equals(newState)) {
+        // We only need to track the ERROR for the state transition starting from NEW, INSTALLED and RUNNING because
+        // these states impact whether the service can function as expected.
+        List<State> statesToTrack = Arrays.asList(State.NEW, State.INSTALLED, State.RUNNING);
+        if (State.ERRORED.equals(newState) && statesToTrack.contains(currentState)) {
+            // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
             stateToErroredCount.compute(currentState, (k, v) -> (v == null) ? 1 : v + 1);
         } else {
+            // If the reported state is a non-ERRORED state, we would like to reset the ERROR counter for the current
+            // state. This is to avoid putting the service to BROKEN state because of transient issues.
             stateToErroredCount.put(currentState, 0);
         }
         if (stateToErroredCount.get(currentState) > MAXIMUM_CONTINUAL_ERROR) {
@@ -251,6 +257,7 @@ public class EvergreenService implements InjectionActions {
             if (desiredStateList.isEmpty()) {
                 return Optional.empty();
             }
+
             State first = desiredStateList.get(0);
             if (first.equals(activeState)) {
                 desiredStateList.remove(first);
@@ -348,7 +355,7 @@ public class EvergreenService implements InjectionActions {
      */
     public final void requestReinstall() {
         synchronized (this.desiredStateList) {
-            setDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+            setDesiredState(State.NEW, State.RUNNING);
         }
     }
 
@@ -368,8 +375,18 @@ public class EvergreenService implements InjectionActions {
             AtomicReference<Future> triggerTimeOutReference = new AtomicReference<>();
             switch (current) {
                 case BROKEN:
-                    logger.atError().setEventType("service-broken").log("service is broken. Deployment is needed");
-                    return;
+                    if (!desiredState.isPresent()) {
+                        break;
+                    }
+                    // Having State.NEW as the desired state indicates the service is requested to reinstall, so here
+                    // we'll transition out of BROKEN state to give it a new chance.
+                    if (State.NEW.equals(desiredState.get())) {
+                        updateStateAndBroadcast(State.NEW);
+                    } else {
+                        logger.atError().setEventType("service-broken")
+                                .log("service is broken. Deployment is needed");
+                    }
+                    continue;
                 case NEW:
                     // if no desired state is set, don't do anything.
                     if (!desiredState.isPresent()) {
@@ -529,10 +546,7 @@ public class EvergreenService implements InjectionActions {
                         // in order to shutdown this thread since we were requested to stop
                         throw e;
                     }
-                    //TODO: Set service to broken state if error happens too often
-                    if (!desiredState.isPresent()) {
-                        requestStart();
-                    }
+
                     switch (prevState) {
                         case RUNNING:
                             updateStateAndBroadcast(State.STOPPING);
