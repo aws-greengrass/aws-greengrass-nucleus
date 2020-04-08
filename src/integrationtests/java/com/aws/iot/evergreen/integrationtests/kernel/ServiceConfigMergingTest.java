@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
+import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
@@ -258,7 +259,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         AtomicBoolean mainRestarted = new AtomicBoolean(false);
         AtomicBoolean newService2Started = new AtomicBoolean(false);
         AtomicBoolean newServiceStarted = new AtomicBoolean(false);
-        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState) -> {
+        GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
                 newService2Started.set(true);
             }
