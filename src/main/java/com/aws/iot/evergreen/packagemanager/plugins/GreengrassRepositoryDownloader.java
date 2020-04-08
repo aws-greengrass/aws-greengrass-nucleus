@@ -6,41 +6,36 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
-    private static final int BUFFER_SIZE = 4096;
+    private static final String CONTENT_DISPOSITION = "Content-Disposition";
 
     @SuppressWarnings("PMD.AssignmentInOperand")
     @Override
-    public void downloadArtifactToPath(PackageIdentifier packageIdentifier, URI artifactUri, Path saveToPath)
+    public void downloadToPath(PackageIdentifier packageIdentifier, URI artifactUri, Path saveToPath)
             throws IOException {
-        logger.atInfo().setEventType("download-artifact-from-greengrass-repo").addKeyValue("packageIdentifier",
-                packageIdentifier).addKeyValue("artifactUri", artifactUri).log();
+        logger.atInfo().setEventType("download-artifact-from-greengrass-repo")
+                .addKeyValue("packageIdentifier", packageIdentifier).addKeyValue("artifactUri", artifactUri).log();
         String preSignedUrl = getArtifactDownloadURL(packageIdentifier.getArn(), artifactUri.getSchemeSpecificPart());
         URL url = new URL(preSignedUrl);
         HttpURLConnection httpConn = null;
         try {
-            httpConn = create(url);
+            httpConn = connect(url);
             int responseCode = httpConn.getResponseCode();
 
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                String disposition = httpConn.getHeaderField("Content-Disposition");
+                String disposition = httpConn.getHeaderField(CONTENT_DISPOSITION);
                 String filename = extractFilename(preSignedUrl, disposition);
 
-                try (InputStream inputStream = httpConn.getInputStream();
-                     OutputStream outputStream = Files.newOutputStream(saveToPath.resolve(filename))) {
-                    int bytesRead;
-                    byte[] buffer = new byte[BUFFER_SIZE];
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
-                    }
+                try (InputStream inputStream = httpConn.getInputStream()) {
+                    Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
                 }
             }
         } finally {
@@ -50,7 +45,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
         }
     }
 
-    HttpURLConnection create(URL url) throws IOException {
+    HttpURLConnection connect(URL url) throws IOException {
         return (HttpURLConnection) url.openConnection();
     }
 
@@ -61,11 +56,16 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
 
     String extractFilename(String preSignedUrl, String contentDisposition) {
         if (contentDisposition != null) {
-            int index = contentDisposition.indexOf("filename=");
+            String filenameKey = "filename=";
+            int index = contentDisposition.indexOf(filenameKey);
             if (index > 0) {
-                return contentDisposition.substring(index + 10, contentDisposition.length() - 1);
+                //extract filename from content, remove double quotes
+                return contentDisposition.substring(index + filenameKey.length()).replaceAll("^\"|\"$", "");
             }
         }
+        //extract filename from URL
+        //URL can contain parameters, such as /filename.txt?sessionId=value
+        //extract 'filename.txt' from it
         int startIndex = preSignedUrl.lastIndexOf('/') + 1;
         int endIndex = preSignedUrl.indexOf('?');
         return endIndex == -1 ? preSignedUrl.substring(startIndex) : preSignedUrl.substring(startIndex, endIndex);

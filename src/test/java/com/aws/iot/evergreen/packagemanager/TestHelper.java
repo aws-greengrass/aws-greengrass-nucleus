@@ -41,12 +41,16 @@ public final class TestHelper {
         return path;
     }
 
-    public static Path getPathForLocalTestCache() throws URISyntaxException, IOException {
+    public static Path getPathForLocalTestCache() {
+        try {
         Path path = Paths.get(TestHelper.class.getResource("plugins").toURI()).resolve("test_cache_local");
         if (Files.notExists(path)) {
             Files.createDirectories(path);
         }
         return path;
+        } catch (URISyntaxException | IOException e) {
+            throw new RuntimeException("Failed to create local directory for test", e);
+        }
     }
 
     public static Path getPathForMockRepository() throws URISyntaxException {

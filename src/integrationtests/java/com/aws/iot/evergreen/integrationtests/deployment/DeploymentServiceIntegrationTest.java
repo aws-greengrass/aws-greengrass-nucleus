@@ -88,13 +88,12 @@ class DeploymentServiceIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() throws Exception {
+    static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
-        Path localCachePath = TestHelper.getPathForLocalTestCache();
-        packageStore = new PackageStore(localCachePath, localCachePath);
+        packageStore = new PackageStore(TestHelper.getPathForLocalTestCache());
         dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }

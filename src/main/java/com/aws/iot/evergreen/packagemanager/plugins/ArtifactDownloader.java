@@ -8,6 +8,6 @@ import java.nio.file.Path;
 
 public interface ArtifactDownloader {
 
-    void downloadArtifactToPath(PackageIdentifier packageIdentifier, URI artifactUri, Path saveToPath)
+    void downloadToPath(PackageIdentifier packageIdentifier, URI artifactUri, Path saveToPath)
             throws IOException;
 }

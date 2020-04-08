@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
-import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +35,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import javax.inject.Named;
+import javax.inject.Inject;
 
 /**
  * TODO Implement public methods.
@@ -46,6 +45,9 @@ public class PackageStore {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
+    private static final String RECIPE_DIRECTORY = "recipe";
+    private static final String ARTIFACT_DIRECTORY = "artifact";
+    private static final String GREENGRASS_SCHEME = "GREENGRASS";
 
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
     private Path packageStorePath = LOCAL_CACHE_PATH;
@@ -61,10 +63,34 @@ public class PackageStore {
 
     private final Path artifactDirectory;
 
-    public PackageStore(@Named("RecipeDirectory") Path recipeDirectory,
-                        @Named("ArtifactDirectory") Path artifactDirectory) {
-        this.recipeDirectory = recipeDirectory;
-        this.artifactDirectory = artifactDirectory;
+    @Inject
+    private ArtifactDownloader greenGrassArtifactDownloader;
+
+    @Inject
+    private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
+
+    /**
+     * PackageStore constructor.
+     * @param packageStoreDirectory directory for caching package recipes and artifacts
+     */
+    public PackageStore(Path packageStoreDirectory) {
+        this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
+        if (!Files.exists(recipeDirectory)) {
+            try {
+                Files.createDirectories(recipeDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException(String.format("Failed to create recipe directory %s", recipeDirectory), e);
+            }
+        }
+        this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
+        if (!Files.exists(artifactDirectory)) {
+            try {
+                Files.createDirectories(artifactDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException(String.format("Failed to create artifact directory %s", artifactDirectory),
+                        e);
+            }
+        }
     }
 
     /**
@@ -106,14 +132,9 @@ public class PackageStore {
 
     private boolean preparePackage(PackageIdentifier packageIdentifier) {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
-        Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
         boolean prepared = true;
         try {
-            Package pkg = findPackageRecipe(recipePath);
-            if (pkg == null) {
-                pkg = downloadPackageRecipe(packageIdentifier);
-                savePackageToFile(pkg, recipePath);
-            }
+            Package pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
             List<URI> artifactURIList = pkg.getArtifacts().stream().map(e -> {
                 try {
                     return new URI(e);
@@ -133,49 +154,47 @@ public class PackageStore {
         return prepared;
     }
 
-    Package findPackageRecipe(Path packageRecipe) throws PackageLoadingException {
-        logger.atInfo().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", packageRecipe).log();
-        byte[] recipeContent = loadPackageRecipeContent(packageRecipe);
-        if (recipeContent.length == 0) {
-            return null;
-        }
-
+    private Package findRecipeDownloadIfNotExisted(PackageIdentifier packageIdentifier)
+            throws PackageDownloadException, PackageLoadingException {
+        Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
+        Optional<Package> packageOptional = Optional.empty();
         try {
-            return OBJECT_MAPPER.readValue(recipeContent, Package.class);
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", packageRecipe), e);
-        }
-    }
-
-    private byte[] loadPackageRecipeContent(Path packageRecipe) throws PackageLoadingException {
-        if (!Files.exists(packageRecipe) || !Files.isRegularFile(packageRecipe)) {
-            return new byte[0];
-        }
-
-        try {
-            return Files.readAllBytes(packageRecipe);
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", packageRecipe), e);
-        }
-    }
-
-    private Package downloadPackageRecipe(PackageIdentifier packageIdentifier) throws PackageDownloadException {
-        logger.atInfo().setEventType("downloading-package-recipe").addKeyValue("packageIdentifier",
-                packageIdentifier).log();
-        //TODO retrieve package recipe from cloud
-        //load from local now to pretend it working
-        try {
-            return findPackageRecipe(LOCAL_CACHE_PATH.resolve(packageIdentifier.getName())
-                    .resolve(packageIdentifier.getVersion().getValue()).resolve("recipe.yaml"));
+            packageOptional = findPackageRecipe(recipePath);
         } catch (PackageLoadingException e) {
-            throw new PackageDownloadException(String.format("Failed to download package %s recipe", packageIdentifier),
-                    e);
+            logger.atWarn().log(String.format("Failed to load package from %s", recipePath), e);
+        }
+        if (packageOptional.isPresent()) {
+            return packageOptional.get();
+        } else {
+            Package pkg = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
+            savePackageToFile(pkg, recipePath);
+            return pkg;
+        }
+    }
+
+    Optional<Package> findPackageRecipe(Path recipePath) throws PackageLoadingException {
+        logger.atInfo().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
+        if (!Files.exists(recipePath) || !Files.isRegularFile(recipePath)) {
+            return Optional.empty();
+        }
+
+        byte[] recipeContent;
+        try {
+            recipeContent = Files.readAllBytes(recipePath);
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", recipePath), e);
+        }
+
+        try {
+            return Optional.of(OBJECT_MAPPER.readValue(recipeContent, Package.class));
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
         }
     }
 
     void savePackageToFile(Package pkg, Path saveToFile) throws PackageLoadingException {
         try {
-            OBJECT_MAPPER.writeValue(new File(saveToFile.toString()), pkg);
+            OBJECT_MAPPER.writeValue(saveToFile.toFile(), pkg);
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to save package recipe to %s", saveToFile), e);
         }
@@ -200,13 +219,14 @@ public class PackageStore {
         }
 
         List<URI> artifactsNeedToDownload = determineArtifactsNeedToDownload(packageArtifactDirectory, artifactList);
-        logger.atInfo().setEventType("downloading-package-artifacts").addKeyValue("packageIdentifier",
-                packageIdentifier).addKeyValue("artifactsNeedToDownload", artifactsNeedToDownload).log();
+        logger.atInfo().setEventType("downloading-package-artifacts")
+                .addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue("artifactsNeedToDownload", artifactsNeedToDownload).log();
 
         for (URI artifact : artifactsNeedToDownload) {
             ArtifactDownloader downloader = selectArtifactDownloader(artifact);
             try {
-                downloader.downloadArtifactToPath(packageIdentifier, artifact, packageArtifactDirectory);
+                downloader.downloadToPath(packageIdentifier, artifact, packageArtifactDirectory);
             } catch (IOException e) {
                 throw new PackageDownloadException(
                         String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
@@ -225,16 +245,12 @@ public class PackageStore {
     }
 
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
-        String scheme = artifactUri.getScheme();
-        if (scheme == null) {
-            throw new PackageLoadingException("artifact URI has no scheme");
+        String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
+        if (GREENGRASS_SCHEME.equals(scheme)) {
+            return greenGrassArtifactDownloader;
         }
 
-        try {
-            return ArtifactProvider.valueOf(scheme.toUpperCase()).getArtifactDownloader();
-        } catch (IllegalArgumentException e) {
-            throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme), e);
-        }
+        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
     }
 
     /**
@@ -336,17 +352,4 @@ public class PackageStore {
         return getPackageStorageRoot(packageName, cacheFolder).resolve(packageVersion);
     }
 
-    enum ArtifactProvider {
-        GREENGRASS(new GreengrassRepositoryDownloader());
-
-        private ArtifactDownloader artifactDownloader;
-
-        ArtifactProvider(ArtifactDownloader artifactDownloader) {
-            this.artifactDownloader = artifactDownloader;
-        }
-
-        public ArtifactDownloader getArtifactDownloader() {
-            return artifactDownloader;
-        }
-    }
 }
