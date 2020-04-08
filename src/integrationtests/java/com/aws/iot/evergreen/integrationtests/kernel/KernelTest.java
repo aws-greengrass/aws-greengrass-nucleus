@@ -85,7 +85,7 @@ class KernelTest extends BaseITCase {
         System.out.println("Group 0 passed, now for the harder stuff");
 
         kernel.find("services", "main", "lifecycle", "run")
-                .setValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
+                .withValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
         testGroup(1);
 
         System.out.println("Group 1 passed, now merging delta.yaml");

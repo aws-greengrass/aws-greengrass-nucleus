@@ -15,15 +15,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class PlatformResolver {
-
-    private static final Set<String> SUPPORTED_PLATFORMS = new HashSet<String>() {{
-        addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora", "ubuntu", "macos",
-                "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
-    }};
-
-    private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
+public final class PlatformResolver {
+    private static final Set<String> SUPPORTED_PLATFORMS = initializeSupportedPlatforms();
     private static final Map<String, Integer> RANKS = initializeRanks();
+    private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
+
+    private static Set<String> initializeSupportedPlatforms() {
+        Set<String> platforms = new HashSet();
+        platforms.addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora",
+                "ubuntu", "macos", "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
+        return platforms;
+    }
 
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
     private static Map<String, Integer> initializeRanks() {
@@ -117,22 +119,21 @@ public class PlatformResolver {
                 }
             }
             return outputMap;
-        } else {
-            // assume no nested platform specific configurations.
-            return bestRankNode;
-
-            // if nested platform specific node is allowed, use below code.
-            // Can have validation on the ranks so that inner node rank can't exceed outer node rank.
-            /*
-            if (bestRankNode == null) {
-                return null;
-            }
-            if (bestRankNode instanceof Map) {
-                return resolvePlatform((Map<Object, Object>) bestRankNode);
-            }
-            return bestRankNode;
-            */
         }
+        // assume no nested platform specific configurations.
+        return bestRankNode;
+
+        // if nested platform specific node is allowed, use below code.
+        // Can have validation on the ranks so that inner node rank can't exceed outer node rank.
+        /*
+        if (bestRankNode == null) {
+            return null;
+        }
+        if (bestRankNode instanceof Map) {
+            return resolvePlatform((Map<Object, Object>) bestRankNode);
+        }
+        return bestRankNode;
+        */
     }
 
     private PlatformResolver() {

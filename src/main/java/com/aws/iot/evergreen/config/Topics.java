@@ -35,7 +35,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public static Topics errorNode(Context context, String name, String message) {
         Topics t = new Topics(context, name, null);
-        t.createLeafChild("error").setValue(0, message);
+        t.createLeafChild("error").withValue(0, message);
         return t;
     }
 
@@ -192,7 +192,7 @@ public class Topics extends Node implements Iterable<Node> {
             if (value instanceof Map) {
                 createInteriorChild(key).mergeMap(lastModified, (Map) value);
             } else {
-                createLeafChild(key).setValue(lastModified, value);
+                createLeafChild(key).withValue(lastModified, value);
             }
         });
     }
@@ -239,7 +239,8 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public void remove(Node n) {
         if (!children.remove(n.getName(), n)) {
-            logger.error("remove: Missing node {} from {}", n.getName(), toString());
+            logger.atError("config-node-child-remove-error").kv("thisNode", toString())
+                    .kv("childNode", n.getName()).log();
         }
         n.fire(WhatHappened.removed);
         childChanged(WhatHappened.childRemoved, n);
@@ -250,17 +251,10 @@ public class Topics extends Node implements Iterable<Node> {
                 .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
-                try {
-                    if (s instanceof ChildChanged) {
-                        ((ChildChanged) s).childChanged(what, child);
-                    }
-                } catch (Throwable ex) {
-                    /* TODO if a subscriber fails, we should do more than just log a
-                       message.  Possibly unsubscribe it if the fault is persistent */
-                    logger.atError().setCause(ex).setEventType("config-node-child-update-error")
-                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
-                            .addKeyValue("reason", what.name()).log();
+                if (s instanceof ChildChanged) {
+                    ((ChildChanged) s).childChanged(what, child);
                 }
+                // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
             }
         }
         if (parent != null && parentNeedsToKnow()) {
@@ -281,11 +275,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public Topics subscribe(ChildChanged cc) {
         if (listen(cc)) {
-            try {
-                cc.childChanged(WhatHappened.initialized, null);
-            } catch (Throwable ex) {
-                //TODO: do something less stupid
-            }
+            cc.childChanged(WhatHappened.initialized, null);
         }
         return this;
     }
