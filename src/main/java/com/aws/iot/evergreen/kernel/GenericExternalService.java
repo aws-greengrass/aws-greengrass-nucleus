@@ -54,7 +54,8 @@ public class GenericExternalService extends EvergreenService {
             if (!c.parentNeedsToKnow()) {
                 return;
             }
-            logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child.getFullName()).log();
+            logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child == null
+                    ? null : child.getFullName()).log();
             if (c.childOf("shutdown")) {
                 return;
             }

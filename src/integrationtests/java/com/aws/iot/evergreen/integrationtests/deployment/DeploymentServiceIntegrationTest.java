@@ -32,7 +32,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -83,7 +82,6 @@ class DeploymentServiceIntegrationTest {
 
     @BeforeAll
     static void setupLogger() {
-        System.setProperty("log.fmt", "JSON");
         outputMessagesToTimestamp = new HashMap<>();
         logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     }

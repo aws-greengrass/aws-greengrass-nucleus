@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.config.Topic;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -290,8 +289,6 @@ public final class Coerce {
      * @return resulting object or empty string if the input was null.
      */
     @SuppressWarnings({"checkstyle:emptycatchblock"})
-    @SuppressFBWarnings(value = "FE_FLOATING_POINT_EQUALITY",
-            justification = "We're checking that the double is really an int/long, so no worries here about equality")
     public static Object toObject(String s) {
         if (s == null || s.length() == 0) {
             return "";
