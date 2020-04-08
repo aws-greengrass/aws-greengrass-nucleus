@@ -59,7 +59,7 @@ public final class Periodicity {
         if (n == null) {
             return null;
         }
-        n.setParentNeedsToKnow(false);
+        n.withParentNeedsToKnow(false);
         try {
             Periodicity ret;
             ScheduledExecutorService ses = s.getContext().get(ScheduledExecutorService.class);
@@ -173,12 +173,10 @@ public final class Periodicity {
     /**
      * Shutdown the periodic task.
      */
-    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void shutdown() {
         Future<?> f = future;
-        if (f != null) {
+        if (f != null && (future.isDone() || future.isCancelled())) {
             f.cancel(true);
-            future = null;
         }
     }
 

@@ -46,9 +46,10 @@ public class EZTemplates {
     @SuppressWarnings("ThrowableResultIgnored")
     public static CharSequence toCS(Reader in) throws IOException {
         StringBuilder sb = new StringBuilder();
-        int c;
-        while ((c = in.read()) >= 0) {
+        int c = in.read();
+        while (c >= 0) {
             sb.append((char) c);
+            c = in.read();
         }
         close(in);
         return sb;
@@ -62,9 +63,10 @@ public class EZTemplates {
      * @throws IOException if writing fails.
      */
     public static void writeTo(CharSequence cs, Path dest) throws IOException {
-        CommitableWriter cw = CommitableWriter.abandonOnClose(dest);
-        cw.append(cs);
-        cw.commit();
+        try (CommitableWriter cw = CommitableWriter.abandonOnClose(dest)) {
+            cw.append(cs);
+            cw.commit();
+        }
     }
 
     /**
@@ -133,7 +135,8 @@ public class EZTemplates {
     private Object eval(String expr) {
         Object result;
         for (Evaluator e : evaluators) {
-            if ((result = e.evaluate(expr)) != null) {
+            result = e.evaluate(expr);
+            if (result != null) {
                 return result;
             }
         }

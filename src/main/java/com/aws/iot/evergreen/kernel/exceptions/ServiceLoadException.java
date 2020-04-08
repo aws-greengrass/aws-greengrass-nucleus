@@ -3,7 +3,7 @@
 
 package com.aws.iot.evergreen.kernel.exceptions;
 
-public class ServiceLoadException extends Exception {
+public class ServiceLoadException extends ServiceException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public ServiceLoadException(String message) {

@@ -59,6 +59,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         final FrameReader.MessageFrame message = (FrameReader.MessageFrame) msg;

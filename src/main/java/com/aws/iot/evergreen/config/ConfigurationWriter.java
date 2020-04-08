@@ -69,15 +69,11 @@ public class ConfigurationWriter implements Closeable, Subscriber {
                         StandardOpenOption.DSYNC, StandardOpenOption.CREATE));
     }
 
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     @Override
     public void close() {
-        try {
-            conf.getRoot().remove(this);
-            if (out instanceof Commitable) {
-                ((Commitable) out).commit();
-            }
-        } catch (Throwable ignored) {
+        conf.getRoot().remove(this);
+        if (out instanceof Commitable) {
+            ((Commitable) out).commit();
         }
         Utils.close(out);
     }

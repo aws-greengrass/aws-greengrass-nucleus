@@ -47,8 +47,8 @@ class EvergreenServiceTest extends EGServiceTestUtil {
         Mockito.verify(config).createLeafChild(STATE_TOPIC_NAME);
 
         // verify stateTopic
-        Mockito.verify(stateTopic).setParentNeedsToKnow(false);
-        Mockito.verify(stateTopic).setValue(State.NEW);
+        Mockito.verify(stateTopic).withParentNeedsToKnow(false);
+        Mockito.verify(stateTopic).withValue(State.NEW);
         Mockito.verify(stateTopic).validate(validatorArgumentCaptor.capture());
         Mockito.verifyNoMoreInteractions(stateTopic);
 

@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.extension;
 
 public class Configuration {
@@ -42,8 +41,8 @@ public class Configuration {
     @Inject
     @SuppressWarnings("LeakingThisInConstructor")
     public Configuration(Context c) {  // This is one of the few classes that can't use injection
-        c.put(Configuration.class, this);
         root = new Topics(context = c, null, null);
+        c.put(Configuration.class, this);
     }
 
     public static String[] splitPath(String path) {
@@ -116,9 +115,8 @@ public class Configuration {
      *
      * @param timestamp last modified time for the configuration values
      * @param map       map to merge
-     * @throws IllegalArgumentException Should not be possible
      */
-    public void mergeMap(long timestamp, Map<Object, Object> map) throws IllegalArgumentException {
+    public void mergeMap(long timestamp, Map<Object, Object> map) {
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
@@ -149,8 +147,10 @@ public class Configuration {
     public Configuration read(URL url, boolean useSourceTimestamp) throws IOException {
         logger.atInfo().addKeyValue("url", url).setEventType("config-loading").log("Read configuration from a URL");
         URLConnection u = url.openConnection();
-        return read(u.getInputStream(), extension(url.getPath()),
-                useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
+        try (InputStream is = u.getInputStream()) {
+            read(is, extension(url.getPath()), useSourceTimestamp ? u.getLastModified() : System.currentTimeMillis());
+        }
+        return this;
     }
 
     /**
@@ -163,11 +163,16 @@ public class Configuration {
     public Configuration read(Path s) throws IOException {
         logger.atInfo().addKeyValue("path", s).setEventType("config-loading")
                 .log("Read configuration from a file path");
-        return read(Files.newBufferedReader(s), extension(s.toString()), Files.getLastModifiedTime(s).toMillis());
+        try (BufferedReader br = Files.newBufferedReader(s)) {
+            read(br, extension(s.toString()), Files.getLastModifiedTime(s).toMillis());
+        }
+        return this;
     }
 
-    public Configuration read(InputStream in, String extension, long timestamp) throws IOException {
-        return read(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)), extension, timestamp);
+    private void read(InputStream in, String extension, long timestamp) throws IOException {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            read(br, extension, timestamp);
+        }
     }
 
     /**
@@ -176,34 +181,26 @@ public class Configuration {
      * @param in        reader to read new configuration from
      * @param extension extension of the file we're reading in (changes how we deserialize the input data)
      * @param timestamp timestamp to use as the last modified time
-     * @return this with the merged in configuration
      * @throws IOException              if reading fails
-     * @throws IllegalArgumentException if the file extension is not supported
      */
-    public Configuration read(Reader in, String extension, long timestamp)
-            throws IOException, IllegalArgumentException {
-        try {
-            switch (extension) {
-                case "json":
-                    mergeMap(timestamp, (java.util.Map) JSON.std.anyFrom(in));
-                    break;
-                case "evg":  // evergreen
-                case "yaml":
-                    mergeMap(timestamp,
-                            (java.util.Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
-                                    .anyFrom(in));
-                    break;
-                case "tlog":
-                    ConfigurationReader.mergeTLogInto(this, in);
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                            "File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
-            }
-        } finally {
-            close(in);
+    private void read(Reader in, String extension, long timestamp) throws IOException {
+        switch (extension) {
+            case "json":
+                mergeMap(timestamp, (Map) JSON.std.anyFrom(in));
+                break;
+            case "evg":  // evergreen
+            case "yaml":
+                mergeMap(timestamp,
+                        (Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                                .anyFrom(in));
+                break;
+            case "tlog":
+                ConfigurationReader.mergeTLogInto(this, in);
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "File format '" + extension + "' is not supported.  Use one of: yaml, json or tlog");
         }
-        return this;
     }
 
     /**
