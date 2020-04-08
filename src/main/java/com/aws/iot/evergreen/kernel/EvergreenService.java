@@ -3,8 +3,6 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -22,7 +20,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AllArgsConstructor;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,7 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
@@ -64,7 +60,7 @@ public class EvergreenService implements InjectionActions {
     private static final String CURRENT_STATE_METRIC_NAME = "currentState";
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
 
-    public final Topics config;
+    protected final Topics config;
     public Context context;
 
     private final Object dependencyReadyLock = new Object();
@@ -97,8 +93,6 @@ public class EvergreenService implements InjectionActions {
     // Includes both explicit declared dependencies and implicit ones added through 'autoStart' and @Inject annotation.
     protected final ConcurrentHashMap<EvergreenService, DependencyInfo> dependencies = new ConcurrentHashMap<>();
 
-    // Static logger instance for static methods
-    private static final Logger staticLogger = LogManager.getLogger(EvergreenService.class);
     // Service logger instance
     protected final Logger logger;
 
@@ -175,81 +169,6 @@ public class EvergreenService implements InjectionActions {
             return Optional.of((State) top);
         }
         return Optional.empty();
-    }
-
-
-    /**
-     * Locate an EvergreenService by name from the provided context.
-     *
-     * @param context context to lookup the name in
-     * @param name    name of the service to find
-     * @return found service or null
-     * @throws ServiceLoadException if service cannot load
-     */
-    @SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable"})
-    public static EvergreenService locate(Context context, String name) throws ServiceLoadException {
-        return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
-            Configuration configuration = context.get(Configuration.class);
-            Topics serviceRootTopics = configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
-            if (serviceRootTopics.isEmpty()) {
-                staticLogger.atWarn().setEventType("service-config-not-found").kv(SERVICE_NAME_KEY, name).log();
-            } else {
-                staticLogger.atDebug().setEventType("service-config-found").kv(SERVICE_NAME_KEY, name)
-                        .log("Found service definition in configuration file");
-            }
-
-            // try to find service implementation class from plugins.
-            Class<?> clazz = null;
-            Node n = serviceRootTopics.findLeafChild("class");
-
-            if (n != null) {
-                String cn = Coerce.toString(n);
-                try {
-                    clazz = Class.forName(cn);
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't load service class from " + cn, ex);
-                }
-            }
-
-            if (clazz == null) {
-                Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
-                if (si != null) {
-                    staticLogger.atDebug().kv(SERVICE_NAME_KEY, name).log("Attempt to load service from plugins");
-                    clazz = si.get(name);
-                }
-            }
-            EvergreenService ret;
-            // If found class, try to load service class from plugins.
-            if (clazz != null) {
-                try {
-                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
-                    ret = (EvergreenService) ctor.newInstance(serviceRootTopics);
-                    if (clazz.getAnnotation(Singleton.class) != null) {
-                        context.put(ret.getClass(), v);
-                    }
-                    staticLogger.atInfo().setEventType("evergreen-service-loaded").kv(SERVICE_NAME_KEY, ret.getName())
-                            .log();
-                    return ret;
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
-                            ex);
-                }
-            }
-
-            if (serviceRootTopics.isEmpty()) {
-                throw new ServiceLoadException("No matching definition in system model for: " + name);
-            }
-
-            // if not found, initialize GenericExternalService
-            try {
-                ret = new GenericExternalService(serviceRootTopics);
-                staticLogger.atInfo().setEventType("generic-service-loaded").kv(SERVICE_NAME_KEY, ret.getName())
-                        .log();
-            } catch (Throwable ex) {
-                throw new ServiceLoadException("Can't create generic service instance " + name, ex);
-            }
-            return ret;
-        });
     }
 
     private Topic initStateTopic(final Topics topics) {
@@ -907,6 +826,10 @@ public class EvergreenService implements InjectionActions {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 
+    public Topics getServiceConfig() {
+        return config;
+    }
+
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     @Override
     public void postInject() {
@@ -965,7 +888,7 @@ public class EvergreenService implements InjectionActions {
             }
         }
 
-        EvergreenService d = locate(context, name);
+        EvergreenService d = context.get(Kernel.class).locate(name);
         return new Pair<>(d, x == null ? State.RUNNING : x);
     }
 
