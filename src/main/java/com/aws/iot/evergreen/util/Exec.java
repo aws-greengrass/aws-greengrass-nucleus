@@ -100,7 +100,7 @@ public final class Exec implements Closeable {
     Consumer<CharSequence> stderr = NOP;
     private Copier stderrc;
     private Copier stdoutc;
-    private AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     AtomicInteger numberOfCopiers;
 
     public static void setDefaultEnv(String key, CharSequence value) {
