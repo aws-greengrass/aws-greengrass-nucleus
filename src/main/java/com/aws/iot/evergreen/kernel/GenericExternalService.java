@@ -105,9 +105,10 @@ public class GenericExternalService extends EvergreenService {
     private void handleRunScript() throws InterruptedException {
         // sync block will ensure that the call back can execute only after
         // the service transition state based on RunStatus result
-        synchronized (this) {
+        Object lock = new Object();
+        synchronized (lock) {
             RunStatus result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
-                synchronized (this) {
+                synchronized (lock) {
                     runScript = null;
                     if (!inShutdown) {
                         if (exit == 0) {
