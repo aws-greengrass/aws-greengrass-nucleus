@@ -30,10 +30,19 @@ public class PackageParameter {
     //TODO: Json property names should match with other configuration members. They start with capital first letters
     public PackageParameter(@JsonProperty("name") String name, @JsonProperty("value") String value,
                             @JsonProperty("type") String type) {
-        this.name = name;
-        // TODO: Quick fix to get this working, probably can be simplified
-        this.type = ParameterType.valueOf(type.toUpperCase());
+        this(name, value, ParameterType.valueOf(type.toUpperCase()));
+    }
 
+    /**
+     * Create a Package Param object.
+     *
+     * @param name  Name of the parameter
+     * @param value Default value for the parameter
+     * @param type  Parameter Type enum value
+     */
+    public PackageParameter(String name, String value, ParameterType type) {
+        this.name = name;
+        this.type = type;
         // TODO: Validate type and initialize corresponding type here?
         this.value = value;
     }

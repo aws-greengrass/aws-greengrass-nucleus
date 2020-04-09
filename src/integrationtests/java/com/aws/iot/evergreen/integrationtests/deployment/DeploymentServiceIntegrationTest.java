@@ -202,9 +202,9 @@ class DeploymentServiceIntegrationTest {
         assertTrue(services.contains("main"));
         assertTrue(services.contains("YellowSignal"));
         assertTrue(services.contains("RedSignal"));
-        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "CustomerApp"));
-        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "Mosquitto"));
-        assertThrows(ServiceLoadException.class, () -> EvergreenService.locate(kernel.context, "GreenSignal"));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("CustomerApp"));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

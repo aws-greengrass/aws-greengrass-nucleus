@@ -3,11 +3,13 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
@@ -31,6 +33,7 @@ public class KernelConfigResolver {
 
     private static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
     protected static final String VERSION_CONFIG_KEY = "version";
+    protected static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String SERVICE_NAMESPACE_CONFIG_KEY = "services";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
@@ -44,18 +47,17 @@ public class KernelConfigResolver {
      * For each package, it first retrieves its recipe, then merges the parameter values into the recipe, and last
      * transform it to a kernel config key-value pair.
      *
-     * @param packagesToDeploy     package identifiers for resolved packages that are to be deployed
-     * @param document      deployment document
-     * @param rootPackages  root level packages
+     * @param packagesToDeploy package identifiers for resolved packages that are to be deployed
+     * @param document         deployment document
+     * @param rootPackages     root level packages
      * @return a kernel config map
      * @throws InterruptedException when the running thread is interrupted
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                        List<String> rootPackages) throws InterruptedException {
 
-        Map<Object, Object> servicesConfig = packagesToDeploy.stream()
-                .collect(Collectors.toMap(PackageIdentifier::getName,
-                        packageIdentifier -> getServiceConfig(packageIdentifier, document)));
+        Map<Object, Object> servicesConfig = packagesToDeploy.stream().collect(Collectors
+                .toMap(PackageIdentifier::getName, packageIdentifier -> getServiceConfig(packageIdentifier, document)));
 
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
@@ -73,8 +75,7 @@ public class KernelConfigResolver {
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
 
-        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                                  resolvedLifecycleConfig);
+        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
 
         // TODO : Package recipe format is not in alignment with the changed Kernel config syntax,
         // which leads to inconsistent naming, e.g. lifecycle per new Kernel config syntax is one of several config
@@ -92,12 +93,14 @@ public class KernelConfigResolver {
         // then change the following code accordingly
 
         // Generate dependencies
-        // TODO : Only platform specific dependencies should be added once deployment document and
-        // package recipe format supports platform wise dependency specification
-
         List<String> dependencyServiceNames = new ArrayList<>(pkg.getDependencies().keySet());
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencyServiceNames);
+
+        // State information for deployments
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, pkg.getVersion());
+        resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParams.stream()
+                .collect(Collectors.toMap(PackageParameter::getName, PackageParameter::getValue)));
+
         return resolvedServiceConfig;
     }
 
@@ -163,13 +166,17 @@ public class KernelConfigResolver {
 
     /*
      * Resolve values to be used for all package parameters combining those coming from
-     * deployment document and defaults for the rest.
+     * deployment document, if not, those stored in the kernel config for previous
+     * deployments and defaults for the rest.
      */
     private Set<PackageParameter> resolveParameterValuesToUse(DeploymentDocument document, Package pkg) {
         // If values for parameters were set in deployment they should be used
         Set<PackageParameter> resolvedParams = new HashSet<>(getParametersFromDeployment(document, pkg));
 
-        // Use defaults for parameters for which no values were set in deployment
+        // If not set in deployment, use values from previous deployments that were stored in config
+        resolvedParams.addAll(getParametersStoredInConfig(pkg));
+
+        // Use defaults for parameters for which no values were set in current or previous deployment
         resolvedParams.addAll(pkg.getPackageParameters());
         return resolvedParams;
     }
@@ -184,5 +191,38 @@ public class KernelConfigResolver {
             return packageConfigInDeployment.get().getParameters();
         }
         return Collections.emptySet();
+    }
+
+    /*
+     * Get parameter values for a package stored in config that were set by customer in previous deployment.
+     */
+    private Set<PackageParameter> getParametersStoredInConfig(Package pkg) {
+        try {
+            EvergreenService service = kernel.locate(pkg.getPackageName());
+            Set<PackageParameter> parametersStoredInConfig = new HashSet<>();
+
+            // Get only those parameters which are still valid for the current version of the package
+            pkg.getPackageParameters().forEach(parameterFromRecipe -> {
+                Optional<String> parameterValueStoredInConfig =
+                        getParameterValueFromServiceConfig(service, parameterFromRecipe.getName());
+                if (parameterValueStoredInConfig.isPresent()) {
+                    parametersStoredInConfig
+                            .add(new PackageParameter(parameterFromRecipe.getName(), parameterValueStoredInConfig.get(),
+                                    parameterFromRecipe.getType()));
+                }
+            });
+            return parametersStoredInConfig;
+        } catch (ServiceLoadException e) {
+            // Service does not exist in config i.e. is new
+            return Collections.emptySet();
+        }
+    }
+
+    /*
+     * Lookup parameter value from service config by parameter name
+     */
+    private Optional<String> getParameterValueFromServiceConfig(EvergreenService service, String parameterName) {
+        Topic parameterConfig = service.getServiceConfig().find(PARAMETERS_CONFIG_KEY, parameterName);
+        return parameterConfig == null ? Optional.empty() : Optional.of(parameterConfig.getOnce().toString());
     }
 }

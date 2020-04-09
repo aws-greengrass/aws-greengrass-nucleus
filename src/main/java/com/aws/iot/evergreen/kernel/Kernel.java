@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
+import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
@@ -27,6 +28,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -60,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 import static com.aws.iot.evergreen.util.Utils.close;
@@ -252,7 +255,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             logger.atError().log("Error launching plugins", t);
         }
         try {
-            mainService = EvergreenService.locate(context, mainServiceName);
+            mainService = locate(mainServiceName);
         } catch (ServiceLoadException sle) {
             RuntimeException rte =
                     new RuntimeException("Cannot load main service", sle);
@@ -287,7 +290,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             autostart.forEach(s -> {
                 try {
-                    mainService.addOrUpdateDependency(EvergreenService.locate(context, s), State.RUNNING, true);
+                    mainService.addOrUpdateDependency(locate(s), State.RUNNING, true);
                 } catch (ServiceLoadException se) {
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
@@ -436,7 +439,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Map<String, Object> h = new LinkedHashMap<>();
         orderedDependencies().forEach(l -> {
             if (l != null) {
-                h.put(l.getName(), l.config.toPOJO());
+                h.put(l.getName(), l.getServiceConfig().toPOJO());
             }
         });
         try {
@@ -585,7 +588,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             try {
                 mergeMap(timestamp, newConfig);
                 for (String serviceName : serviceConfig.keySet()) {
-                    EvergreenService eg = EvergreenService.locate(context, serviceName);
+                    EvergreenService eg = locate(serviceName);
                     if (State.NEW.equals(eg.getState())) {
                         eg.requestStart();
                     }
@@ -662,7 +665,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         List<Future<Void>> serviceClosedFutures = new ArrayList<>();
         serviceToRemove.forEach(serviceName -> {
             try {
-                EvergreenService eg = EvergreenService.locate(context, serviceName);
+                EvergreenService eg = locate(serviceName);
                 serviceClosedFutures.add(eg.close());
             } catch (ServiceLoadException e) {
                 logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
@@ -687,5 +690,82 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 .map(EvergreenService::getName).filter(serviceName -> !serviceConfig.containsKey(serviceName))
                 .collect(Collectors.toList());
 
+    }
+
+    /**
+     * Locate an EvergreenService by name in the kernel context.
+     *
+     * @param name    name of the service to find
+     * @return found service or null
+     * @throws ServiceLoadException if service cannot load
+     */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    public EvergreenService locate(String name) throws ServiceLoadException {
+        return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
+            Configuration configuration = context.get(Configuration.class);
+            Topics serviceRootTopics = configuration.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, name);
+            if (serviceRootTopics.isEmpty()) {
+                logger.atWarn().setEventType("service-config-not-found").kv(EvergreenService.SERVICE_NAME_KEY, name)
+                        .log("Could not find service definition in configuration file");
+            } else {
+                logger.atInfo().setEventType("service-config-found").kv(EvergreenService.SERVICE_NAME_KEY, name)
+                        .log("Found service definition in configuration file");
+            }
+
+            // try to find service implementation class from plugins.
+            Class<?> clazz = null;
+            Node n = serviceRootTopics.findLeafChild("class");
+
+            if (n != null) {
+                String cn = Coerce.toString(n);
+                try {
+                    clazz = Class.forName(cn);
+                } catch (Throwable ex) {
+                    throw new ServiceLoadException("Can't load service class from " + cn, ex);
+                }
+            }
+
+            if (clazz == null) {
+                Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
+                if (si != null) {
+                    logger.atDebug().kv(EvergreenService.SERVICE_NAME_KEY, name).log("Attempt to load service from "
+                            + "plugins");
+                    clazz = si.get(name);
+                }
+            }
+            EvergreenService ret;
+            // If found class, try to load service class from plugins.
+            if (clazz != null) {
+                try {
+                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
+                    ret = (EvergreenService) ctor.newInstance(serviceRootTopics);
+                    if (clazz.getAnnotation(Singleton.class) != null) {
+                        context.put(ret.getClass(), v);
+                    }
+                    logger.atInfo().setEventType("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY,
+                            ret.getName())
+                            .log();
+                    return ret;
+                } catch (Throwable ex) {
+                    throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
+                            ex);
+                }
+            }
+
+            if (serviceRootTopics.isEmpty()) {
+                throw new ServiceLoadException("No matching definition in system model for: " + name);
+            }
+
+            // if not found, initialize GenericExternalService
+            try {
+                ret = new GenericExternalService(serviceRootTopics);
+                logger.atInfo().setEventType("generic-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY,
+                        ret.getName())
+                        .log();
+            } catch (Throwable ex) {
+                throw new ServiceLoadException("Can't create generic service instance " + name, ex);
+            }
+            return ret;
+        });
     }
 }

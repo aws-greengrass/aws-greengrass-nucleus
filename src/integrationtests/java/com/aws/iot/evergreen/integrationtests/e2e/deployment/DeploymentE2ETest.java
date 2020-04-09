@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
@@ -116,7 +115,7 @@ class DeploymentE2ETest {
         Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
-        assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "CustomerApp").getState());
+        assertEquals(State.FINISHED, kernel.locate("CustomerApp").getState());
 
         // Make sure that IoT Job was marked as successful
         assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
@@ -157,9 +156,9 @@ class DeploymentE2ETest {
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
-        assertEquals(State.FINISHED, EvergreenService.locate(kernel.context, "CustomerApp").getState());
+        assertEquals(State.FINISHED, kernel.locate("CustomerApp").getState());
         assertThrows(ServiceLoadException.class, () -> {
-            EvergreenService.locate(kernel.context, "SomeService").getState();
+            kernel.locate("SomeService").getState();
         });
 
         // Make sure that IoT Job was marked as successful
