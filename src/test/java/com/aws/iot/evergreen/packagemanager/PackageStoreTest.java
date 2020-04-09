@@ -149,7 +149,7 @@ class PackageStoreTest {
         Package pkg = packageStore.findPackageRecipe(recipePath).get();
         when(packageServiceHelper.downloadPackageRecipe(any())).thenReturn(pkg);
         Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
-        future.get();
+        future.get(5, TimeUnit.SECONDS);
 
         assertThat(future.isDone(), is(true));
 
