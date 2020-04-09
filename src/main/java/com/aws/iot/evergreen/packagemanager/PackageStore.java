@@ -20,6 +20,7 @@ import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
+import lombok.SneakyThrows;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -110,9 +112,10 @@ public class PackageStore {
      * Make sure all the specified packages exist in the package cache. Download them from remote repository if
      * they don't exist.
      *
-     * @param pkgs a list of packages.
+     * @param pkgIds a list of packages.
      * @return a list of future to notify packages are prepared or not.
      */
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 =======
@@ -129,11 +132,25 @@ public class PackageStore {
         return pkgs.stream().map(pkg -> CompletableFuture.supplyAsync(() -> preparePackage(pkg)))
                 .collect(Collectors.toList());
 >>>>>>> add unit tests
+=======
+    public Future<Void> preparePackages(List<PackageIdentifier> pkgIds) {
+        Runnable preparePackageTask = new Runnable() {
+            @SneakyThrows
+            @Override
+            public void run() {
+                for (PackageIdentifier packageIdentifier :  pkgIds) {
+                    preparePackage(packageIdentifier);
+                }
+            }
+        };
+
+        return CompletableFuture.runAsync(preparePackageTask);
+>>>>>>> simplify the prepare package task to be sequential
     }
 
-    private boolean preparePackage(PackageIdentifier packageIdentifier) {
+    private void preparePackage(PackageIdentifier packageIdentifier)
+            throws PackageLoadingException, PackageDownloadException {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
-        boolean prepared = true;
         try {
             Package pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
             List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
@@ -146,13 +163,12 @@ public class PackageStore {
                 }
             }).collect(Collectors.toList());
             downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
+            logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
+                    .log();
         } catch (PackageLoadingException | PackageDownloadException e) {
             logger.atError().log(String.format("Failed to prepare package %s", packageIdentifier), e);
-            prepared = false;
+            throw e;
         }
-        logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
-                .addKeyValue("succeed", prepared).log();
-        return prepared;
     }
 
     private Package findRecipeDownloadIfNotExisted(PackageIdentifier packageIdentifier)

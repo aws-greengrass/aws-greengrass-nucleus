@@ -49,8 +49,7 @@ public class DeploymentTask implements Callable<Void> {
             List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document, rootPackages);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
-            List<CompletableFuture<Boolean>> preparePackageFutures = packageStore.preparePackages(desiredPackages);
-            CompletableFuture.allOf(preparePackageFutures.toArray(new CompletableFuture[0])).get();
+            packageStore.preparePackages(desiredPackages).get();
 
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, document, rootPackages);
             // Block this without timeout because it can take a long time for the device to update the config

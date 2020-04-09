@@ -1,6 +1,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -20,7 +21,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -140,11 +142,21 @@ class PackageStoreTest {
                 .resolve("recipe.yaml");
         Package pkg = packageStore.findPackageRecipe(recipePath).get();
         when(packageServiceHelper.downloadPackageRecipe(any())).thenReturn(pkg);
-        List<CompletableFuture<Boolean>> futures = packageStore.preparePackages(Collections.singletonList(pkgId));
+        Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
+        future.get();
 
-        assertThat(futures.size(), is(1));
-        assertThat(futures.get(0).get(), is(true));
+        assertThat(future.isDone(), is(true));
 
         verify(packageServiceHelper).downloadPackageRecipe(pkgId);
+    }
+
+    @Test
+    void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out()
+            throws Exception {
+        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
+        when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
+
+        Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
+        assertThrows(ExecutionException.class, future::get);
     }
 }
