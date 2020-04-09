@@ -113,7 +113,7 @@ public class PackageStore {
      * they don't exist.
      *
      * @param pkgIds a list of packages.
-     * @return a list of future to notify packages are prepared or not.
+     * @return a future to notify once this is finished.
      */
 <<<<<<< HEAD
 <<<<<<< HEAD
