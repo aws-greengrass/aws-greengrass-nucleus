@@ -98,38 +98,31 @@ public class GenericExternalService extends EvergreenService {
         if (result == RunStatus.Errored) {
             reportState(State.ERRORED);
         } else if (result == RunStatus.NothingDone) {
-            result = run("run", exit -> {
-                runScript = null;
-                if (!inShutdown) {
-                    if (exit == 0) {
-                        this.requestStop();
-                        logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
-                    } else {
-                        reportState(State.ERRORED);
-                        logger.atError().setEventType("generic-service-errored").addKeyValue("exitCode", exit).log();
+            handleRunScript();
+        }
+    }
+
+    private void handleRunScript() throws InterruptedException {
+        // sync block will ensure that the call back can execute only after
+        // the service transition state based on RunStatus result
+        Object lock = new Object();
+        synchronized (lock) {
+            RunStatus result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
+                synchronized (lock) {
+                    runScript = null;
+                    if (!inShutdown) {
+                        if (exit == 0) {
+                            this.requestStop();
+                            logger.atInfo().setEventType("generic-service-stopping")
+                                    .log("Service finished running");
+                        } else {
+                            reportState(State.ERRORED);
+                            logger.atError().setEventType("generic-service-errored")
+                                    .addKeyValue("exitCode", exit).log();
+                        }
                     }
                 }
             });
-            Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                    LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
-            Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
-            if (timeout != null) {
-                Exec processToClose = currentScript;
-                context.get(ScheduledExecutorService.class).schedule(() -> {
-                    if (processToClose.isRunning()) {
-                        try {
-                            logger.atWarn("service-run-timed-out")
-                                    .log("Service failed to run within timeout, calling close in process");
-                            reportState(State.ERRORED);
-                            processToClose.close();
-                        } catch (IOException e) {
-                            logger.atError("service-close-error").setCause(e)
-                                    .log("Error closing service after run timed out");
-                        }
-                    }
-                }, timeout, TimeUnit.SECONDS);
-            }
-
             if (result == RunStatus.NothingDone) {
                 reportState(State.FINISHED);
                 logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
@@ -140,7 +133,28 @@ public class GenericExternalService extends EvergreenService {
                 runScript = currentScript;
             }
         }
+
+        Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+        Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
+        if (timeout != null) {
+            Exec processToClose = currentScript;
+            context.get(ScheduledExecutorService.class).schedule(() -> {
+                if (processToClose.isRunning()) {
+                    try {
+                        logger.atWarn("service-run-timed-out")
+                                .log("Service failed to run within timeout, calling close in process");
+                        reportState(State.ERRORED);
+                        processToClose.close();
+                    } catch (IOException e) {
+                        logger.atError("service-close-error").setCause(e)
+                                .log("Error closing service after run timed out");
+                    }
+                }
+            }, timeout, TimeUnit.SECONDS);
+        }
     }
+
 
     @Override
     @SuppressWarnings("PMD.CloseResource")
