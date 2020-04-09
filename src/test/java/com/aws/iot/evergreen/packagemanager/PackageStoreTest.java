@@ -5,7 +5,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
+import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +43,7 @@ class PackageStoreTest {
     private PackageStore packageStore;
 
     @Mock
-    private ArtifactDownloader artifactDownloader;
+    private GreengrassRepositoryDownloader artifactDownloader;
 
     @Mock
     private GreengrassPackageServiceHelper packageServiceHelper;

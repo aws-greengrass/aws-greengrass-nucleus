@@ -16,6 +16,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
+import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,7 +63,7 @@ public class PackageStore implements InjectionActions {
     private Path artifactDirectory;
 
     @Inject
-    private ArtifactDownloader greenGrassArtifactDownloader;
+    private GreengrassRepositoryDownloader greenGrassArtifactDownloader;
 
     @Inject
     private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
@@ -79,7 +80,7 @@ public class PackageStore implements InjectionActions {
      * @param artifactDownloader    artifact downloader
      */
     public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
-                        ArtifactDownloader artifactDownloader) {
+                        GreengrassRepositoryDownloader artifactDownloader) {
         initializeSubDirectories(packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
         this.greenGrassArtifactDownloader = artifactDownloader;
