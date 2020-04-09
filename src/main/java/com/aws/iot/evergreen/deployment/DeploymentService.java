@@ -19,6 +19,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.xml.ws.soap.Addressing;
 
 @ImplementsService(name = "DeploymentService", autostart = true)
 public class DeploymentService extends EvergreenService {
@@ -78,13 +80,15 @@ public class DeploymentService extends EvergreenService {
     private String currentJobId = null;
 
     @Getter
-    private final AtomicBoolean isConnectedToCloud = new AtomicBoolean(false);
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
+    // If a device is unable to connect to AWS Iot upon starting due to network availability this flag will be set
+    // which will indicate the device to retry connecting to AWS Iot cloud after polling frequency
+    private final AtomicBoolean retryConnectingToAWSIot = new AtomicBoolean(false);
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
-    private LinkedBlockingQueue<Deployment> deploymentsQueue;
+    private LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue<>();
 
-    private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+    final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             //TODO: what about error code 0
@@ -92,15 +96,12 @@ public class DeploymentService extends EvergreenService {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
                 //TODO: Detect this using secondary mechanisms like checking if internet is availalble
                 // instead of using ping to Mqtt server. Mqtt ping is expensive and should be used as the last resort.
-                isConnectedToCloud.set(false);
             }
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.atInfo().kv("sessionPresent", (sessionPresent ? "true" : "false"))
-                    .log("Connection resumed");
-            isConnectedToCloud.set(true);
+            logger.atInfo().kv("sessionPresent", (sessionPresent ? "true" : "false")).log("Connection resumed");
             runInSeparateThread(() -> {
                 subscribeToIotJobTopics();
                 updateStatusOfPersistedDeployments();
@@ -115,7 +116,7 @@ public class DeploymentService extends EvergreenService {
      */
     public DeploymentService(Topics topics) {
         super(topics);
-        deploymentsQueue = new LinkedBlockingQueue<>();
+        this.iotJobsHelper = new IotJobsHelper(deploymentsQueue, callbacks);
     }
 
     /**
@@ -139,7 +140,6 @@ public class DeploymentService extends EvergreenService {
         this.packageStore = packageStore;
         this.kernelConfigResolver = kernelConfigResolver;
         this.iotJobsHelper = iotJobsHelper;
-        deploymentsQueue = new LinkedBlockingQueue<>();
     }
 
 
@@ -154,55 +154,30 @@ public class DeploymentService extends EvergreenService {
             logger.info("Running deployment service");
 
             while (!receivedShutdown.get()) {
-                Deployment deployment = null;
+                if (currentProcessStatus != null && currentProcessStatus.isDone()) {
+                    finishCurrentDeployment();
+                }
                 //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
                 //One thread cannot wait on both. If we want to make this completely event driven then we need to put
                 // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
-                if ((currentProcessStatus != null && currentProcessStatus.isDone())
-                        || (deployment = deploymentsQueue.poll()) != null) {
-                    if (deployment == null) { //Current job finished
-                        finishCurrentDeployment();
-                    } else { //Received new deployment
-                        createNewDeployment(deployment);
+                Deployment deployment = deploymentsQueue.poll();
+                if (deployment != null) {
+                    if (currentJobId != null) {
+                        if (deployment.getId().equals(currentJobId)) {
+                            //Duplicate message and already processing this deployment so nothing is needed
+                            continue;
+                        } else {
+                            //Assuming cancel will either cancel the current job or wait till it finishes
+                            cancelCurrentDeployment();
+                        }
                     }
+                    createNewDeployment(deployment);
                 }
                 Thread.sleep(pollingFrequency);
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-            } catch (InterruptedException ex) {
-                logger.atError().log("Interrupted while sleeping in DA");
-                errored = true;
-                reportState(State.ERRORED);
-            } catch (ExecutionException e) {
-                logger.atError().setCause(e).addKeyValue("jobId", currentJobId)
-                        .log("Caught exception while getting the status of the Job");
-                Throwable t = e.getCause();
-                if (t instanceof NonRetryableDeploymentTaskFailureException) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    HashMap<String, String> statusDetails = new HashMap<>();
-                    statusDetails.put("error", t.getMessage());
-                    updateJobAsFailed(currentJobId, statusDetails);
-=======
-                    updateJobWithStatus(currentJobId, JobStatus.FAILED, null);
->>>>>>> Persisting deployment status during MQTT connection breakage
-=======
-                    updateJobWithStatus(currentJobId, JobStatus.FAILED, currentJobExecutionNumber, null);
->>>>>>> Adding execution number to the job update call
+
+                if (retryConnectingToAWSIot.get()) {
+                    connectToAWSIot();
                 }
-                currentProcessStatus = null;
-                //TODO: Handle retryable error
-=======
->>>>>>> Updating the status of deployments in the order of their completion. Refactoring DeploymentTask to parse the job document
-=======
-                //This is placed here to provide best chance of updating the IN_PROGRESS status
-                //There is still a possibility that this thread starts waiting for the job to finish before
-                //updating the status of job to IN_PROGRESS
-                updateStatusOfPersistedDeployments();
->>>>>>> Refactoring Deployment Service
-=======
->>>>>>> Refactoring Deployment service to receive deployments from multiple sources
             }
         } catch (InterruptedException e) {
             logger.atWarn().log("Interrupted while running deployment service");
@@ -220,24 +195,26 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void connectToAWSIot() throws InterruptedException {
+
+        retryConnectingToAWSIot.set(false);
         try {
             //TODO: Separate out making MQTT connection and IotJobs helper when MQTT proxy is used.
-            iotJobsHelper.connectToAwsIot(deploymentsQueue, callbacks);
-            isConnectedToCloud.set(true);
-            iotJobsHelper.subscribeToJobsTopics();
+            iotJobsHelper.connect();
         } catch (DeviceConfigurationException e) {
             //Since there is no device configuration, device should still be able to perform local deploymentsQueue
             logger.atWarn().setCause(e).log("Device not configured to communicate with AWS Iot Cloud"
                     + "Device will now operate in offline mode");
         } catch (ConnectionUnavailableException e) {
             //TODO: Add retry logic to connect again when connection availalble
-            logger.atWarn().setCause(e).log("Connectivity issue while communicating with AWS Iot cloud."
+            logger.atWarn().setCause(e).log("Fail to connect to IoT cloud due to connectivity issue, will retry later. "
                     + "Device will now operate in offline mode");
+            retryConnectingToAWSIot.set(true);
         } catch (AWSIotException e) {
             //This is a non transient exception and might require customer's attention
             logger.atError().setCause(e).log("Caught an exception from AWS Iot cloud");
             //TODO: Revisit if we should error the service in this case
         }
+
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -263,6 +240,14 @@ public class DeploymentService extends EvergreenService {
         currentProcessStatus = null;
         currentJobId = null;
         updateStatusOfPersistedDeployments();
+    }
+
+    private void cancelCurrentDeployment() {
+        //TODO: Make the deployment task be able to handle the interrupt
+        // and wait till the job gets cancelled or is finished
+        currentProcessStatus.cancel(true);
+        currentProcessStatus = null;
+        currentJobId = null;
     }
 
     private void createNewDeployment(Deployment deployment) {
@@ -301,10 +286,6 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void subscribeToIotJobTopics() {
-        if (!isConnectedToCloud.get()) {
-            logger.atInfo().log("Not connected to cloud so cannot subscribe to topics");
-            return;
-        }
         try {
             iotJobsHelper.subscribeToJobsTopics();
         } catch (ConnectionUnavailableException e) {
@@ -326,12 +307,13 @@ public class DeploymentService extends EvergreenService {
         return executorService.submit(method);
     }
 
+    //TODO: Move this to a separate class along with storeDeploymentStatusInConfig.
     private void updateStatusOfPersistedDeployments() {
-        if (!isConnectedToCloud.get()) {
-            logger.atInfo().log("Not connected to cloud so cannot udpate the status of deploymentsQueue");
-            return;
-        }
-        synchronized (this.config) {
+        //This method can be called is a separate thread when mqtt connection resumes. While this happens a
+        // deployment can finish and config can get updated with the latest deployment's status using the
+        // storeDeploymentStatusInConfig. The two threads use the same topics in the config and thus need to be
+        // synchronized
+        synchronized (this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS)) {
             Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
             ArrayList<Topic> deployments = new ArrayList<>();
             processedDeployments.forEach(d -> deployments.add((Topic) d));
@@ -385,6 +367,7 @@ public class DeploymentService extends EvergreenService {
                 } catch (InterruptedException e) {
                     logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status)
                             .log("Got interrupted while updating the job status");
+                    break;
                 }
                 processedDeployments.remove(topic);
             }
@@ -393,7 +376,9 @@ public class DeploymentService extends EvergreenService {
 
     @SuppressWarnings({"PMD.LooseCoupling"})
     private void storeDeploymentStatusInConfig(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
-        synchronized (this.config) {
+        //While this method is being run, another thread could be running the updateStatusOfPersistedDeployments
+        // method which consumes the data in config from the same topics. These two thread needs to be synchronized
+        synchronized (this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("JobStatus", status).log("Storing job status");
             Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
             Map<String, Object> deploymentDetails = new HashMap<>();
@@ -408,7 +393,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     private DeploymentDocument parseAndValidateJobDocument(String jobDocumentString) throws InvalidRequestException {
-        if (jobDocumentString == null || jobDocumentString.isEmpty()) {
+        if (Utils.isEmpty(jobDocumentString)) {
             throw new InvalidRequestException("Job document cannot be empty");
         }
         try {
