@@ -258,7 +258,7 @@ public class Topics extends Node implements Iterable<Node> {
             }
         }
         if (parent != null && parentNeedsToKnow()) {
-            parent.childChanged(WhatHappened.childChanged, this);
+            parent.childChanged(WhatHappened.childChanged, child);
         }
     }
 
