@@ -14,6 +14,8 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
@@ -21,6 +23,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 public class ConfigurationTest {
@@ -144,6 +147,22 @@ public class ConfigurationTest {
         assertNull(config.findTopics("root", "child"));
         Topics createdTopics = config.lookupTopics("root", "child");
         assertEquals(createdTopics, config.findTopics("root", "child"));
+    }
+
+    @Test
+    public void GIVEN_config_with_subscribers_WHEN_topic_updated_THEN_subscribers_notified_with_changed_node()
+            throws Exception {
+        Topic installTopic = config.lookup("services", "serviceA", "lifecycle", "install").dflt("default");
+        CountDownLatch childChangedCorrectly = new CountDownLatch(1);
+        config.findTopics("services", "serviceA").subscribe((what, child) -> {
+            if (what.equals(WhatHappened.childChanged)
+                    && child.childOf("install")
+                    && ((Topic) child).getOnce().equals("Install")) {
+                childChangedCorrectly.countDown();
+            }
+        });
+        installTopic.withValue("Install");
+        assertTrue(childChangedCorrectly.await(100, TimeUnit.MILLISECONDS));
     }
 
 }
