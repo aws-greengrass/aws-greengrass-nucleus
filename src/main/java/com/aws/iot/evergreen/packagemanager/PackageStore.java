@@ -21,7 +21,6 @@ import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
-import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 
@@ -59,9 +58,7 @@ public class PackageStore implements InjectionActions {
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
     private Path packageStorePath = LOCAL_CACHE_PATH;
 
-    public PackageStore() {
-    }
-
+    @Deprecated
     public PackageStore(Path packageStorePath) {
         this.packageStorePath = packageStorePath;
     }
@@ -138,24 +135,6 @@ public class PackageStore implements InjectionActions {
      * @param pkgIds a list of packages.
      * @return a future to notify once this is finished.
      */
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-    @SuppressFBWarnings(value = "NP_NONNULL_PARAM_VIOLATION",
-            justification = "Waiting for package cache " + "implementation to be completed")
->>>>>>> package store download with s3 presigned url
-    public Future<Void> preparePackages(List<PackageIdentifier> pkgs) {
-        // TODO: to be implemented.
-        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
-        completableFuture.complete(null);
-        return completableFuture;
-=======
-    public List<CompletableFuture<Boolean>> preparePackages(List<PackageIdentifier> pkgs) {
-        return pkgs.stream().map(pkg -> CompletableFuture.supplyAsync(() -> preparePackage(pkg)))
-                .collect(Collectors.toList());
->>>>>>> add unit tests
-=======
     public Future<Void> preparePackages(List<PackageIdentifier> pkgIds) {
         Runnable preparePackageTask = new Runnable() {
             @SneakyThrows
@@ -168,7 +147,6 @@ public class PackageStore implements InjectionActions {
         };
 
         return CompletableFuture.runAsync(preparePackageTask);
->>>>>>> simplify the prepare package task to be sequential
     }
 
     private void preparePackage(PackageIdentifier packageIdentifier)
