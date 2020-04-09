@@ -33,6 +33,8 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
     private static final String STATE_TOPIC_NAME = "_State";
     private static final int NUM = 100;
 
+    private static int n = 0; // Easy way to pass n without creating a mutable integer.
+
     private EvergreenService evergreenService;
 
     @Captor
@@ -99,7 +101,6 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         }
     }
 
-    static int n = 0; // Easy way to pass n without creating a mutable integer.
     @Test
     void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified() throws InterruptedException {
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
