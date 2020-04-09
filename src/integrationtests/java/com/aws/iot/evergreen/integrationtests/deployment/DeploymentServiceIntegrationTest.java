@@ -16,9 +16,11 @@ import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
+import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
+import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
@@ -93,7 +95,8 @@ class DeploymentServiceIntegrationTest {
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
-        packageStore = new PackageStore(TestHelper.getPathForLocalTestCache());
+        packageStore = new PackageStore(TestHelper.getPathForLocalTestCache(), new GreengrassPackageServiceHelper(),
+                new GreengrassRepositoryDownloader());
         dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }

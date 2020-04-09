@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.config.Constants;
@@ -20,6 +21,8 @@ import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 
 import java.io.File;
@@ -38,12 +41,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Named;
 
 /**
  * TODO Implement public methods.
  */
 @SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.IdenticalCatchBranches"})
-public class PackageStore {
+@NoArgsConstructor // for dependency injection
+public class PackageStore implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
@@ -61,9 +66,9 @@ public class PackageStore {
         this.packageStorePath = packageStorePath;
     }
 
-    private final Path recipeDirectory;
+    private Path recipeDirectory;
 
-    private final Path artifactDirectory;
+    private Path artifactDirectory;
 
     @Inject
     private ArtifactDownloader greenGrassArtifactDownloader;
@@ -71,12 +76,30 @@ public class PackageStore {
     @Inject
     private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
 
+    // Workaround using InjectionActions since constructor named pattern injection is not supported yet
+    @Inject
+    @Named("packageStoreDirectory")
+    private Path packageStoreDirectory;
+
     /**
      * PackageStore constructor.
-     *
      * @param packageStoreDirectory directory for caching package recipes and artifacts
+     * @param packageServiceHelper  greengrass package service client helper
+     * @param artifactDownloader    artifact downloader
      */
-    public PackageStore(Path packageStoreDirectory) {
+    public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
+                        ArtifactDownloader artifactDownloader) {
+        initializeSubDirectories(packageStoreDirectory);
+        this.greengrassPackageServiceHelper = packageServiceHelper;
+        this.greenGrassArtifactDownloader = artifactDownloader;
+    }
+
+    @Override
+    public void postInject() {
+        initializeSubDirectories(packageStoreDirectory);
+    }
+
+    private void initializeSubDirectories(Path packageStoreDirectory) {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
         if (!Files.exists(recipeDirectory)) {
             try {

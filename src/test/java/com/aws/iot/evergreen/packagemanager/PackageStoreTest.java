@@ -8,10 +8,10 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,16 +38,21 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PackageStoreTest {
 
-    private final Path testCache = TestHelper.getPathForLocalTestCache();
+    private Path testCache;
 
-    @InjectMocks
-    private final PackageStore packageStore = new PackageStore(testCache);
+    private PackageStore packageStore;
 
     @Mock
     private ArtifactDownloader artifactDownloader;
 
     @Mock
     private GreengrassPackageServiceHelper packageServiceHelper;
+
+    @BeforeEach
+    void beforeEach() {
+        testCache = TestHelper.getPathForLocalTestCache();
+        packageStore = new PackageStore(testCache, packageServiceHelper, artifactDownloader);
+    }
 
     @AfterEach
     void cleanTestCache() throws Exception {
