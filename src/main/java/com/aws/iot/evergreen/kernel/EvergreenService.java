@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +39,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -79,8 +79,7 @@ public class EvergreenService implements InjectionActions {
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
-    private final BlockingQueue<Object> stateEventQueue = new ArrayBlockingQueue<>(10);
-    private final Object stateEventLock = new Object();
+    private final BlockingQueue<Object> stateEventQueue = new LinkedBlockingQueue<>();
 
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
@@ -334,19 +333,13 @@ public class EvergreenService implements InjectionActions {
         }
     }
 
-    @SuppressFBWarnings({"RV_RETURN_VALUE_IGNORED_BAD_PRACTICE", "DB_DUPLICATE_BRANCHES"})
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     private void enqueueStateEvent(Object event) {
-        synchronized (stateEventLock) {
-            if (event instanceof State) {
-                // override existing reportState
-                stateEventQueue.offer(event);
-            } else {
-                stateEventQueue.offer(event);
-
-                // Ignore returned value of offer().
-                // If enqueue isn't successful, the event queue has contents and there is no need to send another
-                // trigger to process state transition.
-            }
+        try {
+            stateEventQueue.put(event);
+        } catch (InterruptedException e) {
+            logger.error("couldn't put the new event to stateEventQueue");
+            e.printStackTrace();
         }
     }
 
