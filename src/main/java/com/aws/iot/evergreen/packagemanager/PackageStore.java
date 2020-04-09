@@ -56,12 +56,6 @@ public class PackageStore implements InjectionActions {
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
 
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
-    private Path packageStorePath = LOCAL_CACHE_PATH;
-
-    @Deprecated
-    public PackageStore(Path packageStorePath) {
-        this.packageStorePath = packageStorePath;
-    }
 
     private Path recipeDirectory;
 
@@ -279,7 +273,7 @@ public class PackageStore implements InjectionActions {
      */
     public Package getRecipe(PackageIdentifier pkg) {
         // TODO: to be implemented.
-        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(packageStorePath);
+        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH);
         try {
             return localPackageStore.getPackage(pkg.getName(), pkg.getVersion()).get();
         } catch (PackagingException e) {
@@ -294,7 +288,7 @@ public class PackageStore implements InjectionActions {
      * Get package from cache if it exists.
      */
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
-        Path srcPkgRoot = getPackageStorageRoot(packageName, packageStorePath);
+        Path srcPkgRoot = getPackageStorageRoot(packageName, LOCAL_CACHE_PATH);
         List<Semver> versions = new ArrayList<>();
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
@@ -344,7 +338,7 @@ public class PackageStore implements InjectionActions {
      */
     private Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
-        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), packageStorePath);
+        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), LOCAL_CACHE_PATH);
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
             return Optional.empty();

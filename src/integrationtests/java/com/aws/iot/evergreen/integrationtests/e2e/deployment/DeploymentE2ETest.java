@@ -221,6 +221,6 @@ class DeploymentE2ETest {
 
     private void injectKernelPackageManagementDependencies() {
         kernel.context.getv(DependencyResolver.class)
-                .put(new DependencyResolver(new PackageStore(LOCAL_CACHE_PATH), kernel));
+                .put(new DependencyResolver(new PackageStore(), kernel));
     }
 }
