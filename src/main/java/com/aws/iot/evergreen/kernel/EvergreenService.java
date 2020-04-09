@@ -403,7 +403,7 @@ public class EvergreenService implements InjectionActions {
             setDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
         }
     }
-   
+
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
         while (!(isClosed.get() && getState().isClosable())) {
