@@ -38,6 +38,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
                     Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
                 }
             }
+            //TODO handle the other status code
         } finally {
             if (httpConn != null) {
                 httpConn.disconnect();
