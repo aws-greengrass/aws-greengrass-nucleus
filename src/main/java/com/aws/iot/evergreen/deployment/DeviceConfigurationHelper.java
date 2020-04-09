@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.Utils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,19 +60,19 @@ public class DeviceConfigurationHelper {
                                              String rootCAPath, String clientEndpoint)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
-        if (thingName == null || thingName.isEmpty()) {
+        if (Utils.isEmpty(thingName)) {
             errors.add("thingName cannot be empty");
         }
-        if (certificateFilePath == null || certificateFilePath.isEmpty()) {
+        if (Utils.isEmpty(certificateFilePath)) {
             errors.add("certificateFilePath cannot be empty");
         }
-        if (privateKeyPath == null || privateKeyPath.isEmpty()) {
+        if (Utils.isEmpty(privateKeyPath)) {
             errors.add("privateKeyPath cannot be empty");
         }
-        if (rootCAPath == null || rootCAPath.isEmpty()) {
+        if (Utils.isEmpty(rootCAPath)) {
             errors.add("rootCAPath cannot be empty");
         }
-        if (clientEndpoint == null || clientEndpoint.isEmpty()) {
+        if (Utils.isEmpty(clientEndpoint)) {
             errors.add("clientEndpoint cannot be empty");
         }
         if (!errors.isEmpty()) {

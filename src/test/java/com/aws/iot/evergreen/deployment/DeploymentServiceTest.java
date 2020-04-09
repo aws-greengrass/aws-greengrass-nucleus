@@ -34,8 +34,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalMatchers.or;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -105,38 +103,19 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_device_configured_THEN_start_deployment_service()
                 throws Exception {
-            verify(mockIotJobsHelper).connectToAwsIot(any(), any());
-            verify(mockIotJobsHelper).subscribeToJobsTopics();
-        }
-
-        @Test
-        public void GIVEN_deployment_service_running_WHEN_connection_interrupted_THEN_connected_false()
-                throws Exception {
-            deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
-            ArgumentCaptor<MqttClientConnectionEvents> mqttEventCaptor =
-                    ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
-            verify(mockIotJobsHelper).connectToAwsIot(any(), mqttEventCaptor.capture());
-            verify(mockIotJobsHelper).subscribeToJobsTopics();
-            MqttClientConnectionEvents callbacks = mqttEventCaptor.getValue();
-            callbacks.onConnectionInterrupted(1);
-            assertFalse(deploymentService.getIsConnectedToCloud().get());
+            verify(mockIotJobsHelper).connect();
         }
 
         @Test
         public void GIVEN_deployment_service_running_WHEN_connection_resumed_THEN_subscriptions_redone()
                 throws Exception {
             deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
-            ArgumentCaptor<MqttClientConnectionEvents> mqttEventCaptor =
-                    ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
-            verify(mockIotJobsHelper).connectToAwsIot(any(), mqttEventCaptor.capture());
-            InOrder inOrderIotJobsHelper = inOrder(mockIotJobsHelper);
-            inOrderIotJobsHelper.verify(mockIotJobsHelper).subscribeToJobsTopics();
-            MqttClientConnectionEvents callbacks = mqttEventCaptor.getValue();
+            verify(mockIotJobsHelper).connect();
+            MqttClientConnectionEvents callbacks = deploymentService.callbacks;
             callbacks.onConnectionResumed(true);
             //Wait for the subscription to be executed in separate thread
             Thread.sleep(Duration.ofSeconds(1).toMillis());
-            assertTrue(deploymentService.getIsConnectedToCloud().get());
-            inOrderIotJobsHelper.verify(mockIotJobsHelper).subscribeToJobsTopics();
+            verify(mockIotJobsHelper).subscribeToJobsTopics();
         }
     }
 
@@ -164,7 +143,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 throws Exception {
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();
-            verify(mockIotJobsHelper).subscribeToJobsTopics();
+            verify(mockIotJobsHelper).connect();
 
             //Wait for the enough time after which deployment service would have processed the job from the queue
             Thread.sleep(Duration.ofSeconds(2).toMillis());
@@ -222,8 +201,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 //Wait for the enough time after which deployment service would have processed the job from the queue
                 Thread.sleep(Duration.ofSeconds(2).toMillis());
 
-                verify(mockIotJobsHelper).connectToAwsIot(any(), mqttEventCaptor.capture());
-                MqttClientConnectionEvents callbacks = mqttEventCaptor.getValue();
+                verify(mockIotJobsHelper).connect();
+                MqttClientConnectionEvents callbacks = deploymentService.callbacks;
 
                 callbacks.onConnectionInterrupted(1);
                 Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
@@ -248,12 +227,11 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
                 InOrder mockIotJobsHelperInOrder = inOrder(mockIotJobsHelper);
                 startDeploymentServiceInAnotherThread();
+                Thread.sleep(Duration.ofSeconds(2).toMillis());
 
-                ArgumentCaptor<MqttClientConnectionEvents> mqttEventCaptor =
-                        ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
-                verify(mockIotJobsHelper).connectToAwsIot(any(), mqttEventCaptor.capture());
-                MqttClientConnectionEvents callbacks = mqttEventCaptor.getValue();
                 deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
+                MqttClientConnectionEvents callbacks = deploymentService.callbacks;
+
                 callbacks.onConnectionInterrupted(1);
                 callbacks.onConnectionResumed(true);
                 //Wait for the DeploymentService thread to run at least one iteration of the loop
@@ -280,8 +258,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 InOrder mockIotJobsHelperInOrder = inOrder(mockIotJobsHelper);
 
                 startDeploymentServiceInAnotherThread();
-                verify(mockIotJobsHelper).connectToAwsIot(any(), mqttEventCaptor.capture());
-                MqttClientConnectionEvents callbacks = mqttEventCaptor.getValue();
+                verify(mockIotJobsHelper).connect();
+
                 //Wait for the enough time after which deployment service would have updated the status of job
                 Thread.sleep(Duration.ofSeconds(2).toMillis());
                 //Submit TEST_JOB_2
@@ -291,6 +269,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 Thread.sleep(Duration.ofSeconds(2).toMillis());
                 //Using actual executor service for running the method in a separate thread
                 deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
+                MqttClientConnectionEvents callbacks = deploymentService.callbacks;
                 callbacks.onConnectionResumed(true);
                 //Wait for main thread to update the persisted deployment statuses
                 Thread.sleep(Duration.ofSeconds(2).toMillis());

@@ -13,7 +13,6 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -71,8 +70,6 @@ public class IotJobsHelper {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
-    private static final String CONNECTION_NOT_ESTABLISHED_WARNING_MESSAGE =
-            "Connection not established with Iot cloud. First establish connection to AWS Iot";
 
     private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
@@ -80,8 +77,10 @@ public class IotJobsHelper {
     private DeviceConfigurationHelper deviceConfigurationHelper;
 
     @Inject
-    @Setter
     private AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
+
+    @Inject
+    private IotJobsClientFactory iotJobsClientFactory;
 
     @Setter
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
@@ -89,7 +88,7 @@ public class IotJobsHelper {
     private String thingName;
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
-    private boolean isConnectionEstablished = false;
+    private MqttClientConnectionEvents callbacks;
 
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
@@ -140,20 +139,32 @@ public class IotJobsHelper {
         }
     };
 
+    /**
+     * Constructor.
+     * @param deploymentsQueue The queue to which the received deployments will be pushed
+     * @param callback The callback invoked upon mqtt connection events
+     */
+    public IotJobsHelper(LinkedBlockingQueue<Deployment> deploymentsQueue,
+                         MqttClientConnectionEvents callback) {
+        this.callbacks = callback;
+        this.deploymentsQueue = deploymentsQueue;
+    }
 
     /**
      * Constructor for unit testing.
      *
-     * @param mqttClientConnection Mqtt client connection already setup
-     * @param iotJobsClient        Iot Jobs client using the mqtt connection
      */
-    IotJobsHelper(MqttClientConnection mqttClientConnection, IotJobsClient iotJobsClient,
-                  DeviceConfigurationHelper deviceConfigurationHelper) throws DeviceConfigurationException {
-        this.connection = mqttClientConnection;
-        this.iotJobsClient = iotJobsClient;
+    IotJobsHelper(DeviceConfigurationHelper deviceConfigurationHelper,
+                  AWSIotMqttConnectionFactory awsIotMqttConnectionFactory,
+                  IotJobsClientFactory iotJobsClientFactory,
+                  LinkedBlockingQueue<Deployment> deploymentsQueue,
+                  MqttClientConnectionEvents callbacks) throws DeviceConfigurationException {
         this.deviceConfigurationHelper = deviceConfigurationHelper;
+        this.awsIotMqttConnectionFactory = awsIotMqttConnectionFactory;
+        this.iotJobsClientFactory = iotJobsClientFactory;
+        this.deploymentsQueue = deploymentsQueue;
+        this.callbacks = callbacks;
         this.thingName = deviceConfigurationHelper.getDeviceConfiguration().getThingName();
-        isConnectionEstablished = true;
     }
 
     public static class AWSIotMqttConnectionFactory {
@@ -183,21 +194,26 @@ public class IotJobsHelper {
         }
     }
 
+    public static class IotJobsClientFactory {
+        public IotJobsClient getIotJobsClient(MqttClientConnection connection) {
+            return new IotJobsClient(connection);
+        }
+    }
+
     /**
-     * Connects to AWS Iot Cloud.
+     * Connects to AWS Iot Cloud. This method should be used to create the connection prior to sending any requests
+     * to AWS Iot cloud using any other methods provided by this class.
      *
-     * @param deploymentsQueue The queue to which add the {@link DeploymentTask}
-     * @param callbacks        The callback methods to call when connection interruption or resume happens
      * @throws InterruptedException           if interrupted while connecting
      * @throws DeviceConfigurationException   if the device is not configured to communicate with AWS Iot cloud
      * @throws AWSIotException                when an exception occurs in AWS Iot mqtt broker
      * @throws ConnectionUnavailableException if the connection to AWS Iot cloud is not available
      */
-    public void connectToAwsIot(LinkedBlockingQueue deploymentsQueue, MqttClientConnectionEvents callbacks)
+    public void connect()
             throws InterruptedException, DeviceConfigurationException, AWSIotException, ConnectionUnavailableException {
 
         DeviceConfiguration deviceConfiguration = deviceConfigurationHelper.getDeviceConfiguration();
-        connection = awsIotMqttConnectionFactory.getAwsIotMqttConnection(deviceConfiguration, callbacks);
+        connection = awsIotMqttConnectionFactory.getAwsIotMqttConnection(deviceConfiguration, this.callbacks);
         try {
             //TODO: Add retry for Throttling, Limit exceed exception
             connection.connect().get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
@@ -209,10 +225,9 @@ public class IotJobsHelper {
             }
             throw new AWSIotException(e);
         }
-        this.iotJobsClient = new IotJobsClient(connection);
-        this.deploymentsQueue = deploymentsQueue;
+        this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
         this.thingName = deviceConfiguration.getThingName();
-        isConnectionEstablished = true;
+        subscribeToJobsTopics();
         logger.atInfo().log("Connection established to Iot cloud");
     }
 
@@ -240,10 +255,6 @@ public class IotJobsHelper {
     @SuppressWarnings("PMD.LooseCoupling")
     public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
             throws ExecutionException, InterruptedException, TimeoutException {
-        if (!isConnectionEstablished) {
-            logger.atWarn().log(CONNECTION_NOT_ESTABLISHED_WARNING_MESSAGE);
-            return;
-        }
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
@@ -287,10 +298,6 @@ public class IotJobsHelper {
      * It publishes on the $aws/things/{thingName}/jobs/$next/get topic.
      */
     public void requestNextPendingJobDocument() {
-        if (!isConnectionEstablished) {
-            logger.atWarn().log(CONNECTION_NOT_ESTABLISHED_WARNING_MESSAGE);
-            return;
-        }
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
         describeJobExecutionRequest.thingName = thingName;
         describeJobExecutionRequest.jobId = "$next";
@@ -306,12 +313,10 @@ public class IotJobsHelper {
      * @throws InterruptedException           When operation is interrupted
      * @throws AWSIotException                When there is an exception from the Iot cloud
      * @throws ConnectionUnavailableException When connection to cloud is not available
+     *
      */
-    public void subscribeToJobsTopics() throws InterruptedException, AWSIotException, ConnectionUnavailableException {
-        if (!isConnectionEstablished) {
-            logger.atWarn().log(CONNECTION_NOT_ESTABLISHED_WARNING_MESSAGE);
-            return;
-        }
+    public void subscribeToJobsTopics()
+            throws InterruptedException, AWSIotException, ConnectionUnavailableException {
         try {
             //TODO: Add retry in case of Throttling, Timeout and LimitExceed exception
             subscribeToEventNotifications(eventHandler);
@@ -350,10 +355,7 @@ public class IotJobsHelper {
     protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
                                                     Consumer<RejectedError> consumerReject)
             throws ExecutionException, InterruptedException, TimeoutException {
-        if (!isConnectionEstablished) {
-            logger.atWarn().log(CONNECTION_NOT_ESTABLISHED_WARNING_MESSAGE);
-            return;
-        }
+
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = thingName;
@@ -377,10 +379,6 @@ public class IotJobsHelper {
      */
     protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
             throws ExecutionException, InterruptedException, TimeoutException {
-        if (!isConnectionEstablished) {
-            logger.atWarn().log(CONNECTION_NOT_ESTABLISHED_WARNING_MESSAGE);
-            return;
-        }
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
         request.thingName = thingName;
         CompletableFuture<Integer> subscribed = iotJobsClient
