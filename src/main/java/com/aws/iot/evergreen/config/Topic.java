@@ -94,10 +94,6 @@ public class Topic extends Node {
      * @return this.
      */
     public synchronized Topic withValue(long proposedModtime, final Object proposed) {
-        //        context.getLog().note("proposing change to "+getFullName()+": "+value+" => "+proposed);
-        //        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
-        //        if(proposed==Errored)
-        //            new Exception("setValue to Errored").printStackTrace();
         final Object currentValue = value;
         final long currentModtime = modtime;
         if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime) {
@@ -109,7 +105,6 @@ public class Topic extends Node {
         }
         value = validated;
         modtime = proposedModtime;
-        //        context.getLog().note("seen change to "+getFullName()+": "+currentValue+" => "+validated);
         context.queuePublish(this);
         return this;
     }
@@ -120,10 +115,17 @@ public class Topic extends Node {
                 .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
-                if (s instanceof Subscriber) {
-                    ((Subscriber) s).published(what, this);
+                try {
+                    if (s instanceof Subscriber) {
+                        ((Subscriber) s).published(what, this);
+                    }
+                } catch (Throwable ex) {
+                    /* TODO if a subscriber fails, we should do more than just log a
+                       message.  Possibly unsubscribe it if the fault is persistent */
+                    logger.atError().setCause(ex).setEventType("config-node-update-error")
+                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
+                            .addKeyValue("reason", what.name()).log();
                 }
-                // TODO: detect if a subscriber fails.  Possibly unsubscribe it if the fault is persistent
             }
         }
         if (parent != null && parentNeedsToKnow()) {

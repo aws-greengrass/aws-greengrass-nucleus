@@ -73,6 +73,16 @@ public class EvergreenService implements InjectionActions {
     private State prevState = State.NEW;
     private Future<?> lifecycleFuture;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    // The number of continual occurrences from a state to ERRORED.
+    // This is not thread safe and should only be used inside reportState().
+    private final Map<State, Integer> stateToErroredCount = new HashMap<>();
+    // The maximum number of ERRORED before transitioning the service state to BROKEN.
+    private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+    // We only need to track the ERROR for the state transition starting from NEW, INSTALLED and RUNNING because
+    // these states impact whether the service can function as expected.
+    private static final Set<State> STATES_TO_ERRORED = new HashSet<>(Arrays.asList(State.NEW, State.INSTALLED,
+            State.RUNNING));
+
 
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
@@ -159,8 +169,21 @@ public class EvergreenService implements InjectionActions {
             // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
             requestStop();
         }
+        State currentState = getState();
 
-        enqueueStateEvent(newState);
+        if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
+            // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
+            stateToErroredCount.compute(currentState, (k, v) -> (v == null) ? 1 : v + 1);
+        } else {
+            // If the reported state is a non-ERRORED state, we would like to reset the ERROR counter for the current
+            // state. This is to avoid putting the service to BROKEN state because of transient issues.
+            stateToErroredCount.put(currentState, 0);
+        }
+        if (stateToErroredCount.get(currentState) > MAXIMUM_CONTINUAL_ERROR) {
+            enqueueStateEvent(State.BROKEN);
+        } else {
+            enqueueStateEvent(newState);
+        }
     }
 
     private Optional<State> getReportState() {
@@ -236,6 +259,7 @@ public class EvergreenService implements InjectionActions {
             if (desiredStateList.isEmpty()) {
                 return Optional.empty();
             }
+
             State first = desiredStateList.get(0);
             if (first.equals(activeState)) {
                 desiredStateList.remove(first);
@@ -333,7 +357,7 @@ public class EvergreenService implements InjectionActions {
      */
     public final void requestReinstall() {
         synchronized (this.desiredStateList) {
-            setDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+            setDesiredState(State.NEW, State.RUNNING);
         }
     }
 
@@ -353,7 +377,18 @@ public class EvergreenService implements InjectionActions {
             AtomicReference<Future> triggerTimeOutReference = new AtomicReference<>();
             switch (current) {
                 case BROKEN:
-                    return;
+                    if (!desiredState.isPresent()) {
+                        break;
+                    }
+                    // Having State.NEW as the desired state indicates the service is requested to reinstall, so here
+                    // we'll transition out of BROKEN state to give it a new chance.
+                    if (State.NEW.equals(desiredState.get())) {
+                        updateStateAndBroadcast(State.NEW);
+                    } else {
+                        logger.atError().setEventType("service-broken")
+                                .log("service is broken. Deployment is needed");
+                    }
+                    continue;
                 case NEW:
                     // if no desired state is set, don't do anything.
                     if (!desiredState.isPresent()) {
@@ -382,6 +417,8 @@ public class EvergreenService implements InjectionActions {
                     State reportState = getReportState().orElse(null);
                     if (State.ERRORED.equals(reportState) || !ok) {
                         updateStateAndBroadcast(State.ERRORED);
+                    } else if (State.BROKEN.equals(reportState)) {
+                        updateStateAndBroadcast(State.BROKEN);
                     } else {
                         updateStateAndBroadcast(State.INSTALLED);
                     }
@@ -515,10 +552,12 @@ public class EvergreenService implements InjectionActions {
                         // in order to shutdown this thread since we were requested to stop
                         throw e;
                     }
-                    //TODO: Set service to broken state if error happens too often
+
                     if (!desiredState.isPresent()) {
+                        // Reset the desired state to RUNNING to retry the ERROR.
                         requestStart();
                     }
+
                     switch (prevState) {
                         case RUNNING:
                             updateStateAndBroadcast(State.STOPPING);

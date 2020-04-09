@@ -298,8 +298,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 }
             });
         } catch (Throwable ex) {
-            logger.atError().setEventType("system-boot-error").setCause(ex)
-                    .log("***BOOT FAILED, EXITING*** ");
+            logger.atError().setEventType("system-boot-error").setCause(ex).log("***BOOT FAILED, EXITING*** ");
             // The error is not recoverable, throw the exception up.
             throw ex;
         }
@@ -313,6 +312,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private void createPaths(Path... paths) {
         for (Path p: paths) {
             try {
+                // This only supports POSIX compliant file permission right now. We will need to
+                // change this when trying to support Evergreen in Non-POSIX OS.
                 Files.createDirectories(p,
                         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             } catch (IOException ex) {

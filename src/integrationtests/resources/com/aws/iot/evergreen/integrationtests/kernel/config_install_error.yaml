@@ -1,0 +1,19 @@
+services:
+  installerror:
+    lifecycle:
+      install: |-
+        sleep 2
+        echo "INSTALL_ERROR"
+        exit 1
+
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+      run: |-
+        echo main of config_install_error is running
+        while true; do
+        date; sleep 5;
+        done
+    dependencies:
+      - installerror
