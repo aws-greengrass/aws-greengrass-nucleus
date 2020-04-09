@@ -44,7 +44,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import javax.xml.ws.soap.Addressing;
 
 @ImplementsService(name = "DeploymentService", autostart = true)
 public class DeploymentService extends EvergreenService {
@@ -73,7 +72,7 @@ public class DeploymentService extends EvergreenService {
     private KernelConfigResolver kernelConfigResolver;
 
     @Inject
-    private IotJobsHelper iotJobsHelper;
+    private final IotJobsHelper iotJobsHelper;
 
     @Getter
     private Future<Void> currentProcessStatus = null;
@@ -254,14 +253,6 @@ public class DeploymentService extends EvergreenService {
         logger.atInfo().kv("DeploymentId", deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
-        //Check if this is for cancellation
-        if (this.currentJobId != null) {
-            if (this.currentJobId.equals(deployment.getId())) {
-                //This is a duplicate message, already processing this deployment
-                return;
-            }
-            //TODO: Cancel the current deployment if the Ids do not match
-        }
         currentJobId = deployment.getId();
         DeploymentDocument deploymentDocument;
         try {
@@ -388,7 +379,7 @@ public class DeploymentService extends EvergreenService {
             //TODO: Store the deployment type
             //Each status update is uniquely stored
             Topic thisJob = processedDeployments.createLeafChild(String.valueOf(System.currentTimeMillis()));
-            thisJob.setValue(deploymentDetails);
+            thisJob.withValue(deploymentDetails);
         }
     }
 
