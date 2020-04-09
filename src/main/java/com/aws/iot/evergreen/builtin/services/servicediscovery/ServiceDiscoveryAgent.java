@@ -114,7 +114,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
 
             SDAResource sdaResource = SDAResource.builder().resource(registerResourceRequest.getResource())
                     .publishedToDNSSD(registerResourceRequest.isPublishToDNSSD()).owningService(serviceName).build();
-            config.lookup(REGISTERED_RESOURCES, resourcePath).setValue(sdaResource);
+            config.lookup(REGISTERED_RESOURCES, resourcePath).withValue(sdaResource);
 
             registerResourceResponse.setResponseStatus(ServiceDiscoveryResponseStatus.Success);
             registerResourceResponse.setResource(registerResourceRequest.getResource());

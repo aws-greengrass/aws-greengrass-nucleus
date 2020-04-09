@@ -3,8 +3,6 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -22,7 +20,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AllArgsConstructor;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,7 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
@@ -61,9 +57,10 @@ public class EvergreenService implements InjectionActions {
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     public static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
-    public static final String CURRENT_STATE_METRIC_NAME = "currentState";
+    private static final String CURRENT_STATE_METRIC_NAME = "currentState";
+    private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
 
-    public final Topics config;
+    protected final Topics config;
     public Context context;
 
     private final Object dependencyReadyLock = new Object();
@@ -95,8 +92,6 @@ public class EvergreenService implements InjectionActions {
     // Includes both explicit declared dependencies and implicit ones added through 'autoStart' and @Inject annotation.
     protected final ConcurrentHashMap<EvergreenService, DependencyInfo> dependencies = new ConcurrentHashMap<>();
 
-    // Static logger instance for static methods
-    private static final Logger staticLogger = LogManager.getLogger(EvergreenService.class);
     // Service logger instance
     protected final Logger logger;
 
@@ -118,7 +113,7 @@ public class EvergreenService implements InjectionActions {
         this.state = initStateTopic(topics);
 
         this.externalDependenciesTopic = topics.createLeafChild("dependencies").dflt(new ArrayList<String>());
-        this.externalDependenciesTopic.setParentNeedsToKnow(false);
+        this.externalDependenciesTopic.withParentNeedsToKnow(false);
     }
 
     public State getState() {
@@ -140,7 +135,7 @@ public class EvergreenService implements InjectionActions {
         // across different services.
         synchronized (State.class) {
             prevState = currentState;
-            this.state.setValue(newState);
+            this.state.withValue(newState);
             context.globalNotifyStateChanged(this, prevState, newState, stateEventQueue.isEmpty());
         }
     }
@@ -154,7 +149,7 @@ public class EvergreenService implements InjectionActions {
     public synchronized void reportState(State newState) {
         logger.atInfo().setEventType("service-report-state").kv("newState", newState).log();
         if (!ALLOWED_STATES_FOR_REPORTING.contains(newState)) {
-            logger.atError().setEventType("service-invalid-state-error").kv("newState", newState)
+            logger.atError().setEventType(INVALID_STATE_ERROR_EVENT).kv("newState", newState)
                     .log("Invalid report state");
         }
         // TODO: Add more validations
@@ -175,81 +170,10 @@ public class EvergreenService implements InjectionActions {
         return Optional.empty();
     }
 
-    /**
-     * Locate an EvergreenService by name from the provided context.
-     *
-     * @param context context to lookup the name in
-     * @param name    name of the service to find
-     * @return found service or null
-     * @throws ServiceLoadException if service cannot load
-     */
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
-    public static EvergreenService locate(Context context, String name) throws ServiceLoadException {
-        return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
-            Configuration configuration = context.get(Configuration.class);
-            Topics serviceRootTopics = configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
-            if (serviceRootTopics.isEmpty()) {
-                staticLogger.atWarn().setEventType("service-config-not-found").kv(SERVICE_NAME_KEY, name).log();
-            } else {
-                staticLogger.atDebug().setEventType("service-config-found").kv(SERVICE_NAME_KEY, name)
-                        .log("Found service definition in configuration file");
-            }
-
-            // try to find service implementation class from plugins.
-            Class<?> clazz = null;
-            Node n = serviceRootTopics.findLeafChild("class");
-
-            if (n != null) {
-                String cn = Coerce.toString(n);
-                try {
-                    clazz = Class.forName(cn);
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't load service class from " + cn, ex);
-                }
-            }
-
-            if (clazz == null) {
-                Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
-                if (si != null) {
-                    staticLogger.atDebug().kv(SERVICE_NAME_KEY, name).log("Attempt to load service from plugins");
-                    clazz = si.get(name);
-                }
-            }
-            EvergreenService ret;
-            // If found class, try to load service class from plugins.
-            if (clazz != null) {
-                try {
-                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
-                    ret = (EvergreenService) ctor.newInstance(serviceRootTopics);
-                    if (clazz.getAnnotation(Singleton.class) != null) {
-                        context.put(ret.getClass(), v);
-                    }
-                    staticLogger.atInfo().setEventType("evergreen-service-loaded").kv(SERVICE_NAME_KEY, ret.getName())
-                            .log();
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
-                            ex);
-                }
-            } else if (serviceRootTopics.isEmpty()) {
-                throw new ServiceLoadException("No matching definition in system model");
-            } else {
-                // if not found, initialize GenericExternalService
-                try {
-                    ret = new GenericExternalService(serviceRootTopics);
-                    staticLogger.atInfo().setEventType("generic-service-loaded").kv(SERVICE_NAME_KEY, ret.getName())
-                            .log();
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create generic service instance " + name, ex);
-                }
-            }
-            return ret;
-        });
-    }
-
     private Topic initStateTopic(final Topics topics) {
         Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
-        state.setParentNeedsToKnow(false);
-        state.setValue(State.NEW);
+        state.withParentNeedsToKnow(false);
+        state.withValue(State.NEW);
         state.validate((newStateObj, oldStateObj) -> {
             State newState = Coerce.toEnum(State.class, newStateObj);
             return newState == null ? oldStateObj : newStateObj;
@@ -258,6 +182,7 @@ public class EvergreenService implements InjectionActions {
         return state;
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private synchronized void initDependenciesTopic() {
         externalDependenciesTopic.subscribe((what, node) -> {
             if (!WhatHappened.changed.equals(what)) {
@@ -404,6 +329,7 @@ public class EvergreenService implements InjectionActions {
         }
     }
 
+    @SuppressWarnings({"PMD.SwitchDensity", "PMD.AvoidCatchingThrowable"})
     private void startStateTransition() throws InterruptedException {
         periodicityInformation = Periodicity.of(this);
         while (!(isClosed.get() && getState().isClosable())) {
@@ -511,7 +437,7 @@ public class EvergreenService implements InjectionActions {
                             break;
                         default:
                             // not allowed for NEW, STOPPING, ERRORED, BROKEN
-                            logger.atError().setEventType("service-invalid-state-error")
+                            logger.atError().setEventType(INVALID_STATE_ERROR_EVENT)
                                     .kv("desiredState", desiredState).log("Unexpected desired state");
                             break;
                     }
@@ -597,14 +523,14 @@ public class EvergreenService implements InjectionActions {
                             serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
                             continue;
                         default:
-                            logger.atError().setEventType("service-invalid-state-error").kv("previousState", prevState)
+                            logger.atError().setEventType(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState)
                                     .log("Unexpected previous state");
                             updateStateAndBroadcast(State.FINISHED);
                             continue;
                     }
                 default:
-                    logger.atError().setEventType("service-invalid-state-error")
-                            .kv(CURRENT_STATE_METRIC_NAME, getState()).log("Unrecognized state");
+                    logger.atError(INVALID_STATE_ERROR_EVENT).kv(CURRENT_STATE_METRIC_NAME, getState())
+                            .log("Unrecognized state");
                     break;
             }
 
@@ -644,8 +570,9 @@ public class EvergreenService implements InjectionActions {
                 break;
             default:
                 // not allowed to set desired state to STOPPING, ERRORED, BROKEN
-                logger.atError().setEventType("service-invalid-state-error")
+                logger.atError().setEventType(INVALID_STATE_ERROR_EVENT)
                         .addKeyValue("desiredState", desiredState).log("Unexpected desired state");
+                break;
         }
     }
 
@@ -734,6 +661,7 @@ public class EvergreenService implements InjectionActions {
      *
      * @return future completes when the lifecycle thread shuts down.
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public Future<Void> close() {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
         context.get(Executor.class).execute(() -> {
@@ -794,11 +722,10 @@ public class EvergreenService implements InjectionActions {
 
     private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, State startWhenState) {
         return (WhatHappened what, Topic t) -> {
-            if (this.getState() == State.INSTALLED || this.getState() == State.RUNNING) {
-                if (!dependencyReady(dependentEvergreenService, startWhenState)) {
-                    this.requestRestart();
-                    logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
-                }
+            if ((State.INSTALLED.equals(getState()) || State.RUNNING.equals(getState()))
+                    && !dependencyReady(dependentEvergreenService, startWhenState)) {
+                this.requestRestart();
+                logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
             }
             synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
@@ -891,6 +818,11 @@ public class EvergreenService implements InjectionActions {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 
+    public Topics getServiceConfig() {
+        return config;
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     @Override
     public void postInject() {
         initDependenciesTopic();
@@ -948,7 +880,7 @@ public class EvergreenService implements InjectionActions {
             }
         }
 
-        EvergreenService d = locate(context, name);
+        EvergreenService d = context.get(Kernel.class).locate(name);
         return new Pair<>(d, x == null ? State.RUNNING : x);
     }
 

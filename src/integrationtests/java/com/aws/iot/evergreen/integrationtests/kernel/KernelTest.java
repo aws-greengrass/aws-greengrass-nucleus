@@ -30,7 +30,7 @@ class KernelTest extends BaseITCase {
     private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
             {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
                     //new ExpectedStdoutPattern("docs.docker.com/", "docker hello world"),
-                    new ExpectedStdoutPattern(0, "tick-tock", "periodic", 3),
+                    new ExpectedStdoutPattern(0, "tick-tock", "ticktock did not execute 3 times", 3),
                     new ExpectedStdoutPattern(0, "ANSWER=42", "global setenv"),
                     new ExpectedStdoutPattern(0, "EVERGREEN_UID=", "generated unique token"),
                     new ExpectedStdoutPattern(0, "version: 0.12.1", "moquette mqtt server"),
@@ -85,7 +85,7 @@ class KernelTest extends BaseITCase {
         System.out.println("Group 0 passed, now for the harder stuff");
 
         kernel.find("services", "main", "lifecycle", "run")
-                .setValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
+                .withValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
         testGroup(1);
 
         System.out.println("Group 1 passed, now merging delta.yaml");

@@ -19,8 +19,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -42,7 +43,7 @@ import javax.annotation.Nullable;
  * .background(exc -> System.out.println("exit "+exc));
  * </pre>
  */
-@SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable", "PMD.AssignmentInOperand"})
+@SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable"})
 public final class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
@@ -50,8 +51,8 @@ public final class Exec implements Closeable {
     };
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
-    @SuppressWarnings("PMD.LooseCoupling")
-    private static final LinkedList<Path> paths = new LinkedList<>();
+
+    private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
     private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
             "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
             "HOME=" + homedir, "USERHOME=" + homedir, "EVERGREEN_UID=" + EvergreenUid, "PWD=" + userdir,};
@@ -70,8 +71,7 @@ public final class Exec implements Closeable {
 
             Thread bg = new Thread(() -> {
                 try (InputStream in = hack.getInputStream()) {
-                    int c;
-                    while ((c = in.read()) >= 0) {
+                    for (int c = in.read(); c >= 0; c = in.read()) {
                         path.append((char) c);
                     }
                 } catch (Throwable ignored) {
@@ -100,7 +100,7 @@ public final class Exec implements Closeable {
     Consumer<CharSequence> stderr = NOP;
     private Copier stderrc;
     private Copier stdoutc;
-    private boolean closed = false;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     AtomicInteger numberOfCopiers;
 
     public static void setDefaultEnv(String key, CharSequence value) {
@@ -369,10 +369,10 @@ public final class Exec implements Closeable {
 
     @SuppressWarnings("PMD.NullAssignment")
     synchronized void setClosed() {
-        if (!closed) {
+        if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
-            closed = true;
+            isClosed.set(true);
             process = null;
             stderrc = null;
             stdoutc = null;
@@ -386,7 +386,7 @@ public final class Exec implements Closeable {
 
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
     public boolean isRunning() {
-        return !closed;
+        return !isClosed.get();
     }
 
     /**
@@ -397,18 +397,18 @@ public final class Exec implements Closeable {
      */
     @SuppressWarnings("checkstyle:emptycatchblock")
     public synchronized boolean waitClosed(int timeout) {
-        while (!closed) {
+        while (!isClosed.get()) {
             try {
                 wait(timeout);
             } catch (InterruptedException ignored) {
             }
         }
-        return closed;
+        return isClosed.get();
     }
 
     @Override
     public synchronized void close() throws IOException {
-        if (closed) {
+        if (isClosed.get()) {
             return;
         }
         Process p = process;
@@ -456,13 +456,12 @@ public final class Exec implements Closeable {
         }
 
         @Override
-        @SuppressWarnings("PMD.AssignmentInOperand")
         public void run() {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
                 StringBuilder sb = new StringBuilder();
                 while (true) {
                     int c;
-                    while ((c = br.read()) >= 0 && c != '\n') {
+                    for (c = br.read(); c >= 0 && c != '\n'; c = br.read()) {
                         sb.append((char) c);
                     }
                     if (c >= 0) {

@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
+import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
@@ -27,6 +28,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -60,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 import static com.aws.iot.evergreen.util.Utils.close;
@@ -69,7 +72,6 @@ import static com.aws.iot.evergreen.util.Utils.deepToString;
  * Evergreen-kernel.
  */
 @SuppressFBWarnings(value = "EQ_DOESNT_OVERRIDE_EQUALS", justification = "We don't need equality")
-@SuppressWarnings({"PMD.AvoidCatchingThrowable"})
 public class Kernel extends Configuration /*implements Runnable*/ {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
     private static final String done = " missing "; // unique marker
@@ -87,7 +89,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private String mainServiceName = "main";
     private ConfigurationWriter tlog;
     private EvergreenService mainService;
-    private Collection<EvergreenService> cachedOD = null;
+    private Collection<EvergreenService> cachedOD = Collections.emptyList();
     private String[] args;
     private String arg;
     private int argpos = 0;
@@ -119,7 +121,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param args user-provided arguments
      */
-    @SuppressWarnings("PMD.AssignmentInOperand")
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Kernel parseArgs(String... args) {
         this.args = args;
 
@@ -152,7 +154,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     break;
                 case "-log":
                 case "-l":
-                    lookup("log", "file").setValue(getArg());
+                    lookup("log", "file").withValue(getArg());
                     break;
                 case "-main":
                     mainServiceName = getArg();
@@ -194,7 +196,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     value = configPath;
                     break;
                 default:
-                    if ((value = System.getProperty(expr)) == null && (value = System.getenv(expr)) == null) {
+                    value = System.getProperty(expr, System.getenv(expr));
+                    if (value == null) {
                         value = find(splitPath(expr));
                     }
                     break;
@@ -219,6 +222,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     /**
      * Startup the Kernel and all services.
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Kernel launch() {
         logger.atInfo().log("root path = {}. config path = {}", rootPath, configPath);
         installCliTool(this.getClass().getClassLoader().getResource("evergreen-launch"));
@@ -227,7 +231,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Queue<String> autostart = new LinkedList<>();
         try {
             EZPlugins pim = context.get(EZPlugins.class);
-            pim.setCacheDirectory(rootPath.resolve("plugins"));
+            pim.withCacheDirectory(rootPath.resolve("plugins"));
             pim.annotated(ImplementsService.class, cl -> {
                 if (!EvergreenService.class.isAssignableFrom(cl)) {
                     logger.atError()
@@ -251,7 +255,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             logger.atError().log("Error launching plugins", t);
         }
         try {
-            mainService = EvergreenService.locate(context, mainServiceName);
+            mainService = locate(mainServiceName);
         } catch (ServiceLoadException sle) {
             RuntimeException rte =
                     new RuntimeException("Cannot load main service", sle);
@@ -286,7 +290,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         try {
             autostart.forEach(s -> {
                 try {
-                    mainService.addOrUpdateDependency(EvergreenService.locate(context, s), State.RUNNING, true);
+                    mainService.addOrUpdateDependency(locate(s), State.RUNNING, true);
                 } catch (ServiceLoadException se) {
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
@@ -333,6 +337,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param resource URL of the file to install
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void installCliTool(URL resource) {
         try {
             String dp = resource.getPath();
@@ -348,9 +353,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         }
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void clearODcache() {
-        cachedOD = null;
+        cachedOD.clear();
     }
 
     /**
@@ -358,10 +362,16 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @return collection of services in dependency order
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public synchronized Collection<EvergreenService> orderedDependencies() {
-        if (cachedOD != null) {
+        if (!cachedOD.isEmpty()) {
             return cachedOD;
         }
+
+        if (getMain() == null) {
+            return Collections.EMPTY_LIST;
+        }
+
         try {
             final HashSet<EvergreenService> pending = new LinkedHashSet<>();
             getMain().addDependencies(pending);
@@ -399,6 +409,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param p Path to write the effective config into
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void writeEffectiveConfig(Path p) {
         try (CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
             writeConfig(out);  // this is all made messy because writeConfig closes it's output stream
@@ -428,7 +439,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Map<String, Object> h = new LinkedHashMap<>();
         orderedDependencies().forEach(l -> {
             if (l != null) {
-                h.put(l.getName(), l.config.toPOJO());
+                h.put(l.getName(), l.getServiceConfig().toPOJO());
             }
         });
         try {
@@ -458,8 +469,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      *
      * @param timeoutSeconds Timeout in seconds
      */
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
-    @SuppressWarnings("PMD.AssignmentInOperand")
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void shutdown(int timeoutSeconds) {
         if (!isShutdownInitiated.compareAndSet(false, true)) {
             logger.info("Shutdown already initiated, returning...");
@@ -471,7 +481,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             EvergreenService[] d = orderedDependencies().toArray(new EvergreenService[0]);
 
             CompletableFuture[] arr = new CompletableFuture[d.length];
-            for (int i = d.length; --i >= 0; ) { // shutdown in reverse order
+            for (int i = d.length - 1; i >= 0; --i) { // shutdown in reverse order
                 String serviceName = d[i].getName();
                 try {
                     arr[i] = (CompletableFuture) d[i].close();
@@ -559,7 +569,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      * @param newConfig    the map of new configuration
      * @return future which completes only once the config is merged and all the services in the config are running
      */
-    @SuppressFBWarnings("NP_NONNULL_PARAM_VIOLATION") // https://github.com/findbugsproject/findbugs/issues/79
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
@@ -578,7 +588,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             try {
                 mergeMap(timestamp, newConfig);
                 for (String serviceName : serviceConfig.keySet()) {
-                    EvergreenService eg = EvergreenService.locate(context, serviceName);
+                    EvergreenService eg = locate(serviceName);
                     if (State.NEW.equals(eg.getState())) {
                         eg.requestStart();
                     }
@@ -655,7 +665,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         List<Future<Void>> serviceClosedFutures = new ArrayList<>();
         serviceToRemove.forEach(serviceName -> {
             try {
-                EvergreenService eg = EvergreenService.locate(context, serviceName);
+                EvergreenService eg = locate(serviceName);
                 serviceClosedFutures.add(eg.close());
             } catch (ServiceLoadException e) {
                 logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
@@ -680,5 +690,82 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 .map(EvergreenService::getName).filter(serviceName -> !serviceConfig.containsKey(serviceName))
                 .collect(Collectors.toList());
 
+    }
+
+    /**
+     * Locate an EvergreenService by name in the kernel context.
+     *
+     * @param name    name of the service to find
+     * @return found service or null
+     * @throws ServiceLoadException if service cannot load
+     */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    public EvergreenService locate(String name) throws ServiceLoadException {
+        return context.getv(EvergreenService.class, name).computeIfEmpty(v -> {
+            Configuration configuration = context.get(Configuration.class);
+            Topics serviceRootTopics = configuration.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, name);
+            if (serviceRootTopics.isEmpty()) {
+                logger.atWarn().setEventType("service-config-not-found").kv(EvergreenService.SERVICE_NAME_KEY, name)
+                        .log("Could not find service definition in configuration file");
+            } else {
+                logger.atInfo().setEventType("service-config-found").kv(EvergreenService.SERVICE_NAME_KEY, name)
+                        .log("Found service definition in configuration file");
+            }
+
+            // try to find service implementation class from plugins.
+            Class<?> clazz = null;
+            Node n = serviceRootTopics.findLeafChild("class");
+
+            if (n != null) {
+                String cn = Coerce.toString(n);
+                try {
+                    clazz = Class.forName(cn);
+                } catch (Throwable ex) {
+                    throw new ServiceLoadException("Can't load service class from " + cn, ex);
+                }
+            }
+
+            if (clazz == null) {
+                Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
+                if (si != null) {
+                    logger.atDebug().kv(EvergreenService.SERVICE_NAME_KEY, name).log("Attempt to load service from "
+                            + "plugins");
+                    clazz = si.get(name);
+                }
+            }
+            EvergreenService ret;
+            // If found class, try to load service class from plugins.
+            if (clazz != null) {
+                try {
+                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
+                    ret = (EvergreenService) ctor.newInstance(serviceRootTopics);
+                    if (clazz.getAnnotation(Singleton.class) != null) {
+                        context.put(ret.getClass(), v);
+                    }
+                    logger.atInfo().setEventType("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY,
+                            ret.getName())
+                            .log();
+                    return ret;
+                } catch (Throwable ex) {
+                    throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
+                            ex);
+                }
+            }
+
+            if (serviceRootTopics.isEmpty()) {
+                throw new ServiceLoadException("No matching definition in system model for: " + name);
+            }
+
+            // if not found, initialize GenericExternalService
+            try {
+                ret = new GenericExternalService(serviceRootTopics);
+                logger.atInfo().setEventType("generic-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY,
+                        ret.getName())
+                        .log();
+            } catch (Throwable ex) {
+                throw new ServiceLoadException("Can't create generic service instance " + name, ex);
+            }
+            return ret;
+        });
     }
 }

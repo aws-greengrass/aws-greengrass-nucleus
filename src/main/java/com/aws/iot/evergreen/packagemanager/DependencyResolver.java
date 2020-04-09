@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
@@ -302,7 +301,7 @@ public class DependencyResolver {
     protected Optional<String> getPackageVersionIfActive(final String packageName) {
         EvergreenService service;
         try {
-            service = EvergreenService.locate(kernel.context, packageName);
+            service = kernel.locate(packageName);
         } catch (ServiceLoadException e) {
             logger.atDebug().setCause(e).addKeyValue(PACKAGE_NAME_KEY, packageName)
                     .log("Failed to get active package in Kernel");
@@ -331,11 +330,8 @@ public class DependencyResolver {
 
 
     protected Optional<String> getServiceVersion(final EvergreenService service) {
-        Node versionNode = service.config.getChild(KernelConfigResolver.VERSION_CONFIG_KEY);
-        if (versionNode instanceof Topic) {
-            return Optional.of(((Topic) versionNode).getOnce().toString());
-        }
-        return Optional.empty();
+        Topic version = service.getServiceConfig().find(KernelConfigResolver.VERSION_CONFIG_KEY);
+        return version == null ? Optional.empty() : Optional.of(version.getOnce().toString());
     }
 
     private Package getPackage(final String pkgName, final Semver version) throws PackagingException, IOException {

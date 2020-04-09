@@ -53,14 +53,8 @@ public class Topic extends Node {
      * @return this
      */
     public Topic validate(Validator validator) {
-        if (listen(validator)) {
-            try {
-                if (value != null) {
-                    value = validator.validate(value, null);
-                }
-            } catch (Throwable ex) {
-                //TODO: do something less stupid
-            }
+        if (listen(validator) && value != null) {
+            value = validator.validate(value, null);
         }
         return this;
     }
@@ -88,8 +82,8 @@ public class Topic extends Node {
         appendValueTo(a);
     }
 
-    public Topic setValue(Object nv) {
-        return setValue(System.currentTimeMillis(), nv);
+    public Topic withValue(Object nv) {
+        return withValue(System.currentTimeMillis(), nv);
     }
 
     /**
@@ -99,7 +93,7 @@ public class Topic extends Node {
      * @param proposed        new value.
      * @return this.
      */
-    public synchronized Topic setValue(long proposedModtime, final Object proposed) {
+    public synchronized Topic withValue(long proposedModtime, final Object proposed) {
         //        context.getLog().note("proposing change to "+getFullName()+": "+value+" => "+proposed);
         //        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
         //        if(proposed==Errored)
@@ -126,17 +120,10 @@ public class Topic extends Node {
                 .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
-                try {
-                    if (s instanceof Subscriber) {
-                        ((Subscriber) s).published(what, this);
-                    }
-                } catch (Throwable ex) {
-                    /* TODO if a subscriber fails, we should do more than just log a
-                       message.  Possibly unsubscribe it if the fault is persistent */
-                    logger.atError().setCause(ex).setEventType("config-node-update-error")
-                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
-                            .addKeyValue("reason", what.name()).log();
+                if (s instanceof Subscriber) {
+                    ((Subscriber) s).published(what, this);
                 }
+                // TODO: detect if a subscriber fails.  Possibly unsubscribe it if the fault is persistent
             }
         }
         if (parent != null && parentNeedsToKnow()) {
@@ -147,7 +134,7 @@ public class Topic extends Node {
     @Override
     public void copyFrom(Node n) {
         if (n instanceof Topic) {
-            setValue(((Topic) n).modtime, ((Topic) n).value);
+            withValue(((Topic) n).modtime, ((Topic) n).value);
         } else {
             throw new IllegalArgumentException(
                     "copyFrom: " + (n == null ? "NULL" : n.getFullName()) + " is already a container, not a leaf");
@@ -162,7 +149,7 @@ public class Topic extends Node {
      */
     public synchronized Topic dflt(Object dflt) {
         if (value == null) {
-            setValue(1, dflt); // defaults come from the dawn of time
+            withValue(1, dflt); // defaults come from the dawn of time
         }
         return this;
     }

@@ -41,7 +41,8 @@ public interface ShellRunner {
                     String ss = s.toString().trim();
                     logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
                             .kv(EvergreenService.SERVICE_NAME_KEY, onBehalfOf.getName()).kv("stderr", ss).log();
-                }).setenv("SVCUID", String.valueOf(onBehalfOf.config.findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
+                }).setenv("SVCUID",
+                        String.valueOf(onBehalfOf.getServiceConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
                         .cd(config.workPath.toFile());
             }
             return null;
