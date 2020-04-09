@@ -21,6 +21,8 @@ import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+
 @SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
@@ -47,22 +49,23 @@ public class GenericExternalService extends EvergreenService {
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
-            // when the service is removed via a deployment this topic itself will be removed
-            if (WhatHappened.removed.equals(what) && child == null) {
+            // When the service is removed via a deployment this topic itself will be removed
+            // When first initialized, the child will be null
+            if (WhatHappened.removed.equals(what) || child == null) {
                 return;
             }
-            if (!c.parentNeedsToKnow()) {
+
+            logger.atInfo("service-config-change").kv("configNode", child.getFullName()).log();
+            if (child.childOf("shutdown")) {
                 return;
             }
-            logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child == null
-                    ? null : child.getFullName()).log();
-            if (c.childOf("shutdown")) {
-                return;
-            }
-            if (c.childOf("install")) {
+
+            // Reinstall for changes to the install script or if the package version changed
+            if (child.childOf("install") || child.childOf(VERSION_CONFIG_KEY)) {
                 requestReinstall();
                 return;
             }
+            // By default for any change, just restart the service
             requestRestart();
         });
 
