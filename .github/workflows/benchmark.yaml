@@ -33,10 +33,12 @@ jobs:
       - name: JMH Benchmark
         # The JVM arguments provided below are intended to tune the JVM to keep the heap as small as possible
         # and to release unused heap space back to the OS
-        # -f 5 -- Sets "forks" to 5 so it will run 5 times in separate JVMs
+        # -foe is "fail on error" so that if an error happens, then the benchmark will be failed instead of silently
+        # pass
         run: >-
           java -jar src/test/evergreen-kernel-benchmark/target/benchmarks.jar
           -rf json
+          -foe true
           -jvmArgs "-Xms1m -Xmx128m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
           -prof com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler

@@ -1,0 +1,23 @@
+---
+services:
+  ServiceA:
+    lifecycle:
+      startup:
+        timeout: 5
+        script: |-
+          date; echo sleeperA_starting_up; sleep 120
+  ServiceB:
+    lifecycle:
+      run:
+        timeout: 5
+        script: |-
+          date; echo sleeperB_starting_up; sleep 120
+  main:
+    dependencies:
+      - ServiceA
+      - ServiceB
+    lifecycle:
+      run: |-
+        while true; do
+        date; echo main_running; sleep 5
+        done

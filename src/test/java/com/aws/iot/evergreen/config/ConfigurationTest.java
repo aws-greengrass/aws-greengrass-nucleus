@@ -20,6 +20,7 @@ import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 public class ConfigurationTest {
@@ -33,10 +34,10 @@ public class ConfigurationTest {
             }
             return n;
         });
-        config.lookup("v").setValue(0, 42);
-        config.lookup("v").setValue(10, 43);
-        config.lookup("v").setValue(3, -1);
-        config.lookup("v").setValue(20, 44);
+        config.lookup("v").withValue(0, 42);
+        config.lookup("v").withValue(10, 43);
+        config.lookup("v").withValue(3, -1);
+        config.lookup("v").withValue(20, 44);
         assertEquals(44, config.lookup("v").getOnce());
         assertEquals("v:44", config.lookup("v").toString());
     }
@@ -49,10 +50,10 @@ public class ConfigurationTest {
             }
             return n;
         });
-        config.lookup("x", "y").setValue(0, 42);
-        config.lookup("x", "y").setValue(10, 43);
-        config.lookup("x", "y").setValue(3, -1);
-        config.lookup("x", "y").setValue(20, 44);
+        config.lookup("x", "y").withValue(0, 42);
+        config.lookup("x", "y").withValue(10, 43);
+        config.lookup("x", "y").withValue(3, -1);
+        config.lookup("x", "y").withValue(20, 44);
         assertEquals(44, toInt(config.lookup("x", "y")));
         assertEquals("x.y:44", config.lookup("x", "y").toString());
     }
@@ -65,10 +66,10 @@ public class ConfigurationTest {
             }
             return n;
         });
-        config.lookup("x", "z").setValue(0, 42);
-        config.lookup("x", "z").setValue(10, 43);
-        config.lookup("x", "z").setValue(3, -1);
-        config.lookup("x", "z").setValue(20, 44);
+        config.lookup("x", "z").withValue(0, 42);
+        config.lookup("x", "z").withValue(10, 43);
+        config.lookup("x", "z").withValue(3, -1);
+        config.lookup("x", "z").withValue(20, 44);
         assertEquals(44, toInt(config.lookup("x", "z")));
         assertEquals("x.z:44", config.lookup("x", "z").toString());
     }
@@ -78,10 +79,10 @@ public class ConfigurationTest {
         T1();
         T2();
         T3();
-        config.lookup("x", "a").setValue(20, "hello");
-        config.lookup("x", "b").setValue(20, true);
-        config.lookup("x", "c").setValue(20, Math.PI);
-        config.lookup("x", "d").setValue(20, System.currentTimeMillis());
+        config.lookup("x", "a").withValue(20, "hello");
+        config.lookup("x", "b").withValue(20, true);
+        config.lookup("x", "c").withValue(20, Math.PI);
+        config.lookup("x", "d").withValue(20, System.currentTimeMillis());
         Path p = Paths.get("/tmp/c.log");
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
@@ -118,9 +119,9 @@ public class ConfigurationTest {
                 }
                 return v;
             });
-            testValue.setValue("53");
+            testValue.withValue("53");
             assertEquals(53, testValue.getOnce());
-            testValue.setValue(-10);
+            testValue.withValue(-10);
             assertEquals(0, testValue.getOnce());
             StringWriter sw = new StringWriter();
             JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(testConfig.toPOJO(), sw);
@@ -130,8 +131,19 @@ public class ConfigurationTest {
         }
     }
 
-    void dump(Configuration c, String title) {
-        System.out.println("______________\n" + title);
-        c.deepForEachTopic(System.out::println);
+    @Test
+    public void GIVEN_empty_configuration_WHEN_topic_lookup_THEN_topic_created() {
+        assertNull(config.find("root", "leaf"));
+        Topic createdTopic = config.lookup("root", "leaf").dflt("defaultValue");
+        assertEquals(createdTopic, config.find("root", "leaf"));
+        assertEquals("defaultValue", createdTopic.getOnce());
     }
+
+    @Test
+    public void GIVEN_empty_configuration_WHEN_topics_lookup_THEN_topics_created() {
+        assertNull(config.findTopics("root", "child"));
+        Topics createdTopics = config.lookupTopics("root", "child");
+        assertEquals(createdTopics, config.findTopics("root", "child"));
+    }
+
 }

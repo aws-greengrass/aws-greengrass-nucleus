@@ -36,4 +36,27 @@ class GenericExternalServiceTest extends BaseITCase {
         // THEN
         assertTrue(testErrored.await(60, TimeUnit.SECONDS));
     }
+
+    @Test
+    void GIVEN_service_with_timeout_WHEN_timeout_expires_THEN_move_service_to_errored()
+            throws InterruptedException {
+        Kernel kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("service_timesout.yaml").toString());
+        kernel.launch();
+        CountDownLatch ServicesAErroredLatch = new CountDownLatch(1);
+        CountDownLatch ServicesBErroredLatch = new CountDownLatch(1);
+        // service sleeps for 120 seconds during startup and timeout is 5 seconds, service should transition to errored
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)){
+                ServicesAErroredLatch.countDown();
+            }
+            if("ServiceB".equals(service.getName()) && State.ERRORED.equals(newState)){
+                ServicesBErroredLatch.countDown();
+            }
+        });
+
+        assertTrue(ServicesAErroredLatch.await(30, TimeUnit.SECONDS));
+        assertTrue(ServicesBErroredLatch.await(30, TimeUnit.SECONDS));
+        kernel.shutdown();
+    }
 }

@@ -42,7 +42,7 @@ import javax.annotation.Nullable;
  * .background(exc -> System.out.println("exit "+exc));
  * </pre>
  */
-@SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable", "PMD.AssignmentInOperand"})
+@SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable"})
 public final class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
@@ -50,7 +50,7 @@ public final class Exec implements Closeable {
     };
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
-    @SuppressWarnings("PMD.LooseCoupling")
+
     private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
     private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
             "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
@@ -70,8 +70,7 @@ public final class Exec implements Closeable {
 
             Thread bg = new Thread(() -> {
                 try (InputStream in = hack.getInputStream()) {
-                    int c;
-                    while ((c = in.read()) >= 0) {
+                    for (int c = in.read(); c >= 0; c = in.read()) {
                         path.append((char) c);
                     }
                 } catch (Throwable ignored) {
@@ -456,13 +455,12 @@ public final class Exec implements Closeable {
         }
 
         @Override
-        @SuppressWarnings("PMD.AssignmentInOperand")
         public void run() {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
                 StringBuilder sb = new StringBuilder();
                 while (true) {
                     int c;
-                    while ((c = br.read()) >= 0 && c != '\n') {
+                    for (c = br.read(); c >= 0 && c != '\n'; c = br.read()) {
                         sb.append((char) c);
                     }
                     if (c >= 0) {

@@ -67,7 +67,7 @@ public abstract class Node {
 
     public abstract void copyFrom(Node n);
 
-    public <T extends Node> T setParentNeedsToKnow(boolean np) {
+    public <T extends Node> T withParentNeedsToKnow(boolean np) {
         parentNeedsToKnow = np;
         return (T) this;
     }
@@ -125,15 +125,16 @@ public abstract class Node {
         if (watchers != null) {
             boolean rewrite = true;
             // Try to make all the validators happy, but not infinitely
-            for (int laps = 3; --laps >= 0 && rewrite; ) {
+            for (int laps = 3; laps > 0 && rewrite; --laps) {
                 rewrite = false;
                 for (Watcher s : watchers) {
-                    if (s instanceof Validator) {
-                        Object nv = ((Validator) s).validate(newValue, oldValue);
-                        if (!Objects.equals(nv, newValue)) {
-                            rewrite = true;
-                            newValue = nv;
-                        }
+                    if (!(s instanceof Validator)) {
+                        continue;
+                    }
+                    Object nv = ((Validator) s).validate(newValue, oldValue);
+                    if (!Objects.equals(nv, newValue)) {
+                        rewrite = true;
+                        newValue = nv;
                     }
                 }
             }

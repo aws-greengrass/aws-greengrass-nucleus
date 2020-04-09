@@ -64,6 +64,7 @@ public class ServiceDiscoveryService extends EvergreenService {
      * @param context client request context
      * @return future containing response message
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Future<Message> handleMessage(Message request, ConnectionContext context) {
         CompletableFuture<Message> fut = new CompletableFuture<>();
         ApplicationMessage message = ApplicationMessage.fromBytes(request.getPayload());

@@ -1,0 +1,6 @@
+---
+services:
+  main:
+    dependencies:
+      - SomeService
+  SomeService:

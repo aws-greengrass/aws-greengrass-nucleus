@@ -35,7 +35,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public static Topics errorNode(Context context, String name, String message) {
         Topics t = new Topics(context, name, null);
-        t.createLeafChild("error").setValue(0, message);
+        t.createLeafChild("error").withValue(0, message);
         return t;
     }
 
@@ -56,10 +56,10 @@ public class Topics extends Node implements Iterable<Node> {
 
     @Override
     public void copyFrom(Node from) {
-        assert (from != null);
+        Objects.requireNonNull(from);
         if (from instanceof Topics) {
             ((Topics) from).forEach(n -> {
-                assert (n != null);
+                Objects.requireNonNull(n);
                 if (n instanceof Topic) {
                     createLeafChild(n.getName()).copyFrom(n);
                 } else {
@@ -84,7 +84,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topic createLeafChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, Topics.this));
+        Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, this));
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
@@ -100,7 +100,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topics createInteriorChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, Topics.this));
+        Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, this));
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
@@ -133,6 +133,49 @@ public class Topics extends Node implements Iterable<Node> {
         return n.createLeafChild(path[limit]);
     }
 
+    /**
+     * Find, and create if missing, a list of topics (name/value pairs) in the
+     * config file. Never returns null.
+     *
+     * @param path String[] of node names to traverse to find or create the Topics
+     */
+    public Topics lookupTopics(String... path) {
+        Topics n = this;
+        for (String s : path) {
+            n = n.createInteriorChild(s);
+        }
+        return n;
+    }
+
+    /**
+     * Find, but do not create if missing, a topic (a name/value pair) in the
+     * config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find or create the Topic
+     */
+    public Topic find(String... path) {
+        int limit = path.length - 1;
+        Topics n = this;
+        for (int i = 0; i < limit && n != null; i++) {
+            n = n.findInteriorChild(path[i]);
+        }
+        return n == null ? null : n.findLeafChild(path[limit]);
+    }
+
+    /**
+     * Find, but do not create if missing, a topics in the config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find or create the Topic
+     */
+    public Topics findTopics(String... path) {
+        int limit = path.length;
+        Topics n = this;
+        for (int i = 0; i < limit && n != null; i++) {
+            n = n.findInteriorChild(path[i]);
+        }
+        return n;
+    }
+
     public void publish(Topic t) {
         childChanged(WhatHappened.childChanged, t);
     }
@@ -149,7 +192,7 @@ public class Topics extends Node implements Iterable<Node> {
             if (value instanceof Map) {
                 createInteriorChild(key).mergeMap(lastModified, (Map) value);
             } else {
-                createLeafChild(key).setValue(lastModified, value);
+                createLeafChild(key).withValue(lastModified, value);
             }
         });
     }
@@ -196,7 +239,8 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public void remove(Node n) {
         if (!children.remove(n.getName(), n)) {
-            System.err.println("remove: Missing node " + n.getName() + " from " + toString());
+            logger.atError("config-node-child-remove-error").kv("thisNode", toString())
+                    .kv("childNode", n.getName()).log();
         }
         n.fire(WhatHappened.removed);
         childChanged(WhatHappened.childRemoved, n);
@@ -207,17 +251,10 @@ public class Topics extends Node implements Iterable<Node> {
                 .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
-                try {
-                    if (s instanceof ChildChanged) {
-                        ((ChildChanged) s).childChanged(what, child);
-                    }
-                } catch (Throwable ex) {
-                    /* TODO if a subscriber fails, we should do more than just log a
-                       message.  Possibly unsubscribe it if the fault is persistent */
-                    logger.atError().setCause(ex).setEventType("config-node-child-update-error")
-                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
-                            .addKeyValue("reason", what.name()).log();
+                if (s instanceof ChildChanged) {
+                    ((ChildChanged) s).childChanged(what, child);
                 }
+                // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
             }
         }
         if (parent != null && parentNeedsToKnow()) {
@@ -238,11 +275,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public Topics subscribe(ChildChanged cc) {
         if (listen(cc)) {
-            try {
-                cc.childChanged(WhatHappened.initialized, null);
-            } catch (Throwable ex) {
-                //TODO: do something less stupid
-            }
+            cc.childChanged(WhatHappened.initialized, null);
         }
         return this;
     }
