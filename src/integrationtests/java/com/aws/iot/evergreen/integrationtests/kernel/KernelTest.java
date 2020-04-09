@@ -165,9 +165,6 @@ class KernelTest extends BaseITCase {
 
         // merge in a new config that fixes the installation error
         kernel.read(kernel.deTilde(getClass().getResource("config_install_succeed_partial.yaml").toString()));
-        // The above read() should already trigger a re-install through subscriber but there appears a bug in the code.
-        // SIM: https://sim.amazon.com/issues/469c4bac-808a-4fe7-ae89-8546a55566d8
-        kernel.context.get(EvergreenService.class, "installerror").requestReinstall();
 
         CountDownLatch serviceInstalled = new CountDownLatch(1);
 
@@ -246,10 +243,9 @@ class KernelTest extends BaseITCase {
                         new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.INSTALLED),
 
                         // main service restart on dependency error
-                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.BROKEN),
                         new ExpectedStateTransition("main", State.RUNNING, State.STOPPING),
-                        new ExpectedStateTransition("runErrorRetry", State.INSTALLED, State.RUNNING),
-                        new ExpectedStateTransition("main", State.INSTALLED, State.RUNNING)));
+                        new ExpectedStateTransition("main", State.STOPPING, State.INSTALLED)));
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
