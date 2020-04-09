@@ -115,16 +115,8 @@ public class Topic extends Node {
                 .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
             for (Watcher s : watchers) {
-                try {
-                    if (s instanceof Subscriber) {
-                        ((Subscriber) s).published(what, this);
-                    }
-                } catch (Throwable ex) {
-                    /* TODO if a subscriber fails, we should do more than just log a
-                       message.  Possibly unsubscribe it if the fault is persistent */
-                    logger.atError().setCause(ex).setEventType("config-node-update-error")
-                            .addKeyValue("configNode", getFullName()).addKeyValue("subscriber", s.toString())
-                            .addKeyValue("reason", what.name()).log();
+                if (s instanceof Subscriber) {
+                    ((Subscriber) s).published(what, this);
                 }
             }
         }
