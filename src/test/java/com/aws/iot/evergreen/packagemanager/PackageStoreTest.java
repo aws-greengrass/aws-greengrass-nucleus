@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -157,6 +158,6 @@ class PackageStoreTest {
         when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
 
         Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
-        assertThrows(ExecutionException.class, future::get);
+        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
     }
 }
