@@ -21,6 +21,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -50,6 +51,7 @@ public final class Exec implements Closeable {
     };
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
+
     private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
     private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
             "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
@@ -98,7 +100,7 @@ public final class Exec implements Closeable {
     Consumer<CharSequence> stderr = NOP;
     private Copier stderrc;
     private Copier stdoutc;
-    private boolean closed = false;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     AtomicInteger numberOfCopiers;
 
     public static void setDefaultEnv(String key, CharSequence value) {
@@ -367,10 +369,10 @@ public final class Exec implements Closeable {
 
     @SuppressWarnings("PMD.NullAssignment")
     synchronized void setClosed() {
-        if (!closed) {
+        if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
-            closed = true;
+            isClosed.set(true);
             process = null;
             stderrc = null;
             stdoutc = null;
@@ -384,7 +386,7 @@ public final class Exec implements Closeable {
 
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
     public boolean isRunning() {
-        return !closed;
+        return !isClosed.get();
     }
 
     /**
@@ -395,18 +397,18 @@ public final class Exec implements Closeable {
      */
     @SuppressWarnings("checkstyle:emptycatchblock")
     public synchronized boolean waitClosed(int timeout) {
-        while (!closed) {
+        while (!isClosed.get()) {
             try {
                 wait(timeout);
             } catch (InterruptedException ignored) {
             }
         }
-        return closed;
+        return isClosed.get();
     }
 
     @Override
     public synchronized void close() throws IOException {
-        if (closed) {
+        if (isClosed.get()) {
             return;
         }
         Process p = process;
