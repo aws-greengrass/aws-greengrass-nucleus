@@ -396,6 +396,10 @@ public class EvergreenService implements InjectionActions {
                         case FINISHED:
                             updateStateAndBroadcast(State.FINISHED);
                             continue;
+                        case NEW:
+                            // This happens if a restart is requested while we're currently INSTALLED
+                            updateStateAndBroadcast(State.NEW);
+                            continue;
                         case RUNNING:
                             setBackingTask(() -> {
                                 try {
@@ -444,7 +448,7 @@ public class EvergreenService implements InjectionActions {
 
                             break;
                         default:
-                            // not allowed for NEW, STOPPING, ERRORED, BROKEN
+                            // not allowed for STOPPING, ERRORED, BROKEN
                             logger.atError().setEventType(INVALID_STATE_ERROR_EVENT)
                                     .kv("desiredState", desiredState).log("Unexpected desired state");
                             break;
