@@ -1,19 +1,5 @@
 ---
 services:
-  jdk11:
-    lifecycle:
-      install:
-        debian:
-          script: |-
-            sudo curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
-            sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
-        macos:
-          script: |-
-            brew tap homebrew/cask-versions
-            brew cask install corretto
-    dependencies:
-      macos:
-        - homebrew
   git:
     lifecycle:
       install:
@@ -33,7 +19,6 @@ services:
           skipif: onpath brew
           script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
-  #launchers:
   docker:
     bashtimeout: 300
     lifecycle:
@@ -52,21 +37,7 @@ services:
     dependencies:
       macos:
         - homebrew
-  plain:
-    run:
-      all: "{platform.invoke} {args}"
 
-  #services:
-  localhttp:
-    class: com.aws.iot.httpservice.SimpleHttpServer
-
-  greenlake:
-    lifecycle:
-      install:
-        debian: |-
-          sudo add-apt-repository https://aws.amazon.com/iot/apt
-          sudo apt-get install greenlake
-    throttleBandwidth: 100 kb/s
   hello-docker:
     dependencies:
       - docker
@@ -79,14 +50,7 @@ services:
       shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
     dependencies:
       - docker
-  monitoring:
-    lifecycle:
-      install:
-        debian: |-
-          sudo add-apt-repository https://aws.amazon.com/iot/apt
-          sudo apt-get install monitoring
-    dependencies:
-      - greenlake
+
   mqtt:
     lifecycle:
       run:
@@ -140,7 +104,6 @@ services:
         - git
         - mqtt
         - ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
-    xyzzy: localhttp, broken
     setenv:
       JUSTME: fancy a spot of tea?
     args: -jar {hw.jar}
