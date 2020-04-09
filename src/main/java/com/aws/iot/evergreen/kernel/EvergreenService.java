@@ -78,6 +78,10 @@ public class EvergreenService implements InjectionActions {
     private final Map<State, Integer> stateToErroredCount = new HashMap<>();
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+    // We only need to track the ERROR for the state transition starting from NEW, INSTALLED and RUNNING because
+    // these states impact whether the service can function as expected.
+    private static final Set<State> STATES_TO_ERRORED = new HashSet<>(Arrays.asList(State.NEW, State.INSTALLED,
+            State.RUNNING));
 
 
     // A state event can be a state transition event, or a desired state updated notification.
@@ -166,10 +170,8 @@ public class EvergreenService implements InjectionActions {
             requestStop();
         }
         State currentState = getState();
-        // We only need to track the ERROR for the state transition starting from NEW, INSTALLED and RUNNING because
-        // these states impact whether the service can function as expected.
-        List<State> statesToTrack = Arrays.asList(State.NEW, State.INSTALLED, State.RUNNING);
-        if (State.ERRORED.equals(newState) && statesToTrack.contains(currentState)) {
+
+        if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
             // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
             stateToErroredCount.compute(currentState, (k, v) -> (v == null) ? 1 : v + 1);
         } else {
@@ -545,6 +547,11 @@ public class EvergreenService implements InjectionActions {
                         // Since we run the error handler in this thread, that means we should rethrow
                         // in order to shutdown this thread since we were requested to stop
                         throw e;
+                    }
+
+                    if (!desiredState.isPresent()) {
+                        // Reset the desired state to RUNNING to retry the ERROR.
+                        requestStart();
                     }
 
                     switch (prevState) {
