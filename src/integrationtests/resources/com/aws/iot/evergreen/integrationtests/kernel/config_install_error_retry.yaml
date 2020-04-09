@@ -1,0 +1,25 @@
+services:
+  installErrorRetry:
+    lifecycle:
+      install: |-
+        sleep 1
+        if [ -f "/tmp/egInstallErrorRetrySucceed" ]; then
+          echo "INSTALL_SUCCEED"
+          rm /tmp/egInstallErrorRetrySucceed
+        else
+          echo "INSTALL_FAIL"
+          touch /tmp/egInstallErrorRetrySucceed
+          exit 1
+        fi
+
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+      run: |-
+        echo main of config_install_error is running
+        while true; do
+        date; sleep 5;
+        done
+    dependencies:
+      - installErrorRetry

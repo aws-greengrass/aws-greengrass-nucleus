@@ -60,9 +60,9 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
 
         desiredStateList.clear();
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
         evergreenService.requestStart();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
     }
 
     @Test
@@ -90,9 +90,9 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
 
         desiredStateList.clear();
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
         evergreenService.requestStop();
-        assertDesiredState(State.INSTALLED, State.NEW, State.FINISHED);
+        assertDesiredState(State.NEW, State.FINISHED);
     }
 
     @Test
@@ -124,10 +124,10 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         // requestRestart() doesn't override previous requestReinstall()
         desiredStateList.clear();
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
 
         evergreenService.requestRestart();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
 
         // requestRestart() doesn't erase reinstall behavior
         setDesiredStateList(State.NEW, State.FINISHED);
@@ -139,25 +139,25 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
     @Test
     public void GIVEN_evergreenService_WHEN_requestReinstall_called_THEN_deduplicate_correctly() {
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
 
         // calling requestReinstall() multiple times doesn't result in duplication
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
 
         // calling requestRetart() doesn't override requestRe-install
         desiredStateList.clear();
         evergreenService.requestRestart();
         assertDesiredState(State.INSTALLED, State.RUNNING);
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
 
         // calling requestRetart() multiple times doesn't result in duplication
         desiredStateList.clear();
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);
         evergreenService.requestReinstall();
-        assertDesiredState(State.INSTALLED, State.NEW, State.RUNNING);
+        assertDesiredState(State.NEW, State.RUNNING);
     }
 
     private void assertDesiredState(State... state) {
