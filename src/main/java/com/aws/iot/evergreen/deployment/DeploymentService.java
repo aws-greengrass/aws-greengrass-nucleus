@@ -70,9 +70,8 @@ public class DeploymentService extends EvergreenService {
     private PackageStore packageStore;
     @Inject
     private KernelConfigResolver kernelConfigResolver;
-
     @Inject
-    private final IotJobsHelper iotJobsHelper;
+    private IotJobsHelper iotJobsHelper;
 
     @Getter
     private Future<Void> currentProcessStatus = null;
@@ -115,7 +114,6 @@ public class DeploymentService extends EvergreenService {
      */
     public DeploymentService(Topics topics) {
         super(topics);
-        this.iotJobsHelper = new IotJobsHelper(deploymentsQueue, callbacks);
     }
 
     /**
@@ -148,6 +146,10 @@ public class DeploymentService extends EvergreenService {
             logger.info("Starting up the Deployment Service");
             // Reset shutdown signal since we're trying to startup here
             this.receivedShutdown.set(false);
+            //Cannot put this in constructor since DI injects dependencies after the instance of object is created.
+            // Will revisit the DI to make this better
+            iotJobsHelper.setDeploymentsQueue(deploymentsQueue);
+            iotJobsHelper.setCallbacks(callbacks);
             connectToAWSIot();
             reportState(State.RUNNING);
             logger.info("Running deployment service");

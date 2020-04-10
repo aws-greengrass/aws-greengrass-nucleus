@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -85,10 +86,12 @@ public class IotJobsHelper {
     @Setter
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
+    @Setter
+    private MqttClientConnectionEvents callbacks;
+
     private String thingName;
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
-    private MqttClientConnectionEvents callbacks;
 
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
@@ -133,7 +136,6 @@ public class IotJobsHelper {
         }
         Deployment deployment =
                 new Deployment(documentString, Deployment.DeploymentType.IOT_JOBS, jobExecutionData.jobId);
-
         if (deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
         }
