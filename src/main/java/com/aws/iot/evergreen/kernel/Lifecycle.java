@@ -195,7 +195,6 @@ public class Lifecycle {
         }
     }
 
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     private void enqueueStateEvent(Object event) {
         if (!stateEventQueue.offer(event)) {
             logger.error("couldn't put the new event to stateEventQueue");
