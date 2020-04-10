@@ -216,6 +216,12 @@ public class IotJobsHelper {
         connection = awsIotMqttConnectionFactory.getAwsIotMqttConnection(deviceConfiguration, this.callbacks);
         try {
             //TODO: Add retry for Throttling, Limit exceed exception
+            logger.atDebug().kv("ThingName", deviceConfiguration.getThingName())
+                    .kv("RootCAFilepath", deviceConfiguration.getRootCAFilePath())
+                    .kv("PrivateKeyFilepath", deviceConfiguration.getPrivateKeyFilePath())
+                    .kv("DeviceCertificateFilepath", deviceConfiguration.getCertificateFilePath())
+                    .kv("MqttEndpoint", deviceConfiguration.getMqttClientEndpoint())
+                    .log("Connecting to AWS Iot");
             connection.connect().get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             throw new ConnectionUnavailableException(e);

@@ -236,6 +236,8 @@ public class DeploymentService extends EvergreenService {
             }
             //TODO: resubmit the job in case of RetryableDeploymentTaskFailureException
         }
+        // Setting this to null to indicate there is not current deployment being processed
+        // Did not use optionals over null due to performance
         currentProcessStatus = null;
         currentJobId = null;
         updateStatusOfPersistedDeployments();
@@ -244,16 +246,17 @@ public class DeploymentService extends EvergreenService {
     private void cancelCurrentDeployment() {
         //TODO: Make the deployment task be able to handle the interrupt
         // and wait till the job gets cancelled or is finished
-        currentProcessStatus.cancel(true);
-        currentProcessStatus = null;
-        currentJobId = null;
+        if (currentProcessStatus != null) {
+            currentProcessStatus.cancel(true);
+            currentProcessStatus = null;
+            currentJobId = null;
+        }
     }
 
     private void createNewDeployment(Deployment deployment) {
         logger.atInfo().kv("DeploymentId", deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
-        currentJobId = deployment.getId();
         DeploymentDocument deploymentDocument;
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
@@ -274,6 +277,7 @@ public class DeploymentService extends EvergreenService {
         storeDeploymentStatusInConfig(deployment.getId(), JobStatus.IN_PROGRESS, new HashMap<>());
         updateStatusOfPersistedDeployments();
         currentProcessStatus = executorService.submit(deploymentTask);
+        currentJobId = deployment.getId();
     }
 
     private void subscribeToIotJobTopics() {
@@ -344,7 +348,7 @@ public class DeploymentService extends EvergreenService {
                 } catch (ExecutionException e) {
                     if (e.getCause() instanceof MqttException) {
                         //caused due to connectivity issue
-                        logger.atWarn().log("Caught exception while updating job status");
+                        logger.atWarn().setCause(e).log("Caught exception while updating job status");
                         break;
                     }
                     //This happens when job status update gets rejected from the Iot Cloud
