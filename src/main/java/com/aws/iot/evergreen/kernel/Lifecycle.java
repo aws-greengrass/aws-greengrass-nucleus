@@ -145,7 +145,11 @@ public class Lifecycle {
 
     private Optional<State> getReportState() {
         Object top = stateEventQueue.poll();
-        if (top instanceof State) {
+        while (top != null && !(top instanceof State)) {
+            top = stateEventQueue.poll();
+        }
+
+        if (top != null) {
             return Optional.of((State) top);
         }
         return Optional.empty();
