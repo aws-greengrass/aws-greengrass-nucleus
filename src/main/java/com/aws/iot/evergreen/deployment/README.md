@@ -7,7 +7,8 @@ Represents the json document which contains the desired state for the device
 
 # Startup
 1. [***DeploymentService***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentService.java) starts as an 
-evergreen service and initializes [***IotJobsHelper***](/src/main/java/com/aws/iot/evergreen/deployment/IotJobsHelper)
+evergreen service and initializes [***IotJobsHelper***](/src/main/java/com/aws/iot/evergreen/deployment/IotJobsHelper) and initiates the connection to AWS Iot via the 
+*IotJobsHelper*
 2. *IotJobsHelper* connects to AWS Iot cloud and subscribes to the Iot jobs mqtt topics. *IotJobsHelper* and 
 *DeploymentService* communicate via a Queue.
  
