@@ -1,0 +1,11 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: SomeService
+Description: A random service to run in Evergreen
+Publisher: Me
+Version: '1.0.0'
+Lifecycle:
+  run:
+    echo "Hello evergreen. Don't mind me I'm going to be removed soon"
+Dependencies:
+  Mosquitto: 1.0.0

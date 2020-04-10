@@ -18,7 +18,6 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -79,6 +79,9 @@ class DeploymentServiceIntegrationTest {
     private static Map<String, Long> outputMessagesToTimestamp;
     private CountDownLatch countDownLatch;
 
+    private static final Path LOCAL_CACHE_PATH =
+            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
+
     @TempDir
     static Path rootDir;
 
@@ -94,7 +97,7 @@ class DeploymentServiceIntegrationTest {
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
-        packageStore = new PackageStore(TestHelper.getPathForLocalTestCache(), new GreengrassPackageServiceHelper(),
+        packageStore = new PackageStore(LOCAL_CACHE_PATH, new GreengrassPackageServiceHelper(),
                 new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor());
         dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);

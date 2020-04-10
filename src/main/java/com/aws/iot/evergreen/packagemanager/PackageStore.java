@@ -31,7 +31,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -49,8 +48,6 @@ import javax.inject.Named;
 @NoArgsConstructor // for dependency injection
 public class PackageStore implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
-    private static final Path LOCAL_CACHE_PATH =
-            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
     private static final String RECIPE_DIRECTORY = "recipe";
     private static final String ARTIFACT_DIRECTORY = "artifact";
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
@@ -85,6 +82,7 @@ public class PackageStore implements InjectionActions {
      */
     public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
                         GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService) {
+        this.packageStoreDirectory = packageStoreDirectory;
         initializeSubDirectories(packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
         this.greengrassArtifactDownloader = artifactDownloader;
@@ -179,7 +177,8 @@ public class PackageStore implements InjectionActions {
         if (packageOptional.isPresent()) {
             return packageOptional.get();
         } else {
-            Package pkg = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
+            Package pkg =
+                    greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier, packageStoreDirectory);
             savePackageRecipeToFile(pkg, recipePath);
             return pkg;
         }
@@ -274,7 +273,7 @@ public class PackageStore implements InjectionActions {
      */
     public Package getRecipe(PackageIdentifier pkg) {
         // TODO: to be implemented.
-        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH);
+        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(packageStoreDirectory);
         try {
             return localPackageStore.getPackage(pkg.getName(), pkg.getVersion()).get();
         } catch (PackagingException e) {
@@ -289,7 +288,7 @@ public class PackageStore implements InjectionActions {
      * Get package from cache if it exists.
      */
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
-        Path srcPkgRoot = getPackageStorageRoot(packageName, LOCAL_CACHE_PATH);
+        Path srcPkgRoot = getPackageStorageRoot(packageName, packageStoreDirectory);
         List<Semver> versions = new ArrayList<>();
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
@@ -339,7 +338,7 @@ public class PackageStore implements InjectionActions {
      */
     private Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
-        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), LOCAL_CACHE_PATH);
+        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), packageStoreDirectory);
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
             return Optional.empty();

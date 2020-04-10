@@ -56,11 +56,12 @@ class DeploymentE2ETest {
     private static String rootCaFilePath;
     private static String privateKeyFilePath;
     private static String certificateFilePath;
-    private static final Path LOCAL_CACHE_PATH =
-            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     private Kernel kernel;
     private Utils.ThingInfo thing;
+
+    private static final Path LOCAL_ARTIFACT_SOURCE =
+            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
 
     @BeforeAll
     static void beforeAll() {
@@ -84,6 +85,7 @@ class DeploymentE2ETest {
 
     private void launchKernel(String configFile) throws IOException, InterruptedException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
+        kernel.context.put("packageStoreDirectory", LOCAL_ARTIFACT_SOURCE);
         setupIotResourcesAndInjectIntoKernel();
         injectKernelPackageManagementDependencies();
         kernel.launch();

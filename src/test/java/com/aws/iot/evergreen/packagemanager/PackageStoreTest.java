@@ -153,19 +153,19 @@ class PackageStoreTest {
         Path recipePath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0")
                 .resolve("recipe.yaml");
         Package pkg = packageStore.findPackageRecipe(recipePath).get();
-        when(packageServiceHelper.downloadPackageRecipe(any())).thenReturn(pkg);
+        when(packageServiceHelper.downloadPackageRecipe(any(), any())).thenReturn(pkg);
         Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
         future.get(5, TimeUnit.SECONDS);
 
         assertThat(future.isDone(), is(true));
 
-        verify(packageServiceHelper).downloadPackageRecipe(pkgId);
+        verify(packageServiceHelper).downloadPackageRecipe(eq(pkgId), any());
     }
 
     @Test
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out() throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
-        when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
+        when(packageServiceHelper.downloadPackageRecipe(any(), any())).thenThrow(PackageDownloadException.class);
 
         Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
