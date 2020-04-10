@@ -100,7 +100,7 @@ class DeploymentServiceIntegrationTest {
         kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
 
-        // initialize packageStore, dependencyResolver, and kernelConfigResolver
+        // initialize packageStore and dependencyResolver
         packageStore = new PackageStore(kernel.packageStorePath, new GreengrassPackageServiceHelper(),
                 new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
 

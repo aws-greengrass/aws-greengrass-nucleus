@@ -34,9 +34,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -99,8 +101,9 @@ class DeploymentE2ETest {
         // Create Job Doc
         String document = new ObjectMapper().writeValueAsString(
                 DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays.asList(
+                        .deploymentId(UUID.randomUUID().toString())
+                        .rootPackages(Collections.singletonList("CustomerApp")).deploymentPackageConfigurationList(
+                        Collections.singletonList(
                                 new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
 
         // Create job targeting our DUT
@@ -145,8 +148,9 @@ class DeploymentE2ETest {
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper().writeValueAsString(
                 DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays.asList(
+                        .deploymentId(UUID.randomUUID().toString())
+                        .rootPackages(Collections.singletonList("CustomerApp")).deploymentPackageConfigurationList(
+                        Collections.singletonList(
                                 new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
         String jobId2 = Utils.createJob(document2, targets);
         Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
@@ -154,9 +158,7 @@ class DeploymentE2ETest {
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
         assertEquals(State.FINISHED, kernel.locate("CustomerApp").getState());
-        assertThrows(ServiceLoadException.class, () -> {
-            kernel.locate("SomeService").getState();
-        });
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("SomeService").getState());
 
         // Make sure that IoT Job was marked as successful
         assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
@@ -167,9 +169,8 @@ class DeploymentE2ETest {
     }
 
     @Test
-    void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error()
-            throws Exception {
-        launchKernel("some_service.yaml");
+    void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error() throws Exception {
+        launchKernel("blank_config.yaml");
 
         // Target our DUT for deployments
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing

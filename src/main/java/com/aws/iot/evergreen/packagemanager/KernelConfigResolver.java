@@ -10,12 +10,12 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import lombok.SneakyThrows;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,13 +52,16 @@ public class KernelConfigResolver {
      * @param document         deployment document
      * @param rootPackages     root level packages
      * @return a kernel config map
+     * @throws PackageLoadingException if any service package was unable to be loaded
      * @throws InterruptedException when the running thread is interrupted
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
-                                       List<String> rootPackages) throws InterruptedException {
+                                       List<String> rootPackages) throws PackageLoadingException, InterruptedException {
 
-        Map<Object, Object> servicesConfig = packagesToDeploy.stream().collect(Collectors
-                .toMap(PackageIdentifier::getName, packageIdentifier -> getServiceConfig(packageIdentifier, document)));
+        Map<Object, Object> servicesConfig = new HashMap<>();
+        for (PackageIdentifier packageToDeploy : packagesToDeploy) {
+            servicesConfig.put(packageToDeploy.getName(), getServiceConfig(packageToDeploy, document));
+        }
 
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
@@ -69,8 +72,8 @@ public class KernelConfigResolver {
     /*
      * Processes lifecycle section of each package and add it to the config.
      */
-    @SneakyThrows
-    private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document) {
+    private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document)
+            throws PackageLoadingException {
 
         Package pkg = packageStore.getPackageRecipe(packageIdentifier);
 
