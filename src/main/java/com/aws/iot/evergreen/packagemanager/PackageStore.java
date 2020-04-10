@@ -180,7 +180,7 @@ public class PackageStore implements InjectionActions {
             return packageOptional.get();
         } else {
             Package pkg = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-            savePackageToFile(pkg, recipePath);
+            savePackageRecipeToFile(pkg, recipePath);
             return pkg;
         }
     }
@@ -205,7 +205,7 @@ public class PackageStore implements InjectionActions {
         }
     }
 
-    void savePackageToFile(Package pkg, Path saveToFile) throws PackageLoadingException {
+    void savePackageRecipeToFile(Package pkg, Path saveToFile) throws PackageLoadingException {
         try {
             OBJECT_MAPPER.writeValue(saveToFile.toFile(), pkg);
         } catch (IOException e) {
@@ -232,7 +232,7 @@ public class PackageStore implements InjectionActions {
         }
 
         List<URI> artifactsNeedToDownload = determineArtifactsNeedToDownload(packageArtifactDirectory, artifactList);
-        logger.atInfo().setEventType("downloading-package-artifacts")
+        logger.atDebug().setEventType("downloading-package-artifacts")
                 .addKeyValue("packageIdentifier", packageIdentifier)
                 .addKeyValue("artifactsNeedToDownload", artifactsNeedToDownload).log();
 

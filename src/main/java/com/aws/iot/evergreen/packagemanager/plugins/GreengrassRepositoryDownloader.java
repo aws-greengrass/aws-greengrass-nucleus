@@ -17,7 +17,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
     private static final String CONTENT_DISPOSITION = "Content-Disposition";
 
-    @SuppressWarnings("PMD.AssignmentInOperand")
+    @SuppressWarnings({"PMD.AssignmentInOperand", "AvoidFileStream"})
     @Override
     public void downloadToPath(PackageIdentifier packageIdentifier, URI artifactUri, Path saveToPath)
             throws IOException {

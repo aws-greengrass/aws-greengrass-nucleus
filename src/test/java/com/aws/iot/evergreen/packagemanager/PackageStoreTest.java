@@ -75,7 +75,9 @@ class PackageStoreTest {
         Path recipePath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0")
                 .resolve("bad_recipe.yaml");
 
-        assertThrows(PackageLoadingException.class, () -> packageStore.findPackageRecipe(recipePath));
+        Exception exception = assertThrows(PackageLoadingException.class,
+                () -> packageStore.findPackageRecipe(recipePath));
+        assertThat(exception.getMessage().startsWith("Failed to parse package recipe"), is(true));
     }
 
     @Test
@@ -95,7 +97,7 @@ class PackageStoreTest {
 
         Path saveToFile =
                 testCache.resolve(String.format("%s-%s.yaml", TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0"));
-        packageStore.savePackageToFile(pkg, saveToFile);
+        packageStore.savePackageRecipeToFile(pkg, saveToFile);
 
         Package savedPackage = packageStore.findPackageRecipe(saveToFile).get();
         assertThat(savedPackage, is(pkg));
@@ -131,16 +133,18 @@ class PackageStoreTest {
     void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception() {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
 
-        assertThrows(PackageLoadingException.class, () -> packageStore
+        Exception exception = assertThrows(PackageLoadingException.class, () -> packageStore
                 .downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("docker:image1"))));
+        assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
 
     @Test
     void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception() {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0" + ".0"), "CoolServiceARN");
 
-        assertThrows(PackageLoadingException.class,
+        Exception exception = assertThrows(PackageLoadingException.class,
                 () -> packageStore.downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("binary1"))));
+        assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
     @Test
