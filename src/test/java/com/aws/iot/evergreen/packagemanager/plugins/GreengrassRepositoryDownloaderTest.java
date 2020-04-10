@@ -9,7 +9,6 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -43,7 +42,7 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
         Path mockArtifactPath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0")
                 .resolve("monitor_artifact_100.txt");
-        when(connection.getInputStream()).thenReturn(new FileInputStream(mockArtifactPath.toString()));
+        when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
 
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
         Path testCache = TestHelper.getPathForLocalTestCache();
