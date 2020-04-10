@@ -7,7 +7,6 @@ package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.deployment.DeploymentTask;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -96,7 +95,7 @@ class DeploymentServiceIntegrationTest {
         kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
         packageStore = new PackageStore(TestHelper.getPathForLocalTestCache(), new GreengrassPackageServiceHelper(),
-                new GreengrassRepositoryDownloader());
+                new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor());
         dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }

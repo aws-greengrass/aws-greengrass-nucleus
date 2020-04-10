@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -51,7 +52,8 @@ class PackageStoreTest {
     @BeforeEach
     void beforeEach() {
         testCache = TestHelper.getPathForLocalTestCache();
-        packageStore = new PackageStore(testCache, packageServiceHelper, artifactDownloader);
+        packageStore = new PackageStore(testCache, packageServiceHelper, artifactDownloader,
+                Executors.newSingleThreadExecutor());
     }
 
     @AfterEach
@@ -157,8 +159,7 @@ class PackageStoreTest {
     }
 
     @Test
-    void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out()
-            throws Exception {
+    void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out() throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
         when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
 

@@ -13,6 +13,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -65,21 +66,21 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
-        assertThrows(IOException.class,
-                () -> downloader.downloadToPath(pkgId, new URI("greengrass:binary"), null));
+        assertThrows(IOException.class, () -> downloader.downloadToPath(pkgId, new URI("greengrass:binary"), null));
     }
 
     @Test
-    void GIVEN_filename_in_disposition_WHEN_attempt_resolve_filename_THEN_parse_filename() {
-        String filename = downloader
-                .extractFilename("https://www.amazon.com/artifact.txt", "attachment; " + "filename=\"filename.jpg\"");
+    void GIVEN_filename_in_disposition_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+        String filename = downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt"),
+                "attachment; " + "filename=\"filename.jpg\"");
 
         assertThat(filename, is("filename.jpg"));
     }
 
     @Test
-    void GIVEN_filename_in_url_WHEN_attempt_resolve_filename_THEN_parse_filename() {
-        String filename = downloader.extractFilename("https://www.amazon.com/artifact.txt?key=value", "attachment");
+    void GIVEN_filename_in_url_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+        String filename =
+                downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt?key=value"), "attachment");
 
         assertThat(filename, is("artifact.txt"));
     }

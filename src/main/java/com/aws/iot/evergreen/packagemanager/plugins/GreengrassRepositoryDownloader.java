@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -32,7 +33,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
 
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 String disposition = httpConn.getHeaderField(CONTENT_DISPOSITION);
-                String filename = extractFilename(preSignedUrl, disposition);
+                String filename = extractFilename(url, disposition);
 
                 try (InputStream inputStream = httpConn.getInputStream()) {
                     Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
@@ -55,7 +56,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
         return "placeholder";
     }
 
-    String extractFilename(String preSignedUrl, String contentDisposition) {
+    String extractFilename(URL preSignedUrl, String contentDisposition) throws MalformedURLException {
         if (contentDisposition != null) {
             String filenameKey = "filename=";
             int index = contentDisposition.indexOf(filenameKey);
@@ -67,8 +68,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
         //extract filename from URL
         //URL can contain parameters, such as /filename.txt?sessionId=value
         //extract 'filename.txt' from it
-        int startIndex = preSignedUrl.lastIndexOf('/') + 1;
-        int endIndex = preSignedUrl.indexOf('?');
-        return endIndex == -1 ? preSignedUrl.substring(startIndex) : preSignedUrl.substring(startIndex, endIndex);
+        String[] pathStrings = preSignedUrl.getPath().split("/");
+        return pathStrings[pathStrings.length - 1];
     }
 }

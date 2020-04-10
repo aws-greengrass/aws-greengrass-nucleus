@@ -85,7 +85,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public String configPathName = "~root/config";
     public String clitoolPathName = "~root/bin";
     public String workPathName = "~root/work";
-    public String packageStorePathName = "~root/package";
+    public String packageStorePathName = "~root/packages";
     boolean forReal = true;
     boolean haveRead = false;
     private String mainServiceName = "main";

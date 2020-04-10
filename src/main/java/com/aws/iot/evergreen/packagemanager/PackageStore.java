@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NoArgsConstructor;
-import lombok.SneakyThrows;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,7 +36,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -63,10 +62,13 @@ public class PackageStore implements InjectionActions {
     private Path artifactDirectory;
 
     @Inject
-    private GreengrassRepositoryDownloader greenGrassArtifactDownloader;
+    private GreengrassRepositoryDownloader greengrassArtifactDownloader;
 
     @Inject
     private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
+
+    @Inject
+    private ExecutorService executorService;
 
     // Workaround using InjectionActions since constructor named pattern injection is not supported yet
     @Inject
@@ -75,15 +77,18 @@ public class PackageStore implements InjectionActions {
 
     /**
      * PackageStore constructor.
+     *
      * @param packageStoreDirectory directory for caching package recipes and artifacts
      * @param packageServiceHelper  greengrass package service client helper
      * @param artifactDownloader    artifact downloader
+     * @param executorService       executor service
      */
     public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
-                        GreengrassRepositoryDownloader artifactDownloader) {
+                        GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService) {
         initializeSubDirectories(packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
-        this.greenGrassArtifactDownloader = artifactDownloader;
+        this.greengrassArtifactDownloader = artifactDownloader;
+        this.executorService = executorService;
     }
 
     @Override
@@ -131,17 +136,12 @@ public class PackageStore implements InjectionActions {
      * @return a future to notify once this is finished.
      */
     public Future<Void> preparePackages(List<PackageIdentifier> pkgIds) {
-        Runnable preparePackageTask = new Runnable() {
-            @SneakyThrows
-            @Override
-            public void run() {
-                for (PackageIdentifier packageIdentifier :  pkgIds) {
+        return executorService.submit(() -> {
+            for (PackageIdentifier packageIdentifier : pkgIds) {
                     preparePackage(packageIdentifier);
-                }
             }
-        };
-
-        return CompletableFuture.runAsync(preparePackageTask);
+            return null;
+        });
     }
 
     private void preparePackage(PackageIdentifier packageIdentifier)
@@ -154,7 +154,7 @@ public class PackageStore implements InjectionActions {
                     return new URI(artifactStr);
                 } catch (URISyntaxException e) {
                     String message = String.format("artifact URI %s is invalid", artifactStr);
-                    logger.atError().log(message, e);
+                    logger.atError().setCause(e).log(message);
                     throw new RuntimeException(message, e);
                 }
             }).collect(Collectors.toList());
@@ -162,7 +162,7 @@ public class PackageStore implements InjectionActions {
             logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
                     .log();
         } catch (PackageLoadingException | PackageDownloadException e) {
-            logger.atError().log(String.format("Failed to prepare package %s", packageIdentifier), e);
+            logger.atError().setCause(e).log(String.format("Failed to prepare package %s", packageIdentifier));
             throw e;
         }
     }
@@ -186,7 +186,7 @@ public class PackageStore implements InjectionActions {
     }
 
     Optional<Package> findPackageRecipe(Path recipePath) throws PackageLoadingException {
-        logger.atInfo().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
+        logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
         if (!Files.exists(recipePath) || !Files.isRegularFile(recipePath)) {
             return Optional.empty();
         }
@@ -226,8 +226,8 @@ public class PackageStore implements InjectionActions {
                 Files.createDirectories(packageArtifactDirectory);
             } catch (IOException e) {
                 throw new PackageLoadingException(
-                        String.format("Failed to create package artifact cache directory " + "%s",
-                                packageArtifactDirectory), e);
+                        String.format("Failed to create package artifact cache directory %s", packageArtifactDirectory),
+                        e);
             }
         }
 
@@ -260,7 +260,7 @@ public class PackageStore implements InjectionActions {
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
         String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
         if (GREENGRASS_SCHEME.equals(scheme)) {
-            return greenGrassArtifactDownloader;
+            return greengrassArtifactDownloader;
         }
 
         throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
