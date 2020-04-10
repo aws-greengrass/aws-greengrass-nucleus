@@ -56,7 +56,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
         return "placeholder";
     }
 
-    String extractFilename(URL preSignedUrl, String contentDisposition) throws MalformedURLException {
+    String extractFilename(URL preSignedUrl, String contentDisposition) {
         if (contentDisposition != null) {
             String filenameKey = "filename=";
             int index = contentDisposition.indexOf(filenameKey);
