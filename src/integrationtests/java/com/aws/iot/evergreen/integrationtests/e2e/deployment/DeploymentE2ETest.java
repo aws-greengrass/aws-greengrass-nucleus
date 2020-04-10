@@ -78,8 +78,8 @@ class DeploymentE2ETest {
     @AfterAll
     static void afterAll() {
         // Cleanup all IoT thing resources we created
-        // Utils.cleanAllCreatedThings();
-        // Utils.cleanAllCreatedJobs();
+        Utils.cleanAllCreatedThings();
+        Utils.cleanAllCreatedJobs();
     }
 
     private void launchKernel(String configFile) throws IOException, InterruptedException {
