@@ -94,10 +94,6 @@ public class Topic extends Node {
      * @return this.
      */
     public synchronized Topic withValue(long proposedModtime, final Object proposed) {
-        //        context.getLog().note("proposing change to "+getFullName()+": "+value+" => "+proposed);
-        //        System.out.println("setValue: " + getFullName() + ": " + value + " => " + proposed);
-        //        if(proposed==Errored)
-        //            new Exception("setValue to Errored").printStackTrace();
         final Object currentValue = value;
         final long currentModtime = modtime;
         if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime) {
@@ -109,7 +105,6 @@ public class Topic extends Node {
         }
         value = validated;
         modtime = proposedModtime;
-        //        context.getLog().note("seen change to "+getFullName()+": "+currentValue+" => "+validated);
         context.queuePublish(this);
         return this;
     }
@@ -123,7 +118,6 @@ public class Topic extends Node {
                 if (s instanceof Subscriber) {
                     ((Subscriber) s).published(what, this);
                 }
-                // TODO: detect if a subscriber fails.  Possibly unsubscribe it if the fault is persistent
             }
         }
         if (parent != null && parentNeedsToKnow()) {

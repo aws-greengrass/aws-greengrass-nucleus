@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.StateTransitionEvent;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -44,13 +45,12 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
 
-    private final EvergreenService.GlobalStateChangeListener onServiceChange =
-            (service, oldState, newState, latest) -> {
-                Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
-                if (callbacks != null) {
-                    callbacks.values().forEach(x -> x.accept(oldState, newState));
-                }
-            };
+    private final GlobalStateChangeListener onServiceChange = (service, oldState, newState, latest) -> {
+        Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
+        if (callbacks != null) {
+            callbacks.values().forEach(x -> x.accept(oldState, newState));
+        }
+    };
 
     @Override
     public void postInject() {

@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -49,7 +50,7 @@ public class Context implements Closeable {
     // magical
     private boolean shuttingDown = false;
     // global state change notification
-    private CopyOnWriteArrayList<EvergreenService.GlobalStateChangeListener> listeners;
+    private CopyOnWriteArrayList<GlobalStateChangeListener> listeners;
     private final BlockingDeque<Runnable> serialized = new LinkedBlockingDeque<>();
     private final Thread publishThread = new Thread() {
         {
@@ -232,7 +233,7 @@ public class Context implements Closeable {
      *
      * @param l listener to add
      */
-    public synchronized void addGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
+    public synchronized void addGlobalStateChangeListener(GlobalStateChangeListener l) {
         if (listeners == null) {
             listeners = new CopyOnWriteArrayList<>();
         }
@@ -244,7 +245,7 @@ public class Context implements Closeable {
      *
      * @param l listener to remove
      */
-    public synchronized void removeGlobalStateChangeListener(EvergreenService.GlobalStateChangeListener l) {
+    public synchronized void removeGlobalStateChangeListener(GlobalStateChangeListener l) {
         if (listeners != null) {
             listeners.remove(l);
         }

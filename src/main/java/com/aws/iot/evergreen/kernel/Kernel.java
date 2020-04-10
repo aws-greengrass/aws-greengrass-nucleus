@@ -81,9 +81,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Path configPath;
     public Path clitoolPath;
     public Path workPath;
+    public Path packageStorePath;
     public String configPathName = "~root/config";
     public String clitoolPathName = "~root/bin";
     public String workPathName = "~root/work";
+    public String packageStorePathName = "~root/packages";
     boolean forReal = true;
     boolean haveRead = false;
     private String mainServiceName = "main";
@@ -216,7 +218,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Exec.addFirstPath(clitoolPath);
         workPath = Paths.get(deTilde(workPathName));
         Exec.setDefaultEnv("HOME", workPath.toString());
-        createPaths(rootPath, configPath, clitoolPath, workPath);
+        packageStorePath = Paths.get(deTilde(packageStorePathName));
+        createPaths(rootPath, configPath, clitoolPath, workPath, packageStorePath);
+
+        context.put("packageStoreDirectory", packageStorePath);
     }
 
     /**
@@ -298,8 +303,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 }
             });
         } catch (Throwable ex) {
-            logger.atError().setEventType("system-boot-error").setCause(ex)
-                    .log("***BOOT FAILED, EXITING*** ");
+            logger.atError().setEventType("system-boot-error").setCause(ex).log("***BOOT FAILED, EXITING*** ");
             // The error is not recoverable, throw the exception up.
             throw ex;
         }
@@ -313,6 +317,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     private void createPaths(Path... paths) {
         for (Path p: paths) {
             try {
+                // This only supports POSIX compliant file permission right now. We will need to
+                // change this when trying to support Evergreen in Non-POSIX OS.
                 Files.createDirectories(p,
                         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             } catch (IOException ex) {

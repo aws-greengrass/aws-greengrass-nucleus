@@ -5,7 +5,7 @@ package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.AfterEach;
@@ -41,7 +41,7 @@ class IPCAwareServicesTest extends BaseITCase {
     @Test
     void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running() throws Exception {
         CountDownLatch serviceRunning = new CountDownLatch(1);
-        EvergreenService.GlobalStateChangeListener listener = (service, oldState, newState, latest) -> {
+        GlobalStateChangeListener listener = (service, oldState, newState, latest) -> {
             if (SAMPLE_IPC_AWARE_SERVICE_NAME.equals(service.getName()) && State.RUNNING.equals(newState)) {
                 serviceRunning.countDown();
             }

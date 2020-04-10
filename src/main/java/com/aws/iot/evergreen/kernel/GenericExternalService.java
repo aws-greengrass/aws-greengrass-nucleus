@@ -21,6 +21,9 @@ import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.aws.iot.evergreen.kernel.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+
 @SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
@@ -47,22 +50,23 @@ public class GenericExternalService extends EvergreenService {
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
-            // when the service is removed via a deployment this topic itself will be removed
-            if (WhatHappened.removed.equals(what) && child == null) {
+            // When the service is removed via a deployment this topic itself will be removed
+            // When first initialized, the child will be null
+            if (WhatHappened.removed.equals(what) || child == null) {
                 return;
             }
-            if (!c.parentNeedsToKnow()) {
+
+            logger.atInfo("service-config-change").kv("configNode", child.getFullName()).log();
+            if (child.childOf("shutdown")) {
                 return;
             }
-            logger.atInfo().setEventType("service-config-change").addKeyValue("configNode", child == null
-                    ? null : child.getFullName()).log();
-            if (c.childOf("shutdown")) {
-                return;
-            }
-            if (c.childOf("install")) {
+
+            // Reinstall for changes to the install script or if the package version changed
+            if (child.childOf("install") || child.childOf(VERSION_CONFIG_KEY)) {
                 requestReinstall();
                 return;
             }
+            // By default for any change, just restart the service
             requestRestart();
         });
 
@@ -83,7 +87,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void startup() throws InterruptedException {
-        RunStatus result = run(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
+        RunStatus result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             runScript = null;
             if (getState() == State.INSTALLED) {
                 if (exit == 0) {
@@ -155,7 +159,6 @@ public class GenericExternalService extends EvergreenService {
         }
     }
 
-
     @Override
     @SuppressWarnings("PMD.CloseResource")
     public void shutdown() {
@@ -193,7 +196,7 @@ public class GenericExternalService extends EvergreenService {
      * @return the status of the run.
      */
     protected RunStatus run(String name, IntConsumer background) throws InterruptedException {
-        Node n = (getLifeCycleTopic() == null) ? null : getLifeCycleTopic().getChild(name);
+        Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(name);
         return n == null ? RunStatus.NothingDone : run(n, background);
     }
 
