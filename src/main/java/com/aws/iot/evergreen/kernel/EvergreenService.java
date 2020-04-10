@@ -256,8 +256,8 @@ public class EvergreenService implements InjectionActions {
                 } catch (InterruptedException e) {
                     logger.error("Interrupted waiting for dependers to exit");
                 }
-                requestStop();
                 lifecycle.setClosed(true);
+                requestStop();
                 lifecycle.getLifecycleFuture().get();
                 closeFuture.complete(null);
             } catch (Exception e) {
