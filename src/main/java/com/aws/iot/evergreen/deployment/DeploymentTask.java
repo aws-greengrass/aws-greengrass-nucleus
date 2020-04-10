@@ -45,8 +45,7 @@ public class DeploymentTask implements Callable<Void> {
             //  of all groups, when multi group support is added.
             List<String> rootPackages = new ArrayList<>(document.getRootPackages());
 
-            List<PackageIdentifier> desiredPackages = dependencyResolver
-                    .resolveDependencies(document, rootPackages);
+            List<PackageIdentifier> desiredPackages = dependencyResolver.resolveDependencies(document, rootPackages);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
             packageStore.preparePackages(desiredPackages).get();

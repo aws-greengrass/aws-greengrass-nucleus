@@ -81,9 +81,11 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Path configPath;
     public Path clitoolPath;
     public Path workPath;
+    public Path packageStorePath;
     public String configPathName = "~root/config";
     public String clitoolPathName = "~root/bin";
     public String workPathName = "~root/work";
+    public String packageStorePathName = "~root/packages";
     boolean forReal = true;
     boolean haveRead = false;
     private String mainServiceName = "main";
@@ -216,7 +218,10 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Exec.addFirstPath(clitoolPath);
         workPath = Paths.get(deTilde(workPathName));
         Exec.setDefaultEnv("HOME", workPath.toString());
-        createPaths(rootPath, configPath, clitoolPath, workPath);
+        packageStorePath = Paths.get(deTilde(packageStorePathName));
+        createPaths(rootPath, configPath, clitoolPath, workPath, packageStorePath);
+
+        context.put("packageStoreDirectory", packageStorePath);
     }
 
     /**
