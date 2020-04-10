@@ -17,7 +17,7 @@ services:
   runErrorRetry:
     lifecycle:
       run: |-
-        sleep 2
+        sleep 5
         echo "RUN_BROKEN"
         exit 1
 
