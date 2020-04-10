@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -53,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag("E2E")
 class DeploymentE2ETest {
     @TempDir
-    static Path tempRootDir;
+    Path tempRootDir;
 
     private static String rootCaFilePath;
     private static String privateKeyFilePath;
@@ -61,8 +62,8 @@ class DeploymentE2ETest {
     private Kernel kernel;
     private Utils.ThingInfo thing;
 
-    @BeforeAll
-    static void beforeAll() {
+    @BeforeEach
+    void beforeEach() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         rootCaFilePath = tempRootDir.resolve("rootCA.pem").toString();
         privateKeyFilePath = tempRootDir.resolve("privKey.key").toString();
