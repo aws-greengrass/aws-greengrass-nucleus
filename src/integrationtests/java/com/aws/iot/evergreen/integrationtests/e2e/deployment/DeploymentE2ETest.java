@@ -14,9 +14,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -73,10 +71,6 @@ class DeploymentE2ETest {
     @AfterEach
     void afterEach() {
         kernel.shutdown();
-    }
-
-    @AfterAll
-    static void afterAll() {
         // Cleanup all IoT thing resources we created
         Utils.cleanAllCreatedThings();
         Utils.cleanAllCreatedJobs();
