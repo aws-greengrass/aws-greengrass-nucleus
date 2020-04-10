@@ -16,7 +16,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Pair;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AllArgsConstructor;
 
 import java.io.IOException;
@@ -258,13 +257,9 @@ public class EvergreenService implements InjectionActions {
         }
     }
 
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     private void enqueueStateEvent(Object event) {
-        try {
-            stateEventQueue.put(event);
-        } catch (InterruptedException e) {
+        if (!stateEventQueue.offer(event)) {
             logger.error("couldn't put the new event to stateEventQueue");
-            e.printStackTrace();
         }
     }
 

@@ -25,15 +25,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 public class EvergreenServiceTest extends EGServiceTestUtil {
     private static final String STATE_TOPIC_NAME = "_State";
     private static final int NUM = 100;
-
-    private static int n = 0; // Easy way to pass n without creating a mutable integer.
 
     private EvergreenService evergreenService;
 
@@ -105,7 +105,7 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
     void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified() throws InterruptedException {
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
         ExecutorService cachedPool = Executors.newCachedThreadPool();
-        CountDownLatch cd = new CountDownLatch(1);
+        CountDownLatch cd = new CountDownLatch(2);
 
         Context context = new Context();
         context.put(ScheduledThreadPoolExecutor.class, ses);
@@ -114,19 +114,20 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         context.put(ExecutorService.class, cachedPool);
         context.put(ThreadPoolExecutor.class, ses);
         context.put(CountDownLatch.class, cd);
+
+        final AtomicInteger n = new AtomicInteger(0);
         context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
-            n++;
+            if (n.incrementAndGet() >= NUM * 2) {
+                cd.countDown();
+            }
         });
 
         context.get(AwesomeService.class).requestStart();
-        cd.await();
+        cd.await(10, TimeUnit.SECONDS);
         context.get(AwesomeService.class).requestStop();
 
-        // Wait a little to receive all state changes.
-        Thread.sleep(10_000);
-
-        // In addition to the states that AwesomeService reports by itself in its loop, there is also an INSTALLED and
-        // FINISHED state change. Therefore, we need to add 2.
-        assertEquals(NUM * 2 + 2, n);
+        // In addition to the states that AwesomeService reports by itself in its loop, there are some more state
+        // changes such as `INSTALLED` and `FINISHED`
+        assertTrue(n.get() >= NUM * 2);
     }
 }
