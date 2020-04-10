@@ -12,8 +12,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.packagemanager.DependencyResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -32,8 +30,12 @@ import software.amazon.awssdk.services.iot.model.JobStatus;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
@@ -56,9 +58,6 @@ class DeploymentE2ETest {
     private static String rootCaFilePath;
     private static String privateKeyFilePath;
     private static String certificateFilePath;
-    private static final Path LOCAL_CACHE_PATH =
-            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
-
     private Kernel kernel;
     private Utils.ThingInfo thing;
 
@@ -85,8 +84,11 @@ class DeploymentE2ETest {
     private void launchKernel(String configFile) throws IOException, InterruptedException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
         setupIotResourcesAndInjectIntoKernel();
-        injectKernelPackageManagementDependencies();
         kernel.launch();
+
+        Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
+        // pre-load contents to package store
+        copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
 
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
@@ -180,8 +182,7 @@ class DeploymentE2ETest {
 
         // New deployment contains dependency conflicts
         String document = new ObjectMapper().writeValueAsString(
-                DeploymentDocument.builder()
-                        .timestamp(System.currentTimeMillis())
+                DeploymentDocument.builder().timestamp(System.currentTimeMillis())
                         .deploymentId(UUID.randomUUID().toString())
                         .rootPackages(Arrays.asList("SomeService", "SomeOldService"))
                         .deploymentPackageConfigurationList(Arrays.asList(
@@ -195,7 +196,8 @@ class DeploymentE2ETest {
         JobExecution jobExecution = Utils.iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thing.thingName).build()).execution();
         assertEquals(JobExecutionStatus.FAILED, jobExecution.status());
-        assertEquals("com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages: {SomeService-v1.0.0=1.0.0, SomeOldService-v0.9.0==0.9.0}",
+        assertEquals(
+                "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages: {SomeService-v1.0.0=1.0.0, SomeOldService-v0.9.0==0.9.0}",
                 jobExecution.statusDetails().detailsMap().get("error"));
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
@@ -219,10 +221,21 @@ class DeploymentE2ETest {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(rootCaFilePath);
     }
 
-    private void injectKernelPackageManagementDependencies() {
-        //TODO use DI for creating package store instance, the package store path is defined in context
-        //currently this is to use a pre-loaded folder in working directory as package store cache
-        kernel.context.getv(DependencyResolver.class)
-                .put(new DependencyResolver(new PackageStore(), kernel));
+    private static void copyFolderRecursively(Path src, Path des) throws IOException {
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Files.createDirectories(des.resolve(src.relativize(dir)));
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, des.resolve(src.relativize(file)));
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
+
 }

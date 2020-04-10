@@ -18,7 +18,6 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,8 +31,14 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -89,13 +94,21 @@ class DeploymentServiceIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() {
+    static void setupKernel() throws IOException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
-        packageStore = new PackageStore(TestHelper.getPathForLocalTestCache(), new GreengrassPackageServiceHelper(),
-                new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor());
+
+        packageStore = new PackageStore(kernel.packageStorePath, new GreengrassPackageServiceHelper(),
+                new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
+
+        Path localStoreContentPath = Paths.get(DeploymentServiceIntegrationTest.class.getResource(
+                "local_store_content").getPath());
+
+        // pre-load contents to package store
+        copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
+
         dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }
@@ -107,7 +120,7 @@ class DeploymentServiceIntegrationTest {
 
     @Test
     @Order(1)
-    public void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
+    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();
         final List<String> listOfExpectedMessages =
@@ -223,5 +236,25 @@ class DeploymentServiceIntegrationTest {
                         sampleDeploymentDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
+    }
+
+    private static void copyFolderRecursively(Path src, Path des)
+            throws IOException {
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+                    throws IOException {
+                Files.createDirectories(des.resolve(src.relativize(dir)));
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                    throws IOException {
+                Files.copy(file, des.resolve(src.relativize(file)));
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

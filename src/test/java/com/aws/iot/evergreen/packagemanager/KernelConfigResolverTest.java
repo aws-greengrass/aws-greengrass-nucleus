@@ -89,8 +89,8 @@ public class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(
                         Arrays.asList(rootPackageDeploymentConfig, dependencyPackageDeploymentConfig)).build();
 
-        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
-        when(packageStore.getRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackage);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getPackageRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
@@ -135,7 +135,7 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
@@ -176,7 +176,7 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
@@ -224,7 +224,7 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageStore.getRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackage);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");

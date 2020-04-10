@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
+import lombok.SneakyThrows;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,9 +69,10 @@ public class KernelConfigResolver {
     /*
      * Processes lifecycle section of each package and add it to the config.
      */
+    @SneakyThrows
     private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document) {
 
-        Package pkg = packageStore.getRecipe(packageIdentifier);
+        Package pkg = packageStore.getPackageRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
