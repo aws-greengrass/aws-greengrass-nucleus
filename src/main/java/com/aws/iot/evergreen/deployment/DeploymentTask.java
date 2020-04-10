@@ -56,9 +56,9 @@ public class DeploymentTask implements Callable<Void> {
             kernel.mergeInNewConfig(document.getDeploymentId(), document.getTimestamp(), newConfig).get();
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", document.getDeploymentId()).log("Finish deployment task");
-        } catch (PackageVersionConflictException | UnexpectedPackagingException e) {
+        } catch (PackageVersionConflictException | UnexpectedPackagingException | ExecutionException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
-        } catch (ExecutionException | InterruptedException | IOException | PackagingException e) {
+        } catch (InterruptedException | IOException | PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
         }
         return null;

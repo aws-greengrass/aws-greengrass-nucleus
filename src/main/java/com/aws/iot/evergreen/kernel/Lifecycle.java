@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -95,8 +96,6 @@ public class Lifecycle {
         }
 
         // TODO: Add validation
-        logger.atInfo().setEventType("service-set-state").kv(CURRENT_STATE_METRIC_NAME, currentState)
-                .kv("newState", newState).log();
 
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
         // across different services.
@@ -105,6 +104,8 @@ public class Lifecycle {
             stateTopic.withValue(newState);
             evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
         }
+        logger.atInfo().setEventType("service-set-state").kv(CURRENT_STATE_METRIC_NAME, currentState)
+                .kv("newState", newState).log();
     }
 
     /**
@@ -289,9 +290,13 @@ public class Lifecycle {
         // we'll transition out of BROKEN state to give it a new chance.
         if (State.NEW.equals(desiredState.get())) {
             updateStateAndBroadcast(State.NEW);
-        } else {
-            logger.atError().setEventType("service-broken")
-                    .log("service is broken. Deployment is needed");
+        }
+        // TODO: (fengwa@) Fix this temporary hack of reducing the busy loop spinning.
+        try {
+            Thread.sleep(Duration.ofSeconds(10L).toMillis());
+        } catch (InterruptedException e) {
+            logger.atWarn("thread-interrupted").log("Thread interrupted while sleep");
+
         }
         return false;
     }
