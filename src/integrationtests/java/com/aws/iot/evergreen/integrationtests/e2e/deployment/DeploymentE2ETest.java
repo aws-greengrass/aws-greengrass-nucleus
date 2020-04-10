@@ -220,7 +220,9 @@ class DeploymentE2ETest {
     }
 
     private void injectKernelPackageManagementDependencies() {
+        //TODO use DI for creating package store instance, the package store path is defined in context
+        //currently this is to use a pre-loaded folder in working directory as package store cache
         kernel.context.getv(DependencyResolver.class)
-                .put(new DependencyResolver(new PackageStore(LOCAL_CACHE_PATH), kernel));
+                .put(new DependencyResolver(new PackageStore(), kernel));
     }
 }

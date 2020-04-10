@@ -10,4 +10,5 @@ public class Constants {
             "Default platform config was not found when parsing recipe for package";
 
     public static final String UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG = "Failed to parse recipe";
+
 }

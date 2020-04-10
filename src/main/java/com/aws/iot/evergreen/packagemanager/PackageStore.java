@@ -3,21 +3,31 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.config.Constants;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnsupportedRecipeFormatException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
+import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
+import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
+import lombok.NoArgsConstructor;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,30 +36,90 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import javax.inject.Inject;
+import javax.inject.Named;
 
 /**
  * TODO Implement public methods.
  */
 @SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.IdenticalCatchBranches"})
-public class PackageStore {
+@NoArgsConstructor // for dependency injection
+public class PackageStore implements InjectionActions {
+    private static final Logger logger = LogManager.getLogger(PackageStore.class);
     private static final Path LOCAL_CACHE_PATH =
             Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
+    private static final String RECIPE_DIRECTORY = "recipe";
+    private static final String ARTIFACT_DIRECTORY = "artifact";
+    private static final String GREENGRASS_SCHEME = "GREENGRASS";
 
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
-    private Path packageStorePath = LOCAL_CACHE_PATH;
 
-    public PackageStore() {
+    private Path recipeDirectory;
+
+    private Path artifactDirectory;
+
+    @Inject
+    private GreengrassRepositoryDownloader greengrassArtifactDownloader;
+
+    @Inject
+    private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
+
+    @Inject
+    private ExecutorService executorService;
+
+    // Workaround using InjectionActions since constructor named pattern injection is not supported yet
+    @Inject
+    @Named("packageStoreDirectory")
+    private Path packageStoreDirectory;
+
+    /**
+     * PackageStore constructor.
+     *
+     * @param packageStoreDirectory directory for caching package recipes and artifacts
+     * @param packageServiceHelper  greengrass package service client helper
+     * @param artifactDownloader    artifact downloader
+     * @param executorService       executor service
+     */
+    public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
+                        GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService) {
+        initializeSubDirectories(packageStoreDirectory);
+        this.greengrassPackageServiceHelper = packageServiceHelper;
+        this.greengrassArtifactDownloader = artifactDownloader;
+        this.executorService = executorService;
     }
 
-    public PackageStore(Path packageStorePath) {
-        this.packageStorePath = packageStorePath;
+    @Override
+    public void postInject() {
+        initializeSubDirectories(packageStoreDirectory);
+    }
+
+    private void initializeSubDirectories(Path packageStoreDirectory) {
+        this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
+        if (!Files.exists(recipeDirectory)) {
+            try {
+                Files.createDirectories(recipeDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException(String.format("Failed to create recipe directory %s", recipeDirectory), e);
+            }
+        }
+        this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
+        if (!Files.exists(artifactDirectory)) {
+            try {
+                Files.createDirectories(artifactDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException(String.format("Failed to create artifact directory %s", artifactDirectory),
+                        e);
+            }
+        }
     }
 
     /**
      * Get package versions with the most preferred version first.
-     * @param pkgName the package name
+     *
+     * @param pkgName           the package name
      * @param versionConstraint a version range
      * @return a iterator for package metadata with the most preferred one first
      */
@@ -62,14 +132,138 @@ public class PackageStore {
      * Make sure all the specified packages exist in the package cache. Download them from remote repository if
      * they don't exist.
      *
-     * @param pkgs a list of packages.
+     * @param pkgIds a list of packages.
      * @return a future to notify once this is finished.
      */
-    public Future<Void> preparePackages(List<PackageIdentifier> pkgs) {
-        // TODO: to be implemented.
-        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
-        completableFuture.complete(null);
-        return completableFuture;
+    public Future<Void> preparePackages(List<PackageIdentifier> pkgIds) {
+        return executorService.submit(() -> {
+            for (PackageIdentifier packageIdentifier : pkgIds) {
+                    preparePackage(packageIdentifier);
+            }
+            return null;
+        });
+    }
+
+    private void preparePackage(PackageIdentifier packageIdentifier)
+            throws PackageLoadingException, PackageDownloadException {
+        logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
+        try {
+            Package pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
+            List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
+                try {
+                    return new URI(artifactStr);
+                } catch (URISyntaxException e) {
+                    String message = String.format("artifact URI %s is invalid", artifactStr);
+                    logger.atError().setCause(e).log(message);
+                    throw new RuntimeException(message, e);
+                }
+            }).collect(Collectors.toList());
+            downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
+            logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
+                    .log();
+        } catch (PackageLoadingException | PackageDownloadException e) {
+            logger.atError().setCause(e).log(String.format("Failed to prepare package %s", packageIdentifier));
+            throw e;
+        }
+    }
+
+    private Package findRecipeDownloadIfNotExisted(PackageIdentifier packageIdentifier)
+            throws PackageDownloadException, PackageLoadingException {
+        Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
+        Optional<Package> packageOptional = Optional.empty();
+        try {
+            packageOptional = findPackageRecipe(recipePath);
+        } catch (PackageLoadingException e) {
+            logger.atWarn().log(String.format("Failed to load package from %s", recipePath), e);
+        }
+        if (packageOptional.isPresent()) {
+            return packageOptional.get();
+        } else {
+            Package pkg = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
+            savePackageRecipeToFile(pkg, recipePath);
+            return pkg;
+        }
+    }
+
+    Optional<Package> findPackageRecipe(Path recipePath) throws PackageLoadingException {
+        logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
+        if (!Files.exists(recipePath) || !Files.isRegularFile(recipePath)) {
+            return Optional.empty();
+        }
+
+        byte[] recipeContent;
+        try {
+            recipeContent = Files.readAllBytes(recipePath);
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", recipePath), e);
+        }
+
+        try {
+            return Optional.of(OBJECT_MAPPER.readValue(recipeContent, Package.class));
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
+        }
+    }
+
+    void savePackageRecipeToFile(Package pkg, Path saveToFile) throws PackageLoadingException {
+        try {
+            OBJECT_MAPPER.writeValue(saveToFile.toFile(), pkg);
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format("Failed to save package recipe to %s", saveToFile), e);
+        }
+    }
+
+    private Path resolveRecipePath(String packageName, Semver packageVersion) {
+        return recipeDirectory.resolve(String.format("%s-%s.yaml", packageName, packageVersion.getValue()));
+    }
+
+    void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<URI> artifactList)
+            throws PackageLoadingException, PackageDownloadException {
+        Path packageArtifactDirectory =
+                resolveArtifactDirectoryPath(packageIdentifier.getName(), packageIdentifier.getVersion());
+        if (!Files.exists(packageArtifactDirectory) || !Files.isDirectory(packageArtifactDirectory)) {
+            try {
+                Files.createDirectories(packageArtifactDirectory);
+            } catch (IOException e) {
+                throw new PackageLoadingException(
+                        String.format("Failed to create package artifact cache directory %s", packageArtifactDirectory),
+                        e);
+            }
+        }
+
+        List<URI> artifactsNeedToDownload = determineArtifactsNeedToDownload(packageArtifactDirectory, artifactList);
+        logger.atDebug().setEventType("downloading-package-artifacts")
+                .addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue("artifactsNeedToDownload", artifactsNeedToDownload).log();
+
+        for (URI artifact : artifactsNeedToDownload) {
+            ArtifactDownloader downloader = selectArtifactDownloader(artifact);
+            try {
+                downloader.downloadToPath(packageIdentifier, artifact, packageArtifactDirectory);
+            } catch (IOException e) {
+                throw new PackageDownloadException(
+                        String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
+            }
+        }
+    }
+
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    private List<URI> determineArtifactsNeedToDownload(Path packageArtifactDirectory, List<URI> artifacts) {
+        //TODO implement proper idempotency logic to determine what artifacts need to download
+        return artifacts;
+    }
+
+    private Path resolveArtifactDirectoryPath(String packageName, Semver packageVersion) {
+        return artifactDirectory.resolve(packageName).resolve(packageVersion.getValue());
+    }
+
+    private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
+        String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
+        if (GREENGRASS_SCHEME.equals(scheme)) {
+            return greengrassArtifactDownloader;
+        }
+
+        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
     }
 
     /**
@@ -80,7 +274,7 @@ public class PackageStore {
      */
     public Package getRecipe(PackageIdentifier pkg) {
         // TODO: to be implemented.
-        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(packageStorePath);
+        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH);
         try {
             return localPackageStore.getPackage(pkg.getName(), pkg.getVersion()).get();
         } catch (PackagingException e) {
@@ -93,11 +287,9 @@ public class PackageStore {
 
     /**
      * Get package from cache if it exists.
-     *
-     *
      */
     List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
-        Path srcPkgRoot = getPackageStorageRoot(packageName, packageStorePath);
+        Path srcPkgRoot = getPackageStorageRoot(packageName, LOCAL_CACHE_PATH);
         List<Semver> versions = new ArrayList<>();
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
@@ -147,7 +339,7 @@ public class PackageStore {
      */
     private Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
             throws PackagingException, IOException {
-        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), packageStorePath);
+        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), LOCAL_CACHE_PATH);
 
         if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
             return Optional.empty();
@@ -172,4 +364,5 @@ public class PackageStore {
                                                      final Path cacheFolder) {
         return getPackageStorageRoot(packageName, cacheFolder).resolve(packageVersion);
     }
+
 }
