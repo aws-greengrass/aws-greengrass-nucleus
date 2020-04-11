@@ -168,6 +168,7 @@ public class DeploymentService extends EvergreenService {
                             //Duplicate message and already processing this deployment so nothing is needed
                             continue;
                         } else {
+                            logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Canceling the job");
                             //Assuming cancel will either cancel the current job or wait till it finishes
                             cancelCurrentDeployment();
                         }
