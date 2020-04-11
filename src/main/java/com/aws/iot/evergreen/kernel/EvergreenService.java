@@ -89,6 +89,10 @@ public class EvergreenService implements InjectionActions {
         return (State) state.getOnce();
     }
 
+    public long getStateModTime() {
+        return state.getModtime();
+    }
+
     /**
      * public API for service to report state. Allowed state are RUNNING, FINISHED, ERRORED.
      *

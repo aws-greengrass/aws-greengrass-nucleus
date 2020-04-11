@@ -94,7 +94,6 @@ public class Lifecycle {
         }
 
         // TODO: Add validation
-        logger.atInfo("service-set-state").kv("newState", newState).log();
 
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
         // across different services.
@@ -103,6 +102,7 @@ public class Lifecycle {
             stateTopic.withValue(newState);
             evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
         }
+        logger.atInfo("service-set-state").kv("newState", newState).log();
     }
 
     /**
