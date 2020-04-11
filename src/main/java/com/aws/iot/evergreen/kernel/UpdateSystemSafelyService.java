@@ -82,9 +82,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
         }
     }
 
-    @SuppressWarnings({"SleepWhileInLoop", "checkstyle:emptycatchblock"})
+    @SuppressWarnings({"SleepWhileInLoop"})
     @Override
-    public void startup() {
+    public void startup() throws InterruptedException {
         // startup() is invoked on it's own thread
         reportState(State.RUNNING);
 
@@ -114,11 +114,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 }
             }
             if (maxt > now) {
-                try {
-                    logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", maxt - now).log();
-                    Thread.sleep(maxt - now);
-                } catch (InterruptedException ignored) {
-                }
+                logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", maxt - now).log();
+                Thread.sleep(maxt - now);
             } else {
                 logger.atDebug().setEventType("service-update-scheduled").log();
                 context.runOnPublishQueueAndWait(() -> {
