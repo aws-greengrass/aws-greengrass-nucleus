@@ -88,6 +88,7 @@ public class PackageStore implements InjectionActions {
     public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
                         GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
                         Kernel kernel) {
+        this.packageStoreDirectory = packageStoreDirectory;
         initializeSubDirectories(packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
         this.greengrassArtifactDownloader = artifactDownloader;
