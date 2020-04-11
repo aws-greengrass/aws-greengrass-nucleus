@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.AdditionalMatchers.or;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -293,7 +294,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     }
 
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
-        Thread t = new Thread(() -> deploymentService.startup());
+        Thread t = new Thread(() -> {
+            try {
+                deploymentService.startup();
+            } catch (InterruptedException e) {
+                fail("Deployment service thread interrupted");
+            }
+        });
         t.start();
         //Waiting for other thread to start
         //TODO: Make it more robust by checking for a service state instead of sleeping.

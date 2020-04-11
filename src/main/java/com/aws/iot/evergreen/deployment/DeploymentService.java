@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -141,50 +142,44 @@ public class DeploymentService extends EvergreenService {
 
 
     @Override
-    public void startup() {
-        try {
-            logger.info("Starting up the Deployment Service");
-            // Reset shutdown signal since we're trying to startup here
-            this.receivedShutdown.set(false);
-            //Cannot put this in constructor since DI injects dependencies after the instance of object is created.
-            // Will revisit the DI to make this better
-            iotJobsHelper.setDeploymentsQueue(deploymentsQueue);
-            iotJobsHelper.setCallbacks(callbacks);
-            connectToAWSIot();
-            reportState(State.RUNNING);
-            logger.info("Running deployment service");
+    public void startup() throws InterruptedException {
+        logger.info("Starting up the Deployment Service");
+        // Reset shutdown signal since we're trying to startup here
+        this.receivedShutdown.set(false);
+        //Cannot put this in constructor since DI injects dependencies after the instance of object is created.
+        // Will revisit the DI to make this better
+        iotJobsHelper.setDeploymentsQueue(deploymentsQueue);
+        iotJobsHelper.setCallbacks(callbacks);
+        connectToAWSIot();
+        reportState(State.RUNNING);
+        logger.info("Running deployment service");
 
-            while (!receivedShutdown.get()) {
-                if (currentProcessStatus != null && currentProcessStatus.isDone()) {
-                    finishCurrentDeployment();
-                }
-                //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
-                //One thread cannot wait on both. If we want to make this completely event driven then we need to put
-                // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
-                Deployment deployment = deploymentsQueue.poll();
-                if (deployment != null) {
-                    if (currentJobId != null) {
-                        if (deployment.getId().equals(currentJobId)) {
-                            //Duplicate message and already processing this deployment so nothing is needed
-                            continue;
-                        } else {
-                            logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Canceling the job");
-                            //Assuming cancel will either cancel the current job or wait till it finishes
-                            cancelCurrentDeployment();
-                        }
-                    }
-                    createNewDeployment(deployment);
-                }
-                Thread.sleep(pollingFrequency);
-
-                if (retryConnectingToAWSIot.get()) {
-                    connectToAWSIot();
-                }
+        while (!receivedShutdown.get()) {
+            if (currentProcessStatus != null && currentProcessStatus.isDone()) {
+                finishCurrentDeployment();
             }
-        } catch (InterruptedException e) {
-            logger.atWarn().log("Interrupted while running deployment service");
-            //TODO: Perform any cleanup that needs to be done
-            reportState(State.FINISHED);
+            //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
+            //One thread cannot wait on both. If we want to make this completely event driven then we need to put
+            // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
+            Deployment deployment = deploymentsQueue.poll();
+            if (deployment != null) {
+                if (currentJobId != null) {
+                    if (deployment.getId().equals(currentJobId)) {
+                        //Duplicate message and already processing this deployment so nothing is needed
+                        continue;
+                    } else {
+                        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Canceling the job");
+                        //Assuming cancel will either cancel the current job or wait till it finishes
+                        cancelCurrentDeployment();
+                    }
+                }
+                createNewDeployment(deployment);
+            }
+            Thread.sleep(pollingFrequency);
+
+            if (retryConnectingToAWSIot.get()) {
+                connectToAWSIot();
+            }
         }
     }
 
@@ -321,8 +316,8 @@ public class DeploymentService extends EvergreenService {
             // processes multiple deployments in the order in which they come. Additionally, a customer workflow can
             // depend on this order. If Group2 gets successfully updated before Group1 then customer workflow may
             // error out.
-            ArrayList<Topic> sortedByTimestamp =
-                    (ArrayList<Topic>) deployments.stream().sorted(new Comparator<Topic>() {
+            List<Topic> sortedByTimestamp =
+                    (List<Topic>) deployments.stream().sorted(new Comparator<Topic>() {
                         @Override
                         public int compare(Topic o1, Topic o2) {
                             if (Long.valueOf(o1.getModtime()) > Long.valueOf(o2.getModtime())) {
