@@ -52,6 +52,7 @@ public class DeploymentService extends EvergreenService {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
+
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
@@ -82,7 +83,7 @@ public class DeploymentService extends EvergreenService {
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
 
-    private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+    private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             if (errorCode != 0) {

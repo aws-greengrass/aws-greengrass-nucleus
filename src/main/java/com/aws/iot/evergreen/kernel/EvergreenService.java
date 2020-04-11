@@ -31,6 +31,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
@@ -40,6 +41,8 @@ public class EvergreenService implements InjectionActions {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
+
+    private static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
     protected final Topics config;
     public Context context;
@@ -73,7 +76,8 @@ public class EvergreenService implements InjectionActions {
         // skipif will require validation for onpath/exists etc. keywords
 
         this.logger = LogManager.getLogger(getName());
-        logger.addDefaultKeyValue(SERVICE_NAME_KEY, getName());
+        logger.dfltKv(SERVICE_NAME_KEY, getName());
+        logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
         this.state = initStateTopic(topics);
 
         this.externalDependenciesTopic = topics.createLeafChild("dependencies").dflt(new ArrayList<String>());
@@ -83,6 +87,10 @@ public class EvergreenService implements InjectionActions {
 
     public State getState() {
         return (State) state.getOnce();
+    }
+
+    public long getStateModTime() {
+        return state.getModtime();
     }
 
     /**
@@ -107,24 +115,23 @@ public class EvergreenService implements InjectionActions {
         return state;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private synchronized void initDependenciesTopic() {
         externalDependenciesTopic.subscribe((what, node) -> {
             if (!WhatHappened.changed.equals(what)) {
                 return;
             }
             Iterable<String> depList = (Iterable<String>) node.getOnce();
-            logger.atInfo().log("Setting up dependencies again", String.join(",", depList));
+            logger.atInfo().log("Setting up dependencies again {}", String.join(",", depList));
             try {
                 setupDependencies(depList);
-            } catch (Exception e) {
+            } catch (ServiceLoadException | InputValidationException e) {
                 logger.atError().log("Error while setting up dependencies from subscription", e);
             }
         });
 
         try {
             setupDependencies((Iterable<String>) externalDependenciesTopic.getOnce());
-        } catch (Exception e) {
+        } catch (ServiceLoadException | InputValidationException e) {
             serviceErrored(e);
         }
     }
@@ -256,8 +263,8 @@ public class EvergreenService implements InjectionActions {
                 } catch (InterruptedException e) {
                     logger.error("Interrupted waiting for dependers to exit");
                 }
-                requestStop();
                 lifecycle.setClosed(true);
+                requestStop();
                 lifecycle.getLifecycleFuture().get();
                 closeFuture.complete(null);
             } catch (Exception e) {
@@ -305,7 +312,8 @@ public class EvergreenService implements InjectionActions {
             if ((State.INSTALLED.equals(getState()) || State.RUNNING.equals(getState()))
                     && !dependencyReady(dependentEvergreenService, startWhenState)) {
                 requestRestart();
-                logger.atInfo().setEventType("service-restart").log("Restart service because of dependencies");
+                logger.atInfo("service-restart").log("Restarting service because dependency {} was in a bad state",
+                        dependentEvergreenService.getName());
             }
             synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
@@ -343,7 +351,7 @@ public class EvergreenService implements InjectionActions {
 
         synchronized (dependersExitedLock) {
             while (!dependersExited(dependers)) {
-                logger.atDebug().setEventType("service-waiting-for-depender-to-finish").log();
+                logger.atDebug("service-waiting-for-depender-to-finish").log();
                 dependersExitedLock.wait();
             }
         }
@@ -356,8 +364,7 @@ public class EvergreenService implements InjectionActions {
         Optional<EvergreenService> dependerService =
                 dependers.stream().filter(d -> !d.getState().isClosable()).findAny();
         if (dependerService.isPresent()) {
-            logger.atDebug().setEventType("continue-waiting-for-dependencies")
-                    .kv("waitingFor", dependerService.get().getName()).log();
+            logger.atDebug("continue-waiting-for-dependencies").kv("waitingFor", dependerService.get().getName()).log();
             return false;
         }
         return true;
@@ -371,7 +378,7 @@ public class EvergreenService implements InjectionActions {
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
         if (!ret.isEmpty()) {
-            logger.atDebug().setEventType("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
+            logger.atDebug("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
         }
         return ret.isEmpty();
     }
@@ -384,7 +391,7 @@ public class EvergreenService implements InjectionActions {
     void waitForDependencyReady() throws InterruptedException {
         synchronized (dependencyReadyLock) {
             while (!dependencyReady()) {
-                logger.atDebug().setEventType("service-waiting-for-dependency").log();
+                logger.atDebug("service-waiting-for-dependency").log();
                 dependencyReadyLock.wait();
             }
         }
@@ -458,8 +465,7 @@ public class EvergreenService implements InjectionActions {
                 .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
                 .map(Map.Entry::getKey).collect(Collectors.toSet());
         if (!removedDependencies.isEmpty()) {
-            logger.atInfo().setEventType("removing-unused-dependencies")
-                    .addKeyValue("removedDependencies", removedDependencies).log();
+            logger.atInfo("removing-unused-dependencies").kv("removedDependencies", removedDependencies).log();
 
             removedDependencies.forEach(dependency -> {
                 DependencyInfo dependencyInfo = dependencies.remove(dependency);
@@ -476,8 +482,8 @@ public class EvergreenService implements InjectionActions {
                 }
                 addOrUpdateDependency(dependentEvergreenService, startWhen, false);
             } catch (InputValidationException e) {
-                logger.atWarn().setCause(e).setEventType("add-dependency")
-                        .log("Unable to add dependency {}", dependentEvergreenService);
+                logger.atWarn("add-dependency")
+                        .log("Unable to add dependency {}", dependentEvergreenService, e);
             }
         });
 
