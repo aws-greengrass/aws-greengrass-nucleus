@@ -58,7 +58,7 @@ public class mergeTest {
         CompletableFuture future = new CompletableFuture();
         Set<EvergreenService> evergreenServices =
                 new HashSet(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        kernel.waitForServicesToStart(evergreenServices, future);
+        kernel.waitForServicesToStart(evergreenServices, future, System.currentTimeMillis());
 
         assertFalse(future.isCompletedExceptionally());
     }
@@ -67,7 +67,9 @@ public class mergeTest {
     public void GIVEN_deployment_WHEN_one_service_is_broken_THEN_waitForServicesToStart_completes_Exceptionally()
             throws InterruptedException {
         Kernel kernel = new Kernel();
+        long curTime = System.currentTimeMillis();
         when(mockMainService.getState()).thenReturn(State.BROKEN);
+        when(mockMainService.getStateModTime()).thenReturn(curTime);
         when(mockMainService.getName()).thenReturn("main");
         when(mockServiceA.getState()).thenReturn(State.RUNNING);
         when(mockServiceB.getState()).thenReturn(State.RUNNING);
@@ -78,7 +80,7 @@ public class mergeTest {
         CompletableFuture future = new CompletableFuture();
         Set<EvergreenService> evergreenServices =
                 new HashSet(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        kernel.waitForServicesToStart(evergreenServices, future);
+        kernel.waitForServicesToStart(evergreenServices, future, curTime - 10L);
 
         ExecutionException t =
                 assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));

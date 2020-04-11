@@ -579,6 +579,8 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
+        // Get the timestamp before mergeMap(). It will be used to check whether services have started.
+        long mergeTime = System.currentTimeMillis();
         if (newConfig.get("services") == null) {
             mergeMap(timestamp, newConfig);
             totallyCompleteFuture.complete(null);
@@ -611,7 +613,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                     context.get(ExecutorService.class).execute(() -> {
                         //TODO: Add timeout
                         try {
-                            waitForServicesToStart(servicesToTrack, totallyCompleteFuture);
+                            waitForServicesToStart(servicesToTrack, totallyCompleteFuture, mergeTime);
                             if (totallyCompleteFuture.isCompletedExceptionally()) {
                                 return;
                             }
@@ -641,13 +643,18 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     }
 
     protected void waitForServicesToStart(Set<EvergreenService> servicesToTrack,
-                                          CompletableFuture totallyCompleteFuture) throws InterruptedException {
+                                          CompletableFuture totallyCompleteFuture,
+                                          long mergeTime) throws InterruptedException {
         while (!totallyCompleteFuture.isCancelled()) {
             boolean allServicesRunning = true;
             for (EvergreenService service : servicesToTrack) {
                 State state = service.getState();
-                // if any service is broken, set exception and return
-                if (State.BROKEN.equals(state)) {
+
+                // If a service is previously BROKEN, its state might have not been updated yet when this check
+                // executes. Therefore we first check the service state has been updated since merge map occurs.
+                if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
+                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv("serviceName", service.getName())
+                            .log("merge-config-service BROKEN");
                     totallyCompleteFuture.completeExceptionally(new ServiceUpdateException(
                             String.format("Service %s in broken state after deployment", service.getName())));
                     return;
