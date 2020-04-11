@@ -302,12 +302,12 @@ public class DeploymentService extends EvergreenService {
 
     //TODO: Move this to a separate class along with storeDeploymentStatusInConfig.
     private void updateStatusOfPersistedDeployments() {
+        Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
         //This method can be called is a separate thread when mqtt connection resumes. While this happens a
         // deployment can finish and config can get updated with the latest deployment's status using the
         // storeDeploymentStatusInConfig. The two threads use the same topics in the config and thus need to be
         // synchronized
-        synchronized (this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS)) {
-            Topics processedDeployments = this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
+        synchronized (processedDeployments) {
             ArrayList<Topic> deployments = new ArrayList<>();
             processedDeployments.forEach(d -> deployments.add((Topic) d));
             // Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
