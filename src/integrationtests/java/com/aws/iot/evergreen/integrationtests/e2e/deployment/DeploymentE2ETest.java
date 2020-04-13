@@ -143,7 +143,7 @@ class DeploymentE2ETest {
                         Arrays.asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null),
                                 new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null))).build());
         String jobId1 = Utils.createJob(document1, targets);
-        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
+        Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(2));
 
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper().writeValueAsString(
@@ -152,7 +152,7 @@ class DeploymentE2ETest {
                         .deploymentPackageConfigurationList(Arrays.asList(
                                 new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null))).build());
         String jobId2 = Utils.createJob(document2, targets);
-        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
+        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(2));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertEquals(State.FINISHED, kernel.getMain().getState());
@@ -199,6 +199,59 @@ class DeploymentE2ETest {
                 jobExecution.statusDetails().detailsMap().get("error"));
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
+    }
+
+    @Test
+    void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful()
+            throws Exception {
+
+        launchKernel("blank_config.yaml");
+
+        // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
+        String document = new ObjectMapper().writeValueAsString(
+                DeploymentDocument.builder().timestamp(System.currentTimeMillis())
+                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
+                        .deploymentPackageConfigurationList(Arrays.asList(
+                                new DeploymentPackageConfiguration("CustomerApp", "0.9.0", null, null, null))).build());
+
+        // Create job targeting our DUT.
+        // TODO: Eventually switch this to target using Thing Group instead of individual Thing
+        String[] targets = {thing.thingArn};
+        String jobId = Utils.createJob(document, targets);
+
+        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
+        // CustomerApp should be in BROKEN state and Main should be INSTALLED.
+        assertEquals(State.INSTALLED, kernel.getMain().getState());
+        assertEquals(State.BROKEN, kernel.locate("CustomerApp").getState());
+
+        // IoT Job should have failed.
+        assertEquals(JobExecutionStatus.FAILED, Utils.iotClient.describeJobExecution(
+                DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thing.thingName).build()).execution()
+                .status());
+        assertEquals(JobStatus.COMPLETED,
+                Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
+
+        // Create another job with a fix to the faulty service (CustomerApp-0.9.1).
+        String document2 = new ObjectMapper().writeValueAsString(
+                DeploymentDocument.builder().timestamp(System.currentTimeMillis())
+                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
+                        .deploymentPackageConfigurationList(Arrays.asList(
+                                new DeploymentPackageConfiguration("CustomerApp", "0.9.1", null, null, null))).build());
+
+        // TODO: Eventually switch this to target using Thing Group instead of individual Thing
+        String jobId2 = Utils.createJob(document2, targets);
+
+        Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(2));
+        // Ensure that main is FINISHED and CustomerApp is RUNNING.
+        assertEquals(State.FINISHED, kernel.getMain().getState());
+        assertEquals(State.RUNNING, kernel.locate("CustomerApp").getState());
+
+        // Make sure that IoT Job was marked as successful
+        assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
+                DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thing.thingName).build()).execution()
+                .status());
+        assertEquals(JobStatus.COMPLETED,
+                Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
     }
 
     private void setupIotResourcesAndInjectIntoKernel() throws IOException {
