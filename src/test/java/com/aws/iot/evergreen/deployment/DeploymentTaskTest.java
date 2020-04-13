@@ -37,6 +37,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class DeploymentTaskTest {
+
+
+
+
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
@@ -48,17 +52,16 @@ public class DeploymentTaskTest {
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
                     .rootPackages(Collections.EMPTY_LIST).build();
-
     private final Logger logger = LogManager.getLogger("unit test");
 
     private DeploymentTask deploymentTask;
 
+
     @BeforeEach
-    public void setup() {
+    public void setup() throws Exception {
         deploymentTask =
                 new DeploymentTask(mockDependencyResolver, mockPackageStore, mockKernelConfigResolver, mockKernel,
                         logger, deploymentDocument);
-
     }
 
     @Test
