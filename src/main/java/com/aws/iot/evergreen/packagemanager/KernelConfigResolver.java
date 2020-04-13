@@ -53,10 +53,9 @@ public class KernelConfigResolver {
      * @param rootPackages     root level packages
      * @return a kernel config map
      * @throws PackageLoadingException if any service package was unable to be loaded
-     * @throws InterruptedException when the running thread is interrupted
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
-                                       List<String> rootPackages) throws PackageLoadingException, InterruptedException {
+                                       List<String> rootPackages) throws PackageLoadingException {
 
         Map<Object, Object> servicesConfig = new HashMap<>();
         for (PackageIdentifier packageToDeploy : packagesToDeploy) {

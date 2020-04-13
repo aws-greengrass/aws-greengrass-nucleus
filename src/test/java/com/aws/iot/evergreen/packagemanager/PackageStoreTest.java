@@ -232,7 +232,7 @@ class NewPackageStoreTest {
 
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.getChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
         // WHEN
@@ -312,7 +312,7 @@ class NewPackageStoreTest {
 
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.getChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION);
 
         // WHEN
@@ -346,7 +346,7 @@ class NewPackageStoreTest {
         Topic versionTopic = Mockito.mock(Topic.class);
 
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.getChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
         assertThat(packageStore.getPackageVersionFromService(mockService), is(ACTIVE_VERSION));

@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -351,9 +352,9 @@ public class PackageStore implements InjectionActions {
      * @return the package version from the active Evergreen service
      */
     Semver getPackageVersionFromService(final EvergreenService service) {
-        Node versionNode = service.getServiceConfig().getChild(KernelConfigResolver.VERSION_CONFIG_KEY);
+        Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
         //TODO handle null case
-        return new Semver(Coerce.toString(versionNode));
+        return new Semver(Coerce.toString(versionTopic));
     }
 
     /**
@@ -437,7 +438,11 @@ public class PackageStore implements InjectionActions {
 
         // MonitoringService-1.0.0.yaml
         String suffix = ".yaml";
-        String versionStr = filename.split(suffix)[0].split("-")[1];
+        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
+
+        // Package name could have '-'. Pick the last part since the version is always after the package name.
+        String versionStr = packageNameAndVersionParts[packageNameAndVersionParts.length - 1];
+
         try {
             return new Semver(versionStr);
         } catch (SemverException e) {
