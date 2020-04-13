@@ -99,6 +99,7 @@ public class DeploymentService extends EvergreenService {
         }
 
         @Override
+        @SuppressWarnings("PMD.UselessParentheses")
         public void onConnectionResumed(boolean sessionPresent) {
             logger.atInfo().kv("sessionPresent", (sessionPresent ? "true" : "false")).log("Connection resumed");
             runInSeparateThread(() -> {
@@ -214,7 +215,7 @@ public class DeploymentService extends EvergreenService {
 
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
+    @SuppressWarnings({"PMD.NullAssignment", "PMD.AvoidGettingFutureWithoutTimeout"})
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Current deployment finished");
         try {
@@ -241,6 +242,7 @@ public class DeploymentService extends EvergreenService {
         updateStatusOfPersistedDeployments();
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     private void cancelCurrentDeployment() {
         //TODO: Make the deployment task be able to handle the interrupt
         // and wait till the job gets cancelled or is finished
