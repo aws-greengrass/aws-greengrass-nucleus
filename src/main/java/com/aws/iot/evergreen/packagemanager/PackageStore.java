@@ -26,7 +26,6 @@ import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NoArgsConstructor;
-import org.apache.logging.log4j.util.Strings;
 
 import java.io.File;
 import java.io.IOException;
@@ -442,9 +441,7 @@ public class PackageStore implements InjectionActions {
         String suffix = ".yaml";
         String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
 
-        List<String> l = new ArrayList<>(Arrays.asList(packageNameAndVersionParts));
-        l.remove(l.size() - 1); // Remove the version
-        return Strings.join(l, '-');
+        return String.join("-", Arrays.copyOf(packageNameAndVersionParts, packageNameAndVersionParts.length - 1));
     }
 
     private static Semver parseVersionFromFileName(String filename) throws UnexpectedPackagingException {

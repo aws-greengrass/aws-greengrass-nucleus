@@ -58,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class DeploymentServiceIntegrationTest {
+class DeploymentTaskIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello evergreen. This is a test";
 
@@ -89,21 +89,21 @@ class DeploymentServiceIntegrationTest {
     @BeforeAll
     static void setupLogger() {
         outputMessagesToTimestamp = new HashMap<>();
-        logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
+        logger = LogManager.getLogger(DeploymentTaskIntegrationTest.class);
     }
 
     @BeforeAll
     static void setupKernel() throws IOException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
+        kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
 
         // initialize packageStore and dependencyResolver
         packageStore = new PackageStore(kernel.packageStorePath, new GreengrassPackageServiceHelper(),
                 new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
 
-        Path localStoreContentPath = Paths.get(DeploymentServiceIntegrationTest.class.getResource(
+        Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource(
                 "local_store_content").getPath());
 
         // pre-load contents to package store
@@ -141,7 +141,7 @@ class DeploymentServiceIntegrationTest {
         };
         Log4jLogEventBuilder.addGlobalListener(listener);
         Future<?> result = submitSampleJobDocument(
-                DeploymentServiceIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
+                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
                 System.currentTimeMillis());
 
         result.get(60, TimeUnit.SECONDS);
@@ -170,7 +170,7 @@ class DeploymentServiceIntegrationTest {
         Log4jLogEventBuilder.addGlobalListener(listener);
 
         Future<?> result = submitSampleJobDocument(
-                DeploymentServiceIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
+                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
                 System.currentTimeMillis());
         result.get(30, TimeUnit.SECONDS);
         countDownLatch.await(60, TimeUnit.SECONDS);
@@ -190,7 +190,7 @@ class DeploymentServiceIntegrationTest {
     void GIVEN_services_running_WHEN_service_added_and_deleted_THEN_add_remove_service_accordingly() throws Exception {
 
         Future<?> result = submitSampleJobDocument(
-                DeploymentServiceIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
+                DeploymentTaskIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
                 System.currentTimeMillis());
         result.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
@@ -206,7 +206,7 @@ class DeploymentServiceIntegrationTest {
         assertTrue(services.contains("GreenSignal"));
 
         result = submitSampleJobDocument(
-                DeploymentServiceIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
+                DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         result.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
