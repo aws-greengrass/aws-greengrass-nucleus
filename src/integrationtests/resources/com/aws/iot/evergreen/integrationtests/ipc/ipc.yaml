@@ -26,4 +26,4 @@ services:
       - http-resource
     lifecycle:
       run:
-        exit 0
+        sleep 60
