@@ -54,12 +54,12 @@ class DeploymentTaskTest {
 
     private DeploymentTask deploymentTask;
 
+
     @BeforeEach
     void setup() {
         deploymentTask =
                 new DeploymentTask(mockDependencyResolver, mockPackageStore, mockKernelConfigResolver, mockKernel,
                         logger, deploymentDocument);
-
     }
 
     @Test

@@ -56,7 +56,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DeploymentServiceIntegrationTest {
@@ -78,7 +77,7 @@ class DeploymentServiceIntegrationTest {
     private static PackageStore packageStore;
     private static KernelConfigResolver kernelConfigResolver;
 
-    private DeploymentDocument sampleDeploymentDocument;
+    private DeploymentDocument sampleJobDocument;
     private static Kernel kernel;
 
     private static Map<String, Long> outputMessagesToTimestamp;
@@ -225,16 +224,11 @@ class DeploymentServiceIntegrationTest {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private Future<?> submitSampleJobDocument(URI uri, Long timestamp) {
-        try {
-            sampleDeploymentDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
-        } catch (Exception e) {
-            fail("Failed to create Deployment document object from sample job document", e.getCause());
-        }
-        sampleDeploymentDocument.setTimestamp(timestamp);
-        DeploymentTask deploymentTask =
-                new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
-                        sampleDeploymentDocument);
+    private Future<?> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
+        sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
+        sampleJobDocument.setTimestamp(timestamp);
+        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver,
+                kernel, logger, sampleJobDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
     }

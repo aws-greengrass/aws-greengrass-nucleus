@@ -42,11 +42,11 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
-import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.iot.evergreen.deployment.DeploymentService.DEVICE_PARAM_THING_NAME;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
