@@ -53,5 +53,4 @@ class IPCAwareServicesTest extends BaseITCase {
         boolean isRunning = serviceRunning.await(60, TimeUnit.SECONDS);
         assertTrue(isRunning);
     }
-
 }
