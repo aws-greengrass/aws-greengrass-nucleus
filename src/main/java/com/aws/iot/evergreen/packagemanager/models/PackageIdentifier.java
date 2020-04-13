@@ -27,7 +27,6 @@ public class PackageIdentifier {
      * @param name package name
      * @param version package version in semver
      */
-    @Deprecated
     public PackageIdentifier(String name, Semver version) {
         this.name = name;
         this.version = version;

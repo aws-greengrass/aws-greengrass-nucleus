@@ -1,0 +1,15 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: CustomerApp
+Description: A customer app
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+  - name: sampleText
+    value: This is a test
+    type: STRING
+Lifecycle:
+  run:
+    echo "Hello evergreen. {{params:sampleText.value}}"
+Dependencies:
+  Mosquitto: 1.0.0

@@ -3,23 +3,26 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.packagemanager.config.Constants;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
-import com.aws.iot.evergreen.packagemanager.exceptions.UnsupportedRecipeFormatException;
 import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
-import com.aws.iot.evergreen.packagemanager.plugins.LocalPackageStoreDeprecated;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NoArgsConstructor;
@@ -28,11 +31,11 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -42,18 +45,14 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-/**
- * TODO Implement public methods.
- */
-@SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.IdenticalCatchBranches"})
 @NoArgsConstructor // for dependency injection
 public class PackageStore implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
-    private static final Path LOCAL_CACHE_PATH =
-            Paths.get(System.getProperty("user.dir")).resolve("local_artifact_source");
     private static final String RECIPE_DIRECTORY = "recipe";
     private static final String ARTIFACT_DIRECTORY = "artifact";
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
+    private static final String VERSION_KEY = "version";
+    private static final String PACKAGE_NAME_KEY = "packageName";
 
     private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
 
@@ -70,10 +69,12 @@ public class PackageStore implements InjectionActions {
     @Inject
     private ExecutorService executorService;
 
-    // Workaround using InjectionActions since constructor named pattern injection is not supported yet
     @Inject
     @Named("packageStoreDirectory")
     private Path packageStoreDirectory;
+
+    @Inject
+    private Kernel kernel;
 
     /**
      * PackageStore constructor.
@@ -82,15 +83,20 @@ public class PackageStore implements InjectionActions {
      * @param packageServiceHelper  greengrass package service client helper
      * @param artifactDownloader    artifact downloader
      * @param executorService       executor service
+     * @param kernel                kernel
      */
     public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
-                        GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService) {
+                        GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
+                        Kernel kernel) {
+        this.packageStoreDirectory = packageStoreDirectory;
         initializeSubDirectories(packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
         this.greengrassArtifactDownloader = artifactDownloader;
         this.executorService = executorService;
+        this.kernel = kernel;
     }
 
+    // Workaround using InjectionActions since constructor named pattern injection is not supported yet
     @Override
     public void postInject() {
         initializeSubDirectories(packageStoreDirectory);
@@ -117,15 +123,49 @@ public class PackageStore implements InjectionActions {
     }
 
     /**
-     * Get package versions with the most preferred version first.
+     * List the package metadata for available package versions that satisfy the requirement.
+     * It is ordered by the active version first if found, followed by available versions locally.
      *
-     * @param pkgName           the package name
-     * @param versionConstraint a version range
-     * @return a iterator for package metadata with the most preferred one first
+     * @param packageName        the package name
+     * @param versionRequirement the version requirement for this package
+     * @return an iterator of PackageMetadata, with the active version first if found, followed by available versions
+     *     locally.
+     * @throws PackagingException if fails when trying to list available package metadata
+     *
      */
-    Iterator<PackageMetadata> getPackageMetadata(String pkgName, String versionConstraint) {
-        // TODO to be implemented
-        return null;
+    public Iterator<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
+            throws PackagingException {
+        // TODO Switch to customized Iterator to enable lazy iteration
+
+        // 1. Find the version if this package is currently active with some version and it is satisfied by requirement
+        Optional<PackageMetadata> optionalActivePackageMetadata =
+                findActiveAndSatisfiedPackageMetadata(packageName, versionRequirement);
+
+        // 2. list available packages locally
+        List<PackageMetadata> packageMetadataList =
+                listAvailablePackageMetadataFromLocal(packageName, versionRequirement);
+
+        // 3. If the active satisfied version presents, set it as the head of list.
+        if (optionalActivePackageMetadata.isPresent()) {
+            PackageMetadata activePackageMetadata = optionalActivePackageMetadata.get();
+
+            logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
+                    .addKeyValue(VERSION_KEY, activePackageMetadata.getPackageIdentifier().getVersion())
+                    .log("Found active version for dependency package and it is satisfied by the version requirement."
+                            + " Setting it as the head of the available package list.");
+
+            packageMetadataList.remove(activePackageMetadata);
+            packageMetadataList.add(0, activePackageMetadata);
+
+        }
+
+        // TODO 4. list available packages from cloud when cloud SDK is ready.
+
+
+        logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
+                .addKeyValue("packageMetadataList", packageMetadataList)
+                .log("Found possible versions for dependency package");
+        return packageMetadataList.iterator();
     }
 
     /**
@@ -138,7 +178,7 @@ public class PackageStore implements InjectionActions {
     public Future<Void> preparePackages(List<PackageIdentifier> pkgIds) {
         return executorService.submit(() -> {
             for (PackageIdentifier packageIdentifier : pkgIds) {
-                    preparePackage(packageIdentifier);
+                preparePackage(packageIdentifier);
             }
             return null;
         });
@@ -183,6 +223,25 @@ public class PackageStore implements InjectionActions {
             savePackageRecipeToFile(pkg, recipePath);
             return pkg;
         }
+    }
+
+    /**
+     * Get the package recipe with given package identifier.
+     *
+     * @param pkgId package identifier
+     * @return retrieved package recipe.
+     * @throws PackageLoadingException if fails to find the target package recipe or failed to load recipe
+     */
+    public Package getPackageRecipe(PackageIdentifier pkgId) throws PackageLoadingException {
+        Optional<Package> optionalPackage = findPackageRecipe(resolveRecipePath(pkgId.getName(), pkgId.getVersion()));
+
+        if (!optionalPackage.isPresent()) {
+            // TODO refine exception and logs
+            throw new PackageLoadingException(
+                    String.format("The recipe for package: '%s' doesn't exist in the local package store.", pkgId));
+        }
+
+        return optionalPackage.get();
     }
 
     Optional<Package> findPackageRecipe(Path recipePath) throws PackageLoadingException {
@@ -266,103 +325,129 @@ public class PackageStore implements InjectionActions {
         throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
     }
 
+
     /**
-     * Retrieve the recipe of a package.
+     * Find the active version for a package.
      *
-     * @param pkg package identifier
-     * @return package recipe
+     * @param packageName the package name
+     * @return Optional of version; Empty if no active version for this package found.
      */
-    public Package getRecipe(PackageIdentifier pkg) {
-        // TODO: to be implemented.
-        LocalPackageStoreDeprecated localPackageStore = new LocalPackageStoreDeprecated(LOCAL_CACHE_PATH);
+    private Optional<Semver> findActiveVersion(final String packageName) {
+        EvergreenService service;
         try {
-            return localPackageStore.getPackage(pkg.getName(), pkg.getVersion()).get();
-        } catch (PackagingException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+            service = kernel.locate(packageName);
+        } catch (ServiceLoadException e) {
+            logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
+                    .log("Didn't find a active service for this package running in the kernel.");
+            return Optional.empty();
         }
-        return null;
+        return Optional.of(getPackageVersionFromService(service));
     }
 
     /**
-     * Get package from cache if it exists.
+     * Get the package version from the active Evergreen service.
+     *
+     * @param service the active evergreen service
+     * @return the package version from the active Evergreen service
      */
-    List<Semver> getPackageVersionsIfExists(final String packageName) throws UnexpectedPackagingException {
-        Path srcPkgRoot = getPackageStorageRoot(packageName, LOCAL_CACHE_PATH);
-        List<Semver> versions = new ArrayList<>();
+    Semver getPackageVersionFromService(final EvergreenService service) {
+        Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
+        //TODO handle null case
+        return new Semver(Coerce.toString(versionTopic));
+    }
 
-        if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
-            return versions;
+    /**
+     * Find the package metadata for a package if it's active version satisfies the requirement.
+     *
+     * @param packageName the package name
+     * @param requirement the version requirement
+     * @return Optional of the package metadata for the package; empty if this package doesn't have active version or
+     *     the active version doesn't satisfy the requirement.
+     * @throws PackagingException if fails to find the target recipe or parse the recipe
+     */
+    private Optional<PackageMetadata> findActiveAndSatisfiedPackageMetadata(String packageName, Requirement requirement)
+            throws PackagingException {
+        Optional<Semver> activeVersionOptional = findActiveVersion(packageName);
+
+        if (!activeVersionOptional.isPresent()) {
+            return Optional.empty();
         }
 
-        File[] versionDirs = srcPkgRoot.toFile().listFiles(File::isDirectory);
-        if (versionDirs == null || versionDirs.length == 0) {
-            return versions;
+        Semver activeVersion = activeVersionOptional.get();
+
+        if (!requirement.isSatisfiedBy(activeVersion)) {
+            return Optional.empty();
         }
 
-        try {
-            for (File versionDir : versionDirs) {
-                // TODO: Depending on platform, this may need to avoid failures on other things
-                versions.add(new Semver(versionDir.getName(), Semver.SemverType.NPM));
+        return Optional.of(getPackageMetadata(new PackageIdentifier(packageName, activeVersion)));
+    }
+
+    /**
+     * list PackageMetadata for available packages that satisfies the requirement.
+     *
+     * @param packageName the target package
+     * @param requirement version requirement
+     * @return a list of PackageMetadata that satisfies the requirement.
+     * @throws UnexpectedPackagingException if fails to parse version directory to Semver
+     */
+    private List<PackageMetadata> listAvailablePackageMetadataFromLocal(final String packageName,
+                                                                        Requirement requirement)
+            throws PackagingException {
+        File[] recipeFiles = recipeDirectory.toFile().listFiles();
+
+        if (recipeFiles == null || recipeFiles.length == 0) {
+            return Collections.emptyList();
+        }
+
+        Arrays.sort(recipeFiles);
+
+        List<PackageMetadata> packageMetadataList = new ArrayList<>();
+
+        for (File recipeFile : recipeFiles) {
+
+            Semver version = parseVersionFromFileName(recipeFile.getName());
+
+            if (requirement.isSatisfiedBy(version)) {
+                packageMetadataList.add(getPackageMetadata(new PackageIdentifier(packageName, version)));
             }
-        } catch (SemverException e) {
-            throw new UnexpectedPackagingException("Package Cache is corrupted! " + e.toString(), e);
+
         }
 
-        return versions;
+        return packageMetadataList;
     }
 
     /**
-     * Get package from cache if it exists.
+     * Get package metadata for given package name and version.
      *
-     * @return Optional containing package recipe as a String
+     * @param pkgId package id
+     * @return PackageMetadata; non-null
+     * @throws PackagingException if fails to find or parse the recipe
      */
-    Optional<Package> getPackage(final String packageName, final Semver packageVersion)
-            throws PackagingException, IOException {
-        Optional<String> packageRecipeContent = getPackageRecipe(packageName, packageVersion);
-        if (!packageRecipeContent.isPresent()) {
-            return Optional.empty();
-        }
+    PackageMetadata getPackageMetadata(PackageIdentifier pkgId) throws PackagingException {
+        Package retrievedPackage = getPackageRecipe(pkgId);
+
+        return new PackageMetadata(
+                new PackageIdentifier(retrievedPackage.getPackageName(), retrievedPackage.getVersion()),
+                retrievedPackage.getDependencies());
+    }
+
+
+    private static Semver parseVersionFromFileName(String filename) throws UnexpectedPackagingException {
+        // TODO validate filename
+
+        // MonitoringService-1.0.0.yaml
+        String suffix = ".yaml";
+        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
+
+        // Package name could have '-'. Pick the last part since the version is always after the package name.
+        String versionStr = packageNameAndVersionParts[packageNameAndVersionParts.length - 1];
+
         try {
-            Package pkgRecipe = OBJECT_MAPPER.readValue(packageRecipeContent.get(), Package.class);
-            return Optional.ofNullable(pkgRecipe);
-        } catch (IOException e) {
-            throw new UnsupportedRecipeFormatException(Constants.UNABLE_TO_PARSE_RECIPE_EXCEPTION_MSG, e);
+            return new Semver(versionStr);
+        } catch (SemverException e) {
+            throw new UnexpectedPackagingException(
+                    String.format("Package recipe file name: '%s' is corrupted!", filename), e);
         }
-    }
-
-    /**
-     * Get package from cache if it exists.
-     *
-     * @return Optional containing package recipe as a String
-     */
-    private Optional<String> getPackageRecipe(final String packageName, final Semver packageVersion)
-            throws PackagingException, IOException {
-        Path srcPkgRoot = getPackageVersionStorageRoot(packageName, packageVersion.toString(), LOCAL_CACHE_PATH);
-
-        if (!Files.exists(srcPkgRoot) || !Files.isDirectory(srcPkgRoot)) {
-            return Optional.empty();
-        }
-        // TODO: Move to a Common list of Constants
-        Path recipePath = srcPkgRoot.resolve(Constants.RECIPE_FILE_NAME);
-
-        if (!Files.exists(recipePath) && Files.isRegularFile(recipePath)) {
-            throw new PackagingException("Package manager cache is corrupt");
-            // TODO Take some corrective actions before throwing
-        }
-
-        return Optional.of(new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8));
-    }
-
-
-    private static Path getPackageStorageRoot(final String packageName, final Path cacheFolder) {
-        return cacheFolder.resolve(packageName);
-    }
-
-    private static Path getPackageVersionStorageRoot(final String packageName, final String packageVersion,
-                                                     final Path cacheFolder) {
-        return getPackageStorageRoot(packageName, cacheFolder).resolve(packageVersion);
     }
 
 }

@@ -10,8 +10,10 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
+import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
+import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -24,12 +26,18 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.Executors;
 
 public class DependencyResolverBenchmark {
 
@@ -39,27 +47,36 @@ public class DependencyResolverBenchmark {
     @Warmup(iterations = 5)
     @State(Scope.Benchmark)
     public abstract static class DRIntegration {
-        private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",Arrays.asList("boto3", "awscli"), Arrays.asList(
-                new DeploymentPackageConfiguration("boto3", "1.9.128", "", new HashSet<>(), new ArrayList<>()),
-                new DeploymentPackageConfiguration("awscli", "1.16.144", "", new HashSet<>(), new ArrayList<>())
-        ), "mockGroup1", 1L);
+        private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1", Arrays.asList("boto3", "awscli"),
+                Arrays.asList(
+                        new DeploymentPackageConfiguration("boto3", "1.9.128", "", new HashSet<>(), new ArrayList<>()),
+                        new DeploymentPackageConfiguration("awscli", "1.16.144", "", new HashSet<>(),
+                                new ArrayList<>())), "mockGroup1", 1L);
 
         private DependencyResolver resolver;
         private List<PackageIdentifier> result;
         private Kernel kernel;
 
         @Setup
-        public void setup() {
+        public void setup() throws IOException {
             kernel = new Kernel();
             kernel.parseArgs("-i", DependencyResolverBenchmark.class.getResource(getConfigFile()).toString());
             kernel.launch();
-
             // TODO: Update local package store accordingly when the new implementation is ready
             // TODO: Figure out if there's a better way to load resource directory in local package store
             // For now, hardcode to be under root of kernel package
-            Path packagePath = Paths.get(System.getProperty("user.dir"))
+
+            // initialize packageStore, dependencyResolver, and kernelConfigResolver
+            PackageStore packageStore = new PackageStore(kernel.packageStorePath, new GreengrassPackageServiceHelper(),
+                    new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
+
+            Path localStoreContentPath = Paths.get(System.getProperty("user.dir"))
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
-            resolver = new DependencyResolver(new PackageStore(packagePath), kernel);
+
+            // pre-load contents to package store
+            copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
+
+            resolver = new DependencyResolver(packageStore, kernel);
         }
 
         @TearDown(Level.Invocation)
@@ -93,5 +110,22 @@ public class DependencyResolverBenchmark {
         protected String getConfigFile() {
             return "DRBStatefulConfig.yaml";
         }
+    }
+
+    private static void copyFolderRecursively(Path src, Path des) throws IOException {
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Files.createDirectories(des.resolve(src.relativize(dir)));
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, des.resolve(src.relativize(file)));
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }
