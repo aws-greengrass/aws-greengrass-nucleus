@@ -99,8 +99,7 @@ public class Lifecycle {
         synchronized (State.class) {
             prevState = currentState;
             stateTopic.withValue(newState);
-            evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState,
-                    stateEventQueue.isEmpty());
+            evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
         }
         logger.atInfo("service-set-state").kv("newState", newState).log();
     }
