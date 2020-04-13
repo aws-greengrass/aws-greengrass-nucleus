@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -123,7 +124,7 @@ public class DependencyResolverBenchmark {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, des.resolve(src.relativize(file)));
+                Files.copy(file, des.resolve(src.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
                 return FileVisitResult.CONTINUE;
             }
         });

@@ -166,7 +166,7 @@ public class DependencyResolver {
                 String depPkgName = entry.getKey();
 
                 if (resolvedPackageNameToVersion.containsKey(depPkgName)) {
-                    Semver resolvedVersion = resolvedPackageNameToVersion.get(entry.getKey());
+                    Semver resolvedVersion = resolvedPackageNameToVersion.get(depPkgName);
                     String newRequirement = entry.getValue();
                     if (!Requirement.buildNPM(newRequirement).isSatisfiedBy(resolvedVersion)) {
                         // If a dependency package is already resolved, but the version does not satisfy the current

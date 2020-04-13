@@ -26,6 +26,7 @@ import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NoArgsConstructor;
+import org.apache.logging.log4j.util.Strings;
 
 import java.io.File;
 import java.io.IOException;
@@ -404,13 +405,16 @@ public class PackageStore implements InjectionActions {
         List<PackageMetadata> packageMetadataList = new ArrayList<>();
 
         for (File recipeFile : recipeFiles) {
+            String recipePackageName = parsePackageNameFromFileName(recipeFile.getName());
+            // Only check the recipes for the package that we're looking for
+            if (!recipePackageName.equalsIgnoreCase(packageName)) {
+                continue;
+            }
 
             Semver version = parseVersionFromFileName(recipeFile.getName());
-
             if (requirement.isSatisfiedBy(version)) {
                 packageMetadataList.add(getPackageMetadata(new PackageIdentifier(packageName, version)));
             }
-
         }
 
         return packageMetadataList;
@@ -431,6 +435,17 @@ public class PackageStore implements InjectionActions {
                 retrievedPackage.getDependencies());
     }
 
+    private static String parsePackageNameFromFileName(String filename) {
+        // TODO validate filename
+
+        // MonitoringService-1.0.0.yaml
+        String suffix = ".yaml";
+        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
+
+        List<String> l = new ArrayList<>(Arrays.asList(packageNameAndVersionParts));
+        l.remove(l.size() - 1); // Remove the version
+        return Strings.join(l, '-');
+    }
 
     private static Semver parseVersionFromFileName(String filename) throws UnexpectedPackagingException {
         // TODO validate filename
