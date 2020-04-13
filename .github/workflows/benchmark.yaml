@@ -39,7 +39,7 @@ jobs:
           java -jar src/test/evergreen-kernel-benchmark/target/benchmarks.jar
           -rf json
           -foe true
-          -jvmArgs "-Xms1m -Xmx128m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
+          -jvmArgs "-Xms1m -Xmx64m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
           -prof com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler
       - name: Upload JMH Result
