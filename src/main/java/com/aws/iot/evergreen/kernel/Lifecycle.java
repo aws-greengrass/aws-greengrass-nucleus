@@ -41,7 +41,6 @@ public class Lifecycle {
 
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
-    private static final String CURRENT_STATE_METRIC_NAME = "currentState";
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
@@ -94,8 +93,6 @@ public class Lifecycle {
         }
 
         // TODO: Add validation
-        logger.atInfo().setEventType("service-set-state").kv(CURRENT_STATE_METRIC_NAME, currentState)
-                .kv("newState", newState).log();
 
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
         // across different services.
@@ -105,6 +102,7 @@ public class Lifecycle {
             evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState,
                     stateEventQueue.isEmpty());
         }
+        logger.atInfo("service-set-state").kv("newState", newState).log();
     }
 
     /**
@@ -114,10 +112,9 @@ public class Lifecycle {
      *                 actual state
      */
     synchronized void reportState(State newState) {
-        logger.atInfo().setEventType("service-report-state").kv("newState", newState).log();
+        logger.atInfo("service-report-state").kv("newState", newState).log();
         if (!ALLOWED_STATES_FOR_REPORTING.contains(newState)) {
-            logger.atError().setEventType(INVALID_STATE_ERROR_EVENT).kv("newState", newState)
-                    .log("Invalid report state");
+            logger.atError(INVALID_STATE_ERROR_EVENT).kv("newState", newState).log("Invalid reported state");
         }
         // TODO: Add more validations
 
@@ -209,8 +206,7 @@ public class Lifecycle {
         while (!(isClosed.get() && evergreenService.getState().isClosable())) {
             Optional<State> desiredState;
             State current = evergreenService.getState();
-            logger.atInfo().setEventType("service-state-transition-start")
-                    .kv(CURRENT_STATE_METRIC_NAME, current).log();
+            logger.atDebug("service-state-transition-start").log();
 
             // if already in desired state, remove the head of desired state list.
             desiredState = peekOrRemoveFirstDesiredState(current);
@@ -251,9 +247,7 @@ public class Lifecycle {
                     handleCurrentStateErrored(desiredState);
                     continue;
                 default:
-                    logger.atError(INVALID_STATE_ERROR_EVENT)
-                            .kv(CURRENT_STATE_METRIC_NAME, evergreenService.getState())
-                            .log("Unrecognized state");
+                    logger.atError(INVALID_STATE_ERROR_EVENT).log("Unrecognized current state");
                     break;
             }
 
@@ -263,7 +257,6 @@ public class Lifecycle {
             Object stateEvent = stateEventQueue.take();
             if (stateEvent instanceof State) {
                 State toState = (State) stateEvent;
-                logger.atInfo().setEventType("service-report-state").kv("state", toState).log();
                 updateStateAndBroadcast(toState);
             }
             // service transitioning to another state, cancelling task monitoring the timeout for startup
@@ -283,8 +276,8 @@ public class Lifecycle {
         if (State.NEW.equals(desiredState.get())) {
             updateStateAndBroadcast(State.NEW);
         } else {
-            logger.atError().setEventType("service-broken")
-                    .log("service is broken. Deployment is needed");
+            logger.atError("service-broken").log("service is broken. Deployment is needed");
+            return true;
         }
         return false;
     }
@@ -303,7 +296,7 @@ public class Lifecycle {
                 logger.atWarn("service-install-interrupted").log("Service interrupted while running install");
             } catch (Throwable t) {
                 reportState(State.ERRORED);
-                logger.atError().setEventType("service-install-error").setCause(t).log();
+                logger.atError("service-install-error", t).log();
             } finally {
                 installLatch.countDown();
             }
@@ -345,7 +338,7 @@ public class Lifecycle {
                 break;
             default:
                 // not allowed for NEW, STOPPING, ERRORED, BROKEN
-                logger.atError().setEventType(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
+                logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
                         .log("Unexpected desired state");
                 break;
         }
@@ -356,11 +349,11 @@ public class Lifecycle {
     private void handleStateTransitionInstalledToRunning(AtomicReference<Future> triggerTimeOutReference) {
         setBackingTask(() -> {
             try {
-                logger.atInfo().setEventType("service-awaiting-start").log("waiting for dependencies to start");
+                logger.atInfo("service-awaiting-start").log("waiting for dependencies to start");
                 evergreenService.waitForDependencyReady();
-                logger.atInfo().setEventType("service-starting").log();
+                logger.atInfo("service-starting").log();
             } catch (InterruptedException e) {
-                logger.atWarn().setEventType("service-dependency-error")
+                logger.atWarn("service-dependency-error")
                         .log("Got interrupted while waiting for dependency ready");
                 return;
             }
@@ -381,6 +374,7 @@ public class Lifecycle {
                             evergreenService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
                                 if (!State.RUNNING.equals(evergreenService.getState())) {
                                     logger.atWarn("service-startup-timed-out")
+                                            .kv(TIMEOUT_NAMESPACE_TOPIC, timeout)
                                             .log("Service failed to startup within timeout");
                                     reportState(State.ERRORED);
                                 }
@@ -393,7 +387,7 @@ public class Lifecycle {
                 logger.atWarn("service-run-interrupted").log("Service interrupted while running startup");
             } catch (Throwable t) {
                 reportState(State.ERRORED);
-                logger.atError().setEventType("service-runtime-error").setCause(t).log();
+                logger.atError("service-runtime-error", t).log();
             }
         }, "start");
     }
@@ -419,7 +413,7 @@ public class Lifecycle {
                 logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
             } catch (Throwable t) {
                 reportState(State.ERRORED);
-                logger.atError().setEventType("service-shutdown-error").setCause(t).log();
+                logger.atError("service-shutdown-error", t).log();
             } finally {
                 stopping.countDown();
             }
@@ -445,9 +439,7 @@ public class Lifecycle {
             return true;
         }
 
-        logger.atInfo().setEventType("service-state-transition")
-                .kv(CURRENT_STATE_METRIC_NAME, evergreenService.getState())
-                .kv("desiredState", desiredState).log();
+        logger.atInfo("service-state-transition").kv("desiredState", desiredState).log();
         serviceTerminatedMoveToDesiredState(desiredState.get());
         return false;
     }
@@ -456,7 +448,8 @@ public class Lifecycle {
         try {
             evergreenService.handleError();
         } catch (InterruptedException e) {
-            logger.atWarn("service-errorhandler-interrupted").log("Service interrupted while running error handler");
+            logger.atWarn("service-errorhandler-interrupted")
+                    .log("Service interrupted while running error handler");
             // Since we run the error handler in this thread, that means we should rethrow
             // in order to shutdown this thread since we were requested to stop
             throw e;
@@ -483,7 +476,7 @@ public class Lifecycle {
                 serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
                 break;
             default:
-                logger.atError().setEventType(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState)
+                logger.atError(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState)
                         .log("Unexpected previous state");
                 updateStateAndBroadcast(State.FINISHED);
                 break;
@@ -511,7 +504,7 @@ public class Lifecycle {
                 break;
             default:
                 // not allowed to set desired state to STOPPING, ERRORED, BROKEN
-                logger.atError().setEventType(INVALID_STATE_ERROR_EVENT).addKeyValue("desiredState", desiredState)
+                logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
                         .log("Unexpected desired state");
         }
     }
@@ -545,15 +538,12 @@ public class Lifecycle {
                     startStateTransition();
                     return;
                 } catch (InterruptedException i) {
-                    logger.atWarn().setEventType("service-state-transition-interrupted")
+                    logger.atWarn("service-state-transition-interrupted")
                             .log("Service lifecycle thread interrupted. Thread will exit now");
                     return;
                 } catch (Throwable e) {
-                    logger.atError().setEventType("service-state-transition-error")
-                            .kv(CURRENT_STATE_METRIC_NAME, evergreenService.getState()).setCause(e)
-                            .log();
-                    logger.atInfo().setEventType("service-state-transition-retry")
-                            .kv(CURRENT_STATE_METRIC_NAME, evergreenService.getState()).log();
+                    logger.atError("service-state-transition-error", e).log();
+                    logger.atInfo("service-state-transition-retry").log();
                 }
             }
         });

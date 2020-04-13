@@ -394,14 +394,11 @@ public final class Exec implements Closeable {
      *
      * @param timeout wait up to this many milliseconds.
      * @return true if closed successfully
+     * @throws InterruptedException if thread is interrupted while waiting
      */
-    @SuppressWarnings("checkstyle:emptycatchblock")
-    public synchronized boolean waitClosed(int timeout) {
+    public synchronized boolean waitClosed(int timeout) throws InterruptedException {
         while (!isClosed.get()) {
-            try {
-                wait(timeout);
-            } catch (InterruptedException ignored) {
-            }
+            wait(timeout);
         }
         return isClosed.get();
     }
@@ -416,12 +413,18 @@ public final class Exec implements Closeable {
             return;
         }
         p.destroy();
-        // TODO: configurable timeout?
-        if (!waitClosed(2000)) {
-            p.destroyForcibly();
-            if (!waitClosed(5000)) {
-                throw new IOException("Could not stop " + this);
+
+        try {
+            // TODO: configurable timeout?
+            if (!waitClosed(2000)) {
+                p.destroyForcibly();
+                if (!waitClosed(5000)) {
+                    throw new IOException("Could not stop " + this);
+                }
             }
+        } catch (InterruptedException e) {
+            // If we're interrupted make sure to kill the process before returning
+            p.destroyForcibly();
         }
     }
 
