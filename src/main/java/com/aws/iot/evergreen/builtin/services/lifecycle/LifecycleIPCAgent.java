@@ -107,6 +107,7 @@ public class LifecycleIPCAgent implements InjectionActions {
         return LifecycleGenericResponse.builder().status(LifecycleResponseStatus.Success).build();
     }
 
+    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
     private BiConsumer<State, State> sendStateUpdateToListener(LifecycleListenRequest listenRequest,
                                                                ConnectionContext context) {
         return (oldState, newState) -> {
