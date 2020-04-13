@@ -140,7 +140,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installerror") && newState.equals(State.BROKEN)) {
                 serviceBroken.countDown();
             }
@@ -156,7 +156,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installerror") && newState.equals(State.BROKEN)) {
                 serviceBroken.countDown();
             }
@@ -168,7 +168,7 @@ class KernelTest extends BaseITCase {
 
         CountDownLatch serviceInstalled = new CountDownLatch(1);
 
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installerror") && newState.equals(State.INSTALLED)) {
                 serviceInstalled.countDown();
             }
@@ -184,7 +184,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installErrorRetry") && newState.equals(State.INSTALLED)) {
                 serviceRunning.countDown();
             }
@@ -200,7 +200,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("startupError") && newState.equals(State.BROKEN)) {
                 serviceBroken.countDown();
             }
@@ -216,7 +216,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("startupErrorRetry") && newState.equals(State.RUNNING)) {
                 serviceRunning.countDown();
             }
@@ -251,7 +251,7 @@ class KernelTest extends BaseITCase {
 
         Kernel kernel = new Kernel();
         kernel.context.addGlobalStateChangeListener(
-                (EvergreenService service, State oldState, State newState, boolean latest) -> {
+                (EvergreenService service, State oldState, State newState) -> {
                     if (expectedStateTransitionList.isEmpty()) {
                         return;
                     }

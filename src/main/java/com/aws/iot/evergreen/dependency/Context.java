@@ -262,7 +262,7 @@ public class Context implements Closeable {
     public synchronized void globalNotifyStateChanged(EvergreenService changedService, final State oldState,
                                                       final State newState, boolean latest) {
         if (listeners != null) {
-            listeners.forEach(s -> s.globalServiceStateChanged(changedService, oldState, newState, latest));
+            listeners.forEach(s -> s.globalServiceStateChanged(changedService, oldState, newState));
         }
     }
 

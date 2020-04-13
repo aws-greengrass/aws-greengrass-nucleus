@@ -8,5 +8,5 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.dependency.State;
 
 public interface GlobalStateChangeListener {
-    void globalServiceStateChanged(EvergreenService l, State oldState, State newState, boolean latest);
+    void globalServiceStateChanged(EvergreenService l, State oldState, State newState);
 }

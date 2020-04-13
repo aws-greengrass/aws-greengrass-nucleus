@@ -116,7 +116,7 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         context.put(CountDownLatch.class, cd);
 
         final AtomicInteger n = new AtomicInteger(0);
-        context.addGlobalStateChangeListener((service, oldState, newState, latest) -> {
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (n.incrementAndGet() >= NUM * 2) {
                 cd.countDown();
             }
