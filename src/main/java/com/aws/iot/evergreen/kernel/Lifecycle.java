@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -535,6 +536,11 @@ public class Lifecycle {
             while (!isClosed.get()) {
                 try {
                     startStateTransition();
+                    return;
+                } catch (RejectedExecutionException e) {
+                    logger.atWarn("service-state-transition-error", e)
+                            .log("Service lifecycle thread had RejectedExecutionException."
+                                    + "Since no more tasks can be run, thread will exit now");
                     return;
                 } catch (InterruptedException i) {
                     logger.atWarn("service-state-transition-interrupted")

@@ -229,8 +229,6 @@
                             </includes>
                             <groups>${groups}</groups>
                             <excludedGroups>${excludedGroups}</excludedGroups>
-                            <reuseForks>false
-                            </reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
                         </configuration>
                     </execution>
                 </executions>
