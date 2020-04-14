@@ -170,7 +170,7 @@
                 <version>3.13.0</version>
                 <configuration>
                     <!-- Current violations should not be exceeded. Try to decrease these over time -->
-                    <maxAllowedViolations>2</maxAllowedViolations>
+                    <maxAllowedViolations>1</maxAllowedViolations>
                     <printFailingErrors>true</printFailingErrors>
                     <rulesets>
                         <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>
@@ -229,8 +229,6 @@
                             </includes>
                             <groups>${groups}</groups>
                             <excludedGroups>${excludedGroups}</excludedGroups>
-                            <reuseForks>false
-                            </reuseForks> <!-- This will make sure to spawn a fresh jvm for each test -->
                         </configuration>
                     </execution>
                 </executions>

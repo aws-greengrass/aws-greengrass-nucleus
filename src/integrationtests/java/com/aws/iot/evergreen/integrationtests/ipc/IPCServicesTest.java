@@ -60,7 +60,7 @@ class IPCServicesTest {
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
         kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("IPCService") && newState.equals(State.RUNNING)) {
+            if (service.getName().equals("ServiceName") && newState.equals(State.RUNNING)) {
                 awaitIpcServiceLatch.countDown();
             }
         });
@@ -164,7 +164,7 @@ class IPCServicesTest {
         LifecycleImpl c = new LifecycleImpl(client);
 
         Pair<CompletableFuture<Void>, BiConsumer<String, String>> p = TestUtils.asyncAssertOnBiConsumer((a, b) -> {
-            assertEquals(State.FINISHED.toString(), a);
+            assertEquals(State.RUNNING.toString(), a);
             assertEquals(State.ERRORED.toString(), b);
         });
 

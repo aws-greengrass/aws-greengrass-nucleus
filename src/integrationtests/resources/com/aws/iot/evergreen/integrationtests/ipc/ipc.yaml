@@ -1,9 +1,5 @@
 ---
 services:
-  plain:
-    lifecycle:
-      startup:
-        all: "{platform.invoke} {args}"
   main:
     dependencies:
       - IPCService
@@ -26,9 +22,8 @@ services:
   ServiceName:
     dependencies:
       - IPCService
-    any:
-      resources:
-        - http-resource
+    resources:
+      - http-resource
     lifecycle:
       run:
-        exit 0
+        sleep 60

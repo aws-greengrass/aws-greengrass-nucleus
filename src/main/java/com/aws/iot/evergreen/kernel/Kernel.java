@@ -579,8 +579,6 @@ public class Kernel extends Configuration /*implements Runnable*/ {
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
-        // Get the timestamp before mergeMap(). It will be used to check whether services have started.
-        long mergeTime = System.currentTimeMillis();
         if (newConfig.get("services") == null) {
             mergeMap(timestamp, newConfig);
             totallyCompleteFuture.complete(null);
@@ -594,6 +592,9 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         Set<EvergreenService> servicesToTrack = new HashSet<>();
         context.get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
             try {
+                // Get the timestamp before mergeMap(). It will be used to check whether services have started.
+                long mergeTime = System.currentTimeMillis();
+
                 mergeMap(timestamp, newConfig);
                 for (String serviceName : serviceConfig.keySet()) {
                     EvergreenService eg = locate(serviceName);
