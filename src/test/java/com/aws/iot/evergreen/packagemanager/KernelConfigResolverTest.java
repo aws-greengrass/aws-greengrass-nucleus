@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -104,7 +105,7 @@ public class KernelConfigResolverTest {
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
         assertThat("Must contain dependency service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_B));
@@ -149,7 +150,7 @@ public class KernelConfigResolverTest {
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain updated service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
@@ -189,7 +190,7 @@ public class KernelConfigResolverTest {
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
@@ -244,7 +245,7 @@ public class KernelConfigResolverTest {
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get("services");
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 

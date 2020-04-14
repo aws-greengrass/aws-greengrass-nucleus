@@ -8,8 +8,10 @@ import java.io.Flushable;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.nio.CharBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.Collections;
@@ -548,4 +550,18 @@ public final class Utils {
         return Collections.unmodifiableMap(map);
     }
 
+    /**
+     * Create all paths.
+     *
+     * @param paths paths to create
+     * @throws IOException if path creation fails
+     */
+    public static void createPaths(Path... paths) throws IOException {
+        for (Path p: paths) {
+            // This only supports POSIX compliant file permission right now. We will need to
+            // change this when trying to support Evergreen in Non-POSIX OS.
+            Files.createDirectories(p,
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+        }
+    }
 }
