@@ -106,6 +106,7 @@ public class GenericExternalService extends EvergreenService {
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     private void handleRunScript() throws InterruptedException {
         // sync block will ensure that the call back can execute only after
         // the service transition state based on RunStatus result

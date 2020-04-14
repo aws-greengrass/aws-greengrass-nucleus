@@ -30,10 +30,16 @@ def main():
 
     for i in range(0, iterations):
         print(f"Running iteration {i + 1} of {iterations}", flush=True)
-        process = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         # If the tests failed, then we should check which test(s) failed in order to report it
         if process.returncode != 0:
             print(f"Iteration {i + 1} failed, saving and parsing results now", flush=True)
+            os.makedirs(args.out_dir, exist_ok=True)
+            with open(f'{args.out_dir}{i+1}-full-stdout.txt', 'w') as f:
+                f.write(process.stdout.decode('utf-8'))
+            with open(f'{args.out_dir}{i+1}-full-stderr.txt', 'w') as f:
+                f.write(process.stderr.decode('utf-8'))
+
             parse_test_results(i, results, args.out_dir)
             if args.ff:
                 break
@@ -93,7 +99,6 @@ def parse_test_results(iteration, previous_results, failed_test_dir):
 
             previous_results[testcase.get("classname")][testcase.get("name")] \
                 .append({"iteration": iteration, "failure": failure})
-            os.makedirs(failed_test_dir, exist_ok=True)
             # Save test stdout and stderr
             file_path_prefix = f'{failed_test_dir}{iteration}-{testcase.get("classname")}.{testcase.get("name")}-'
             if testcase.find("system-out") is not None:

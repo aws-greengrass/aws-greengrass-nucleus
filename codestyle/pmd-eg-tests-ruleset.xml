@@ -88,7 +88,7 @@
     </rule>
     <rule name="AvoidGettingFutureWithoutTimeout"
           language="java"
-          message="Calls to 'get' on Futures must have a timeout"
+          message="Calls to 'get()' on Futures must have a timeout"
           class="net.sourceforge.pmd.lang.rule.XPathRule">
         <description>
             Calls to Future.get() will block forever. This is almost always undesirable.

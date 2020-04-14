@@ -101,6 +101,7 @@ class KernelTest extends BaseITCase {
         kernel.shutdown();
     }
 
+    @SuppressWarnings("PMD.AssignmentInOperand")
     private Consumer<EvergreenStructuredLogMessage> getLogListener() {
         return evergreenStructuredLogMessage -> {
             String stdoutStr = evergreenStructuredLogMessage.getContexts().get("stdout");
