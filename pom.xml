@@ -144,7 +144,7 @@
                         </goals>
                         <configuration>
                             <sources>
-                                <source>src/integrationtests/java</source>
+                                <source>src/it/java</source>
                             </sources>
                         </configuration>
                     </execution>
@@ -157,7 +157,7 @@
                         <configuration>
                             <resources>
                                 <resource>
-                                    <directory>src/integrationtests/resources</directory>
+                                    <directory>src/it/resources</directory>
                                 </resource>
                             </resources>
                         </configuration>
@@ -211,7 +211,7 @@
                         <configuration>
                             <skipTests>${skipTests}</skipTests>
                             <excludes>
-                                <exclude>**/integrationtests/**</exclude>
+                                <exclude>**/it/**</exclude>
                             </excludes>
                         </configuration>
                     </execution>
@@ -225,7 +225,7 @@
                         <configuration>
                             <skipTests>${skipTests}</skipTests>
                             <includes>
-                                <include>**/integrationtests/**</include>
+                                <include>**/it/**</include>
                             </includes>
                             <groups>${groups}</groups>
                             <excludedGroups>${excludedGroups}</excludedGroups>
