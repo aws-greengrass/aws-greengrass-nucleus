@@ -17,7 +17,7 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import javax.inject.Inject;
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.inject.Inject;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -102,32 +103,34 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified() throws InterruptedException {
+    void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified()
+            throws InterruptedException, IOException {
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
         ExecutorService cachedPool = Executors.newCachedThreadPool();
         CountDownLatch cd = new CountDownLatch(2);
 
-        Context context = new Context();
-        context.put(ScheduledThreadPoolExecutor.class, ses);
-        context.put(ScheduledExecutorService.class, ses);
-        context.put(Executor.class, cachedPool);
-        context.put(ExecutorService.class, cachedPool);
-        context.put(ThreadPoolExecutor.class, ses);
-        context.put(CountDownLatch.class, cd);
+        try (Context context = new Context()) {
+            context.put(ScheduledThreadPoolExecutor.class, ses);
+            context.put(ScheduledExecutorService.class, ses);
+            context.put(Executor.class, cachedPool);
+            context.put(ExecutorService.class, cachedPool);
+            context.put(ThreadPoolExecutor.class, ses);
+            context.put(CountDownLatch.class, cd);
 
-        final AtomicInteger n = new AtomicInteger(0);
-        context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (n.incrementAndGet() >= NUM * 2) {
-                cd.countDown();
-            }
-        });
+            final AtomicInteger n = new AtomicInteger(0);
+            context.addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (n.incrementAndGet() >= NUM * 2) {
+                    cd.countDown();
+                }
+            });
 
-        context.get(AwesomeService.class).requestStart();
-        cd.await(10, TimeUnit.SECONDS);
-        context.get(AwesomeService.class).requestStop();
+            context.get(AwesomeService.class).requestStart();
+            cd.await(10, TimeUnit.SECONDS);
+            context.get(AwesomeService.class).requestStop();
 
-        // In addition to the states that AwesomeService reports by itself in its loop, there are some more state
-        // changes such as `INSTALLED` and `FINISHED`
-        assertTrue(n.get() >= NUM * 2);
+            // In addition to the states that AwesomeService reports by itself in its loop, there are some more state
+            // changes such as `INSTALLED` and `FINISHED`
+            assertTrue(n.get() >= NUM * 2);
+        }
     }
 }

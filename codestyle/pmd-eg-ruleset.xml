@@ -93,7 +93,7 @@
             <property name="xpath">
                 <value>
                     <![CDATA[
-//PrimaryExpression[pmd-java:typeIs("java.util.concurrent.Future")and (PrimaryPrefix/Name[contains(@Image, "get")] and PrimarySuffix[@ArgumentCount=0]) or (PrimarySuffix/MemberSelector/MethodReference[@Image="get"])]
+//PrimaryExpression[pmd-java:typeIs("java.util.concurrent.Future") and (PrimaryPrefix/Name[contains(@Image, "get")] and PrimarySuffix[@ArgumentCount=0]) or (PrimarySuffix/MemberSelector/MethodReference[@Image="get"])]
 ]]>
                 </value>
             </property>
