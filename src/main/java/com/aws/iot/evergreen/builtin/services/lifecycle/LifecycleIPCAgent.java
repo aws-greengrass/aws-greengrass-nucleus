@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 
@@ -106,35 +107,45 @@ public class LifecycleIPCAgent implements InjectionActions {
         return LifecycleGenericResponse.builder().status(LifecycleResponseStatus.Success).build();
     }
 
+    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
     private BiConsumer<State, State> sendStateUpdateToListener(LifecycleListenRequest listenRequest,
                                                                ConnectionContext context) {
         return (oldState, newState) -> {
-            executor.execute(() -> {
-                // Synchronize on context so that we only try to send 1 update at a time to a given client
-                synchronized (context) {
-                    StateTransitionEvent stateTransitionEvent =
-                            StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
-                                    .service(listenRequest.getServiceName()).build();
+            StateTransitionEvent stateTransitionEvent =
+                    StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
+                            .service(listenRequest.getServiceName()).build();
 
-                    log.info("Pushing state change notification to {} from {} to {}",
-                            listenRequest.getServiceName(), oldState, newState);
-                    try {
-                        ApplicationMessage applicationMessage =
-                                ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
-                                        .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
-                                        .payload(IPCUtil.encode(stateTransitionEvent)).build();
-                        // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
+            log.info("Pushing state change notification to {} from {} to {}",
+                    listenRequest.getServiceName(), oldState, newState);
+            try {
+                ApplicationMessage applicationMessage =
+                        ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
+                                .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
+                                .payload(IPCUtil.encode(stateTransitionEvent)).build();
+                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
+                Future<FrameReader.Message> fut =
                         context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
-                                new FrameReader.Message(applicationMessage.toByteArray())).get();
+                                new FrameReader.Message(applicationMessage.toByteArray()));
+
+                // call the blocking "get" in a separate thread so we don't block the publish queue
+                executor.execute(() -> {
+                    try {
+                        fut.get();
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
-                    } catch (IOException | InterruptedException | ExecutionException e) {
+                    } catch (InterruptedException | ExecutionException e) {
                         // Log
                         log.atError("error-sending-lifecycle-update")
                                 .kv("context", context)
                                 .log("Error sending lifecycle update to client", e);
                     }
-                }
-            });
+                });
+
+            } catch (IOException e) {
+                // Log
+                log.atError("error-sending-lifecycle-update")
+                        .kv("context", context)
+                        .log("Error sending lifecycle update to client", e);
+            }
         };
     }
 }
