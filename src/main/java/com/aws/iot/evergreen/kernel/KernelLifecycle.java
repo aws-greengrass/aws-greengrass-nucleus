@@ -52,11 +52,15 @@ public class KernelLifecycle {
     /**
      * Startup the Kernel and all services.
      */
-    public Kernel launch() {
+    public void launch() {
         logger.atInfo().log("root path = {}. config path = {}", kernel.rootPath,
                 kernel.configPath);
         kernelCommandLine.installCliTool(getClass().getClassLoader().getResource("evergreen-launch"));
         Exec.setDefaultEnv("EVERGREEN_HOME", kernel.rootPath.toString());
+
+        // Must be called before everything else so that these are available to be
+        // referenced by main/dependencies of main
+        final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
 
         try {
             mainService = kernel.locate(kernelCommandLine.mainServiceName);
@@ -66,6 +70,17 @@ public class KernelLifecycle {
             logger.atError("system-boot-error", rte).log();
             throw rte;
         }
+
+        autostart.forEach(s -> {
+            try {
+                mainService.addOrUpdateDependency(kernel.locate(s), State.RUNNING, true);
+            } catch (ServiceLoadException se) {
+                logger.atError().setCause(se).log("Unable to load service {}", s);
+            } catch (InputValidationException e) {
+                logger.atError().setCause(e).log("Unable to add auto-starting dependency {} to main", s);
+            }
+        });
+
         Path transactionLogPath = kernel.configPath.resolve("config.tlog");
         Path configurationFile = kernel.configPath.resolve("config.yaml");
         try {
@@ -92,21 +107,9 @@ public class KernelLifecycle {
             kernel.context.put(ShellRunner.class, kernel.context.get(ShellRunner.Dryrun.class));
         }
 
-        Queue<String> autostart = findBuiltInServicesAndPlugins();
-        autostart.forEach(s -> {
-            try {
-                mainService.addOrUpdateDependency(kernel.locate(s), State.RUNNING, true);
-            } catch (ServiceLoadException se) {
-                logger.atError().setCause(se).log("Unable to load service {}", s);
-            } catch (InputValidationException e) {
-                logger.atError().setCause(e).log("Unable to add auto-starting dependency {} to main", s);
-            }
-        });
         kernel.writeEffectiveConfig();
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
-
-        return kernel;
     }
 
     private Queue<String> findBuiltInServicesAndPlugins() {

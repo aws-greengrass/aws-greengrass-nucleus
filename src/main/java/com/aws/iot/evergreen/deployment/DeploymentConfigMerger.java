@@ -3,10 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.kernel;
+package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -27,10 +31,10 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 
 @AllArgsConstructor
-public class DeploymentMerge {
+public class DeploymentConfigMerger {
     public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
 
-    private static final Logger logger = LogManager.getLogger(DeploymentMerge.class);
+    private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
     @Inject
     private Kernel kernel;
@@ -111,7 +115,15 @@ public class DeploymentMerge {
         return totallyCompleteFuture;
     }
 
-    protected static void waitForServicesToStart(Set<EvergreenService> servicesToTrack,
+    /**
+     * Completes the provided future when all of the listed services are running.
+     *
+     * @param servicesToTrack service to track
+     * @param totallyCompleteFuture future to complete
+     * @param mergeTime time that the merge was started, used to check if a service is broken due to the merge
+     * @throws InterruptedException if the thread is interrupted while waiting here
+     */
+    public static void waitForServicesToStart(Set<EvergreenService> servicesToTrack,
                                           CompletableFuture<?> totallyCompleteFuture,
                                           long mergeTime) throws InterruptedException {
         while (!totallyCompleteFuture.isCancelled()) {

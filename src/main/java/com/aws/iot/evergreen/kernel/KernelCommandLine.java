@@ -51,7 +51,7 @@ public class KernelCommandLine {
      *
      * @param args user-provided arguments
      */
-    public Kernel parseArgs(String... args) {
+    public void parseArgs(String... args) {
         this.args = args;
 
         // Get root path from System Property/JVM argument. Default handled after 'while'
@@ -122,7 +122,6 @@ public class KernelCommandLine {
             }
             return value;
         });
-        return kernel;
     }
 
     private void initPaths(String rootAbsolutePath) {

@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.ConfigurationWriter;
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -52,7 +53,7 @@ public class Kernel {
 
     private final KernelCommandLine kernelCommandLine;
     private final KernelLifecycle kernelLifecycle;
-    private final DeploymentMerge deploymentMerge;
+    private final DeploymentConfigMerger deploymentConfigMerger;
     private Collection<EvergreenService> cachedOD = Collections.emptyList();
 
     /**
@@ -73,17 +74,18 @@ public class Kernel {
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine);
-        deploymentMerge = new DeploymentMerge(this);
+        deploymentConfigMerger = new DeploymentConfigMerger(this);
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
-        context.put(DeploymentMerge.class, deploymentMerge);
+        context.put(DeploymentConfigMerger.class, deploymentConfigMerger);
     }
 
     /**
      * Startup the Kernel and all services.
      */
     public Kernel launch() {
-        return kernelLifecycle.launch();
+        kernelLifecycle.launch();
+        return this;
     }
 
     public void shutdown() {
@@ -203,7 +205,7 @@ public class Kernel {
      * @return future which completes only once the config is merged and all the services in the config are running
      */
     public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
-        return deploymentMerge.mergeInNewConfig(deploymentId, timestamp, newConfig);
+        return deploymentConfigMerger.mergeInNewConfig(deploymentId, timestamp, newConfig);
     }
 
     /**
@@ -284,6 +286,7 @@ public class Kernel {
     }
 
     public Kernel parseArgs(String... args) {
-        return kernelCommandLine.parseArgs(args);
+        kernelCommandLine.parseArgs(args);
+        return this;
     }
 }

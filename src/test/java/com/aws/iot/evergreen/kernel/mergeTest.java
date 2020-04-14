@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +58,7 @@ public class mergeTest {
         CompletableFuture<?> future = new CompletableFuture<>();
         Set<EvergreenService> evergreenServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentMerge.waitForServicesToStart(evergreenServices, future, System.currentTimeMillis());
+        DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, System.currentTimeMillis());
 
         assertFalse(future.isCompletedExceptionally());
     }
@@ -78,7 +79,7 @@ public class mergeTest {
         CompletableFuture<?> future = new CompletableFuture<>();
         Set<EvergreenService> evergreenServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentMerge.waitForServicesToStart(evergreenServices, future, curTime - 10L);
+        DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, curTime - 10L);
 
         ExecutionException t =
                 assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
