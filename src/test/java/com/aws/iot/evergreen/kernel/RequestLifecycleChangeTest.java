@@ -24,7 +24,7 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
 
     @BeforeAll
     public static void setup() throws Exception {
-        desiredStateListField = EvergreenService.class.getDeclaredField("desiredStateList");
+        desiredStateListField = Lifecycle.class.getDeclaredField("desiredStateList");
         desiredStateListField.setAccessible(true);
     }
 
@@ -32,7 +32,9 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
     void beforeEach() throws Exception {
         Topics config = initializeMockedConfig();
         evergreenService = new EvergreenService(config);
-        desiredStateList = (List<State>) desiredStateListField.get(evergreenService);
+        Field lifecycleField = EvergreenService.class.getDeclaredField("lifecycle");
+        lifecycleField.setAccessible(true);
+        desiredStateList = (List<State>) desiredStateListField.get(lifecycleField.get(evergreenService));
     }
 
     @Test
@@ -41,7 +43,7 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);
 
-        // calling requestRetart() multiple times doesn't result in duplication
+        // calling requestRestart() multiple times doesn't result in duplication
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);
 

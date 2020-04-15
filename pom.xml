@@ -116,6 +116,12 @@
     </dependencies>
     <pluginRepositories>
         <pluginRepository>
+            <id>maven-snapshots</id>
+            <name>Maven snapshots</name>
+            <layout>default</layout>
+            <url>https://repository.apache.org/content/repositories/snapshots/</url>
+        </pluginRepository>
+        <pluginRepository>
             <id>yle-public</id>
             <name>Yle public repository</name>
             <url>https://d2x444wtt5plvm.cloudfront.net/release</url>
@@ -239,7 +245,9 @@
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M4</version>
+                <version>3.0.0-SNAPSHOT</version> <!-- Use snapshot until M5 is released because M4 has a bug which
+                doesn't report errors from @BeforeAll
+                 -->
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
