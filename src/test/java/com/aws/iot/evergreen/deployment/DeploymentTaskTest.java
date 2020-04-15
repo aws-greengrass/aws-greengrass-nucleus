@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
@@ -31,7 +32,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -103,12 +104,13 @@ class DeploymentTaskTest {
     @Test
     void GIVEN_deploymentDocument_WHEN_preparePackages_interrupted_THEN_deploymentTask_aborted()
             throws Exception {
-        lenient().when(mockPackageStore.preparePackages(anyList())).thenReturn(new CompletableFuture<>());
+        Future<Void> mockFuture = mock(Future.class);
+        when(mockFuture.get()).thenThrow(InterruptedException.class);
+        when(mockPackageStore.preparePackages(anyList())).thenReturn(mockFuture);
         FutureTask<Void> futureTask = new FutureTask<>(deploymentTask);
         Thread t = new Thread(futureTask);
         t.start();
 
-        t.interrupt();
         Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get(5, TimeUnit.SECONDS));
         assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
