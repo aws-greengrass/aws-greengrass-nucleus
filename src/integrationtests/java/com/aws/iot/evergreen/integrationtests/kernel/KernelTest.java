@@ -58,7 +58,7 @@ class KernelTest extends BaseITCase {
 
         RuntimeException thrown = assertThrows(RuntimeException.class,
                 () -> kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString()));
-        assertTrue(thrown.getMessage().contains("Fail to create the path"));
+        assertTrue(thrown.getMessage().contains("Cannot create all required directories"));
     }
 
     @Test
@@ -84,7 +84,7 @@ class KernelTest extends BaseITCase {
         testGroup(0);
         System.out.println("Group 0 passed, now for the harder stuff");
 
-        kernel.find("services", "main", "lifecycle", "run")
+        kernel.findServiceTopic("main").find("lifecycle", "run")
                 .withValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
         testGroup(1);
 
@@ -165,7 +165,7 @@ class KernelTest extends BaseITCase {
         assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
-        kernel.read(kernel.deTilde(getClass().getResource("config_install_succeed_partial.yaml").toString()));
+        kernel.config.read(getClass().getResource("config_install_succeed_partial.yaml").toString());
 
         CountDownLatch serviceInstalled = new CountDownLatch(1);
 

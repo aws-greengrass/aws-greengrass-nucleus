@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -75,7 +76,7 @@ class ServiceConfigMergingTest extends BaseITCase {
             }
         });
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
-            put("services", new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("setenv", new HashMap<Object, Object>() {{
                         put("HELLO", "redefined");
@@ -86,8 +87,8 @@ class ServiceConfigMergingTest extends BaseITCase {
 
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
-        assertEquals("redefined", kernel.find("services", "main", "setenv", "HELLO").getOnce());
-        assertThat((String) kernel.find("services", "main", "lifecycle", "run").getOnce(),
+        assertEquals("redefined", kernel.findServiceTopic("main").find("setenv", "HELLO").getOnce());
+        assertThat((String) kernel.findServiceTopic("main").find("lifecycle", "run").getOnce(),
                 containsString("echo \"Running main\""));
     }
 
@@ -126,7 +127,7 @@ class ServiceConfigMergingTest extends BaseITCase {
                 .collect(Collectors.toList());
         serviceList.add("new_service");
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
-            put("services", new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("dependencies", serviceList);
                 }});
@@ -188,7 +189,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         serviceList.add("new_service");
 
         kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
-            put("services", new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("dependencies", serviceList);
                 }});
@@ -224,7 +225,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
-            put("services", new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("dependencies", Arrays.asList("new_service"));
                 }});
@@ -326,9 +327,9 @@ class ServiceConfigMergingTest extends BaseITCase {
         //wait for main to run
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
 
-        Map<Object, Object> currentConfig = new HashMap<>(kernel.toPOJO());
+        Map<Object, Object> currentConfig = new HashMap<>(kernel.config.toPOJO());
         Map<String, Map> servicesConfig =
-                (Map<String, Map>) currentConfig.get(EvergreenService.SERVICES_NAMESPACE_TOPIC);
+                (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         //removing all services in the current kernel config except sleeperB and main
         servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName) && !"main".equals(serviceName));
@@ -358,7 +359,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         assertEquals(State.RUNNING, main.getState());
         assertEquals(State.RUNNING, sleeperB.getState());
         // ensuring config value for sleeperA is removed
-        assertFalse(kernel.findTopics("services").children.containsKey("sleeperA"));
+        assertFalse(kernel.config.findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"));
         // ensure kernel no longer holds a reference of sleeperA
         assertThrows(ServiceLoadException.class, () -> kernel.locate("sleeperA"));
 

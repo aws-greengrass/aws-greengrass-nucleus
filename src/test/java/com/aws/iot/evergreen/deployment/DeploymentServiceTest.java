@@ -128,7 +128,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @BeforeEach
         public void setup() throws Exception {
             Topics processedDeploymentsTopics =
-                    mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                    mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                             DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                             DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             when(config.createInteriorChild(eq(DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS)))
@@ -206,7 +206,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 MqttClientConnectionEvents callbacks = deploymentService.callbacks;
 
                 callbacks.onConnectionInterrupted(1);
-                Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                Topics processedDeployments = mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
                 assertEquals(1, processedDeployments.size());
 
@@ -217,7 +217,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 Thread.sleep(Duration.ofSeconds(1).toMillis());
                 mockIotJobsHelperInOrder.verify(mockIotJobsHelper, times(2))
                         .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),  any());
-                processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                processedDeployments = mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
                 assertEquals(0, processedDeployments.size());
             }
@@ -286,7 +286,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 mockIotJobsHelperInOrder.verify(mockIotJobsHelper, times(1))
                         .updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.FAILED),  any());
 
-                Topics processedDeployments = mockKernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                Topics processedDeployments = mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
                 assertEquals(0, processedDeployments.size());
             }

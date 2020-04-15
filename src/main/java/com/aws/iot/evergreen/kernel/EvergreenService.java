@@ -409,7 +409,6 @@ public class EvergreenService implements InjectionActions {
         return config;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     @Override
     public void postInject() {
         initDependenciesTopic();
