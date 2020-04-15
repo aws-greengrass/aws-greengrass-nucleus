@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -131,7 +132,7 @@ public class Context implements Closeable {
         if (v == null) {
             return null;
         }
-        Object o = v.targetValue;
+        Object o = v.targetObject;
         return o == null || !cl.isAssignableFrom(o.getClass()) ? null : (T) o;
     }
 
@@ -211,7 +212,7 @@ public class Context implements Closeable {
         }
         shuttingDown = true;
         forEach(v -> {
-            Object vv = v.targetValue;
+            Object vv = v.targetObject;
             try {
                 if (vv instanceof Closeable) {
                     ((Closeable) vv).close();
@@ -316,119 +317,142 @@ public class Context implements Closeable {
 
     public class Value<T> implements Provider<T> {
         final Class<T> targetClass;
-        public volatile T targetValue;
+        public volatile T targetObject;
         @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;
 
-        Value(Class<T> c, T v) {
-            targetClass = c;
-            put(v);
+        Value(Class<T> clazz, T object) {
+            targetClass = clazz;
+            put(object);
         }
 
         @Override
         public final T get() {
-            T v = targetValue;
-            if (v != null && injectionCompleted) {
-                return v;
+            if (targetObject != null && injectionCompleted) {
+                return targetObject;
             }
-            return get0();
+            return constructObject();
         }
 
         @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
-        private synchronized T get0() {
-            T v = targetValue;
-            if (v != null) {
-                return v;
+        private synchronized T constructObject() {
+            T object = targetObject;
+            if (object != null) {
+                return object;
             }
             try {
-                Class<T> ccl = targetClass.isInterface() ? (Class<T>) targetClass.getClassLoader()
+                Class<T> clazz = targetClass.isInterface() ? (Class<T>) targetClass.getClassLoader()
                         .loadClass(targetClass.getName() + "$Default") : targetClass;
                 //                System.out.println(ccl+"  "+deepToString(ccl.getConstructors()));
-                Constructor<T> cons = null;
-                for (Constructor<T> c : (Constructor<T>[]) ccl.getConstructors()) {
+                Constructor<T> pickedConstructor = null;
+                for (Constructor<T> constructor : (Constructor<T>[]) clazz.getConstructors()) {
                     //                    System.out.println("Examine "+c.getParameterCount()+" "+c.toGenericString());
-                    if (c.getParameterCount() == 0) {
-                        cons = c;
-                    } else if (c.isAnnotationPresent(Inject.class)) {
-                        cons = c;
+                    if (constructor.getParameterCount() == 0) {
+                        pickedConstructor = constructor;
+                    } else if (constructor.isAnnotationPresent(Inject.class)) {
+                        pickedConstructor = constructor;
                         break;
                     }
                 }
-                if (cons == null) {
-                    throw new NoSuchMethodException("No usable injection constructor for " + ccl);
+                if (pickedConstructor == null) {
+                    throw new NoSuchMethodException("No usable injection constructor for " + clazz);
                 }
-                cons.setAccessible(true);
-                int np = cons.getParameterCount();
+                pickedConstructor.setAccessible(true);
+                int np = pickedConstructor.getParameterCount();
                 if (np == 0) {
-                    return put(cons.newInstance());
+                    return put(pickedConstructor.newInstance());
                 }
                 //                System.out.println("Injecting args into "+cons.toGenericString());
                 Object[] args = new Object[np];
-                Class[] types = cons.getParameterTypes();
+                Class[] types = pickedConstructor.getParameterTypes();
+
+                Annotation[][] argAnnotations = pickedConstructor.getParameterAnnotations();
+
                 for (int i = 0; i < np; i++) {
                     Class type = types[i];
                     if (type == Topics.class) {
-                        ImplementsService svc = ccl.getAnnotation(ImplementsService.class);
-                        if (svc != null) {
-                            String nm = svc.name();
-                            args[i] = Context.this.get(Configuration.class).lookupTopics(nm);
+                        ImplementsService service = clazz.getAnnotation(ImplementsService.class);
+                        if (service != null) {
+                            String serviceName = service.name();
+                            args[i] = Context.this.get(Configuration.class).lookupTopics(serviceName);
                             continue;
                         }
                         args[i] = Topics.errorNode(Context.this, "message", "Synthetic args");
                     } else {
-                        args[i] = Context.this.get(type);
+
+                        String name = null;
+
+                        for (Annotation annotation: argAnnotations[i]) {
+                            if (annotation instanceof Named) {
+                                name = nullEmpty(((Named) annotation).value());
+                            }
+                        }
+
+                        if (name != null) {
+                            args[i] = Context.this.get(type, name);
+                        } else {
+                            args[i] = Context.this.get(type);
+                        }
                     }
                 }
                 //                System.out.println("**Construct "+utils.deepToString(cons, 90)+" "+utils
                 //                .deepToString(args, 90));
-                return put(cons.newInstance(args));
+                return put(pickedConstructor.newInstance(args));
             } catch (Throwable ex) {
                 throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
             }
         }
 
         /**
-         * Put a new value.
+         * Put a new object instance and perform injection actions.
          *
-         * @param v new value
+         * @param object the object instance
          * @return new value
          */
-        public final synchronized T put(T v) {
-            if (Objects.equals(v, targetValue)) {
-                return v;
+        public final synchronized T put(T object) {
+            if (Objects.equals(object, targetObject)) {
+                return object;
             }
-            if (v == null || targetClass.isAssignableFrom(v.getClass())) {
+            if (object == null || targetClass.isAssignableFrom(object.getClass())) {
                 injectionCompleted = false;
-                targetValue = v;
-                doInjection(v);
+                targetObject = object;
+                doInjection(object);
                 injectionCompleted = true;
-                return v; // only assign after injection is complete
+                return object; // only assign after injection is complete
             } else {
-                throw new IllegalArgumentException(v + " is not assignable to " + targetClass.getSimpleName());
+                throw new IllegalArgumentException(object + " is not assignable to " + targetClass.getSimpleName());
             }
         }
 
-        public final synchronized <E extends Exception> T computeIfEmpty(CrashableFunction<Value, T, E> s) throws E {
-            T v = targetValue;
-            return v == null ? put(s.apply(this)) : v;
+        /**
+         * Computes and return T if object instance is null
+         * @param mappingFunction maps from Value to T
+         * @return the current (existing or computed) object instance
+         */
+        public final synchronized <E extends Exception> T computeObjectIfEmpty(CrashableFunction<Value, T, E> mappingFunction) throws E {
+            if (targetObject != null) {
+                return targetObject;
+            }
+
+            return put(mappingFunction.apply(this));
         }
 
         public boolean isEmpty() {
-            return targetValue == null;
+            return targetObject == null;
         }
 
         @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
-        private void doInjection(Object lvalue) {
+        private void doInjection(Object object) {
             //            System.out.println("requestInject " + lvalue);
-            if (lvalue == null) {
+            if (object == null) {
                 return;
             }
-            Class cl = lvalue.getClass();
-            String className = cl.getName();
+            Class clazz = object.getClass();
+            String className = clazz.getName();
             logger.atTrace("class-injection-start").kv(classKeyword, className).log();
 
-            EvergreenService asService = lvalue instanceof EvergreenService ? (EvergreenService) lvalue : null;
-            InjectionActions injectionActions = lvalue instanceof InjectionActions ? (InjectionActions) lvalue : null;
+            EvergreenService asService = object instanceof EvergreenService ? (EvergreenService) object : null;
+            InjectionActions injectionActions = object instanceof InjectionActions ? (InjectionActions) object : null;
             if (asService != null) {
                 asService.context = Context.this; // inject context early
             }
@@ -443,8 +467,8 @@ public class Context implements Closeable {
                     }
                 }
             }
-            while (cl != null && cl != Object.class) {
-                for (Field f : cl.getDeclaredFields()) {
+            while (clazz != null && clazz != Object.class) {
+                for (Field f : clazz.getDeclaredFields()) {
                     Inject a = f.getAnnotation(Inject.class);
                     //                    System.out.println(f.getName() + " " + (a != null));
                     if (a != null) {
@@ -479,7 +503,7 @@ public class Context implements Closeable {
                             }
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);
-                            f.set(lvalue, v);
+                            f.set(object, v);
                             //                            System.out.println("   "+cl.getSimpleName() + "." + f
                             //                            .getName()
                             //                            + " = " + v);
@@ -497,14 +521,14 @@ public class Context implements Closeable {
                     }
                     //                    else System.out.println("\tSKIP");
                 }
-                cl = cl.getSuperclass();
+                clazz = clazz.getSuperclass();
             }
             if (injectionActions != null && (asService == null || !asService.isErrored())) {
                 try {
                     injectionActions.postInject();
-                    logger.atTrace("class-post-inject-complete").kv(classKeyword, targetValue.getClass()).log();
+                    logger.atTrace("class-post-inject-complete").kv(classKeyword, targetObject.getClass()).log();
                 } catch (Throwable e) {
-                    logger.atError("class-post-inject-error", e).kv(classKeyword, targetValue.getClass()).log();
+                    logger.atError("class-post-inject-error", e).kv(classKeyword, targetObject.getClass()).log();
                     if (asService != null) {
                         asService.serviceErrored(e);
                     }

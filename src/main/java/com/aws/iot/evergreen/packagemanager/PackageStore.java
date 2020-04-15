@@ -60,20 +60,20 @@ public class PackageStore implements InjectionActions {
 
     private Path artifactDirectory;
 
-    @Inject
+//    @Inject
     private GreengrassRepositoryDownloader greengrassArtifactDownloader;
 
-    @Inject
+//    @Inject
     private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
 
-    @Inject
+//    @Inject
     private ExecutorService executorService;
 
-    @Inject
-    @Named("packageStoreDirectory")
+//    @Inject
+//    @Named("packageStoreDirectory")
     private Path packageStoreDirectory;
 
-    @Inject
+//    @Inject
     private Kernel kernel;
 
     /**
@@ -85,7 +85,9 @@ public class PackageStore implements InjectionActions {
      * @param executorService       executor service
      * @param kernel                kernel
      */
-    public PackageStore(Path packageStoreDirectory, GreengrassPackageServiceHelper packageServiceHelper,
+    @Inject
+    public PackageStore(@Named("packageStoreDirectory") Path packageStoreDirectory,
+                        GreengrassPackageServiceHelper packageServiceHelper,
                         GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
                         Kernel kernel) {
         this.packageStoreDirectory = packageStoreDirectory;
