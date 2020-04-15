@@ -29,11 +29,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 class KernelTest extends BaseITCase {
     private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
             {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
-                    //new ExpectedStdoutPattern("docs.docker.com/", "docker hello world"),
                     new ExpectedStdoutPattern(0, "tick-tock", "ticktock did not execute 3 times", 3),
                     new ExpectedStdoutPattern(0, "ANSWER=42", "global setenv"),
                     new ExpectedStdoutPattern(0, "EVERGREEN_UID=", "generated unique token"),
-                    new ExpectedStdoutPattern(0, "version: 0.12.1", "moquette mqtt server"),
                     new ExpectedStdoutPattern(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
                     new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'"),
                     new ExpectedStdoutPattern(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
