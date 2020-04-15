@@ -68,14 +68,14 @@ public class DependencyResolverBenchmark {
             // For now, hardcode to be under root of kernel package
 
             // initialize packageStore, dependencyResolver, and kernelConfigResolver
-            PackageStore packageStore = new PackageStore(kernel.packageStorePath, new GreengrassPackageServiceHelper(),
+            PackageStore packageStore = new PackageStore(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
                     new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
 
             Path localStoreContentPath = Paths.get(System.getProperty("user.dir"))
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
 
             // pre-load contents to package store
-            copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
+            copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
             resolver = new DependencyResolver(packageStore, kernel);
         }

@@ -52,7 +52,7 @@ public class DeploymentConfigMerger {
         CompletableFuture<Void> totallyCompleteFuture = new CompletableFuture<>();
 
         if (newConfig.get(SERVICES_NAMESPACE_TOPIC) == null) {
-            kernel.config.mergeMap(timestamp, newConfig);
+            kernel.getConfig().mergeMap(timestamp, newConfig);
             totallyCompleteFuture.complete(null);
             return totallyCompleteFuture;
         }
@@ -62,12 +62,12 @@ public class DeploymentConfigMerger {
         logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("removedServices", removedServices).log();
 
         Set<EvergreenService> servicesToTrack = new HashSet<>();
-        kernel.context.get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
+        kernel.getContext().get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
             try {
                 // Get the timestamp before mergeMap(). It will be used to check whether services have started.
                 long mergeTime = System.currentTimeMillis();
 
-                kernel.config.mergeMap(timestamp, newConfig);
+                kernel.getConfig().mergeMap(timestamp, newConfig);
                 for (String serviceName : serviceConfig.keySet()) {
                     EvergreenService eg = kernel.locate(serviceName);
                     if (State.NEW.equals(eg.getState())) {
@@ -77,13 +77,13 @@ public class DeploymentConfigMerger {
                 }
 
                 // wait until topic listeners finished processing mergeMap changes.
-                kernel.context.runOnPublishQueueAndWait(() -> {
+                kernel.getContext().runOnPublishQueueAndWait(() -> {
                     logger.atInfo(MERGE_CONFIG_EVENT_KEY)
                             .kv("serviceToTrack", servicesToTrack)
                             .log("applied new service config. Waiting for services to complete update");
 
                     // polling to wait for all services started.
-                    kernel.context.get(ExecutorService.class).execute(() -> {
+                    kernel.getContext().get(ExecutorService.class).execute(() -> {
                         //TODO: Add timeout
                         try {
                             waitForServicesToStart(servicesToTrack, totallyCompleteFuture, mergeTime);
@@ -172,7 +172,7 @@ public class DeploymentConfigMerger {
             serviceClosedFuture.get();
         }
         serviceToRemove.forEach(serviceName -> {
-            kernel.context.remove(serviceName);
+            kernel.getContext().remove(serviceName);
             kernel.findServiceTopic(serviceName).remove();
         });
     }

@@ -84,7 +84,7 @@ class DeploymentE2ETest {
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
-        copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
+        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
@@ -261,7 +261,7 @@ class DeploymentE2ETest {
             cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
         }
 
-        Topics deploymentServiceTopics = kernel.config.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
+        Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privateKeyFilePath);

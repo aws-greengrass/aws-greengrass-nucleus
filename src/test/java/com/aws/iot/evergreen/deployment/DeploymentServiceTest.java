@@ -110,7 +110,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_service_running_WHEN_connection_resumed_THEN_subscriptions_redone()
                 throws Exception {
-            deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
+            deploymentService.setExecutorService(mockKernel.getContext().get(ExecutorService.class));
             verify(mockIotJobsHelper).connect();
             MqttClientConnectionEvents callbacks = deploymentService.callbacks;
             callbacks.onConnectionResumed(true);
@@ -128,7 +128,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @BeforeEach
         public void setup() throws Exception {
             Topics processedDeploymentsTopics =
-                    mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                    mockKernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                             DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                             DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
             when(config.createInteriorChild(eq(DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS)))
@@ -206,18 +206,18 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 MqttClientConnectionEvents callbacks = deploymentService.callbacks;
 
                 callbacks.onConnectionInterrupted(1);
-                Topics processedDeployments = mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                Topics processedDeployments = mockKernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
                 assertEquals(1, processedDeployments.size());
 
                 //Using actual executor service for running the method in a separate thread
-                deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
+                deploymentService.setExecutorService(mockKernel.getContext().get(ExecutorService.class));
                 callbacks.onConnectionResumed(true);
                 //Wait for job statuses to be updated
                 Thread.sleep(Duration.ofSeconds(1).toMillis());
                 mockIotJobsHelperInOrder.verify(mockIotJobsHelper, times(2))
                         .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),  any());
-                processedDeployments = mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                processedDeployments = mockKernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
                 assertEquals(0, processedDeployments.size());
             }
@@ -230,7 +230,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 startDeploymentServiceInAnotherThread();
                 Thread.sleep(Duration.ofSeconds(2).toMillis());
 
-                deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
+                deploymentService.setExecutorService(mockKernel.getContext().get(ExecutorService.class));
                 MqttClientConnectionEvents callbacks = deploymentService.callbacks;
 
                 callbacks.onConnectionInterrupted(1);
@@ -269,7 +269,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 //Wait for the enough time after which deployment service would have updated the status of job
                 Thread.sleep(Duration.ofSeconds(2).toMillis());
                 //Using actual executor service for running the method in a separate thread
-                deploymentService.setExecutorService(mockKernel.context.get(ExecutorService.class));
+                deploymentService.setExecutorService(mockKernel.getContext().get(ExecutorService.class));
                 MqttClientConnectionEvents callbacks = deploymentService.callbacks;
                 callbacks.onConnectionResumed(true);
                 //Wait for main thread to update the persisted deployment statuses
@@ -286,7 +286,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 mockIotJobsHelperInOrder.verify(mockIotJobsHelper, times(1))
                         .updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.FAILED),  any());
 
-                Topics processedDeployments = mockKernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                Topics processedDeployments = mockKernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
                 assertEquals(0, processedDeployments.size());
             }

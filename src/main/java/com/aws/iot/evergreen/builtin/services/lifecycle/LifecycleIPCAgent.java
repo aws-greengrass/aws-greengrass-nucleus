@@ -55,7 +55,7 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     @Override
     public void postInject() {
-        kernel.context.addGlobalStateChangeListener(onServiceChange);
+        kernel.getContext().addGlobalStateChangeListener(onServiceChange);
     }
 
     /**
@@ -69,7 +69,7 @@ public class LifecycleIPCAgent implements InjectionActions {
 
         State s = State.valueOf(stateChangeRequest.getState());
         Optional<EvergreenService> service =
-                Optional.ofNullable(kernel.context.get(EvergreenService.class, context.getServiceName()));
+                Optional.ofNullable(kernel.getContext().get(EvergreenService.class, context.getServiceName()));
 
         LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
         if (service.isPresent()) {
