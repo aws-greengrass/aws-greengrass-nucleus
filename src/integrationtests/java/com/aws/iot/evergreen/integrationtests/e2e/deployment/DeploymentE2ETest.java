@@ -261,7 +261,7 @@ class DeploymentE2ETest {
             cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
         }
 
-        Topics deploymentServiceTopics = kernel.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
+        Topics deploymentServiceTopics = kernel.config.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privateKeyFilePath);
