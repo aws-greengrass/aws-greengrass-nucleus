@@ -17,6 +17,9 @@ import com.aws.iot.evergreen.util.CommitableWriter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -42,14 +45,26 @@ import javax.inject.Singleton;
  */
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
-    public final Context context;
-    public final Configuration config;
+    @Getter
+    private final Context context;
+    @Getter
+    private final Configuration config;
 
-    public Path rootPath;
-    public Path configPath;
-    public Path clitoolPath;
-    public Path workPath;
-    public Path packageStorePath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path rootPath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path configPath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path clitoolPath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path workPath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path packageStorePath;
 
     private final KernelCommandLine kernelCommandLine;
     private final KernelLifecycle kernelLifecycle;

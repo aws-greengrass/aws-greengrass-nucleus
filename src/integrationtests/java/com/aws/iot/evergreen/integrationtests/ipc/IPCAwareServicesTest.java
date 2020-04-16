@@ -46,7 +46,7 @@ class IPCAwareServicesTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         };
-        kernel.context.addGlobalStateChangeListener(listener);
+        kernel.getContext().addGlobalStateChangeListener(listener);
         kernel.launch();
 
         // waiting for main to transition to running

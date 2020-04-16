@@ -100,14 +100,14 @@ class DeploymentTaskIntegrationTest {
         kernel.launch();
 
         // initialize packageStore and dependencyResolver
-        packageStore = new PackageStore(kernel.packageStorePath, new GreengrassPackageServiceHelper(),
+        packageStore = new PackageStore(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
                 new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
 
         Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource(
                 "local_store_content").getPath());
 
         // pre-load contents to package store
-        copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
+        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
         dependencyResolver = new DependencyResolver(packageStore, kernel);
         kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);

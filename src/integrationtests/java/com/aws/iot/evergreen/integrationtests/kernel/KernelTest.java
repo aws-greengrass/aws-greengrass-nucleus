@@ -13,8 +13,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Map;
@@ -39,25 +37,6 @@ class KernelTest extends BaseITCase {
 
     private static final CountDownLatch[] COUNT_DOWN_LATCHES =
             {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
-
-    @Test
-    void GIVEN_invalid_command_line_argument_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() {
-        Kernel kernel = new Kernel();
-        RuntimeException thrown = assertThrows(RuntimeException.class,
-                () -> kernel.parseArgs("-xyznonsense", "nonsense"));
-        assertTrue(thrown.getMessage().contains("Undefined command line argument"));
-    }
-
-    @Test
-    void GIVEN_create_path_fail_WHEN_kernel_parseArgs_THEN_throw_RuntimeException() throws Exception {
-        // Make the root path not writeable so the create path method will fail
-        Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
-        Kernel kernel = new Kernel();
-
-        RuntimeException thrown = assertThrows(RuntimeException.class,
-                () -> kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString()));
-        assertTrue(thrown.getMessage().contains("Cannot create all required directories"));
-    }
 
     @Test
     void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException() {
@@ -139,7 +118,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installerror") && newState.equals(State.BROKEN)) {
                 serviceBroken.countDown();
             }
@@ -155,7 +134,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installerror") && newState.equals(State.BROKEN)) {
                 serviceBroken.countDown();
             }
@@ -163,11 +142,11 @@ class KernelTest extends BaseITCase {
         assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
-        kernel.config.read(getClass().getResource("config_install_succeed_partial.yaml").toString());
+        kernel.getConfig().read(getClass().getResource("config_install_succeed_partial.yaml").toString());
 
         CountDownLatch serviceInstalled = new CountDownLatch(1);
 
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installerror") && newState.equals(State.INSTALLED)) {
                 serviceInstalled.countDown();
             }
@@ -183,7 +162,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("installErrorRetry") && newState.equals(State.INSTALLED)) {
                 serviceRunning.countDown();
             }
@@ -199,7 +178,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("startupError") && newState.equals(State.BROKEN)) {
                 serviceBroken.countDown();
             }
@@ -215,7 +194,7 @@ class KernelTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch serviceRunning = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("startupErrorRetry") && newState.equals(State.RUNNING)) {
                 serviceRunning.countDown();
             }
@@ -249,7 +228,7 @@ class KernelTest extends BaseITCase {
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
         Kernel kernel = new Kernel();
-        kernel.context.addGlobalStateChangeListener(
+        kernel.getContext().addGlobalStateChangeListener(
                 (EvergreenService service, State oldState, State newState) -> {
                     if (expectedStateTransitionList.isEmpty()) {
                         return;
