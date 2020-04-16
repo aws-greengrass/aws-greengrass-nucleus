@@ -13,7 +13,6 @@ import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.Exec;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -53,9 +52,8 @@ public class KernelLifecycle {
      * Startup the Kernel and all services.
      */
     public void launch() {
-        logger.atInfo().log("root path = {}. config path = {}", kernel.rootPath,
-                kernel.configPath);
-        Exec.setDefaultEnv("EVERGREEN_HOME", kernel.rootPath.toString());
+        logger.atInfo().log("root path = {}. config path = {}", kernel.getRootPath(),
+                kernel.getConfigPath());
 
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
@@ -80,8 +78,8 @@ public class KernelLifecycle {
             }
         });
 
-        Path transactionLogPath = kernel.configPath.resolve("config.tlog");
-        Path configurationFile = kernel.configPath.resolve("config.yaml");
+        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
+        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
         try {
             if (kernelCommandLine.haveRead) {
                 // new config file came in from the outside
@@ -89,13 +87,13 @@ public class KernelLifecycle {
                 Files.deleteIfExists(transactionLogPath);
             } else {
                 if (Files.exists(configurationFile)) {
-                    kernel.config.read(configurationFile);
+                    kernel.getConfig().read(configurationFile);
                 }
                 if (Files.exists(transactionLogPath)) {
-                    kernel.config.read(transactionLogPath);
+                    kernel.getConfig().read(transactionLogPath);
                 }
             }
-            tlog = ConfigurationWriter.logTransactionsTo(kernel.config, transactionLogPath);
+            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath);
             tlog.flushImmediately(true);
         } catch (IOException ioe) {
             logger.atError().setEventType("system-config-error").setCause(ioe).log();
@@ -110,8 +108,8 @@ public class KernelLifecycle {
     private Queue<String> findBuiltInServicesAndPlugins() {
         Queue<String> autostart = new LinkedList<>();
         try {
-            EZPlugins pim = kernel.context.get(EZPlugins.class);
-            pim.withCacheDirectory(kernel.rootPath.resolve("plugins"));
+            EZPlugins pim = kernel.getContext().get(EZPlugins.class);
+            pim.withCacheDirectory(kernel.getRootPath().resolve("plugins"));
             pim.annotated(ImplementsService.class, cl -> {
                 if (!EvergreenService.class.isAssignableFrom(cl)) {
                     logger.atError()
@@ -128,7 +126,7 @@ public class KernelLifecycle {
 
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
-                kernel.context.put("service-implementors", serviceImplementors);
+                kernel.getContext().put("service-implementors", serviceImplementors);
             }
             logger.atInfo().log("serviceImplementors: {}", deepToString(serviceImplementors));
         } catch (IOException t) {
@@ -196,9 +194,9 @@ public class KernelLifecycle {
             }
 
             // Wait for tasks in the executor to end.
-            ScheduledExecutorService scheduledExecutorService = kernel.context.get(ScheduledExecutorService.class);
-            ExecutorService executorService = kernel.context.get(ExecutorService.class);
-            kernel.context.runOnPublishQueueAndWait(() -> {
+            ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);
+            ExecutorService executorService = kernel.getContext().get(ExecutorService.class);
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
                 executorService.shutdown();
                 scheduledExecutorService.shutdown();
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();

@@ -41,7 +41,7 @@ public interface ShellRunner {
                             .kv("stderr", ss).log();
                 }).setenv("SVCUID",
                         String.valueOf(onBehalfOf.getServiceConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
-                        .cd(config.workPath.toFile());
+                        .cd(config.getWorkPath().toFile());
             }
             return null;
         }

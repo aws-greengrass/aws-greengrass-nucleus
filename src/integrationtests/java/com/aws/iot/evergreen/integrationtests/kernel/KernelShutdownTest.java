@@ -31,7 +31,7 @@ class KernelShutdownTest extends BaseITCase {
         AtomicBoolean sleeperAClosed = new AtomicBoolean(false);
         AtomicBoolean sleeperBClosed = new AtomicBoolean(false);
 
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("main".equals(service.getName()) && newState.isClosable()) {
                 mainClosed.set(true);
             }
