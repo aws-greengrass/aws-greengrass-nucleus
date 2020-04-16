@@ -145,7 +145,7 @@ public class Context implements Closeable {
      *
      * @param clazz  type of class to be stored
      * @param object instance of class to store
-     * @param <T>    the class type to putAndInjectFields
+     * @param <T>    the class type to put
      * @return this
      */
     public <T> Context put(Class<T> clazz, T object) {
@@ -165,7 +165,7 @@ public class Context implements Closeable {
      *
      * @param clazz type of class to be stored
      * @param value value instance of class to store
-     * @param <T>   the class type to putAndInjectFields
+     * @param <T>   the class type to put
      * @return this
      */
     public <T> Context put(Class<T> clazz, Value<T> value) {
