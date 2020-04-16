@@ -201,6 +201,7 @@ public class EvergreenService implements InjectionActions {
     public void serviceErrored(Throwable e) {
         e = getUltimateCause(e);
         error = e;
+        logger.atError("service-errored", e).log();
         serviceErrored();
     }
 

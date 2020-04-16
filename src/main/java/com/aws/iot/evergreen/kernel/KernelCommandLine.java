@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -26,7 +25,6 @@ public class KernelCommandLine {
     private static final Logger logger = LogManager.getLogger(KernelCommandLine.class);
     private static final String done = " missing "; // unique marker
     private final Kernel kernel;
-    boolean forReal = true;
     boolean haveRead = false;
     String mainServiceName = "main";
     private String[] args;
@@ -59,12 +57,6 @@ public class KernelCommandLine {
 
         while (!Objects.equals(getArg(), done)) {
             switch (arg.toLowerCase()) {
-                case "-dryrun":
-                    forReal = false;
-                    break;
-                case "-forreal":
-                    forReal = true;
-                    break;
                 case "-config":
                 case "-i":
                     try {
@@ -98,30 +90,6 @@ public class KernelCommandLine {
 
         kernel.config.lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
-        kernel.context.get(EZTemplates.class).addEvaluator(expr -> {
-            Object value;
-            switch (expr) {
-                case "root":
-                    value = kernel.rootPath;
-                    break;
-                case "work":
-                    value = kernel.workPath;
-                    break;
-                case "bin":
-                    value = kernel.clitoolPath;
-                    break;
-                case "config":
-                    value = kernel.configPath;
-                    break;
-                default:
-                    value = System.getProperty(expr, System.getenv(expr));
-                    if (value == null) {
-                        value = kernel.config.find(Configuration.splitPath(expr));
-                    }
-                    break;
-            }
-            return value;
-        });
     }
 
     private void initPaths(String rootAbsolutePath) {
@@ -160,7 +128,6 @@ public class KernelCommandLine {
                 dp = dp.substring(sl + 1);
             }
             Path dest = kernel.clitoolPath.resolve(dp);
-            kernel.context.get(EZTemplates.class).rewrite(resource, dest);
             Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
         } catch (IOException t) {
             logger.atError().setEventType("cli-install-error").setCause(t).log();
