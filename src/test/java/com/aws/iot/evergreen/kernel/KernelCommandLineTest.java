@@ -30,7 +30,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class KernelCommandLineTest {
-    public static final String TMP_NEW_ROOT = "/tmp/new_root";
     @TempDir
     protected Path tempRootDir;
 
@@ -60,6 +59,7 @@ class KernelCommandLineTest {
         Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
 
         Kernel kernel = new Kernel();
+        kernel.shutdown();
         RuntimeException thrown = assertThrows(RuntimeException.class, kernel::parseArgs);
         assertTrue(thrown.getMessage().contains("Cannot create all required directories"));
     }
@@ -82,6 +82,7 @@ class KernelCommandLineTest {
 
         Path newDir = tempRootDir.resolve("new/under/dir");
         kernel.parseArgs("-r", newDir.toString());
+        kernel.shutdown();
         assertEquals(newDir.toString(), kernel.getConfig().find("system", "rootpath").getOnce());
     }
 

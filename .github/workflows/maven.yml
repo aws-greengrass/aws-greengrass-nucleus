@@ -55,8 +55,6 @@ jobs:
           show_branch: true
           # Use class names instead of the filename
           show_class_names: true
-          # Only show the files changed in the PR
-          only_changed_files: true
       - name: GitHub Actions Artifact Cleaner
         uses: glassechidna/artifact-cleaner@v2
         continue-on-error: true
