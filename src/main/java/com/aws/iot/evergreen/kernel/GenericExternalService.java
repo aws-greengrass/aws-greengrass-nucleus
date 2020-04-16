@@ -263,7 +263,7 @@ public class GenericExternalService extends EvergreenService {
                     case "onpath":
                         return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
                     case "exists":
-                        return Files.exists(Paths.get(context.get(Kernel.class).deTilde(m.group(2)))) ^ neg;
+                        return Files.exists(Paths.get(context.get(KernelCommandLine.class).deTilde(m.group(2)))) ^ neg;
                     default:
                         logger.atError().setEventType("generic-service-invalid-config")
                                 .addKeyValue("operator", m.group(1)).log("Unknown operator in skipif");

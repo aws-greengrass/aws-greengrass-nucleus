@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -152,9 +153,9 @@ public class ConfigurationTest {
     @Test
     public void GIVEN_config_with_subscribers_WHEN_topic_updated_THEN_subscribers_notified_with_changed_node()
             throws Exception {
-        Topic installTopic = config.lookup("services", "serviceA", "lifecycle", "install").dflt("default");
+        Topic installTopic = config.lookup(SERVICES_NAMESPACE_TOPIC, "serviceA", "lifecycle", "install").dflt("default");
         CountDownLatch childChangedCorrectly = new CountDownLatch(1);
-        config.findTopics("services", "serviceA").subscribe((what, child) -> {
+        config.findTopics(SERVICES_NAMESPACE_TOPIC, "serviceA").subscribe((what, child) -> {
             if (what.equals(WhatHappened.childChanged)
                     && child.childOf("install")
                     && ((Topic) child).getOnce().equals("Install")) {

@@ -30,3 +30,4 @@ jobs:
         with:
           name: Flaky test results
           path: failed_tests/
+        continue-on-error: true

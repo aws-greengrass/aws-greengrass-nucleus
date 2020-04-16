@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.KernelCommandLine;
 import com.aws.iot.evergreen.util.Utils;
 
 import java.util.ArrayList;
@@ -30,6 +31,9 @@ public class DeviceConfigurationHelper {
     @Inject
     private Kernel kernel;
 
+    @Inject
+    private KernelCommandLine kernelCommandLine;
+
     /**
      * Retrieves the device configuration information from kernel config to communicate with Iot Cloud.
      * @return {@link DeviceConfiguration}
@@ -37,9 +41,10 @@ public class DeviceConfigurationHelper {
      */
     public DeviceConfiguration getDeviceConfiguration() throws DeviceConfigurationException {
         String thingName = getStringParameterFromConfig(DEVICE_PARAM_THING_NAME);
-        String certificateFilePath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_CERTIFICATE_FILE_PATH));
-        String privateKeyPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
-        String rootCAPath = kernel.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
+        String certificateFilePath = kernelCommandLine.deTilde(
+                getStringParameterFromConfig(DEVICE_PARAM_CERTIFICATE_FILE_PATH));
+        String privateKeyPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
+        String rootCAPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
         String mqttClientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
         validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint);
         return new DeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint);
@@ -48,7 +53,7 @@ public class DeviceConfigurationHelper {
     private String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
         //TODO: Update when device provisioning is implemented
-        Topic childTopic = kernel.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+        Topic childTopic = kernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                 DeploymentService.DEPLOYMENT_SERVICE_TOPICS).findLeafChild(parameterName);
         if (childTopic != null && childTopic.getOnce() != null) {
             paramValue = childTopic.getOnce().toString();
