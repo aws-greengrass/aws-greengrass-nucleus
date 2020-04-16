@@ -67,7 +67,7 @@ public class DependencyResolverBenchmark {
             copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
 
             // get the resolver from context
-            resolver = kernel.getRoot().getContext().get(DependencyResolver.class);
+            resolver = kernel.context.get(DependencyResolver.class);
         }
 
         @TearDown(Level.Invocation)
