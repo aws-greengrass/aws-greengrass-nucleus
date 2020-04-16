@@ -98,9 +98,9 @@ class DeploymentTaskIntegrationTest {
         kernel.launch();
 
         // get required instances from context
-        packageStore = kernel.getMain().getContext().get(PackageStore.class);
-        dependencyResolver = kernel.getMain().getContext().get(DependencyResolver.class);
-        kernelConfigResolver = kernel.getMain().getContext().get(KernelConfigResolver.class);
+        packageStore = kernel.context.get(PackageStore.class);
+        dependencyResolver = kernel.context.get(DependencyResolver.class);
+        kernelConfigResolver = kernel.context.get(KernelConfigResolver.class);
 
         // pre-load contents to package store
         Path localStoreContentPath =
