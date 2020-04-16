@@ -715,7 +715,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public EvergreenService locate(String name) throws ServiceLoadException {
-        return context.getv(EvergreenService.class, name).computeObjectIfEmpty(v -> {
+        return context.getValue(EvergreenService.class, name).computeObjectIfEmpty(v -> {
             Configuration configuration = context.get(Configuration.class);
             Topics serviceRootTopics = configuration.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, name);
             if (serviceRootTopics.isEmpty()) {

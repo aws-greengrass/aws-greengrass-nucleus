@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -25,7 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
-import lombok.NoArgsConstructor;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,8 +43,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-@NoArgsConstructor // for dependency injection
-public class PackageStore implements InjectionActions {
+public class PackageStore {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
     private static final String RECIPE_DIRECTORY = "recipe";
     private static final String ARTIFACT_DIRECTORY = "artifact";
@@ -60,21 +57,15 @@ public class PackageStore implements InjectionActions {
 
     private Path artifactDirectory;
 
-//    @Inject
-    private GreengrassRepositoryDownloader greengrassArtifactDownloader;
+    private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
 
-//    @Inject
-    private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
+    private final GreengrassPackageServiceHelper greengrassPackageServiceHelper;
 
-//    @Inject
-    private ExecutorService executorService;
+    private final ExecutorService executorService;
 
-//    @Inject
-//    @Named("packageStoreDirectory")
-    private Path packageStoreDirectory;
+    private final Path packageStoreDirectory;
 
-//    @Inject
-    private Kernel kernel;
+    private final Kernel kernel;
 
     /**
      * PackageStore constructor.
@@ -91,17 +82,11 @@ public class PackageStore implements InjectionActions {
                         GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
                         Kernel kernel) {
         this.packageStoreDirectory = packageStoreDirectory;
-        initializeSubDirectories(packageStoreDirectory);
+        initializeSubDirectories(this.packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
         this.greengrassArtifactDownloader = artifactDownloader;
         this.executorService = executorService;
         this.kernel = kernel;
-    }
-
-    // Workaround using InjectionActions since constructor named pattern injection is not supported yet
-    @Override
-    public void postInject() {
-        initializeSubDirectories(packageStoreDirectory);
     }
 
     private void initializeSubDirectories(Path packageStoreDirectory) {
@@ -133,7 +118,6 @@ public class PackageStore implements InjectionActions {
      * @return an iterator of PackageMetadata, with the active version first if found, followed by available versions
      *     locally.
      * @throws PackagingException if fails when trying to list available package metadata
-     *
      */
     public Iterator<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
             throws PackagingException {
