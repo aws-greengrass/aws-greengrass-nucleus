@@ -66,7 +66,7 @@ public final class Exec implements Closeable {
             // path variable, but without using Exec shorthands to avoid initialization
             // order paradoxes.
             Process hack = Runtime.getRuntime()
-                    .exec(new String[]{"bash", "-c", "echo 'echo $PATH'|bash --login|egrep':[^ ]'"});
+                    .exec(new String[]{"sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'"});
             StringBuilder path = new StringBuilder();
 
             Thread bg = new Thread(() -> {
@@ -82,7 +82,7 @@ public final class Exec implements Closeable {
             bg.join(2000);
             addPathEntries(path.toString().trim());
             // Ensure some level of sanity
-            ensurePresent("/usr/local/bin", "/bin", "/usr/bin", "/sbin", "/usr/sbin", System.getProperty("java.home"));
+            ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
         } catch (Throwable ex) {
             ex.printStackTrace(System.out);
         }

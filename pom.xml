@@ -164,30 +164,30 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <!-- Current violations should not be exceeded. Try to decrease these over time -->
-                    <maxAllowedViolations>13</maxAllowedViolations>
-                    <printFailingErrors>true</printFailingErrors>
-                    <rulesets>
-                        <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>
-                        <ruleset>codestyle/pmd-eg-tests-ruleset.xml</ruleset>
-                    </rulesets>
-                    <includeTests>true</includeTests>
-                    <skip>${skipTests}</skip>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.apache.maven.plugins</groupId>-->
+<!--                <artifactId>maven-pmd-plugin</artifactId>-->
+<!--                <version>3.13.0</version>-->
+<!--                <configuration>-->
+<!--                    &lt;!&ndash; Current violations should not be exceeded. Try to decrease these over time &ndash;&gt;-->
+<!--                    <maxAllowedViolations>13</maxAllowedViolations>-->
+<!--                    <printFailingErrors>true</printFailingErrors>-->
+<!--                    <rulesets>-->
+<!--                        <ruleset>codestyle/pmd-eg-ruleset.xml</ruleset>-->
+<!--                        <ruleset>codestyle/pmd-eg-tests-ruleset.xml</ruleset>-->
+<!--                    </rulesets>-->
+<!--                    <includeTests>true</includeTests>-->
+<!--                    <skip>${skipTests}</skip>-->
+<!--                </configuration>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>validate</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>check</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0-M4</version>
@@ -239,55 +239,55 @@
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.0.0-M4</version>
             </plugin>
-            <plugin>
-                <groupId>com.github.spotbugs</groupId>
-                <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.0.0</version>
-                <configuration>
-                    <skip>${skipTests}</skip>
-                    <effort>Max</effort>
-                    <!-- Reports all bugs (other values are medium and max) -->
-                    <threshold>Low</threshold>
-                    <xmlOutput>true</xmlOutput>
-                    <excludeFilterFile>codestyle/findbugs-exclude.xml</excludeFilterFile>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>analyze-compile</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.1.0</version>
-                <dependencies>
-                    <dependency>
-                        <groupId>com.puppycrawl.tools</groupId>
-                        <artifactId>checkstyle</artifactId>
-                        <version>8.29</version>
-                    </dependency>
-                </dependencies>
-                <configuration>
-                    <logViolationsToConsole>true</logViolationsToConsole>
-                    <configLocation>codestyle/checkstyle.xml</configLocation>
-                    <violationSeverity>warning</violationSeverity>
-                    <maxAllowedViolations>0</maxAllowedViolations>
-                    <skip>${skipTests}</skip>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>validate</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>com.github.spotbugs</groupId>-->
+<!--                <artifactId>spotbugs-maven-plugin</artifactId>-->
+<!--                <version>4.0.0</version>-->
+<!--                <configuration>-->
+<!--                    <skip>${skipTests}</skip>-->
+<!--                    <effort>Max</effort>-->
+<!--                    &lt;!&ndash; Reports all bugs (other values are medium and max) &ndash;&gt;-->
+<!--                    <threshold>Low</threshold>-->
+<!--                    <xmlOutput>true</xmlOutput>-->
+<!--                    <excludeFilterFile>codestyle/findbugs-exclude.xml</excludeFilterFile>-->
+<!--                </configuration>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <id>analyze-compile</id>-->
+<!--                        <phase>test</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>check</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
+<!--            <plugin>-->
+<!--                <artifactId>maven-checkstyle-plugin</artifactId>-->
+<!--                <version>3.1.0</version>-->
+<!--                <dependencies>-->
+<!--                    <dependency>-->
+<!--                        <groupId>com.puppycrawl.tools</groupId>-->
+<!--                        <artifactId>checkstyle</artifactId>-->
+<!--                        <version>8.29</version>-->
+<!--                    </dependency>-->
+<!--                </dependencies>-->
+<!--                <configuration>-->
+<!--                    <logViolationsToConsole>true</logViolationsToConsole>-->
+<!--                    <configLocation>codestyle/checkstyle.xml</configLocation>-->
+<!--                    <violationSeverity>warning</violationSeverity>-->
+<!--                    <maxAllowedViolations>0</maxAllowedViolations>-->
+<!--                    <skip>${skipTests}</skip>-->
+<!--                </configuration>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <id>validate</id>-->
+<!--                        <phase>validate</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>check</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

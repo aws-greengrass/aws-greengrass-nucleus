@@ -11,7 +11,11 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.ipc.IPCService;
+import com.aws.iot.evergreen.ipc.modules.LifecycleIPCService;
+import com.aws.iot.evergreen.ipc.modules.ServiceDiscoveryService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -252,11 +256,26 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             });
 
             pim.loadCache();
+
+            autostart.add("httpd");
+            serviceImplementors.put("httpd", Class.forName("com.aws.iot.evergreen.internalhttp.SimpleHttpServer"));
+            autostart.add("DeploymentService");
+            serviceImplementors.put("DeploymentService", DeploymentService.class);
+            autostart.add("lifecycleipc");
+            serviceImplementors.put("lifecycleipc", LifecycleIPCService.class);
+            autostart.add("servicediscovery");
+            serviceImplementors.put("servicediscovery", ServiceDiscoveryService.class);
+            autostart.add("SafeSystemUpdate");
+            serviceImplementors.put("SafeSystemUpdate", UpdateSystemSafelyService.class);
+            autostart.add("IPCService");
+            serviceImplementors.put("IPCService", IPCService.class);
+
             if (!serviceImplementors.isEmpty()) {
                 context.put("service-implementors", serviceImplementors);
             }
             logger.atInfo().log("serviceImplementors: {}", deepToString(serviceImplementors));
         } catch (Throwable t) {
+            t.printStackTrace();
             logger.atError().log("Error launching plugins", t);
         }
         try {
@@ -264,6 +283,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
         } catch (ServiceLoadException sle) {
             RuntimeException rte =
                     new RuntimeException("Cannot load main service", sle);
+            sle.printStackTrace();
             logger.atError().setEventType("system-boot-error").setCause(rte).log();
             throw rte;
         }
@@ -285,6 +305,7 @@ public class Kernel extends Configuration /*implements Runnable*/ {
             tlog = ConfigurationWriter.logTransactionsTo(this, transactionLogPath);
             tlog.flushImmediately(true);
         } catch (Throwable ioe) {
+            ioe.printStackTrace();
             logger.atError().setEventType("system-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
         }
@@ -297,12 +318,15 @@ public class Kernel extends Configuration /*implements Runnable*/ {
                 try {
                     mainService.addOrUpdateDependency(locate(s), State.RUNNING, true);
                 } catch (ServiceLoadException se) {
+                    se.printStackTrace();
                     logger.atError().setCause(se).log("Unable to load service {}", s);
                 } catch (InputValidationException e) {
+                    e.printStackTrace();
                     logger.atError().setCause(e).log("Unable to add auto-starting dependency {} to main", s);
                 }
             });
         } catch (Throwable ex) {
+            ex.printStackTrace();
             logger.atError().setEventType("system-boot-error").setCause(ex).log("***BOOT FAILED, EXITING*** ");
             // The error is not recoverable, throw the exception up.
             throw ex;
