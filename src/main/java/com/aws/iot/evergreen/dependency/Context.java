@@ -355,6 +355,7 @@ public class Context implements Closeable {
             }
         }
 
+        @SuppressWarnings("PMD.AvoidCatchingThrowable")
         private synchronized T constructObjectWithInjection() {
             if (object != null) {
                 return object;
@@ -379,7 +380,7 @@ public class Context implements Closeable {
 
                 Object[] args = getOrCreateArgInstances(clazz, pickedConstructor, paramCount);
                 return putAndInjectFields(pickedConstructor.newInstance(args));
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
             }
         }

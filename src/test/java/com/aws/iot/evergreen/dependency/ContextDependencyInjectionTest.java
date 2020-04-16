@@ -16,6 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class ContextDependencyInjectionTest {
 
+    private Context context;
+
     static class Bogon {
         @Inject
         Engine engine;
@@ -86,8 +88,6 @@ class ContextDependencyInjectionTest {
     }
 
 
-    private Context context;
-
     @BeforeEach
     void beforeEach() {
         context = new Context();
@@ -97,7 +97,6 @@ class ContextDependencyInjectionTest {
     void afterEach() throws IOException {
         context.close();
     }
-
 
     @Test
     void GIVEN_bogon_with_field_injection_WHEN_context_get_THEN_objects_are_created() {
