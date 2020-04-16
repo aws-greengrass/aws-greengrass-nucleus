@@ -214,8 +214,6 @@ public class GenericExternalService extends EvergreenService {
     @SuppressWarnings("PMD.CloseResource")
     protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        final EZTemplates templateEngine = context.get(EZTemplates.class);
-        cmd = templateEngine.rewrite(cmd).toString();
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
         if (exec == null) {
             return RunStatus.NothingDone;
@@ -223,7 +221,7 @@ public class GenericExternalService extends EvergreenService {
         currentScript = exec;
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
-        RunStatus ret = shellRunner.successful(exec, cmd, background) ? RunStatus.OK : RunStatus.Errored;
+        RunStatus ret = shellRunner.successful(exec, cmd, background, this) ? RunStatus.OK : RunStatus.Errored;
         if (background == null) {
             currentScript = null;
         }
@@ -256,7 +254,6 @@ public class GenericExternalService extends EvergreenService {
                 expr = expr.substring(1).trim();
                 neg = true;
             }
-            expr = context.get(EZTemplates.class).rewrite(expr).toString();
             Matcher m = skipcmd.matcher(expr);
             if (m.matches()) {
                 switch (m.group(1)) {
@@ -287,10 +284,9 @@ public class GenericExternalService extends EvergreenService {
         addEnv(exec, src.parent); // add parents contributions first
         Node env = src.getChild("setenv");
         if (env instanceof Topics) {
-            EZTemplates templateEngine = context.get(EZTemplates.class);
             ((Topics) env).forEach(n -> {
                 if (n instanceof Topic) {
-                    exec.setenv(n.getName(), templateEngine.rewrite(Coerce.toString(((Topic) n).getOnce())));
+                    exec.setenv(n.getName(), Coerce.toString(((Topic) n).getOnce()));
                 }
             });
         }
