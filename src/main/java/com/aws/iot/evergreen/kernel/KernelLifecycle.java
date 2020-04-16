@@ -55,7 +55,6 @@ public class KernelLifecycle {
     public void launch() {
         logger.atInfo().log("root path = {}. config path = {}", kernel.rootPath,
                 kernel.configPath);
-        kernelCommandLine.installCliTool(getClass().getClassLoader().getResource("evergreen-launch"));
         Exec.setDefaultEnv("EVERGREEN_HOME", kernel.rootPath.toString());
 
         // Must be called before everything else so that these are available to be
@@ -101,10 +100,6 @@ public class KernelLifecycle {
         } catch (IOException ioe) {
             logger.atError().setEventType("system-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
-        }
-
-        if (!kernelCommandLine.forReal) {
-            kernel.context.put(ShellRunner.class, kernel.context.get(ShellRunner.Dryrun.class));
         }
 
         kernel.writeEffectiveConfig();
