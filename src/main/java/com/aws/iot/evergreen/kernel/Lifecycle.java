@@ -9,7 +9,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.util.Pair;
+import com.aws.iot.evergreen.util.Coerce;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -24,16 +24,18 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
 @SuppressFBWarnings(value = "JLM_JSR166_UTILCONCURRENT_MONITORENTER",
@@ -41,14 +43,16 @@ import javax.annotation.Nonnull;
 public class Lifecycle {
     public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
+    public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
 
+    private static final String STATE_TOPIC_NAME = "_State";
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
+    private static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
-    private static final Pair<State, State> INSTALLED_TO_RUNNING = new Pair<>(State.INSTALLED, State.RUNNING);
 
     /*
      * State generation is a value representing how many times the service has been in the INSTALLED state.
@@ -66,12 +70,13 @@ public class Lifecycle {
     @Getter(AccessLevel.PACKAGE)
     private final AtomicLong stateGeneration = new AtomicLong();
     private final EvergreenService evergreenService;
+    private final AtomicBoolean errorReported = new AtomicBoolean(false);
     private final Topic stateTopic;
     private final Logger logger;
-    private Future backingTask = CompletableFuture.completedFuture(null);
+    private final AtomicReference<Future> backingTask = new AtomicReference<>(CompletableFuture.completedFuture(null));
     private String backingTaskName;
     private State prevState;
-    @Getter
+
     private Future<?> lifecycleFuture;
     // A state event can be a state transition event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
@@ -90,43 +95,29 @@ public class Lifecycle {
     // these states impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
             new HashSet<>(Arrays.asList(State.NEW, State.INSTALLED, State.RUNNING));
-    private Pair<State, State> currentStateTransition = null;
 
     /**
      * Constructor for lifecycle.
      *
      * @param evergreenService service that this is the lifecycle for
-     * @param state            service's state topic
      * @param logger           service's logger
      */
-    public Lifecycle(EvergreenService evergreenService, Topic state, Logger logger) {
+    public Lifecycle(EvergreenService evergreenService, Logger logger) {
         this.evergreenService = evergreenService;
         this.prevState = State.NEW;
-        this.stateTopic = state;
+        this.stateTopic = initStateTopic(evergreenService.getConfig());
         this.logger = logger;
     }
 
-    private void updateStateAndBroadcast(State newState) {
-        final State currentState = evergreenService.getState();
-
-        if (newState.equals(currentState)) {
+    void reportState(State newState) {
+        logger.atInfo("service-report-state").kv("newState", newState).log();
+        if (!ALLOWED_STATES_FOR_REPORTING.contains(newState)) {
+            logger.atWarn(INVALID_STATE_ERROR_EVENT).kv("newState", newState).log("Invalid reported state");
             return;
         }
+        // TODO: Add more validations
 
-        // TODO: Add validation
-
-        logger.atInfo("service-set-state").kv("newState", newState).log();
-        // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
-        // across different services.
-        synchronized (State.class) {
-            currentStateTransition = null; //NOPMD
-            if (State.INSTALLED.equals(newState)) {
-                stateGeneration.incrementAndGet();
-            }
-            prevState = currentState;
-            stateTopic.withValue(newState);
-            evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
-        }
+        internalReportState(newState);
     }
 
     /**
@@ -135,19 +126,15 @@ public class Lifecycle {
      * @param newState reported state from the service which should eventually be set as the service's
      *                 actual state
      */
-    synchronized void reportState(State newState) {
-        logger.atInfo("service-report-state").kv("newState", newState).log();
-        if (!ALLOWED_STATES_FOR_REPORTING.contains(newState)) {
-            logger.atError(INVALID_STATE_ERROR_EVENT).kv("newState", newState).log("Invalid reported state");
-        }
-        // TODO: Add more validations
+    private synchronized void internalReportState(State newState) {
+        errorReported.set(State.ERRORED.equals(newState));
 
-        if (evergreenService.getState().equals(State.INSTALLED) && newState.equals(State.FINISHED)) {
+        if (getState().equals(State.INSTALLED) && newState.equals(State.FINISHED)) {
             // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
             requestStop();
         }
 
-        State currentState = evergreenService.getState();
+        State currentState = getState();
 
         if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
             // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
@@ -164,16 +151,24 @@ public class Lifecycle {
         }
     }
 
-    private Optional<State> getReportState() {
-        Object top = stateEventQueue.poll();
-        while (top != null && !(top instanceof State)) {
-            top = stateEventQueue.poll();
-        }
+    protected State getState() {
+        return (State) stateTopic.getOnce();
+    }
 
-        if (top != null) {
-            return Optional.of((State) top);
-        }
-        return Optional.empty();
+    protected Topic getStateTopic()  {
+        return stateTopic;
+    }
+
+    private Topic initStateTopic(final Topics topics) {
+        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
+        state.withParentNeedsToKnow(false);
+        state.withValue(State.NEW);
+        state.validate((newStateObj, oldStateObj) -> {
+            State newState = Coerce.toEnum(State.class, newStateObj);
+            return newState == null ? oldStateObj : newStateObj;
+        });
+
+        return state;
     }
 
     /**
@@ -181,13 +176,13 @@ public class Lifecycle {
      *
      * @return
      */
-    public boolean reachedDesiredState() {
+    protected boolean reachedDesiredState() {
         synchronized (desiredStateList) {
             return desiredStateList.isEmpty()
                     // when reachedDesiredState() is called in global state listener,
                     // service lifecycle thread hasn't drained the desiredStateList yet.
                     // Therefore adding this check.
-                    || desiredStateList.stream().allMatch(s -> s == evergreenService.getState());
+                    || desiredStateList.stream().allMatch(s -> s == getState());
         }
     }
 
@@ -206,7 +201,7 @@ public class Lifecycle {
         }
     }
 
-    void setDesiredState(State... state) {
+    private void setDesiredState(State... state) {
         // Set desiredStateList and override existing desiredStateList.
         synchronized (desiredStateList) {
             List<State> newStateList = Arrays.asList(state);
@@ -228,10 +223,10 @@ public class Lifecycle {
         }
     }
 
-    void startStateTransition() throws InterruptedException {
-        while (!(isClosed.get() && evergreenService.getState().isClosable())) {
+    private void startStateTransition() throws InterruptedException {
+        while (!(isClosed.get() && getState().isClosable())) {
             Optional<State> desiredState;
-            State current = evergreenService.getState();
+            State current = getState();
             logger.atDebug("service-state-transition-start").log();
 
             // if already in desired state, remove the head of desired state list.
@@ -239,85 +234,96 @@ public class Lifecycle {
             while (desiredState.isPresent() && desiredState.get().equals(current)) {
                 desiredState = peekOrRemoveFirstDesiredState(current);
             }
-            AtomicReference<Future> triggerTimeOutReference = new AtomicReference<>();
+
+            AtomicReference<Predicate<Object>> asyncFinishAction = new AtomicReference<>((o) -> true);
             switch (current) {
                 case BROKEN:
-                    if (handleCurrentStateBroken(desiredState)) {
-                        break;
-                    }
-                    continue;
+                    handleCurrentStateBroken(desiredState);
+                    break;
                 case NEW:
-                    if (handleCurrentStateNew(desiredState)) {
-                        break;
-                    }
-                    continue;
+                    handleCurrentStateNew(desiredState);
+                    break;
                 case INSTALLED:
-                    if (handleCurrentStateInstalled(desiredState, triggerTimeOutReference)) {
-                        break;
-                    }
-                    continue;
+                    handleCurrentStateInstalledAsync(desiredState, asyncFinishAction);
+                    break;
                 case RUNNING:
-                    if (handleCurrentStateRunning(desiredState)) {
-                        break;
-                    }
-                    continue;
+                    handleCurrentStateRunning(desiredState);
+                    break;
                 case STOPPING:
                     handleCurrentStateStopping();
-                    continue;
+                    break;
                 case FINISHED:
-                    if (handleCurrentStateFinished(desiredState)) {
-                        break;
-                    }
-                    continue;
+                    handleCurrentStateFinished(desiredState);
+                    break;
                 case ERRORED:
                     handleCurrentStateErrored(desiredState);
-                    continue;
+                    break;
                 default:
                     logger.atError(INVALID_STATE_ERROR_EVENT).log("Unrecognized current state");
                     break;
             }
 
-            // blocking on event queue.
-            // The state event can either be a report state transition event or a desired state updated event.
-            // TODO: check if it's possible to move this blocking logic to the beginning of while loop.
-            Object stateEvent = stateEventQueue.take();
-            if (stateEvent instanceof State) {
-                State toState = (State) stateEvent;
-                updateStateAndBroadcast(toState);
-            }
-            // service transitioning to another state, cancelling task monitoring the timeout for startup
-            Future triggerTimeOutFuture = triggerTimeOutReference.get();
-            if (triggerTimeOutFuture != null) {
-                triggerTimeOutFuture.cancel(true);
+            boolean canFinish = false;
+            while (!canFinish) {
+                // A state event can either be a report state transition event or a desired state updated event.
+                Object stateEvent = stateEventQueue.poll();
+
+                // If there are accumulated "DesiredStateUpdated" in the queue,
+                // drain them until a "State" event is encountered.
+                while (!(stateEvent instanceof State) && !stateEventQueue.isEmpty()) {
+                    stateEvent = stateEventQueue.poll();
+                }
+
+                // if there are no events in the queue, block until one is available.
+                if (stateEvent == null) {
+                    stateEvent = stateEventQueue.take();
+                }
+
+                if (stateEvent instanceof State) {
+                    State newState = (State) stateEvent;
+                    if (newState == current) {
+                        continue;
+                    }
+
+                    canFinish = true;
+                    logger.atInfo("service-set-state").kv("newState", newState).log();
+                    // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
+                    // are consistent across different services.
+                    synchronized (State.class) {
+                        prevState = current;
+                        stateTopic.withValue(newState);
+                        evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
+                    }
+                }
+                if (asyncFinishAction.get().test(stateEvent)) {
+                    canFinish = true;
+                }
             }
         }
     }
 
-    private boolean handleCurrentStateBroken(Optional<State> desiredState) {
+    private void handleCurrentStateBroken(Optional<State> desiredState) {
         if (!desiredState.isPresent()) {
-            return true;
+            return;
         }
         // Having State.NEW as the desired state indicates the service is requested to reinstall, so here
         // we'll transition out of BROKEN state to give it a new chance.
         if (State.NEW.equals(desiredState.get())) {
-            updateStateAndBroadcast(State.NEW);
+            internalReportState(State.NEW);
         } else {
             logger.atError("service-broken").log("service is broken. Deployment is needed");
-            return true;
         }
-        return false;
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    private boolean handleCurrentStateNew(Optional<State> desiredState) throws InterruptedException {
+    private void handleCurrentStateNew(Optional<State> desiredState) throws InterruptedException {
         // if no desired state is set, don't do anything.
         if (!desiredState.isPresent()) {
-            return true;
+            return;
         }
 
-        CountDownLatch installLatch = new CountDownLatch(1);
         setBackingTask(() -> {
-            if (!State.NEW.equals(evergreenService.getState())) {
+            if (!State.NEW.equals(getState())) {
                 // Bail out if we're not in the expected state
                 return;
             }
@@ -328,60 +334,51 @@ public class Lifecycle {
             } catch (Throwable t) {
                 reportState(State.ERRORED);
                 logger.atError("service-install-error", t).log();
-            } finally {
-                installLatch.countDown();
             }
         }, "install");
 
-        Topic installTimeOutTopic = evergreenService.config
-                .find(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_INSTALL_NAMESPACE_TOPIC,
-                        TIMEOUT_NAMESPACE_TOPIC);
-        Integer installTimeOut = installTimeOutTopic == null ? DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC
-                : (Integer) installTimeOutTopic.getOnce();
-        boolean ok = installLatch.await(installTimeOut, TimeUnit.SECONDS);
-        State reportState = getReportState().orElse(null);
-        if (State.ERRORED.equals(reportState) || !ok) {
-            updateStateAndBroadcast(State.ERRORED);
-        } else if (State.BROKEN.equals(reportState)) {
-            updateStateAndBroadcast(State.BROKEN);
-        } else {
-            updateStateAndBroadcast(State.INSTALLED);
+        Integer installTimeOut = getTimeoutConfigValue(
+                LIFECYCLE_INSTALL_NAMESPACE_TOPIC, DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC);
+
+        try {
+            backingTask.get().get(installTimeOut, TimeUnit.SECONDS);
+            if (!errorReported.get()) {
+                internalReportState(State.INSTALLED);
+            }
+        } catch (ExecutionException ee) {
+            logger.error("error in install", ee);
+            internalReportState(State.ERRORED);
+        } catch (TimeoutException te) {
+            logger.error("Timeout in install");
+            internalReportState(State.ERRORED);
+        } finally {
+            stopBackingTask();
         }
-        return false;
     }
 
-    private boolean handleCurrentStateInstalled(Optional<State> desiredState,
-                                                AtomicReference<Future> triggerTimeOutReference) {
+
+    private void handleCurrentStateInstalledAsync(Optional<State> desiredState,
+                                                  AtomicReference<Predicate<Object>> asyncFinishAction) {
         if (!desiredState.isPresent()) {
-            return true;
+            return;
         }
 
-        switch (desiredState.get()) {
-            // For new or finished, make sure to stop first because we may be
-            // currently transitioning from installed to running
-            case NEW:
-            case FINISHED:
-                updateStateAndBroadcast(State.STOPPING);
-                return false;
-            case RUNNING:
-                // If we are already handling the installed to running transition, then don't do anything
-                if (!INSTALLED_TO_RUNNING.equals(currentStateTransition)) {
-                    stopBackingTask();
-                    currentStateTransition = INSTALLED_TO_RUNNING;
-                    handleStateTransitionInstalledToRunning(triggerTimeOutReference);
-                }
-                break;
-            default:
-                // not allowed for STOPPING, ERRORED, BROKEN
-                logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
-                        .log("Unexpected desired state");
-                break;
+        Future task = backingTask.get();
+        if (task != null && !task.isDone()) {
+            internalReportState(State.STOPPING);
+            return;
         }
-        return true;
+
+        if (desiredState.get().equals(State.RUNNING)) {
+            handleStateTransitionInstalledToRunningAsync(asyncFinishAction);
+        } else {
+            serviceTerminatedMoveToDesiredState(desiredState.get());
+        }
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    private void handleStateTransitionInstalledToRunning(AtomicReference<Future> triggerTimeOutReference) {
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidGettingFutureWithoutTimeout"})
+    private void handleStateTransitionInstalledToRunningAsync(AtomicReference<Predicate<Object>> asyncFinishAction) {
+        AtomicReference<Future> triggerTimeOutReference = new AtomicReference<>();
         setBackingTask(() -> {
             try {
                 logger.atInfo("service-awaiting-start").log("waiting for dependencies to start");
@@ -392,37 +389,23 @@ public class Lifecycle {
                 return;
             }
 
-            if (!State.INSTALLED.equals(evergreenService.getState())) {
+            if (!State.INSTALLED.equals(getState())) {
                 // Bail out if we're not in the expected state after waiting for dependencies
                 return;
             }
             try {
-                Topics startupTopics = evergreenService.config
-                        .findTopics(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                                LIFECYCLE_STARTUP_NAMESPACE_TOPIC);
-                // only schedule task to report error for services with startup stage
-                // timeout for run stage is handled in generic external service
-                if (startupTopics != null) {
-                    Topic timeOutTopic = startupTopics.findLeafChild(TIMEOUT_NAMESPACE_TOPIC);
-                    // default time out is 120 seconds
-                    Integer timeout = timeOutTopic == null ? DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC
-                            : (Integer) timeOutTopic.getOnce();
+                Integer timeout = getTimeoutConfigValue(
+                        LIFECYCLE_STARTUP_NAMESPACE_TOPIC, DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC);
 
-                    long initialStateGeneration = stateGeneration.get();
-                    Future<?> schedule =
-                            evergreenService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
-                                // If the current state is still INSTALLED, then we failed to install
-                                // within the timeout and should move to ERRORED
-                                if (State.INSTALLED.equals(evergreenService.getState())
-                                        && initialStateGeneration == stateGeneration.get()) {
-                                    logger.atWarn("service-startup-timed-out").kv(TIMEOUT_NAMESPACE_TOPIC, timeout)
-                                            .log("Service failed to startup within timeout");
-                                    reportState(State.ERRORED);
-                                }
-                            }, timeout, TimeUnit.SECONDS);
-                    triggerTimeOutReference.set(schedule);
-                }
-                // TODO: rename to initiateStartup. Service need to report state to RUNNING.
+                Future<?> schedule =
+                    evergreenService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
+                        logger.atWarn("service-startup-timed-out")
+                                .kv(TIMEOUT_NAMESPACE_TOPIC, timeout)
+                                .log("Service failed to startup within timeout");
+                        reportState(State.ERRORED);
+                    }, timeout, TimeUnit.SECONDS);
+
+                triggerTimeOutReference.set(schedule);
                 evergreenService.startup();
             } catch (InterruptedException i) {
                 logger.atWarn("service-run-interrupted").log("Service interrupted while running startup");
@@ -431,22 +414,47 @@ public class Lifecycle {
                 logger.atError("service-runtime-error", t).log();
             }
         }, "start");
+
+        asyncFinishAction.set((Object stateEvent) -> {
+            Future triggerTimeOutFuture = triggerTimeOutReference.get();
+            // if a state is reported
+            if (stateEvent instanceof State) {
+                if (triggerTimeOutFuture != null) {
+                    triggerTimeOutFuture.cancel(true);
+                }
+                return true;
+            }
+
+            // else if desiredState is updated
+            Optional<State> nextDesiredState = peekOrRemoveFirstDesiredState(State.INSTALLED);
+            // Don't finish the state handling if the new desiredState is still RUNNING
+            if (nextDesiredState.isPresent() && nextDesiredState.get().equals(State.RUNNING)) {
+                return false;
+            }
+
+            if (triggerTimeOutFuture == null) {
+                // in the case of startup() isn't called yet, cancel the backing task of waitForDependencyReady()
+                stopBackingTask();
+            } else {
+                triggerTimeOutFuture.cancel(true);
+            }
+            return true;
+        });
     }
 
-    private boolean handleCurrentStateRunning(Optional<State> desiredState) {
+
+    private void handleCurrentStateRunning(Optional<State> desiredState) {
         if (!desiredState.isPresent()) {
-            return true;
+            return;
         }
         // desired state is different, let's transition to stopping state first.
-        updateStateAndBroadcast(State.STOPPING);
-        return false;
+        internalReportState(State.STOPPING);
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     private void handleCurrentStateStopping() throws InterruptedException {
         // does not handle desiredState in STOPPING because we must stop first.
         // does not use setBackingTask because it will cancel the existing task.
-        CountDownLatch stopping = new CountDownLatch(1);
         Future<?> shutdownFuture = evergreenService.getContext().get(ExecutorService.class).submit(() -> {
             try {
                 evergreenService.shutdown();
@@ -455,37 +463,36 @@ public class Lifecycle {
             } catch (Throwable t) {
                 reportState(State.ERRORED);
                 logger.atError("service-shutdown-error", t).log();
-            } finally {
-                stopping.countDown();
             }
         });
 
-        boolean stopSucceed = stopping.await(15, TimeUnit.SECONDS);
-
-        stopBackingTask();
-        if (State.ERRORED.equals(getReportState().orElse(null)) || !stopSucceed) {
-            if (!stopSucceed) {
-                logger.atError("service-shutdown-error").log("Service stop timed out");
+        try {
+            Integer timeout = getTimeoutConfigValue(
+                        LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
+            shutdownFuture.get(timeout, TimeUnit.SECONDS);
+            if (!errorReported.get()) {
+                Optional<State> desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
+                serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
             }
-            updateStateAndBroadcast(State.ERRORED);
-            // If the thread is still running, then kill it
-            if (!shutdownFuture.isDone()) {
-                shutdownFuture.cancel(true);
-            }
-        } else {
-            Optional<State> desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
-            serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
+        } catch (ExecutionException ee) {
+            logger.error("Error in shutting down", ee);
+            internalReportState(State.ERRORED);
+        } catch (TimeoutException te) {
+            shutdownFuture.cancel(true);
+            logger.error("Timeout shutdown");
+            internalReportState(State.ERRORED);
+        } finally {
+            stopBackingTask();
         }
     }
 
-    private boolean handleCurrentStateFinished(Optional<State> desiredState) {
+    private void handleCurrentStateFinished(Optional<State> desiredState) {
         if (!desiredState.isPresent()) {
-            return true;
+            return;
         }
 
         logger.atInfo("service-state-transition").kv("desiredState", desiredState).log();
         serviceTerminatedMoveToDesiredState(desiredState.get());
-        return false;
     }
 
     private void handleCurrentStateErrored(Optional<State> desiredState) throws InterruptedException {
@@ -507,10 +514,10 @@ public class Lifecycle {
             // For both installed and running, make sure we stop first before retrying
             case INSTALLED:
             case RUNNING:
-                updateStateAndBroadcast(State.STOPPING);
+                internalReportState(State.STOPPING);
                 break;
             case NEW: // error in installing.
-                updateStateAndBroadcast(State.NEW);
+                internalReportState(State.NEW);
                 break;
             case STOPPING:
                 // not handled;
@@ -520,7 +527,7 @@ public class Lifecycle {
             default:
                 logger.atError(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState)
                         .log("Unexpected previous state");
-                updateStateAndBroadcast(State.FINISHED);
+                internalReportState(State.FINISHED);
                 break;
         }
     }
@@ -535,14 +542,14 @@ public class Lifecycle {
     private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
         switch (desiredState) {
             case NEW:
-                updateStateAndBroadcast(State.NEW);
+                internalReportState(State.NEW);
                 break;
             case INSTALLED:
             case RUNNING:
-                updateStateAndBroadcast(State.INSTALLED);
+                internalReportState(State.INSTALLED);
                 break;
             case FINISHED:
-                updateStateAndBroadcast(State.FINISHED);
+                internalReportState(State.FINISHED);
                 break;
             default:
                 // not allowed to set desired state to STOPPING, ERRORED, BROKEN
@@ -551,12 +558,13 @@ public class Lifecycle {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
     private synchronized void setBackingTask(Runnable r, String action) {
-        Future bt = backingTask;
+        Future bt = backingTask.get();
         String btName = backingTaskName;
 
-        if (!bt.isDone()) {
-            backingTask = CompletableFuture.completedFuture(null);
+        if (bt != null && !bt.isDone()) {
+            backingTask.set(CompletableFuture.completedFuture(null));
             logger.info("Stopping backingTask {}", btName);
             bt.cancel(true);
         }
@@ -564,7 +572,7 @@ public class Lifecycle {
         if (r != null) {
             backingTaskName = action;
             logger.debug("Scheduling backingTask {}", backingTaskName);
-            backingTask = evergreenService.getContext().get(ExecutorService.class).submit(r);
+            backingTask.set(evergreenService.getContext().get(ExecutorService.class).submit(r));
         }
     }
 
@@ -573,7 +581,10 @@ public class Lifecycle {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    void initLifecycleThread() {
+    synchronized void initLifecycleThread() {
+        if (lifecycleFuture != null) {
+            return;
+        }
         lifecycleFuture = evergreenService.getContext().get(ExecutorService.class).submit(() -> {
             while (!isClosed.get()) {
                 try {
@@ -590,11 +601,15 @@ public class Lifecycle {
                             .log("Service lifecycle thread interrupted. Thread will exit now");
                     return;
                 } catch (Throwable e) {
-                    logger.atError("service-state-transition-error", e).log();
+                    logger.atError("service-state-transition-error").setCause(e).log();
                     logger.atInfo("service-state-transition-retry").log();
                 }
             }
         });
+    }
+
+    public synchronized Future getLifecycleFuture() {
+        return lifecycleFuture;
     }
 
     void setClosed(boolean b) {
@@ -677,5 +692,12 @@ public class Lifecycle {
     Optional<State> lastReportedState() {
         return stateEventQueue.stream().filter(s -> s instanceof State).map(s -> (State) s)
                 .reduce((first, second) -> second);
+    }
+
+    private Integer getTimeoutConfigValue(String nameSpace, Integer defaultValue) {
+        Topic timeoutTopic = evergreenService.getConfig()
+                .find(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace,
+                        TIMEOUT_NAMESPACE_TOPIC);
+        return timeoutTopic == null ? defaultValue : (Integer) timeoutTopic.getOnce();
     }
 }

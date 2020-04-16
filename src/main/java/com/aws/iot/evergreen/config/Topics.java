@@ -21,7 +21,7 @@ public class Topics extends Node implements Iterable<Node> {
 
     private static final Logger logger = LogManager.getLogger(Topics.class);
 
-    Topics(Context c, String n, Topics p) {
+    public Topics(Context c, String n, Topics p) {
         super(c, n, p);
     }
 

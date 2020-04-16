@@ -14,9 +14,9 @@ import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Pair;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,10 +43,12 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     private static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
+    @Getter
     protected final Topics config;
+
+    @Getter
     public Context context;
 
-    private final Topic state;
     private final Lifecycle lifecycle;
     private final Object dependersExitedLock = new Object();
     private Throwable error;
@@ -77,11 +79,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         this.logger = LogManager.getLogger(getName());
         logger.dfltKv(SERVICE_NAME_KEY, getName());
         logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
-        this.state = initStateTopic(topics);
 
         this.externalDependenciesTopic = topics.createLeafChild("dependencies").dflt(new ArrayList<String>());
         this.externalDependenciesTopic.withParentNeedsToKnow(false);
-        this.lifecycle = new Lifecycle(this, state, logger);
+        this.lifecycle = new Lifecycle(this, logger);
 
         initDependenciesTopic();
         periodicityInformation = Periodicity.of(this);
@@ -102,7 +103,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     public State getState() {
-        return (State) state.getOnce();
+        return lifecycle.getState();
     }
 
     /**
@@ -120,7 +121,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     public long getStateModTime() {
-        return state.getModtime();
+        return lifecycle.getStateTopic().getModtime();
     }
 
     /**
@@ -133,17 +134,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         lifecycle.reportState(newState);
     }
 
-    private Topic initStateTopic(final Topics topics) {
-        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
-        state.withParentNeedsToKnow(false);
-        state.withValue(State.NEW);
-        state.validate((newStateObj, oldStateObj) -> {
-            State newState = Coerce.toEnum(State.class, newStateObj);
-            return newState == null ? oldStateObj : newStateObj;
-        });
 
-        return state;
-    }
 
     private synchronized void initDependenciesTopic() {
         externalDependenciesTopic.subscribe((what, node) -> {
@@ -167,11 +158,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     public boolean inState(State s) {
-        return s == state.getOnce();
-    }
-
-    public Topic getStateTopic() {
-        return state;
+        return s == getState();
     }
 
     public boolean isPeriodic() {
@@ -329,10 +316,6 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return closeFuture;
     }
 
-    public Context getContext() {
-        return context;
-    }
-
     /**
      * Add a dependency.
      *
@@ -353,10 +336,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             // If the dependency already exists, we should first remove the subscriber before creating the
             // new subscriber with updated input.
             if (dependencyInfo != null) {
-                dependentEvergreenService.getStateTopic().remove(dependencyInfo.stateTopicSubscriber);
+                dependentEvergreenService.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
             }
             Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
-            dependentEvergreenService.getStateTopic().subscribe(subscriber);
+            dependentEvergreenService.addStateSubscriber(subscriber);
             context.get(Kernel.class).clearODcache();
             return new DependencyInfo(startWhen, isDefault, subscriber);
         });
@@ -390,6 +373,14 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return dependers;
     }
 
+    public void addStateSubscriber(Subscriber s) {
+        lifecycle.getStateTopic().subscribe(s);
+    }
+
+    public void removeStateSubscriber(Subscriber s) {
+        lifecycle.getStateTopic().remove(s);
+    }
+
     private void waitForDependersToExit() throws InterruptedException {
 
         List<EvergreenService> dependers = getDependers();
@@ -402,7 +393,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         };
         // subscribing to depender state changes
         dependers.forEach(
-                dependerEvergreenService -> dependerEvergreenService.getStateTopic().subscribe(dependerExitWatcher));
+                dependerEvergreenService -> dependerEvergreenService.addStateSubscriber(dependerExitWatcher));
 
         synchronized (dependersExitedLock) {
             while (!dependersExited(dependers)) {
@@ -412,7 +403,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         }
         // removing state change watchers
         dependers.forEach(
-                dependerEvergreenService -> dependerEvergreenService.getStateTopic().remove(dependerExitWatcher));
+                dependerEvergreenService -> dependerEvergreenService.removeStateSubscriber(dependerExitWatcher));
     }
 
     private boolean dependersExited(List<EvergreenService> dependers) {
@@ -516,7 +507,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
             removedDependencies.forEach(dependency -> {
                 DependencyInfo dependencyInfo = dependencies.remove(dependency);
-                dependency.getStateTopic().remove(dependencyInfo.stateTopicSubscriber);
+                dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
             });
             context.get(Kernel.class).clearODcache();
         }
@@ -541,6 +532,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             requestRestart();
         }
     }
+
 
     @Override
     public String toString() {

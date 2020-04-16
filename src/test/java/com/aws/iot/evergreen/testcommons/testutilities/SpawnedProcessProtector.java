@@ -6,13 +6,17 @@
 package com.aws.iot.evergreen.testcommons.testutilities;
 
 import com.aws.iot.evergreen.util.Exec;
+import org.apache.logging.log4j.util.Strings;
 import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.zeroturnaround.process.PidUtil;
 import org.zeroturnaround.process.Processes;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -21,23 +25,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @SuppressWarnings("PMD.SystemPrintln")
-public class SpawnedProcessProtector implements AfterAllCallback {
+public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallback {
+
+    @Override
+    public void afterEach(ExtensionContext context) throws Exception {
+        List<String> childPids = getChildPids();
+        if (!childPids.isEmpty()) {
+            System.err.println("Child PID not cleaned after test case " + context.getDisplayName()
+             + ". Child PIDs: "
+             + Strings.join(childPids, ','));
+        }
+    }
 
     @Override
     public void afterAll(ExtensionContext context) throws Exception {
-        // TODO: Will need a similar solution as below for windows.
-        if (Exec.isWindows) {
-            return;
-        }
+        List<String> childPids = getChildPids();
 
-        String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
-        Process proc = Runtime.getRuntime().exec(cmd);
-        assertTrue(proc.waitFor(5, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
-
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-            List<String> childPids = br.lines().collect(Collectors.toList());
-
-            if (!childPids.isEmpty()) {
+                    if (!childPids.isEmpty()) {
                 System.err.println("Not all child PIDs were stopped before the test ended!");
                 System.err.println("Going to try killing them for you, but this is a problem which must be fixed");
                 System.err.println("PIDs: " + childPids);
@@ -55,6 +59,18 @@ public class SpawnedProcessProtector implements AfterAllCallback {
                 fail("Child PIDs not all cleaned up: " + childPids.toString()
                         + ".\n Processes not killed or kernel not shutdown.");
             }
+    }
+
+    private List<String> getChildPids() throws IOException, InterruptedException {
+        if (Exec.isWindows) {
+            return new ArrayList<>();
+        }
+        String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
+        Process proc = Runtime.getRuntime().exec(cmd);
+        assertTrue(proc.waitFor(5, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+            return br.lines().collect(Collectors.toList());
         }
     }
 }
