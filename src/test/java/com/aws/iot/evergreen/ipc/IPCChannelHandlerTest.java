@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.ipc;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -36,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class IPCChannelHandlerTest {
+public class IPCChannelHandlerTest extends ExceptionLogProtector {
     public static final String ERROR_MESSAGE = "AAAAAAH!";
     @Mock
     AuthHandler mockAuth;

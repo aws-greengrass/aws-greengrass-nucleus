@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -25,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @SuppressWarnings({"PMD.CloseResource", "PMD.NonStaticInitializer"})
-public class LifecycleTest {
+public class LifecycleTest extends ExceptionLogProtector {
     static int seq;
     static CountDownLatch cd;
 

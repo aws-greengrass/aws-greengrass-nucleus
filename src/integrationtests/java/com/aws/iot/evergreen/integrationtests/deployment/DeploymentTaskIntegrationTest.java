@@ -19,6 +19,7 @@ import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
@@ -58,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class DeploymentTaskIntegrationTest {
+class DeploymentTaskIntegrationTest extends ExceptionLogProtector {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello evergreen. This is a test";
 

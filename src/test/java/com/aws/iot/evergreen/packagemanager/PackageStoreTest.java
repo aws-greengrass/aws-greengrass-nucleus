@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
@@ -49,7 +50,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class PackageStoreTest {
+class PackageStoreTest extends ExceptionLogProtector {
 
     private Path testCache;
 
@@ -181,6 +182,7 @@ class PackageStoreTest {
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out() throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
         when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
+        ignoreExceptionUltimateCauseOfType(PackageDownloadException.class);
 
         Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
@@ -190,7 +192,7 @@ class PackageStoreTest {
 // TODO migrate the tests above over and remove "test_packages" and "mock_artifact_source".
 @Nested
 @ExtendWith(MockitoExtension.class)
-class NewPackageStoreTest {
+class NewPackageStoreTest extends ExceptionLogProtector {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.1.0", Semver.SemverType.NPM);
     private static final PackageIdentifier MONITORING_SERVICE_PKG_ID =

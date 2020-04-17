@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class KernelConfigResolverTest {
+public class KernelConfigResolverTest extends ExceptionLogProtector {
     private static final String LIFECYCLE_CONFIG_ROOT_KEY = "lifecycle";
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";

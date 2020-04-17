@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-class KernelTest {
+class KernelTest extends ExceptionLogProtector {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "---\n"
             + "services:\n"
@@ -192,6 +193,7 @@ class KernelTest {
             throws Exception {
         // We need to launch the kernel here as this triggers EZPlugins to search the classpath for @ImplementsService
         // it complains that there's no main, but we don't care for this test
+        ignoreExceptionUltimateCauseWithMessage("No matching definition in system model for: main");
         try {
             kernel.parseArgs().launch();
         } catch (RuntimeException ignored) {

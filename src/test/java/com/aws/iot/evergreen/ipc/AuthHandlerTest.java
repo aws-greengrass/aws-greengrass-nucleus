@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -50,7 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-class AuthHandlerTest {
+class AuthHandlerTest extends ExceptionLogProtector {
     private static final String SERVICE_NAME = "ServiceName";
 
     AuthHandler mockAuth;
@@ -68,7 +69,7 @@ class AuthHandlerTest {
     ArgumentCaptor<FrameReader.MessageFrame> frameCaptor;
 
     @BeforeEach
-    public void setupMocks() throws Exception {
+    public void setupMocks() {
         lenient().when(mockCtx.channel()).thenReturn(mockChannel);
         lenient().when(mockChannel.attr(any())).thenReturn((Attribute) mockAttr);
         lenient().doAnswer((invocation) -> mockAttrValue = invocation.getArgument(0)).when(mockAttr).set(any());
@@ -158,7 +159,9 @@ class AuthHandlerTest {
         // GIVEN
         // done in setupMocks
 
-        doThrow(new IPCClientNotAuthorizedException("No Auth!")).when(mockAuth).doAuth(any(), any());
+        IPCClientNotAuthorizedException ex = new IPCClientNotAuthorizedException("No Auth!");
+        ignoreException(ex);
+        doThrow(ex).when(mockAuth).doAuth(any(), any());
 
         // WHEN
         FrameReader.MessageFrame requestFrame =

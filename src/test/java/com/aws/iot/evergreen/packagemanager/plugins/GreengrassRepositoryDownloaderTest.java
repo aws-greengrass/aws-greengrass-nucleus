@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.packagemanager.plugins;
 
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +27,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class GreengrassRepositoryDownloaderTest {
+class GreengrassRepositoryDownloaderTest extends ExceptionLogProtector {
 
     @Spy
     private GreengrassRepositoryDownloader downloader;

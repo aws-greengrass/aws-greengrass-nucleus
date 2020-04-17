@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.util;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 
 import java.io.BufferedReader;
@@ -384,23 +383,8 @@ public final class Exec implements Closeable {
         }
     }
 
-    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
     public boolean isRunning() {
         return !isClosed.get();
-    }
-
-    /**
-     * Wait until the execution has closed.
-     *
-     * @param timeout wait up to this many milliseconds.
-     * @return true if closed successfully
-     * @throws InterruptedException if thread is interrupted while waiting
-     */
-    public synchronized boolean waitClosed(int timeout) throws InterruptedException {
-        while (!isClosed.get()) {
-            wait(timeout);
-        }
-        return isClosed.get();
     }
 
     @Override
@@ -409,16 +393,16 @@ public final class Exec implements Closeable {
             return;
         }
         Process p = process;
-        if (p == null) {
+        if (p == null || !p.isAlive()) {
             return;
         }
         p.destroy();
 
         try {
             // TODO: configurable timeout?
-            if (!waitClosed(2000)) {
+            if (!p.waitFor(2, TimeUnit.SECONDS)) {
                 p.destroyForcibly();
-                if (!waitClosed(5000)) {
+                if (!p.waitFor(5, TimeUnit.SECONDS)) {
                     throw new IOException("Could not stop " + this);
                 }
             }
