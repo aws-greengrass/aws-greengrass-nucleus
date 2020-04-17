@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.integrationtests.kernel;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.Kernel;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -15,12 +16,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GenericExternalServiceTest extends BaseITCase {
 
+    private Kernel kernel;
+
+    @AfterEach
+    void afterEach() {
+        kernel.shutdown();
+    }
 
     @Test
     void GIVEN_service_config_with_broken_skipif_config_WHEN_launch_service_THEN_service_moves_to_error_state()
             throws Throwable {
         // GIVEN
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("skipif_broken.yaml").toString());
 
         CountDownLatch testErrored = new CountDownLatch(1);
@@ -40,7 +47,7 @@ class GenericExternalServiceTest extends BaseITCase {
     @Test
     void GIVEN_service_with_timeout_WHEN_timeout_expires_THEN_move_service_to_errored()
             throws InterruptedException {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_timesout.yaml").toString());
         kernel.launch();
         CountDownLatch ServicesAErroredLatch = new CountDownLatch(1);
@@ -57,6 +64,5 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertTrue(ServicesAErroredLatch.await(30, TimeUnit.SECONDS));
         assertTrue(ServicesBErroredLatch.await(30, TimeUnit.SECONDS));
-        kernel.shutdown();
     }
 }
