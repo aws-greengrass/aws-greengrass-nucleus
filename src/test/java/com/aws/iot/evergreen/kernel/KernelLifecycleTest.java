@@ -112,6 +112,7 @@ class KernelLifecycleTest {
         }).when(pluginMock).annotated(eq(ImplementsService.class), any());
 
         kernelLifecycle.launch();
+        // Expect 2 times because I returned 2 plugins from above: IPC and Deployment
         verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(State.RUNNING), eq(true));
     }
 
@@ -124,6 +125,7 @@ class KernelLifecycleTest {
         mockKernel.setConfig(mockConfig);
         doReturn(mockConfig).when(mockConfig).read(any(Path.class)); // Do nothing when "read" on Config
 
+        // Create configYaml so that the kernel will try to read it in
         File configYaml = mockKernel.getConfigPath().resolve("config.yaml").toFile();
         configYaml.createNewFile();
 
@@ -140,6 +142,7 @@ class KernelLifecycleTest {
         mockKernel.setConfig(mockConfig);
         doReturn(mockConfig).when(mockConfig).read(any(Path.class)); // Do nothing when "read" on Config
 
+        // Create configTlog so that the kernel will try to read it in
         File configTlog = mockKernel.getConfigPath().resolve("config.tlog").toFile();
         configTlog.createNewFile();
 
@@ -193,34 +196,35 @@ class KernelLifecycleTest {
 
     @Test
     void GIVEN_kernel_WHEN_shutdown_THEN_shutsdown_services_in_order() throws Exception {
-        EvergreenService service1 = mock(EvergreenService.class);
+        EvergreenService badService1 = mock(EvergreenService.class);
         EvergreenService service2 = mock(EvergreenService.class);
         EvergreenService service3 = mock(EvergreenService.class);
         EvergreenService service4 = mock(EvergreenService.class);
-        EvergreenService service5 = mock(EvergreenService.class);
+        EvergreenService badService5 = mock(EvergreenService.class);
 
         CompletableFuture<Void> fut = new CompletableFuture<>();
         fut.complete(null);
         CompletableFuture<Void> failedFut = new CompletableFuture<>();
-        failedFut.completeExceptionally(new Exception("Bad"));
+        failedFut.completeExceptionally(new Exception("Service1"));
 
-        doReturn(failedFut).when(service1).close();
+        doReturn(failedFut).when(badService1).close();
         doReturn(fut).when(service2).close();
         doReturn(fut).when(service3).close();
         doReturn(fut).when(service4).close();
-        doThrow(new RuntimeException("Bad2")).when(service5).close();
+        doThrow(new RuntimeException("Service5")).when(badService5).close();
 
-        doReturn(Arrays.asList(service1, service2, service3, service4, service5)).when(mockKernel).orderedDependencies();
+        doReturn(Arrays.asList(badService1, service2, service3, service4, badService5)).when(mockKernel).orderedDependencies();
 
         // Check that logging of exceptions works as expected
+        // Expect 5 then 1 because our OD is 1->5, so reversed is 5->1.
         CountDownLatch seenErrors = new CountDownLatch(2);
         Pair<CompletableFuture<Void>, Consumer<EvergreenStructuredLogMessage>> listener =
                 TestUtils.asyncAssertOnConsumer((m) -> {
             if(m.getEventType().equals("service-shutdown-error")) {
                 if (seenErrors.getCount() == 2) {
-                    assertEquals("Bad2", m.getCause().getMessage());
+                    assertEquals("Service5", m.getCause().getMessage());
                 } else if (seenErrors.getCount() == 1) {
-                    assertEquals("Bad", m.getCause().getMessage());
+                    assertEquals("Service1", m.getCause().getMessage());
                 }
                 seenErrors.countDown();
             }
@@ -232,11 +236,11 @@ class KernelLifecycleTest {
         assertTrue(seenErrors.await(1, TimeUnit.SECONDS));
         listener.getLeft().get(1, TimeUnit.SECONDS);
 
-        InOrder inOrder = inOrder(service5, service4, service3, service2, service1); // Reverse ordered
-        inOrder.verify(service5).close();
+        InOrder inOrder = inOrder(badService5, service4, service3, service2, badService1); // Reverse ordered
+        inOrder.verify(badService5).close();
         inOrder.verify(service4).close();
         inOrder.verify(service3).close();
         inOrder.verify(service2).close();
-        inOrder.verify(service1).close();
+        inOrder.verify(badService1).close();
     }
 }

@@ -142,24 +142,24 @@ public class Kernel {
             return Collections.emptyList();
         }
 
-        final HashSet<EvergreenService> pending = new LinkedHashSet<>();
-        getMain().putDependenciesIntoSet(pending);
-        final HashSet<EvergreenService> ready = new LinkedHashSet<>();
-        while (!pending.isEmpty()) {
-            int sz = pending.size();
-            pending.removeIf(l -> {
-                if (ready.containsAll(l.getDependencies().keySet())) {
-                    ready.add(l);
+        final HashSet<EvergreenService> pendingDependencyServices = new LinkedHashSet<>();
+        getMain().putDependenciesIntoSet(pendingDependencyServices);
+        final HashSet<EvergreenService> dependencyFoundServices = new LinkedHashSet<>();
+        while (!pendingDependencyServices.isEmpty()) {
+            int sz = pendingDependencyServices.size();
+            pendingDependencyServices.removeIf(pendingService -> {
+                if (dependencyFoundServices.containsAll(pendingService.getDependencies().keySet())) {
+                    dependencyFoundServices.add(pendingService);
                     return true;
                 }
                 return false;
             });
-            if (sz == pending.size()) {
+            if (sz == pendingDependencyServices.size()) {
                 // didn't find anything to remove, there must be a cycle
                 break;
             }
         }
-        return cachedOD = ready;
+        return cachedOD = dependencyFoundServices;
     }
 
     public void writeEffectiveConfig() {
