@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,14 +25,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class KernelCommandLineTest {
+class KernelCommandLineTest extends ExceptionLogProtector {
     @TempDir
-    protected Path tempRootDir;
+    Path tempRootDir;
 
     @BeforeEach
     void setRootDir() {
@@ -48,9 +48,11 @@ class KernelCommandLineTest {
     @Test
     void GIVEN_invalid_command_line_argument_WHEN_parseArgs_THEN_throw_RuntimeException() {
         KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class));
+        String exceptionSubstring = "Undefined command line argument";
+        ignoreExceptionWithMessageSubstring(exceptionSubstring);
         RuntimeException thrown = assertThrows(RuntimeException.class,
                 () -> kernel.parseArgs("-xyznonsense", "nonsense"));
-        assertTrue(thrown.getMessage().contains("Undefined command line argument"));
+        assertThat(thrown.getMessage(), containsString(exceptionSubstring));
     }
 
     @Test
@@ -60,8 +62,10 @@ class KernelCommandLineTest {
 
         Kernel kernel = new Kernel();
         kernel.shutdown();
+        String exceptionMessage = "Cannot create all required directories";
+        ignoreExceptionWithMessage(exceptionMessage);
         RuntimeException thrown = assertThrows(RuntimeException.class, kernel::parseArgs);
-        assertTrue(thrown.getMessage().contains("Cannot create all required directories"));
+        assertThat(thrown.getMessage(), is(exceptionMessage));
     }
 
     @Test
@@ -72,8 +76,10 @@ class KernelCommandLineTest {
         when(mockConfig.read(anyString())).thenThrow(IOException.class);
 
         KernelCommandLine kcl = new KernelCommandLine(mockKernel);
+        String exceptionMessage = "Can't read the config file test.yaml";
+        ignoreExceptionWithMessage(exceptionMessage);
         RuntimeException ex = assertThrows(RuntimeException.class, () -> kcl.parseArgs("-i", "test.yaml"));
-        assertThat(ex.getMessage(), is("Can't read the config file test.yaml"));
+        assertThat(ex.getMessage(), is(exceptionMessage));
     }
 
     @Test

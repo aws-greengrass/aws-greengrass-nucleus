@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictExc
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeAll;
@@ -47,7 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class DependencyResolverTest {
+class DependencyResolverTest extends ExceptionLogProtector {
     @InjectMocks
     private DependencyResolver resolver;
 
@@ -66,7 +67,7 @@ class DependencyResolverTest {
     }
 
     @Nested
-    class MergeSemverRequirementsTest {
+    class MergeSemverRequirementsTest extends ExceptionLogProtector {
         @Test
         void GIVEN_list_of_version_ranges_WHEN_get_union_THEN_get_version_range() {
             List<String> constraints = new LinkedList<>();
@@ -109,7 +110,7 @@ class DependencyResolverTest {
     }
 
     @Nested
-    class ResolveDependenciesTest {
+    class ResolveDependenciesTest extends ExceptionLogProtector {
         private final Semver v1_2_0 = new Semver("1.2.0");
         private final Semver v1_1_0 = new Semver("1.1.0");
         private final Semver v1_0_0 = new Semver("1.0.0");

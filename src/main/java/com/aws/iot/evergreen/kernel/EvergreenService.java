@@ -205,10 +205,11 @@ public class EvergreenService implements InjectionActions {
         e = getUltimateCause(e);
         error = e;
         logger.atError("service-errored", e).log();
-        serviceErrored();
+        reportState(State.ERRORED);
     }
 
-    public void serviceErrored() {
+    public void serviceErrored(String reason) {
+        logger.atError("service-errored").kv("reason", reason).log();
         reportState(State.ERRORED);
     }
 

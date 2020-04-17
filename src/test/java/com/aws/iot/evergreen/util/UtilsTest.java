@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.Test;
 
 import java.nio.CharBuffer;
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
-public class UtilsTest {
+public class UtilsTest extends ExceptionLogProtector {
 
     private static void testLparse1(String s, long expecting, String remaining) {
         CharBuffer cb = CharBuffer.wrap(s);

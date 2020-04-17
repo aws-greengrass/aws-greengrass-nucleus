@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -89,7 +90,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     }
 
     @Nested
-    public class ServiceStartup {
+    public class ServiceStartup extends ExceptionLogProtector {
 
         @BeforeEach
         public void startService() throws Exception {
@@ -121,7 +122,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     }
 
     @Nested
-    class DeploymentInProgress {
+    class DeploymentInProgress extends ExceptionLogProtector {
 
         CompletableFuture<Void> mockFuture = new CompletableFuture<>();
 
@@ -178,7 +179,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         }
 
         @Nested
-        public class MqttConnectionBreaks {
+        public class MqttConnectionBreaks extends ExceptionLogProtector {
 
             ArgumentCaptor<MqttClientConnectionEvents> mqttEventCaptor;
 

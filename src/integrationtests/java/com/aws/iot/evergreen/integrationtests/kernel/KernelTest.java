@@ -49,6 +49,7 @@ class KernelTest extends BaseITCase {
     void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException() {
         kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
+        ignoreExceptionWithMessage("Cannot load main service");
         assertThrows(RuntimeException.class, () -> kernel.launch());
     }
 

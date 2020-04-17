@@ -12,16 +12,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-public class TestBase {
+@SuppressWarnings("PMD.SystemPrintln")
+public class ExceptionLogProtector {
     // Predicate which returns TRUE if the exception should be ignored as expected
-    protected Collection<Predicate<Throwable>> throwablePredicates = new LinkedList<>();
-    private List<Throwable> exceptions = new LinkedList<>();
+    protected final Collection<Predicate<Throwable>> throwablePredicates = new CopyOnWriteArraySet<>();
+    private final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
     private final Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
         if (m.getCause() != null) {
             boolean ignored = false;
@@ -40,6 +42,16 @@ public class TestBase {
     @BeforeEach
     protected void testBaseBefore() {
         Log4jLogEventBuilder.addGlobalListener(listener);
+
+        // Default ignores:
+
+        // Ignore IPCService being interrupted while starting which can happen if we call shutdown() too quickly
+        // after launch()
+        ignoreExceptionWithStackTraceContaining(InterruptedException.class,
+                "com.aws.iot.evergreen.ipc.IPCService.listen");
+
+        // Ignore error from MQTT not being configured
+        ignoreExceptionWithMessage("[thingName cannot be empty, certificateFilePath cannot be empty, privateKeyPath cannot be empty, rootCAPath cannot be empty, clientEndpoint cannot be empty]");
     }
 
     @AfterEach
@@ -47,13 +59,8 @@ public class TestBase {
         Log4jLogEventBuilder.removeGlobalListener(listener);
         try {
             if (!exceptions.isEmpty()) {
-                if (exceptions.size() == 1) {
-                    System.err.println("1 non-ignored exception occurred during test run. Failing test");
-                    exceptions.get(0).printStackTrace(System.err);
-                    throw exceptions.get(0);
-                }
-
-                System.err.println("Multiple non-ignored exceptions occurred during test run. Failing test");
+                System.err.println((exceptions.size() == 1 ? "1" : "Multiple") +
+                        " non-ignored exceptions occurred during test run. Failing test");
                 for (Throwable ex : exceptions) {
                     ex.printStackTrace(System.err);
                 }
@@ -61,25 +68,27 @@ public class TestBase {
                 throw exceptions.get(0);
             }
         } finally {
+            // clear exceptions and predicates so that we start clean on the next run
+            // do this in the finally so that it happens after we have thrown/printed the exceptions
             exceptions.clear();
             throwablePredicates.clear();
         }
     }
 
     protected void ignoreExceptionWithMessage(String message) {
-        throwablePredicates.add((t) -> t.getMessage().equals(message));
+        throwablePredicates.add((t) -> Objects.equals(t.getMessage(), message));
     }
 
     protected void ignoreExceptionWithMessageSubstring(String substring) {
-        throwablePredicates.add((t) -> t.getMessage().contains(substring));
+        throwablePredicates.add((t) -> t.getMessage() != null && t.getMessage().contains(substring));
     }
 
     protected void ignoreExceptionUltimateCauseWithMessage(String message) {
-        throwablePredicates.add((t) -> Utils.getUltimateMessage(t).equals(message));
+        throwablePredicates.add((t) -> Objects.equals(Utils.getUltimateMessage(t), message));
     }
 
     protected void ignoreExceptionUltimateCauseWithMessageSubstring(String substring) {
-        throwablePredicates.add((t) -> Utils.getUltimateMessage(t).contains(substring));
+        throwablePredicates.add((t) -> Utils.getUltimateMessage(t) != null && Utils.getUltimateMessage(t).contains(substring));
     }
 
     protected void ignoreExceptionOfType(Class<? extends Throwable> clazz) {
@@ -88,5 +97,23 @@ public class TestBase {
 
     protected void ignoreExceptionUltimateCauseOfType(Class<? extends Throwable> clazz) {
         throwablePredicates.add((t) -> Objects.equals(Utils.getUltimateCause(t).getClass(), clazz));
+    }
+
+    protected void ignoreException(Throwable expected) {
+        throwablePredicates.add(t -> Objects.equals(expected, t));
+    }
+
+    protected void ignoreExceptionWithStackTraceContaining(Class<? extends Throwable> clazz, String trace) {
+        throwablePredicates.add(t -> {
+            if (!Objects.equals(t.getClass(), clazz)) {
+                return false;
+            }
+            for (StackTraceElement e : t.getStackTrace()) {
+                if (e.toString().contains(trace)) {
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 }

@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +49,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class IotJobsHelperTest {
+public class IotJobsHelperTest extends ExceptionLogProtector {
 
     private static final String TEST_THING_NAME = "TEST_THING";
     private static final String TEST_JOB_ID = "TestJobId";

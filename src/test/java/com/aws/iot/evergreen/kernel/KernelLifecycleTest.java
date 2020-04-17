@@ -16,6 +16,7 @@ import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
@@ -32,6 +33,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -52,7 +55,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class KernelLifecycleTest {
+class KernelLifecycleTest extends ExceptionLogProtector {
     Kernel mockKernel;
     KernelCommandLine mockKernelCommandLine;
     KernelLifecycle kernelLifecycle;
@@ -75,6 +78,8 @@ class KernelLifecycleTest {
         when(mockKernel.getConfigPath()).thenReturn(tempRootDir.resolve("config"));
         Files.createDirectories(tempRootDir.resolve("config"));
         when(mockContext.get(eq(EZPlugins.class))).thenReturn(mock(EZPlugins.class));
+        when(mockContext.get(eq(ExecutorService.class))).thenReturn(mock(ExecutorService.class));
+        when(mockContext.get(eq(ScheduledExecutorService.class))).thenReturn(mock(ScheduledExecutorService.class));
 
         mockKernelCommandLine = spy(new KernelCommandLine(mockKernel));
         kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine);
@@ -86,6 +91,7 @@ class KernelLifecycleTest {
     void GIVEN_kernel_WHEN_launch_and_main_not_found_THEN_throws_RuntimeException() throws Exception {
         doThrow(ServiceLoadException.class).when(mockKernel).locate(eq("main"));
 
+        ignoreExceptionUltimateCauseOfType(ServiceLoadException.class);
         RuntimeException ex = assertThrows(RuntimeException.class, kernelLifecycle::launch);
         assertEquals(RuntimeException.class, ex.getClass());
         assertEquals(ServiceLoadException.class, ex.getCause().getClass());
@@ -229,6 +235,9 @@ class KernelLifecycleTest {
                 seenErrors.countDown();
             }
         });
+
+        ignoreExceptionUltimateCauseWithMessage("Service5");
+        ignoreExceptionUltimateCauseWithMessage("Service1");
 
         Log4jLogEventBuilder.addGlobalListener(listener.getRight());
         kernelLifecycle.shutdown(5);

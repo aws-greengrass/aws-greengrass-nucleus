@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -51,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Tag("E2E")
-class DeploymentE2ETest {
+class DeploymentE2ETest extends ExceptionLogProtector {
     @TempDir
     Path tempRootDir;
 
@@ -171,6 +172,8 @@ class DeploymentE2ETest {
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error() throws Exception {
         launchKernel("blank_config.yaml");
 
+        ignoreExceptionUltimateCauseWithMessageSubstring("Conflicts in resolving package: Mosquitto");
+
         // Target our DUT for deployments
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
         String[] targets = {thing.thingArn};
@@ -201,8 +204,9 @@ class DeploymentE2ETest {
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful()
             throws Exception {
-
         launchKernel("blank_config.yaml");
+
+        ignoreExceptionUltimateCauseWithMessage("Service CustomerApp in broken state after deployment");
 
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
         String document = new ObjectMapper().writeValueAsString(
