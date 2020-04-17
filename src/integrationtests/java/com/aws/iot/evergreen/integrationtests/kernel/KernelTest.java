@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -37,10 +38,16 @@ class KernelTest extends BaseITCase {
 
     private static final CountDownLatch[] COUNT_DOWN_LATCHES =
             {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
+    private Kernel kernel;
+
+    @AfterEach
+    void afterEach() {
+        kernel.shutdown();
+    }
 
     @Test
     void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException() {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
         assertThrows(RuntimeException.class, () -> kernel.launch());
     }
@@ -54,7 +61,7 @@ class KernelTest extends BaseITCase {
         Log4jLogEventBuilder.addGlobalListener(logListener);
 
         // launch kernel
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
         kernel.launch();
 
@@ -113,7 +120,7 @@ class KernelTest extends BaseITCase {
 
     @Test
     void GIVEN_service_install_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
         kernel.launch();
 
@@ -124,12 +131,11 @@ class KernelTest extends BaseITCase {
             }
         });
         assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
-        kernel.shutdown();
     }
 
     @Test
     void GIVEN_service_install_broken_WHEN_kernel_launches_with_fix_THEN_service_install_succeeds() throws Exception {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
         kernel.launch();
 
@@ -152,12 +158,11 @@ class KernelTest extends BaseITCase {
             }
         });
         assertTrue(serviceInstalled.await(60, TimeUnit.SECONDS));
-        kernel.shutdown();
     }
 
     @Test
     void GIVEN_service_install_fail_retry_succeed_WHEN_kernel_launches_THEN_service_install_succeeds() throws Exception {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_install_error_retry.yaml").toString());
         kernel.launch();
 
@@ -168,12 +173,11 @@ class KernelTest extends BaseITCase {
             }
         });
         assertTrue(serviceRunning.await(60, TimeUnit.SECONDS));
-        kernel.shutdown();
     }
 
     @Test
     void GIVEN_service_startup_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_startup_error.yaml").toString());
         kernel.launch();
 
@@ -184,12 +188,11 @@ class KernelTest extends BaseITCase {
             }
         });
         assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
-        kernel.shutdown();
     }
 
     @Test
     void GIVEN_service_startup_fail_retry_succeed_WHEN_kernel_launches_THEN_service_startup_succeeds() throws Exception {
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_startup_error_retry.yaml").toString());
         kernel.launch();
 
@@ -200,7 +203,6 @@ class KernelTest extends BaseITCase {
             }
         });
         assertTrue(serviceRunning.await(60, TimeUnit.SECONDS));
-        kernel.shutdown();
     }
 
     @Test
@@ -227,7 +229,7 @@ class KernelTest extends BaseITCase {
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
-        Kernel kernel = new Kernel();
+        kernel = new Kernel();
         kernel.getContext().addGlobalStateChangeListener(
                 (EvergreenService service, State oldState, State newState) -> {
                     if (expectedStateTransitionList.isEmpty()) {

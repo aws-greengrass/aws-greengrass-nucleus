@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
 
 import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_API_VERSION;
 import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
@@ -79,6 +80,8 @@ class AuthHandlerTest {
     @Test
     public void GIVEN_service_WHEN_register_auth_token_THEN_client_can_be_authenticated_with_token() throws Exception {
         Configuration config = new Configuration(new Context());
+        config.context.put(ExecutorService.class, mock(ExecutorService.class));
+
         AuthHandler.registerAuthToken(new EvergreenService(
                 config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME)));
         Object authToken = config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME, SERVICE_UNIQUE_ID_KEY)
