@@ -161,12 +161,13 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status()
                 throws Exception {
             CompletableFuture<Void> mockFutureWithException = new CompletableFuture<>();
+            ignoreExceptionUltimateCauseOfType(NonRetryableDeploymentTaskFailureException.class);
             Throwable t = new NonRetryableDeploymentTaskFailureException(null);
             mockFutureWithException.completeExceptionally(t);
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFutureWithException);
             startDeploymentServiceInAnotherThread();
 
-            //Wait for the enough time after which deployment service would have processed the job from the queue
+            // Wait for the enough time after which deployment service would have processed the job from the queue
             Thread.sleep(Duration.ofSeconds(2).toMillis());
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
@@ -191,6 +192,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             public void GIVEN_deployment_job_WHEN_mqtt_breaks_on_success_job_update_THEN_persist_deployment_update_later()
                     throws Exception {
                 when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+                ignoreExceptionUltimateCauseWithMessage("Connection error");
                 ExecutionException e = new ExecutionException(new MqttException("Connection error"));
                 doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                         any());
@@ -244,9 +246,11 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             public void GIVEN_multiple_deployment_jobs_WHEN_mqtt_breaks_THEN_persist_deployments_update_later()
                     throws Exception {
                 CompletableFuture<Void> mockFutureWitException = new CompletableFuture<>();
+                ignoreExceptionUltimateCauseOfType(NonRetryableDeploymentTaskFailureException.class);
                 Throwable t = new NonRetryableDeploymentTaskFailureException(null);
                 mockFutureWitException.completeExceptionally(t);
                 doReturn(mockFuture, mockFutureWitException).when(mockExecutorService).submit(any(DeploymentTask.class));
+                ignoreExceptionUltimateCauseWithMessage("Connection error");
                 ExecutionException executionException = new ExecutionException(new MqttException("Connection error"));
                 doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                         any());

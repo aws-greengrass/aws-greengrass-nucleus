@@ -15,7 +15,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
-public class EGServiceTestUtil {
+public class EGServiceTestUtil extends TestBase {
 
     public static final String STATE_TOPIC_NAME = "_State";
     protected String serviceFullName = "EvergreenServiceFullName";
