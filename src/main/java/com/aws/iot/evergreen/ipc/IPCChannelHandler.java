@@ -117,7 +117,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         // TODO: Proper exception handling https://issues.amazon.com/issues/P32787597
-        logger.atError().setEventType("ipc-server-error").setCause(cause).log();
+        logger.atError("ipc-server-error", cause).log();
         // Close out the connection since we don't know what went wrong.
         ctx.close();
     }

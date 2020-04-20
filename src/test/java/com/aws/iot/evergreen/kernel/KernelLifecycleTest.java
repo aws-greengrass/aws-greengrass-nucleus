@@ -22,6 +22,8 @@ import com.aws.iot.evergreen.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InOrder;
 
@@ -38,6 +40,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -55,7 +59,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class KernelLifecycleTest extends ExceptionLogProtector {
+@ExtendWith(ExceptionLogProtector.class)
+class KernelLifecycleTest {
     Kernel mockKernel;
     KernelCommandLine mockKernelCommandLine;
     KernelLifecycle kernelLifecycle;
@@ -88,10 +93,10 @@ class KernelLifecycleTest extends ExceptionLogProtector {
     }
 
     @Test
-    void GIVEN_kernel_WHEN_launch_and_main_not_found_THEN_throws_RuntimeException() throws Exception {
+    void GIVEN_kernel_WHEN_launch_and_main_not_found_THEN_throws_RuntimeException(ExtensionContext context) throws Exception {
         doThrow(ServiceLoadException.class).when(mockKernel).locate(eq("main"));
 
-        ignoreExceptionUltimateCauseOfType(ServiceLoadException.class);
+        ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         RuntimeException ex = assertThrows(RuntimeException.class, kernelLifecycle::launch);
         assertEquals(RuntimeException.class, ex.getClass());
         assertEquals(ServiceLoadException.class, ex.getCause().getClass());
@@ -201,7 +206,7 @@ class KernelLifecycleTest extends ExceptionLogProtector {
     }
 
     @Test
-    void GIVEN_kernel_WHEN_shutdown_THEN_shutsdown_services_in_order() throws Exception {
+    void GIVEN_kernel_WHEN_shutdown_THEN_shutsdown_services_in_order(ExtensionContext context) throws Exception {
         EvergreenService badService1 = mock(EvergreenService.class);
         EvergreenService service2 = mock(EvergreenService.class);
         EvergreenService service3 = mock(EvergreenService.class);
@@ -236,8 +241,8 @@ class KernelLifecycleTest extends ExceptionLogProtector {
             }
         });
 
-        ignoreExceptionUltimateCauseWithMessage("Service5");
-        ignoreExceptionUltimateCauseWithMessage("Service1");
+        ignoreExceptionUltimateCauseWithMessage(context, "Service5");
+        ignoreExceptionUltimateCauseWithMessage(context, "Service1");
 
         Log4jLogEventBuilder.addGlobalListener(listener.getRight());
         kernelLifecycle.shutdown(5);

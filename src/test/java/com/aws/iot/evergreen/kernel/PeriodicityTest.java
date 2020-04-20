@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.concurrent.TimeUnit;
 
@@ -14,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * @author jag
  */
-public class PeriodicityTest extends ExceptionLogProtector {
+@ExtendWith(ExceptionLogProtector.class)
+public class PeriodicityTest {
 
     @Test
     public void testSomeMethod() {

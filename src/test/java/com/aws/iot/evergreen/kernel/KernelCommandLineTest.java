@@ -10,6 +10,8 @@ import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
@@ -18,6 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessageSubstring;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -29,7 +33,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class KernelCommandLineTest extends ExceptionLogProtector {
+@ExtendWith(ExceptionLogProtector.class)
+class KernelCommandLineTest {
     @TempDir
     Path tempRootDir;
 
@@ -46,30 +51,30 @@ class KernelCommandLineTest extends ExceptionLogProtector {
     }
 
     @Test
-    void GIVEN_invalid_command_line_argument_WHEN_parseArgs_THEN_throw_RuntimeException() {
+    void GIVEN_invalid_command_line_argument_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) {
         KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class));
         String exceptionSubstring = "Undefined command line argument";
-        ignoreExceptionWithMessageSubstring(exceptionSubstring);
+        ignoreExceptionWithMessageSubstring(context, exceptionSubstring);
         RuntimeException thrown = assertThrows(RuntimeException.class,
                 () -> kernel.parseArgs("-xyznonsense", "nonsense"));
         assertThat(thrown.getMessage(), containsString(exceptionSubstring));
     }
 
     @Test
-    void GIVEN_create_path_fail_WHEN_parseArgs_THEN_throw_RuntimeException() throws Exception {
+    void GIVEN_create_path_fail_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) throws Exception {
         // Make the root path not writeable so the create path method will fail
         Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
 
         Kernel kernel = new Kernel();
         kernel.shutdown();
         String exceptionMessage = "Cannot create all required directories";
-        ignoreExceptionWithMessage(exceptionMessage);
+        ignoreExceptionWithMessage(context, exceptionMessage);
         RuntimeException thrown = assertThrows(RuntimeException.class, kernel::parseArgs);
         assertThat(thrown.getMessage(), is(exceptionMessage));
     }
 
     @Test
-    void GIVEN_unable_to_read_config_WHEN_parseArgs_THEN_throw_RuntimeException() throws IOException {
+    void GIVEN_unable_to_read_config_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) throws IOException {
         Kernel mockKernel = mock(Kernel.class);
         Configuration mockConfig = mock(Configuration.class);
         when(mockKernel.getConfig()).thenReturn(mockConfig);
@@ -77,7 +82,7 @@ class KernelCommandLineTest extends ExceptionLogProtector {
 
         KernelCommandLine kcl = new KernelCommandLine(mockKernel);
         String exceptionMessage = "Can't read the config file test.yaml";
-        ignoreExceptionWithMessage(exceptionMessage);
+        ignoreExceptionWithMessage(context, exceptionMessage);
         RuntimeException ex = assertThrows(RuntimeException.class, () -> kcl.parseArgs("-i", "test.yaml"));
         assertThat(ex.getMessage(), is(exceptionMessage));
     }

@@ -11,6 +11,7 @@ import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -25,7 +26,8 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class PackageTest extends ExceptionLogProtector {
+@ExtendWith(ExceptionLogProtector.class)
+public class PackageTest {
     private static Map<String, Integer> backupRanks;
     private static Field ranksField;
 

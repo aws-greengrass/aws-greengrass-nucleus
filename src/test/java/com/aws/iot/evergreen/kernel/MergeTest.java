@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MergeTest extends ExceptionLogProtector {
+@ExtendWith(ExceptionLogProtector.class)
+public class MergeTest {
 
     private EvergreenService mockMainService;
     private EvergreenService mockServiceA;

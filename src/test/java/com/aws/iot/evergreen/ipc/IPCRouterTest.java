@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(MockitoExtension.class)
-public class IPCRouterTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+public class IPCRouterTest {
 
     @Test
     public void GIVEN_function_WHEN_register_callback_THEN_callback_can_be_called() throws Throwable {

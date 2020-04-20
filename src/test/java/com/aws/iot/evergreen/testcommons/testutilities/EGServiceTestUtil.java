@@ -14,8 +14,8 @@ import java.util.concurrent.ExecutorService;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
-@ExtendWith(MockitoExtension.class)
-public class EGServiceTestUtil extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+public class EGServiceTestUtil {
 
     public static final String STATE_TOPIC_NAME = "_State";
     protected String serviceFullName = "EvergreenServiceFullName";

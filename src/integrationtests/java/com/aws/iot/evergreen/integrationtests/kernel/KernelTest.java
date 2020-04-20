@@ -13,6 +13,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -21,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -46,10 +48,10 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException() {
+    void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException(ExtensionContext context) {
         kernel = new Kernel();
         kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
-        ignoreExceptionWithMessage("Cannot load main service");
+        ignoreExceptionWithMessage(context, "Cannot load main service");
         assertThrows(RuntimeException.class, () -> kernel.launch());
     }
 

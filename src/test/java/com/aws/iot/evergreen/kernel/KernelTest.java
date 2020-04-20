@@ -15,6 +15,8 @@ import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.StringWriter;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,7 +38,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-class KernelTest extends ExceptionLogProtector {
+@ExtendWith(ExceptionLogProtector.class)
+class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "---\n"
             + "services:\n"
@@ -189,11 +193,11 @@ class KernelTest extends ExceptionLogProtector {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     @Test
-    void GIVEN_kernel_WHEN_locate_finds_class_definition_in_config_THEN_create_service()
+    void GIVEN_kernel_WHEN_locate_finds_class_definition_in_config_THEN_create_service(ExtensionContext context)
             throws Exception {
         // We need to launch the kernel here as this triggers EZPlugins to search the classpath for @ImplementsService
         // it complains that there's no main, but we don't care for this test
-        ignoreExceptionUltimateCauseWithMessage("No matching definition in system model for: main");
+        ignoreExceptionUltimateCauseWithMessage(context, "No matching definition in system model for: main");
         try {
             kernel.parseArgs().launch();
         } catch (RuntimeException ignored) {

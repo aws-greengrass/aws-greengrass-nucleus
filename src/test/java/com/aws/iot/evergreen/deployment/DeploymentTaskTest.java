@@ -38,8 +38,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-class DeploymentTaskTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+class DeploymentTaskTest {
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock

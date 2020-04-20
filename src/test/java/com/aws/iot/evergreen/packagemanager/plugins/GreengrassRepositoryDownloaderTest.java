@@ -26,8 +26,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-class GreengrassRepositoryDownloaderTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+class GreengrassRepositoryDownloaderTest {
 
     @Spy
     private GreengrassRepositoryDownloader downloader;

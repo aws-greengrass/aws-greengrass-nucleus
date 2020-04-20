@@ -23,6 +23,7 @@ import io.netty.util.Attribute;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -35,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_API_VERSION;
 import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,8 +52,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith(MockitoExtension.class)
-class AuthHandlerTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+class AuthHandlerTest {
     private static final String SERVICE_NAME = "ServiceName";
 
     AuthHandler mockAuth;
@@ -154,13 +156,14 @@ class AuthHandlerTest extends ExceptionLogProtector {
     }
 
     @Test
-    public void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client()
+    public void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client(
+            ExtensionContext context)
             throws Exception {
         // GIVEN
         // done in setupMocks
 
         IPCClientNotAuthorizedException ex = new IPCClientNotAuthorizedException("No Auth!");
-        ignoreException(ex);
+        ignoreException(context, ex);
         doThrow(ex).when(mockAuth).doAuth(any(), any());
 
         // WHEN

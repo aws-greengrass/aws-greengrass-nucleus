@@ -36,8 +36,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-public class IPCChannelHandlerTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+public class IPCChannelHandlerTest {
     public static final String ERROR_MESSAGE = "AAAAAAH!";
     @Mock
     AuthHandler mockAuth;

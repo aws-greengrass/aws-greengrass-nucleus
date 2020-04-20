@@ -39,8 +39,8 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-public class KernelConfigResolverTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+public class KernelConfigResolverTest {
     private static final String LIFECYCLE_CONFIG_ROOT_KEY = "lifecycle";
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";

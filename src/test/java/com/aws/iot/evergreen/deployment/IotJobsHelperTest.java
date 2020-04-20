@@ -48,8 +48,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-public class IotJobsHelperTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+public class IotJobsHelperTest {
 
     private static final String TEST_THING_NAME = "TEST_THING";
     private static final String TEST_JOB_ID = "TestJobId";

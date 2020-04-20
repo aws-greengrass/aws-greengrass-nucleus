@@ -47,8 +47,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-class DependencyResolverTest extends ExceptionLogProtector {
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+class DependencyResolverTest {
     @InjectMocks
     private DependencyResolver resolver;
 
@@ -67,7 +67,7 @@ class DependencyResolverTest extends ExceptionLogProtector {
     }
 
     @Nested
-    class MergeSemverRequirementsTest extends ExceptionLogProtector {
+    class MergeSemverRequirementsTest {
         @Test
         void GIVEN_list_of_version_ranges_WHEN_get_union_THEN_get_version_range() {
             List<String> constraints = new LinkedList<>();
@@ -110,7 +110,7 @@ class DependencyResolverTest extends ExceptionLogProtector {
     }
 
     @Nested
-    class ResolveDependenciesTest extends ExceptionLogProtector {
+    class ResolveDependenciesTest {
         private final Semver v1_2_0 = new Semver("1.2.0");
         private final Semver v1_1_0 = new Semver("1.1.0");
         private final Semver v1_0_0 = new Semver("1.0.0");
