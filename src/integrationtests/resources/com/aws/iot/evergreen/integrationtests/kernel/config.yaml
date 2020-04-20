@@ -20,7 +20,6 @@ services:
           script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
   docker:
-    bashtimeout: 300
     lifecycle:
       startup:
         macos: open /Applications/Docker.app
@@ -44,16 +43,7 @@ services:
     lifecycle:
       run: docker run --rm hello-world
       shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
-  hello-docker-nginx:
-    lifecycle:
-      run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
-      shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
-    dependencies:
-      - docker
 
-  fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
-    lifecycle:
-      startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
   broken:
     lifecycle:
       startup: exit -1
@@ -74,17 +64,13 @@ services:
         while true; do
         date; sleep 5; echo MAIN IS RUNNING
         done
-      download:
-        hw.jar: http://foo/hw.jar
     dependencies:
       macos:
         - git
         - hello-docker
-        - hello-docker-nginx
         - ticktock:INSTALLED
       linux:
         - git
         - ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
     setenv:
       JUSTME: fancy a spot of tea?
-    args: -jar {hw.jar}

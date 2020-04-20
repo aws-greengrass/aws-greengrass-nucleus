@@ -2,7 +2,6 @@ services:
   installErrorRetry:
     lifecycle:
       install: |-
-        sleep 1
         if [ -f "/tmp/egInstallErrorRetry" ]; then
           echo "INSTALL_SUCCEED"
           rm /tmp/egInstallErrorRetry
@@ -17,7 +16,7 @@ services:
   runErrorRetry:
     lifecycle:
       run: |-
-        sleep 5
+        sleep 0.5 # Sleep just a little so that it is marked as running and allows main to startup before this fails
         echo "RUN_BROKEN"
         exit 1
 
