@@ -4,7 +4,9 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.dependency.EZPlugins;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 
@@ -12,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
+@ExtendWith(ExceptionLogProtector.class)
 public class EZPluginsTest {
     int hits;
 

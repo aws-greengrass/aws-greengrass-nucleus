@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.AuthHandler;
+import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 
@@ -81,7 +82,7 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void install() throws InterruptedException {
         if (run("install", null) == RunStatus.Errored) {
-            reportState(State.ERRORED);
+            serviceErrored("Script errored in install");
         }
     }
 
@@ -93,14 +94,14 @@ public class GenericExternalService extends EvergreenService {
                 if (exit == 0) {
                     reportState(State.RUNNING);
                 } else {
-                    reportState(State.ERRORED);
+                    serviceErrored("Non-zero exit code in startup");
                 }
             }
         });
 
         runScript = currentScript;
         if (result == RunStatus.Errored) {
-            reportState(State.ERRORED);
+            serviceErrored("Script errored in startup");
         } else if (result == RunStatus.NothingDone) {
             handleRunScript();
         }
@@ -132,7 +133,7 @@ public class GenericExternalService extends EvergreenService {
                 reportState(State.FINISHED);
                 logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
             } else if (result == RunStatus.Errored) {
-                reportState(State.ERRORED);
+                serviceErrored("Script errored in run");
             } else {
                 reportState(State.RUNNING);
                 runScript = currentScript;
@@ -163,6 +164,7 @@ public class GenericExternalService extends EvergreenService {
     @Override
     @SuppressWarnings("PMD.CloseResource")
     public void shutdown() {
+        logger.atInfo().log("Shutdown initiated");
         inShutdown = true;
         try {
             run("shutdown", null);
@@ -229,9 +231,13 @@ public class GenericExternalService extends EvergreenService {
     }
 
     protected RunStatus run(Topics t, IntConsumer background) throws InterruptedException {
-        if (shouldSkip(t)) {
-            logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
-            return RunStatus.OK;
+        try {
+            if (shouldSkip(t)) {
+                logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
+                return RunStatus.OK;
+            }
+        } catch (InputValidationException e) {
+            return RunStatus.Errored;
         }
 
         Node script = t.getChild("script");
@@ -244,7 +250,7 @@ public class GenericExternalService extends EvergreenService {
         }
     }
 
-    boolean shouldSkip(Topics n) {
+    boolean shouldSkip(Topics n) throws InputValidationException {
         Node skipif = n.getChild("skipif");
         if (skipif instanceof Topic) {
             Topic tp = (Topic) skipif;
@@ -264,14 +270,13 @@ public class GenericExternalService extends EvergreenService {
                     default:
                         logger.atError().setEventType("generic-service-invalid-config")
                                 .addKeyValue("operator", m.group(1)).log("Unknown operator in skipif");
-                        serviceErrored();
-                        return false;
+                        throw new InputValidationException("Unknown operator in skipif");
                 }
             }
             logger.atError().setEventType("generic-service-invalid-config").addKeyValue("command received", expr)
                     .addKeyValue("valid pattern", SKIP_COMMAND_REGEX)
                     .log("Invalid format for skipif. Should follow the pattern");
-            serviceErrored();
+            throw new InputValidationException("Invalid format for skipif");
         }
         return false;
     }

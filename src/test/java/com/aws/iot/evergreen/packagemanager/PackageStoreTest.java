@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -38,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,7 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
 class PackageStoreTest {
 
     private Path testCache;
@@ -178,9 +181,10 @@ class PackageStoreTest {
     }
 
     @Test
-    void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out() throws Exception {
+    void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context) throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
         when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
+        ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
         Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
@@ -189,7 +193,7 @@ class PackageStoreTest {
 
 // TODO migrate the tests above over and remove "test_packages" and "mock_artifact_source".
 @Nested
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
 class NewPackageStoreTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.1.0", Semver.SemverType.NPM);

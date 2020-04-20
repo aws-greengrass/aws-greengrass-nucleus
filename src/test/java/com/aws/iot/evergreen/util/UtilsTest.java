@@ -3,7 +3,9 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.nio.CharBuffer;
 import java.util.HashMap;
@@ -19,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
+@ExtendWith(ExceptionLogProtector.class)
 public class UtilsTest {
 
     private static void testLparse1(String s, long expecting, String remaining) {

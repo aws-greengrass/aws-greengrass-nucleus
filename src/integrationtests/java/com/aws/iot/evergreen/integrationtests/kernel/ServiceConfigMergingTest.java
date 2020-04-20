@@ -48,7 +48,9 @@ class ServiceConfigMergingTest extends BaseITCase {
 
     @AfterEach
     void after() {
-        kernel.shutdown();
+        if (kernel != null) {
+            kernel.shutdown();
+        }
     }
 
     @Test

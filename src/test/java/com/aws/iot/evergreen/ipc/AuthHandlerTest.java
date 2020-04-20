@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -22,6 +23,7 @@ import io.netty.util.Attribute;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -34,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_API_VERSION;
 import static com.aws.iot.evergreen.ipc.AuthHandler.AUTH_TOKEN_LOOKUP_KEY;
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,7 +52,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
 class AuthHandlerTest {
     private static final String SERVICE_NAME = "ServiceName";
 
@@ -68,7 +71,7 @@ class AuthHandlerTest {
     ArgumentCaptor<FrameReader.MessageFrame> frameCaptor;
 
     @BeforeEach
-    public void setupMocks() throws Exception {
+    public void setupMocks() {
         lenient().when(mockCtx.channel()).thenReturn(mockChannel);
         lenient().when(mockChannel.attr(any())).thenReturn((Attribute) mockAttr);
         lenient().doAnswer((invocation) -> mockAttrValue = invocation.getArgument(0)).when(mockAttr).set(any());
@@ -153,12 +156,15 @@ class AuthHandlerTest {
     }
 
     @Test
-    public void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client()
+    public void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client(
+            ExtensionContext context)
             throws Exception {
         // GIVEN
         // done in setupMocks
 
-        doThrow(new IPCClientNotAuthorizedException("No Auth!")).when(mockAuth).doAuth(any(), any());
+        IPCClientNotAuthorizedException ex = new IPCClientNotAuthorizedException("No Auth!");
+        ignoreException(context, ex);
+        doThrow(ex).when(mockAuth).doAuth(any(), any());
 
         // WHEN
         FrameReader.MessageFrame requestFrame =
