@@ -13,11 +13,13 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -33,6 +35,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.AdditionalMatchers.or;
@@ -47,11 +51,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
 public class DeploymentServiceTest extends EGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final String TEST_JOB_ID_2 = "TEST_JOB_2";
+    private static final String CONNECTION_ERROR = "Connection error";
 
     @Mock
     IotJobsHelper mockIotJobsHelper;
@@ -158,15 +163,16 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
 
         @Test
-        public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status()
+        public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status(ExtensionContext context)
                 throws Exception {
             CompletableFuture<Void> mockFutureWithException = new CompletableFuture<>();
+            ignoreExceptionUltimateCauseOfType(context, NonRetryableDeploymentTaskFailureException.class);
             Throwable t = new NonRetryableDeploymentTaskFailureException(null);
             mockFutureWithException.completeExceptionally(t);
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFutureWithException);
             startDeploymentServiceInAnotherThread();
 
-            //Wait for the enough time after which deployment service would have processed the job from the queue
+            // Wait for the enough time after which deployment service would have processed the job from the queue
             Thread.sleep(Duration.ofSeconds(2).toMillis());
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             verify(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
@@ -188,10 +194,11 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             }
 
             @Test
-            public void GIVEN_deployment_job_WHEN_mqtt_breaks_on_success_job_update_THEN_persist_deployment_update_later()
+            public void GIVEN_deployment_job_WHEN_mqtt_breaks_on_success_job_update_THEN_persist_deployment_update_later(ExtensionContext context)
                     throws Exception {
                 when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
-                ExecutionException e = new ExecutionException(new MqttException("Connection error"));
+                ignoreExceptionUltimateCauseWithMessage(context, CONNECTION_ERROR);
+                ExecutionException e = new ExecutionException(new MqttException(CONNECTION_ERROR));
                 doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                         any());
                 doThrow(e).doNothing().when(mockIotJobsHelper)
@@ -241,13 +248,15 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             }
 
             @Test
-            public void GIVEN_multiple_deployment_jobs_WHEN_mqtt_breaks_THEN_persist_deployments_update_later()
+            public void GIVEN_multiple_deployment_jobs_WHEN_mqtt_breaks_THEN_persist_deployments_update_later(ExtensionContext context)
                     throws Exception {
                 CompletableFuture<Void> mockFutureWitException = new CompletableFuture<>();
+                ignoreExceptionUltimateCauseOfType(context, NonRetryableDeploymentTaskFailureException.class);
                 Throwable t = new NonRetryableDeploymentTaskFailureException(null);
                 mockFutureWitException.completeExceptionally(t);
                 doReturn(mockFuture, mockFutureWitException).when(mockExecutorService).submit(any(DeploymentTask.class));
-                ExecutionException executionException = new ExecutionException(new MqttException("Connection error"));
+                ignoreExceptionUltimateCauseWithMessage(context, CONNECTION_ERROR);
+                ExecutionException executionException = new ExecutionException(new MqttException(CONNECTION_ERROR));
                 doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                         any());
                 doNothing().when(mockIotJobsHelper).updateJobStatus(eq(TEST_JOB_ID_2), eq(JobStatus.IN_PROGRESS),

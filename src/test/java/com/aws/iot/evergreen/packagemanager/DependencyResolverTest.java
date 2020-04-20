@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictExc
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,7 +47,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
 class DependencyResolverTest {
     @InjectMocks
     private DependencyResolver resolver;
