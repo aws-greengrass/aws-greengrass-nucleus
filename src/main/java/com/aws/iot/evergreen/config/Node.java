@@ -72,13 +72,12 @@ public abstract class Node {
         return (T) this;
     }
 
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         try {
             appendTo(sb);
-        } catch (IOException ignored) {
+        } catch (IOException ignore) {
         }
         return sb.toString();
     }

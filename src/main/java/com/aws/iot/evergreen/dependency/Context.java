@@ -59,7 +59,7 @@ public class Context implements Closeable {
             //                setDaemon(true);
         }
 
-        @SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable"})
+        @SuppressWarnings("PMD.AvoidCatchingThrowable")
         @Override
         public void run() {
             while (true) {

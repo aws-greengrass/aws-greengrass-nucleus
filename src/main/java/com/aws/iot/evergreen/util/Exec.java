@@ -42,7 +42,7 @@ import javax.annotation.Nullable;
  * .background(exc -> System.out.println("exit "+exc));
  * </pre>
  */
-@SuppressWarnings({"checkstyle:emptycatchblock", "PMD.AvoidCatchingThrowable"})
+@SuppressWarnings("PMD.AvoidCatchingThrowable")
 public final class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
@@ -73,7 +73,7 @@ public final class Exec implements Closeable {
                     for (int c = in.read(); c >= 0; c = in.read()) {
                         path.append((char) c);
                     }
-                } catch (Throwable ignored) {
+                } catch (Throwable ignore) {
                 }
             });
             bg.start();
@@ -463,7 +463,7 @@ public final class Exec implements Closeable {
                         break;
                     }
                 }
-            } catch (Throwable t) {
+            } catch (Throwable ignore) {
                 // nothing that can go wrong here worries us, they're
                 // all EOFs
             }
