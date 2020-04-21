@@ -3,7 +3,9 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static com.aws.iot.evergreen.util.Coerce.toBoolean;
 import static com.aws.iot.evergreen.util.Coerce.toDouble;
@@ -13,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(ExceptionLogProtector.class)
 public class CoerceTest {
 
     @Test

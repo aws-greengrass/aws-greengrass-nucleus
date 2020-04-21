@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobRequest;
@@ -47,9 +50,12 @@ import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@ExtendWith(ExceptionLogProtector.class)
 @Tag("E2E")
 class DeploymentE2ETest {
     @TempDir
@@ -84,7 +90,7 @@ class DeploymentE2ETest {
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
-        copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
+        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
@@ -168,8 +174,10 @@ class DeploymentE2ETest {
     }
 
     @Test
-    void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error() throws Exception {
+    void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(ExtensionContext context) throws Exception {
         launchKernel("blank_config.yaml");
+
+        ignoreExceptionUltimateCauseWithMessageSubstring(context, "Conflicts in resolving package: Mosquitto");
 
         // Target our DUT for deployments
         // TODO: Eventually switch this to target using Thing Group instead of individual Thing
@@ -199,10 +207,11 @@ class DeploymentE2ETest {
     }
 
     @Test
-    void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful()
+    void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful(ExtensionContext context)
             throws Exception {
-
         launchKernel("blank_config.yaml");
+
+        ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
 
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
         String document = new ObjectMapper().writeValueAsString(
@@ -261,7 +270,7 @@ class DeploymentE2ETest {
             cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
         }
 
-        Topics deploymentServiceTopics = kernel.config.lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
+        Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privateKeyFilePath);

@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.Kernel;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,13 +26,18 @@ class KernelShutdownTest extends BaseITCase {
         kernel.launch();
     }
 
+    @AfterEach
+    void afterEach() {
+        kernel.shutdown();
+    }
+
     @Test
-    void WHEN_kernel_shutdown_THEN_services_are_shutdown_in_reverse_dependecy_order() throws InterruptedException {
+    void WHEN_kernel_shutdown_THEN_services_are_shutdown_in_reverse_dependency_order() throws InterruptedException {
         AtomicBoolean mainClosed = new AtomicBoolean(false);
         AtomicBoolean sleeperAClosed = new AtomicBoolean(false);
         AtomicBoolean sleeperBClosed = new AtomicBoolean(false);
 
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("main".equals(service.getName()) && newState.isClosable()) {
                 mainClosed.set(true);
             }

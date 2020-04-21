@@ -20,11 +20,13 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
@@ -41,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(ExceptionLogProtector.class)
 class IPCServicesTest {
 
     @TempDir
@@ -59,7 +62,7 @@ class IPCServicesTest {
 
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
-        kernel.context.addGlobalStateChangeListener((service, oldState, newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("ServiceName") && newState.equals(State.RUNNING)) {
                 awaitIpcServiceLatch.countDown();
             }
@@ -70,7 +73,7 @@ class IPCServicesTest {
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
         Topic kernelUri =
-                kernel.config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv", KERNEL_URI_ENV_VARIABLE_NAME);
+                kernel.getConfig().lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();

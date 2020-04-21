@@ -47,7 +47,7 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);
 
-        // requestRetart() overrides previous requestStop()
+        // requestRestart() overrides previous requestStop()
         desiredStateList.clear();
         evergreenService.requestStop();
         assertDesiredState(State.FINISHED);
@@ -73,11 +73,11 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         evergreenService.requestStop();
         assertDesiredState(State.FINISHED);
 
-        // calling requestRetart() multiple times doesn't result in duplication
+        // calling requestRestart() multiple times doesn't result in duplication
         evergreenService.requestStop();
         assertDesiredState(State.FINISHED);
 
-        // requestRetart() overrides previous requestStop()
+        // requestRestart() overrides previous requestStop()
         desiredStateList.clear();
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);
@@ -103,11 +103,11 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         evergreenService.requestRestart();
         assertDesiredState(State.INSTALLED, State.RUNNING);
 
-        // calling requestRetart() multiple times doesn't result in duplication
+        // calling requestRestart() multiple times doesn't result in duplication
         evergreenService.requestRestart();
         assertDesiredState(State.INSTALLED, State.RUNNING);
 
-        // requestRetart() overrides previous requestStop()
+        // requestRestart() overrides previous requestStop()
         desiredStateList.clear();
         evergreenService.requestStop();
         assertDesiredState(State.FINISHED);
@@ -115,7 +115,7 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         evergreenService.requestRestart();
         assertDesiredState(State.INSTALLED, State.RUNNING);
 
-        // requestRetart() overrides previous requestStart()
+        // requestRestart() overrides previous requestStart()
         desiredStateList.clear();
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);
@@ -147,14 +147,14 @@ public class RequestLifecycleChangeTest extends EGServiceTestUtil {
         evergreenService.requestReinstall();
         assertDesiredState(State.NEW, State.RUNNING);
 
-        // calling requestRetart() doesn't override requestRe-install
+        // calling requestRestart() doesn't override requestRe-install
         desiredStateList.clear();
         evergreenService.requestRestart();
         assertDesiredState(State.INSTALLED, State.RUNNING);
         evergreenService.requestReinstall();
         assertDesiredState(State.NEW, State.RUNNING);
 
-        // calling requestRetart() multiple times doesn't result in duplication
+        // calling requestRestart() multiple times doesn't result in duplication
         desiredStateList.clear();
         evergreenService.requestStart();
         assertDesiredState(State.RUNNING);

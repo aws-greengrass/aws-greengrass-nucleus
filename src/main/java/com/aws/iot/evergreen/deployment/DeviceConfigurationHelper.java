@@ -53,7 +53,7 @@ public class DeviceConfigurationHelper {
     private String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
         //TODO: Update when device provisioning is implemented
-        Topic childTopic = kernel.config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+        Topic childTopic = kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                 DeploymentService.DEPLOYMENT_SERVICE_TOPICS).findLeafChild(parameterName);
         if (childTopic != null && childTopic.getOnce() != null) {
             paramValue = childTopic.getOnce().toString();

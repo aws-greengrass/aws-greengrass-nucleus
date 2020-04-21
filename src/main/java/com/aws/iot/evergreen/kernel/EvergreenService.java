@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -51,7 +50,7 @@ public class EvergreenService implements InjectionActions {
     private final Lifecycle lifecycle;
     private final Object dependersExitedLock = new Object();
     private Throwable error;
-    private Periodicity periodicityInformation;
+    private final Periodicity periodicityInformation;
     private final Object dependencyReadyLock = new Object();
 
     // dependencies that are explicitly declared by customer in config store.
@@ -83,6 +82,10 @@ public class EvergreenService implements InjectionActions {
         this.externalDependenciesTopic = topics.createLeafChild("dependencies").dflt(new ArrayList<String>());
         this.externalDependenciesTopic.withParentNeedsToKnow(false);
         this.lifecycle = new Lifecycle(this, state, logger);
+
+        initDependenciesTopic();
+        periodicityInformation = Periodicity.of(this);
+        lifecycle.initLifecycleThread();
     }
 
     public State getState() {
@@ -202,10 +205,11 @@ public class EvergreenService implements InjectionActions {
         e = getUltimateCause(e);
         error = e;
         logger.atError("service-errored", e).log();
-        serviceErrored();
+        reportState(State.ERRORED);
     }
 
-    public void serviceErrored() {
+    public void serviceErrored(String reason) {
+        logger.atError("service-errored").kv("reason", reason).log();
         reportState(State.ERRORED);
     }
 
@@ -251,7 +255,7 @@ public class EvergreenService implements InjectionActions {
      * @return future completes when the lifecycle thread shuts down.
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public Future<Void> close() {
+    public final CompletableFuture<Void> close() {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
         context.get(Executor.class).execute(() -> {
             try {
@@ -410,13 +414,6 @@ public class EvergreenService implements InjectionActions {
         return config;
     }
 
-    @Override
-    public void postInject() {
-        initDependenciesTopic();
-        periodicityInformation = Periodicity.of(this);
-        lifecycle.initLifecycleThread();
-    }
-
     private Map<EvergreenService, State> getDependencyStateMap(Iterable<String> dependencyList)
             throws InputValidationException, ServiceLoadException {
         HashMap<EvergreenService, State> ret = new HashMap<>();
@@ -513,11 +510,11 @@ public class EvergreenService implements InjectionActions {
         return sb.toString();
     }
 
-    protected void addDependencies(Set<EvergreenService> deps) {
+    protected void putDependenciesIntoSet(Set<EvergreenService> deps) {
         deps.add(this);
         dependencies.keySet().forEach(d -> {
             if (!deps.contains(d)) {
-                d.addDependencies(deps);
+                d.putDependenciesIntoSet(deps);
             }
         });
     }
@@ -526,10 +523,6 @@ public class EvergreenService implements InjectionActions {
     public Map<EvergreenService, State> getDependencies() {
         return dependencies.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().startWhen));
-    }
-
-    public boolean satisfiedBy(Set<EvergreenService> ready) {
-        return ready.containsAll(dependencies.keySet());
     }
 
     protected Topics getLifecycleTopic() {

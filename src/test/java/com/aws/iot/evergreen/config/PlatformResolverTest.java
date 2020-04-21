@@ -3,11 +3,13 @@
 
 package com.aws.iot.evergreen.config;
 
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -18,6 +20,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@ExtendWith(ExceptionLogProtector.class)
 public class PlatformResolverTest {
     ObjectMapper mapper = new ObjectMapper();
     private static Method platformResolveInternalMethod;

@@ -423,6 +423,9 @@ public class Lifecycle {
 
         stopBackingTask();
         if (State.ERRORED.equals(getReportState().orElse(null)) || !stopSucceed) {
+            if (!stopSucceed) {
+                logger.atError("service-shutdown-error").log("Service stop timed out");
+            }
             updateStateAndBroadcast(State.ERRORED);
             // If the thread is still running, then kill it
             if (!shutdownFuture.isDone()) {

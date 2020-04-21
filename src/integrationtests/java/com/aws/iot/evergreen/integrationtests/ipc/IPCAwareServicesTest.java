@@ -11,10 +11,12 @@ import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IPCAwareServicesTest extends BaseITCase {
@@ -30,8 +32,7 @@ class IPCAwareServicesTest extends BaseITCase {
 
         // start kernel
         kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("ipc_aware_main.yaml").toString());
-    }
+        kernel.parseArgs("-i", this.getClass().getResource("ipc_aware_main.yaml").toString());    }
 
     @AfterEach
     void teardown() {
@@ -39,14 +40,16 @@ class IPCAwareServicesTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running() throws Exception {
+    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running(ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Connection reset by peer");
+
         CountDownLatch serviceRunning = new CountDownLatch(1);
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (SAMPLE_IPC_AWARE_SERVICE_NAME.equals(service.getName()) && State.RUNNING.equals(newState)) {
                 serviceRunning.countDown();
             }
         };
-        kernel.context.addGlobalStateChangeListener(listener);
+        kernel.getContext().addGlobalStateChangeListener(listener);
         kernel.launch();
 
         // waiting for main to transition to running

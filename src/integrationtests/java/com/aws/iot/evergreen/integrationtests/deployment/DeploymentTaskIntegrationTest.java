@@ -26,6 +26,7 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
@@ -55,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(ExceptionLogProtector.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DeploymentTaskIntegrationTest {
 
@@ -105,8 +107,7 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").getPath());
-        copyFolderRecursively(localStoreContentPath, kernel.packageStorePath);
-
+        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }
 
     @AfterAll

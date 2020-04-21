@@ -4,10 +4,12 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -27,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
+@ExtendWith(ExceptionLogProtector.class)
 public class ConfigurationTest {
     final Configuration config = new Configuration(new Context());
 
