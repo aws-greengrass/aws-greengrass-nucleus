@@ -117,7 +117,7 @@ class DependencyResolverTest {
         private static final String pkgA = "A";
         private static final String pkgB1 = "B1";
         private static final String pkgB2 = "B2";
-        private static final String pkgC1 = "c1";
+        private static final String pkgC1 = "C1";
         private static final String pkgD = "D";
 
         @Mock
@@ -339,7 +339,7 @@ class DependencyResolverTest {
 
             Exception thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2)));
-            assertEquals("Conflicts in resolving package: c1. Version constraints from upstream packages: "
+            assertEquals("Conflicts in resolving package: C1. Version constraints from upstream packages: "
                     + "{B2-v1.1.0=>1.1.0, B1-v1.0.0=<1.0.0}", thrown.getMessage());
 
             // top-level package order: B2, A
@@ -364,7 +364,7 @@ class DependencyResolverTest {
 
             thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc2, Arrays.asList(pkgB2, pkgA)));
-            assertEquals("Package version c1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0.0",
+            assertEquals("Package version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0.0",
                     thrown.getMessage());
         }
 

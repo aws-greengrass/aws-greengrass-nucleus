@@ -242,7 +242,7 @@ public class Kernel {
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public EvergreenService locate(String name) throws ServiceLoadException {
-        return context.getv(EvergreenService.class, name).computeObjectIfEmpty(v -> {
+        return context.getValue(EvergreenService.class, name).computeObjectIfEmpty(v -> {
             Topics serviceRootTopics = findServiceTopic(name);
 
             Class<?> clazz = null;

@@ -422,13 +422,16 @@ public class Context implements Closeable {
         }
 
         private Constructor<T> pickConstructor(Class<T> clazz) throws NoSuchMethodException {
+            // Use constructor with @Inject if exists
             for (Constructor<T> constructor : (Constructor<T>[]) clazz.getDeclaredConstructors()) {
-                // Use constructor with @Inject if exists
                 if (constructor.isAnnotationPresent(Inject.class)) {
                     return constructor;
                 }
 
-                // fall back to default constructor
+            }
+
+            // fall back to default constructor
+            for (Constructor<T> constructor : (Constructor<T>[]) clazz.getDeclaredConstructors()) {
                 if (constructor.getParameterCount() == 0) {
                     return constructor;
                 }
@@ -442,7 +445,7 @@ public class Context implements Closeable {
          * TODO revisit to see if there is a better way because the mapping function usage is weird.
          *
          * @param mappingFunction maps from Value to T
-         * @param <E> CheckedException
+         * @param <E>             CheckedException
          * @return the current (existing or computed) object instance
          * @throws E when mapping function throws checked exception
          */
@@ -495,17 +498,7 @@ public class Context implements Closeable {
                             final String name = nullEmpty(named == null ? null : named.value());
                             Class t = f.getType();
                             Object v;
-                            //                            System.out.println(cl.getSimpleName() + "." + f.getName() +
-                            //                            " .
-                            //                            ..");
-                            //                            System.out.println("\tSET");
                             if (t == Provider.class) {
-                                //                                System.out.println("PROVIDER " + t + " " + f + "\n
-                                //                                ->
-                                //                                " + f.toGenericString());
-                                //                                Class scl = (Class) ((ParameterizedType) f
-                                //                                .getGenericType()).getActualTypeArguments()[0];
-                                //                                System.out.println("\tprovides " + scl);
                                 v = getValue(
                                         (Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
                                         name);
@@ -523,9 +516,6 @@ public class Context implements Closeable {
                             StartWhen startWhen = f.getAnnotation(StartWhen.class);
                             f.setAccessible(true);
                             f.set(object, v);
-                            //                            System.out.println("   "+cl.getSimpleName() + "." + f
-                            //                            .getName()
-                            //                            + " = " + v);
                             if (asService != null && v instanceof EvergreenService) {
                                 asService.addOrUpdateDependency((EvergreenService) v,
                                         startWhen == null ? State.RUNNING : startWhen.value(), true);
@@ -538,7 +528,6 @@ public class Context implements Closeable {
                             }
                         }
                     }
-                    //                    else System.out.println("\tSKIP");
                 }
                 clazz = clazz.getSuperclass();
             }

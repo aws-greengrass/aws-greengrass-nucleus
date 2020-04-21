@@ -17,6 +17,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
@@ -100,9 +101,9 @@ class DeploymentTaskIntegrationTest {
         kernel.launch();
 
         // get required instances from context
-        packageStore = kernel.context.get(PackageStore.class);
-        dependencyResolver = kernel.context.get(DependencyResolver.class);
-        kernelConfigResolver = kernel.context.get(KernelConfigResolver.class);
+        packageStore = kernel.getContext().get(PackageStore.class);
+        dependencyResolver = kernel.getContext().get(DependencyResolver.class);
+        kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
 
         // pre-load contents to package store
         Path localStoreContentPath =
