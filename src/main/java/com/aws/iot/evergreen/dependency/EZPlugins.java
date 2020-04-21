@@ -38,7 +38,7 @@ public class EZPlugins {
     public EZPlugins() {
     }
 
-    public EZPlugins(Path d) {
+    public EZPlugins(Path d) throws IOException {
         withCacheDirectory(d);
     }
 
@@ -53,16 +53,14 @@ public class EZPlugins {
      *
      * @param d plugin root directory
      * @return this
+     * @throws IOException if can't create directories
      */
-    public final EZPlugins withCacheDirectory(Path d) {
+    public final EZPlugins withCacheDirectory(Path d) throws IOException {
         cacheDirectory = d;
         trustedCacheDirectory = cacheDirectory.resolve("trusted");
         untrustedCacheDirectory = cacheDirectory.resolve("untrusted");
-        try {
-            Files.createDirectories(trustedCacheDirectory);
-            Files.createDirectories(untrustedCacheDirectory);
-        } catch (IOException ignore) {
-        }
+        Files.createDirectories(trustedCacheDirectory);
+        Files.createDirectories(untrustedCacheDirectory);
         return this;
     }
 
