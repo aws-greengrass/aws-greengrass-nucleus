@@ -427,7 +427,7 @@ public class Context implements Closeable {
 
             }
 
-            // fall back to default constructor
+            // fall back to no arg constructor
             for (Constructor<T> constructor : (Constructor<T>[]) clazz.getDeclaredConstructors()) {
                 if (constructor.getParameterCount() == 0) {
                     return constructor;
