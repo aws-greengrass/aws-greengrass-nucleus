@@ -36,13 +36,14 @@ public class DeploymentTask implements Callable<Void> {
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
 
     @Override
+    @SuppressWarnings({"PMD.PreserveStackTrace"})
     public Void call() throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException {
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", deploymentDocument.getDeploymentId()).log("Start deployment task");
 
             // TODO: DA compute list of all root level packages by looking across root level packages
-            //  of all groups, when multi group support is added.
+            // of all groups, when multi group support is added.
             List<String> rootPackages = new ArrayList<>(deploymentDocument.getRootPackages());
 
             List<PackageIdentifier> desiredPackages = dependencyResolver
@@ -59,9 +60,16 @@ public class DeploymentTask implements Callable<Void> {
                     newConfig).get();
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", deploymentDocument.getDeploymentId()).log("Finish deployment task");
-        // TODO: unwrap ExecutionException to see which one is retryable.
-        } catch (PackageVersionConflictException | UnexpectedPackagingException | ExecutionException e) {
+        } catch (PackageVersionConflictException | UnexpectedPackagingException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
+        } catch (ExecutionException e) {
+            Throwable t = e.getCause();
+            if (t instanceof PackagingException
+                    || t instanceof InterruptedException
+                    || t instanceof IOException) {
+                throw new RetryableDeploymentTaskFailureException(t);
+            }
+            throw new NonRetryableDeploymentTaskFailureException(t);
         } catch (InterruptedException | IOException | PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
         }
