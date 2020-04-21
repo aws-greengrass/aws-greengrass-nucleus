@@ -192,7 +192,6 @@ public final class Utils {
      * @param maxLength maximum length of the returned string.
      * @return string representation of the given object.
      */
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public static CharSequence deepToString(Object o, int maxLength) {
         if (o instanceof CharSequence) {
             return (CharSequence) o;
@@ -200,7 +199,7 @@ public final class Utils {
         StringBuilder sb = new StringBuilder();
         try {
             deepToString(o, sb, maxLength);
-        } catch (IOException ignored) {
+        } catch (IOException ignore) {
         }
         return sb;
     }

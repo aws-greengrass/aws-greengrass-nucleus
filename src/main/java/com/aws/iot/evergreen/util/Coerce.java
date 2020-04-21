@@ -69,7 +69,6 @@ public final class Coerce {
      * @param o object to convert.
      * @return resulting int.
      */
-    @SuppressWarnings("checkstyle:emptycatchblock")
     public static int toInt(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -84,7 +83,7 @@ public final class Coerce {
             try {
                 CharSequence cs = o instanceof CharSequence ? (CharSequence) o : o.toString();
                 return (int) Utils.parseLong(cs);
-            } catch (NumberFormatException ignored) {
+            } catch (NumberFormatException ignore) {
             }
         }
         return 0;
@@ -96,7 +95,6 @@ public final class Coerce {
      * @param o object to convert.
      * @return the resulting double value.
      */
-    @SuppressWarnings("checkstyle:emptycatchblock")
     public static double toDouble(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -110,7 +108,7 @@ public final class Coerce {
         if (o != null) {
             try {
                 return Double.parseDouble(o.toString());
-            } catch (NumberFormatException ignored) {
+            } catch (NumberFormatException ignore) {
             }
         }
         return 0;
@@ -208,7 +206,6 @@ public final class Coerce {
      * @param o object to convert.
      * @return resulting string.
      */
-    @SuppressWarnings("checkstyle:emptycatchblock")
     public static String toQuotedString(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
@@ -216,7 +213,7 @@ public final class Coerce {
         StringBuilder sb = new StringBuilder();
         try {
             appendQuotedString(o, sb);
-        } catch (IOException ignored) {
+        } catch (IOException ignore) {
         }
         return sb.toString();
     }
@@ -288,7 +285,6 @@ public final class Coerce {
      * @param s string to convert
      * @return resulting object or empty string if the input was null.
      */
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public static Object toObject(String s) {
         if (s == null || s.length() == 0) {
             return "";
@@ -317,7 +313,7 @@ public final class Coerce {
                 return li;
             }
             return d;
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException ignore) {
         }
         if ("null".equals(s)) {
             return null;
