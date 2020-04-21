@@ -108,10 +108,6 @@ public class Context implements Closeable {
     }
 
     private <T> Value<T> getValue(Class<T> clazz, Object tag) {
-        //        if(cl!=tag && cl.getAnnotation(Singleton.class)!=null) {
-        //            Value<T> v = getValue(cl,cl);
-        //            return parts.computeIfAbsent(tag, c->v);
-        //        }
         return parts.computeIfAbsent(tag, c -> new Value(clazz, null));
     }
 
@@ -315,6 +311,7 @@ public class Context implements Closeable {
     public class Value<T> implements Provider<T> {
         final Class<T> targetClass;
         public volatile T object;
+        // TODO Review with James if we still need injectionCompleted
         @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;
 
