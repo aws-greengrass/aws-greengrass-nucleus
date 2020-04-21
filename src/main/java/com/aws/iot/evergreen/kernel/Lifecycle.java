@@ -202,6 +202,7 @@ public class Lifecycle {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
     void startStateTransition() throws InterruptedException {
         while (!(isClosed.get() && evergreenService.getState().isClosable())) {
             Optional<State> desiredState;
@@ -260,7 +261,8 @@ public class Lifecycle {
                 updateStateAndBroadcast(toState);
             }
             // service transitioning to another state, cancelling task monitoring the timeout for startup
-            Future triggerTimeOutFuture = triggerTimeOutReference.get();
+            Future triggerTimeOutFuture =
+                    triggerTimeOutReference.get();  // AvoidGettingFutureWithoutTimeout false positive
             if (triggerTimeOutFuture != null) {
                 triggerTimeOutFuture.cancel(true);
             }

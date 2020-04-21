@@ -106,7 +106,7 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_preparePackages_interrupted_THEN_deploymentTask_aborted()
             throws Exception {
         Future<Void> mockFuture = mock(Future.class);
-        when(mockFuture.get()).thenThrow(InterruptedException.class);
+        when(mockFuture.get(60, TimeUnit.MINUTES)).thenThrow(InterruptedException.class);
         when(mockPackageStore.preparePackages(anyList())).thenReturn(mockFuture);
         FutureTask<Void> futureTask = new FutureTask<>(deploymentTask);
         Thread t = new Thread(futureTask);

@@ -41,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -59,6 +60,7 @@ public class DeploymentService extends EvergreenService {
     private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
     private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS = "StatusDetails";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
+    private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
     @Setter
@@ -215,14 +217,11 @@ public class DeploymentService extends EvergreenService {
 
     }
 
-    @SuppressWarnings({"PMD.NullAssignment", "PMD.AvoidGettingFutureWithoutTimeout"})
+    @SuppressWarnings("PMD.NullAssignment")
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Current deployment finished");
         try {
-            //No timeout is set here. Detection of error is delegated to downstream components like
-            // dependency resolver, package downloader, kernel which will have more visibility
-            // if something is going wrong
-            currentProcessStatus.get();
+            currentProcessStatus.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             storeDeploymentStatusInConfig(currentJobId, JobStatus.SUCCEEDED, new HashMap<>());
         } catch (ExecutionException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentJobId).setCause(e)
@@ -234,6 +233,9 @@ public class DeploymentService extends EvergreenService {
                 storeDeploymentStatusInConfig(currentJobId, JobStatus.FAILED, statusDetails);
             }
             //TODO: resubmit the job in case of RetryableDeploymentTaskFailureException
+        } catch (TimeoutException e) {
+            logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentJobId).setCause(e)
+                    .log("Timed out waiting for deployment to finish");
         }
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
