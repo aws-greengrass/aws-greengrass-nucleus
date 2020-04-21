@@ -88,7 +88,6 @@ public final class CommitableFile extends FileOutputStream implements Commitable
      * Close and discard the file.  The original file remains untouched.
      */
     @Override
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public void abandon() {
         if (!closed) {
             try {
@@ -97,7 +96,7 @@ public final class CommitableFile extends FileOutputStream implements Commitable
             }
             try {
                 Files.deleteIfExists(newVersion);
-            } catch (IOException ignored) {
+            } catch (IOException ignore) {
             }
             closed = true;
         }
@@ -106,13 +105,13 @@ public final class CommitableFile extends FileOutputStream implements Commitable
     /**
      * Close the file and commit the new version.  The old version becomes a backup
      */
-    @SuppressWarnings({"checkstyle:emptycatchblock", "ConvertToTryWithResources"})
+    @SuppressWarnings("ConvertToTryWithResources")
     @Override
     public void commit() {
         if (!closed) {
             try {
                 super.close();
-            } catch (IOException ignored) {
+            } catch (IOException ignore) {
             }
             if (Files.exists(newVersion)) {
                 move(target, backup);
