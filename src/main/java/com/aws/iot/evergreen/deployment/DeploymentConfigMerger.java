@@ -25,8 +25,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -37,7 +35,6 @@ public class DeploymentConfigMerger {
     public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
-    private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
     private Kernel kernel;
@@ -158,8 +155,7 @@ public class DeploymentConfigMerger {
         }
     }
 
-    private void removeServices(List<String> serviceToRemove) throws InterruptedException, ExecutionException,
-            TimeoutException {
+    private void removeServices(List<String> serviceToRemove) throws InterruptedException, ExecutionException {
         List<Future<Void>> serviceClosedFutures = new ArrayList<>();
         serviceToRemove.forEach(serviceName -> {
             try {
@@ -173,7 +169,7 @@ public class DeploymentConfigMerger {
         });
         // waiting for removed service to close before removing reference and config entry
         for (Future<?> serviceClosedFuture : serviceClosedFutures) {
-            serviceClosedFuture.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            serviceClosedFuture.get();
         }
         serviceToRemove.forEach(serviceName -> {
             kernel.getContext().remove(serviceName);

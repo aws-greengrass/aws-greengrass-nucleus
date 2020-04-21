@@ -20,16 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 @AllArgsConstructor
 public class DeploymentTask implements Callable<Void> {
-    private static final int TIMEOUT_MINUTES = 60;
-
     private final DependencyResolver dependencyResolver;
     private final PackageStore packageStore;
     private final KernelConfigResolver kernelConfigResolver;
@@ -51,7 +47,9 @@ public class DeploymentTask implements Callable<Void> {
 
             List<PackageIdentifier> desiredPackages = dependencyResolver
                     .resolveDependencies(deploymentDocument, rootPackages);
-            packageStore.preparePackages(desiredPackages).get(TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            // Block this without timeout because a device can be offline and it can take quite a long time
+            // to download a package.
+            packageStore.preparePackages(desiredPackages).get();
 
             Map<Object, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, deploymentDocument,
                     rootPackages);
@@ -64,7 +62,7 @@ public class DeploymentTask implements Callable<Void> {
         // TODO: unwrap ExecutionException to see which one is retryable.
         } catch (PackageVersionConflictException | UnexpectedPackagingException | ExecutionException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
-        } catch (InterruptedException | IOException | PackagingException | TimeoutException e) {
+        } catch (InterruptedException | IOException | PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
         }
         return null;
