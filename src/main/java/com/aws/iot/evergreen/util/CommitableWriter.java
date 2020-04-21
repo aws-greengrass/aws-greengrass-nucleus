@@ -35,13 +35,12 @@ public final class CommitableWriter extends BufferedWriter implements Commitable
         return new CommitableWriter(CommitableFile.commitOnClose(p));
     }
 
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     @Override
     public void commit() {
         if (open) {
             try {
                 flush();
-            } catch (IOException ignored) {
+            } catch (IOException ignore) {
             }
             out.commit();
             open = false;

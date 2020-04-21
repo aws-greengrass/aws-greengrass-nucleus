@@ -54,7 +54,6 @@ public class EZPlugins {
      * @param d plugin root directory
      * @return this
      */
-    @SuppressWarnings({"checkstyle:emptycatchblock"})
     public final EZPlugins withCacheDirectory(Path d) {
         cacheDirectory = d;
         trustedCacheDirectory = cacheDirectory.resolve("trusted");
@@ -62,7 +61,7 @@ public class EZPlugins {
         try {
             Files.createDirectories(trustedCacheDirectory);
             Files.createDirectories(untrustedCacheDirectory);
-        } catch (IOException ignored) {
+        } catch (IOException ignore) {
         }
         return this;
     }
