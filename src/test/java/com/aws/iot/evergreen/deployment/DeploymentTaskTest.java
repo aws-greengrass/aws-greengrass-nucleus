@@ -8,7 +8,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
@@ -43,7 +43,7 @@ class DeploymentTaskTest {
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
-    private PackageStore mockPackageStore;
+    private PackageManager mockPackageManager;
     @Mock
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
@@ -60,18 +60,18 @@ class DeploymentTaskTest {
     @BeforeEach
     void setup() {
         deploymentTask =
-                new DeploymentTask(mockDependencyResolver, mockPackageStore, mockKernelConfigResolver, mockKernel,
+                new DeploymentTask(mockDependencyResolver, mockPackageManager, mockKernelConfigResolver, mockKernel,
                         logger, deploymentDocument);
     }
 
     @Test
     void GIVEN_deploymentDocument_WHEN_start_deploymentTask_THEN_succeeds() throws Exception {
-        when(mockPackageStore.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockPackageManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockKernel.mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
-        verify(mockPackageStore).preparePackages(anyList());
+        verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
@@ -84,7 +84,7 @@ class DeploymentTaskTest {
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageVersionConflictException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
-        verify(mockPackageStore, times(0)).preparePackages(anyList());
+        verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
@@ -97,7 +97,7 @@ class DeploymentTaskTest {
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackagingException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
-        verify(mockPackageStore, times(0)).preparePackages(anyList());
+        verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
@@ -107,7 +107,7 @@ class DeploymentTaskTest {
             throws Exception {
         Future<Void> mockFuture = mock(Future.class);
         when(mockFuture.get()).thenThrow(InterruptedException.class);
-        when(mockPackageStore.preparePackages(anyList())).thenReturn(mockFuture);
+        when(mockPackageManager.preparePackages(anyList())).thenReturn(mockFuture);
         FutureTask<Void> futureTask = new FutureTask<>(deploymentTask);
         Thread t = new Thread(futureTask);
         t.start();
@@ -115,7 +115,7 @@ class DeploymentTaskTest {
         Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get(5, TimeUnit.SECONDS));
         assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
-        verify(mockPackageStore).preparePackages(anyList());
+        verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }
@@ -123,14 +123,14 @@ class DeploymentTaskTest {
     @Test
     void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_throws_PackageLoadingException_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockPackageStore.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockPackageManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList()))
                 .thenThrow(new PackageLoadingException("failed to load package"));
 
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageLoadingException.class));
         verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
-        verify(mockPackageStore).preparePackages(anyList());
+        verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockKernel, times(0)).mergeInNewConfig(eq("TestDeployment"), anyLong(), anyMap());
     }

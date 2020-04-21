@@ -27,7 +27,7 @@ import static org.hamcrest.core.IsNot.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(ExceptionLogProtector.class)
-public class PackageTest {
+public class PackageRecipeTest {
     private static Map<String, Integer> backupRanks;
     private static Field ranksField;
 
@@ -57,7 +57,7 @@ public class PackageTest {
             throws IOException, URISyntaxException {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
-        Package testPkg = TestHelper.getPackageObject(recipeContents);
+        PackageRecipe testPkg = TestHelper.getPackageObject(recipeContents);
         assertThat(testPkg.getPackageName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
         assertThat(testPkg.getVersion().getValue(), is("1.0.0"));
         assertThat(testPkg.getPublisher(), is("Me"));
@@ -87,7 +87,7 @@ public class PackageTest {
             throws IOException, URISyntaxException {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "2.0.0");
-        Package testPkg = TestHelper.getPackageObject(recipeContents);
+        PackageRecipe testPkg = TestHelper.getPackageObject(recipeContents);
         assertThat(testPkg.getPackageName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
         assertThat(testPkg.getVersion().getValue(), is("2.0.0"));
         assertThat(testPkg.getPublisher(), is("Me"));
@@ -108,8 +108,8 @@ public class PackageTest {
         // Packages are same
         String monitorServiceRecipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
-        Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
-        Package monitorServicePkgCopy = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        PackageRecipe monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        PackageRecipe monitorServicePkgCopy = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         assertThat(monitorServicePkgCopy, is(monitorServicePkg));
         assertThat(monitorServicePkgCopy.hashCode(), is(monitorServicePkg.hashCode()));
@@ -120,12 +120,12 @@ public class PackageTest {
             throws IOException, URISyntaxException {
         String monitorServiceRecipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
-        Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        PackageRecipe monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         // Same package different versions
         String monitorService11RecipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0");
-        Package monitorService11Pkg = TestHelper.getPackageObject(monitorService11RecipeContents);
+        PackageRecipe monitorService11Pkg = TestHelper.getPackageObject(monitorService11RecipeContents);
 
         assertThat(monitorService11Pkg, not(monitorServicePkg));
         assertThat(monitorService11Pkg.hashCode(), not(monitorServicePkg.hashCode()));
@@ -136,12 +136,12 @@ public class PackageTest {
             throws IOException, URISyntaxException {
         String monitorServiceRecipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
-        Package monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
+        PackageRecipe monitorServicePkg = TestHelper.getPackageObject(monitorServiceRecipeContents);
 
         // Different packages
         String conveyorBeltRecipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.CONVEYOR_BELT_PACKAGE_NAME, "1.0.0");
-        Package conveyorBeltPkg = TestHelper.getPackageObject(conveyorBeltRecipeContents);
+        PackageRecipe conveyorBeltPkg = TestHelper.getPackageObject(conveyorBeltRecipeContents);
 
         assertThat(conveyorBeltPkg, not(monitorServicePkg));
         assertThat(conveyorBeltPkg.hashCode(), not(monitorServicePkg.hashCode()));

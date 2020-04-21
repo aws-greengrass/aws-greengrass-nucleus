@@ -30,7 +30,7 @@ import java.util.Set;
 @Getter
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class Package {
+public class PackageRecipe {
 
     // TODO: Will be used for schema versioning in the future
     private final RecipeTemplateVersion recipeTemplateVersion;
@@ -60,7 +60,7 @@ public class Package {
     // TODO: clean up this field
     @Deprecated
     @JsonIgnore
-    private Set<Package> dependencyPackages;
+    private Set<PackageRecipe> dependencyPackageRecipes;
 
     /**
      * Constructor for Jackson to deserialize.
@@ -74,20 +74,20 @@ public class Package {
      * @param lifecycle             Lifecycle definitions
      * @param artifacts             Artifact definitions
      * @param dependencies          List of dependencies
-     * @param requires              Package Requires
+     * @param requires              PackageRecipe Requires
      * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
     @SuppressWarnings("PMD.ExcessiveParameterList")
-    public Package(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
-                   @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
-                   @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
-                   @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
-                   @JsonProperty("Lifecycle") @JsonDeserialize(
+    public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
+                         @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
+                         @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
+                         @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
+                         @JsonProperty("Lifecycle") @JsonDeserialize(
                            using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
-                   @JsonProperty("Artifacts") List<String> artifacts, @JsonProperty("Dependencies") @JsonDeserialize(
+                         @JsonProperty("Artifacts") List<String> artifacts, @JsonProperty("Dependencies") @JsonDeserialize(
             using = MapFieldDeserializer.class) Map<String, String> dependencies,
-                   @JsonProperty("Requires") List<String> requires) {
+                         @JsonProperty("Requires") List<String> requires) {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -100,7 +100,7 @@ public class Package {
         this.artifacts = artifacts == null ? Collections.emptyList() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
         this.requires = requires == null ? Collections.emptyList() : requires;
-        this.dependencyPackages = new HashSet<>();
+        this.dependencyPackageRecipes = new HashSet<>();
     }
 
     @JsonSerialize(using = SemverSerializer.class)

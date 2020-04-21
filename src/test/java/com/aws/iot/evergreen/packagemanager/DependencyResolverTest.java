@@ -53,7 +53,7 @@ class DependencyResolverTest {
     private DependencyResolver resolver;
 
     @Mock
-    private PackageStore mockPackageStore;
+    private PackageManager mockPackageManager;
 
     @Mock
     private Kernel kernel;
@@ -150,7 +150,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageA_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgA, v1_0_0), dependenciesA_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageA_1_0_0).iterator());
 
             // prepare B1
@@ -159,7 +159,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageB1_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB1, v1_0_0), dependenciesB1_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB1_1_0_0).iterator());
 
             // prepare B2
@@ -169,13 +169,13 @@ class DependencyResolverTest {
                     new PackageMetadata(new PackageIdentifier(pkgB2, v1_1_0), Collections.emptyMap());
             PackageMetadata packageB2_1_2_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB2, v1_2_0), Collections.emptyMap());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Arrays.asList(packageB2_1_1_0, packageB2_1_2_0).iterator());
 
             // prepare C1
             PackageMetadata packageC_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_0_0), Collections.emptyMap());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
             when(kernel.getMain()).thenReturn(mainService);
@@ -212,7 +212,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageA_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgA, v1_0_0), dependenciesA_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageA_1_0_0).iterator());
 
             // prepare B1
@@ -221,7 +221,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageB1_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB1, v1_0_0), dependenciesB1_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB1_1_0_0).iterator());
 
             // prepare B2
@@ -230,13 +230,13 @@ class DependencyResolverTest {
 
             PackageMetadata packageB2_1_1_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB2, v1_1_0), dependenciesB2_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
             // prepare C1
             PackageMetadata packageC_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_0_0), Collections.emptyMap());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
             when(kernel.getMain()).thenReturn(mainService);
@@ -253,17 +253,17 @@ class DependencyResolverTest {
             assertThat(result,
                     containsInAnyOrder(new PackageIdentifier(pkgA, v1_0_0), new PackageIdentifier(pkgB1, v1_0_0),
                             new PackageIdentifier(pkgB2, v1_1_0), new PackageIdentifier(pkgC1, v1_0_0)));
-            verify(mockPackageStore).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
+            verify(mockPackageManager).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
 
             // top-level package order: B2, A
             // refresh iterator
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageA_1_0_0).iterator());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB1_1_0_0).iterator());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
             doc = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA), Arrays.asList(
@@ -271,7 +271,7 @@ class DependencyResolverTest {
                     new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), "", new HashSet<>(),
                             new ArrayList<>())), "mockGroup1", 1L);
             result = resolver.resolveDependencies(doc, Arrays.asList(pkgB2, pkgA));
-            verify(mockPackageStore).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
+            verify(mockPackageManager).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
 
 
             assertEquals(4, result.size());
@@ -302,7 +302,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageA_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgA, v1_0_0), dependenciesA_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageA_1_0_0).iterator());
 
             // prepare B1
@@ -311,7 +311,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageB1_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB1, v1_0_0), dependenciesB1_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB1_1_0_0).iterator());
 
             // prepare B2
@@ -320,11 +320,11 @@ class DependencyResolverTest {
 
             PackageMetadata packageB2_1_1_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB2, v1_1_0), dependenciesB2_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
             // prepare C1
-            lenient().when(mockPackageStore
+            lenient().when(mockPackageManager
                     .listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0 <1.0.0"))))
                     .thenReturn(Collections.emptyIterator());
 
@@ -344,17 +344,17 @@ class DependencyResolverTest {
 
             // top-level package order: B2, A
             // refresh iterator for A B1 and B2
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageA_1_0_0).iterator());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB1_1_0_0).iterator());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
             // prepare C1
             PackageMetadata packageC_1_2_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_2_0), Collections.emptyMap());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0"))))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0"))))
                     .thenReturn(Collections.singletonList(packageC_1_2_0).iterator());
 
             DeploymentDocument doc2 = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA), Arrays.asList(
@@ -364,7 +364,7 @@ class DependencyResolverTest {
 
             thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc2, Arrays.asList(pkgB2, pkgA)));
-            assertEquals("Package version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0.0",
+            assertEquals("PackageRecipe version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0.0",
                     thrown.getMessage());
         }
 
@@ -384,7 +384,7 @@ class DependencyResolverTest {
             dependenciesA_1_x.put(pkgC1, ">=1.0.0");
             PackageMetadata packageA_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgA, v1_0_0), dependenciesA_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgA), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageA_1_0_0).iterator());
 
             // prepare B1
@@ -393,7 +393,7 @@ class DependencyResolverTest {
 
             PackageMetadata packageB1_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB1, v1_1_0), dependenciesB1_1_0);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB1_1_0_0).iterator());
 
             // prepare B2
@@ -402,13 +402,13 @@ class DependencyResolverTest {
 
             PackageMetadata packageB2_1_1_0 =
                     new PackageMetadata(new PackageIdentifier(pkgB2, v1_0_0), dependenciesB2_1_x);
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
             // prepare C1
             PackageMetadata packageC_1_1_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_1_0), Collections.emptyMap());
-            when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
+            when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_1_0).iterator());
 
             when(kernel.getMain()).thenReturn(mainService);
@@ -423,7 +423,7 @@ class DependencyResolverTest {
 
 
             // B2 is currently running as as root of another group
-            when(mockPackageStore.getPackageVersionFromService(mockServiceB2)).thenReturn(v1_0_0);
+            when(mockPackageManager.getPackageVersionFromService(mockServiceB2)).thenReturn(v1_0_0);
 
             // New deployment: A, B1
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB1), Arrays.asList(

@@ -20,7 +20,7 @@ public class PackageParameter {
     private final ParameterType type;
 
     /**
-     * Create a Package Param object.
+     * Create a PackageRecipe Param object.
      *
      * @param name  Name of the parameter
      * @param value Default value for the parameter
@@ -34,7 +34,7 @@ public class PackageParameter {
     }
 
     /**
-     * Create a Package Param object.
+     * Create a PackageRecipe Param object.
      *
      * @param name  Name of the parameter
      * @param value Default value for the parameter

@@ -11,7 +11,7 @@ import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -67,8 +67,8 @@ public class DependencyResolverBenchmark {
             // TODO: Figure out if there's a better way to load resource directory in local package store
             // For now, hardcode to be under root of kernel package
 
-            // initialize packageStore, dependencyResolver, and kernelConfigResolver
-            PackageStore packageStore = new PackageStore(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
+            // initialize packageManager, dependencyResolver, and kernelConfigResolver
+            PackageManager packageManager = new PackageManager(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
                     new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
 
             Path localStoreContentPath = Paths.get(System.getProperty("user.dir"))
@@ -77,7 +77,7 @@ public class DependencyResolverBenchmark {
             // pre-load contents to package store
             copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
-            resolver = new DependencyResolver(packageStore, kernel);
+            resolver = new DependencyResolver(packageManager, kernel);
         }
 
         @TearDown(Level.Invocation)

@@ -11,7 +11,7 @@ import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
-import com.aws.iot.evergreen.packagemanager.models.Package;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import lombok.AllArgsConstructor;
@@ -40,7 +40,7 @@ public class KernelConfigResolver {
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
     @Inject
-    private PackageStore packageStore;
+    private PackageManager packageManager;
     @Inject
     private Kernel kernel;
 
@@ -75,14 +75,14 @@ public class KernelConfigResolver {
     private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document)
             throws PackageLoadingException {
 
-        Package pkg = packageStore.getPackageRecipe(packageIdentifier);
+        PackageRecipe pkg = packageManager.getPackageRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
 
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
 
-        // TODO : Package recipe format is not in alignment with the changed Kernel config syntax,
+        // TODO : PackageRecipe recipe format is not in alignment with the changed Kernel config syntax,
         // which leads to inconsistent naming, e.g. lifecycle per new Kernel config syntax is one of several config
         // keys while per current package recipe format it's the entire config for that package
         // These inconsistencies need to be addressed
@@ -174,7 +174,7 @@ public class KernelConfigResolver {
      * deployment document, if not, those stored in the kernel config for previous
      * deployments and defaults for the rest.
      */
-    private Set<PackageParameter> resolveParameterValuesToUse(DeploymentDocument document, Package pkg) {
+    private Set<PackageParameter> resolveParameterValuesToUse(DeploymentDocument document, PackageRecipe pkg) {
         // If values for parameters were set in deployment they should be used
         Set<PackageParameter> resolvedParams = new HashSet<>(getParametersFromDeployment(document, pkg));
 
@@ -189,7 +189,7 @@ public class KernelConfigResolver {
     /*
      * Get parameter values for a package set by customer from deployment document.
      */
-    private Set<PackageParameter> getParametersFromDeployment(DeploymentDocument document, Package pkg) {
+    private Set<PackageParameter> getParametersFromDeployment(DeploymentDocument document, PackageRecipe pkg) {
         Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
                 getMatchingPackageConfigFromDeployment(document, pkg.getPackageName(), pkg.getVersion().toString());
         if (packageConfigInDeployment.isPresent()) {
@@ -201,7 +201,7 @@ public class KernelConfigResolver {
     /*
      * Get parameter values for a package stored in config that were set by customer in previous deployment.
      */
-    private Set<PackageParameter> getParametersStoredInConfig(Package pkg) {
+    private Set<PackageParameter> getParametersStoredInConfig(PackageRecipe pkg) {
         try {
             EvergreenService service = kernel.locate(pkg.getPackageName());
             Set<PackageParameter> parametersStoredInConfig = new HashSet<>();

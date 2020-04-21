@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
-import com.aws.iot.evergreen.packagemanager.models.Package;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
@@ -52,11 +52,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
-class PackageStoreTest {
+class PackageRecipeManagerTest {
 
     private Path testCache;
 
-    private PackageStore packageStore;
+    private PackageManager packageManager;
 
     @Mock
     private GreengrassRepositoryDownloader artifactDownloader;
@@ -70,7 +70,7 @@ class PackageStoreTest {
     @BeforeEach
     void beforeEach() {
         testCache = TestHelper.getPathForLocalTestCache();
-        packageStore = new PackageStore(testCache, packageServiceHelper, artifactDownloader,
+        packageManager = new PackageManager(testCache, packageServiceHelper, artifactDownloader,
                 Executors.newSingleThreadExecutor(), kernel);
     }
 
@@ -84,7 +84,7 @@ class PackageStoreTest {
             throws Exception {
         Path recipePath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0")
                 .resolve("recipe.yaml");
-        Optional<Package> pkg = packageStore.findPackageRecipe(recipePath);
+        Optional<PackageRecipe> pkg = packageManager.findPackageRecipe(recipePath);
         assertThat(pkg.isPresent(), is(true));
     }
 
@@ -94,7 +94,7 @@ class PackageStoreTest {
                 .resolve("bad_recipe.yaml");
 
         Exception exception =
-                assertThrows(PackageLoadingException.class, () -> packageStore.findPackageRecipe(recipePath));
+                assertThrows(PackageLoadingException.class, () -> packageManager.findPackageRecipe(recipePath));
         assertThat(exception.getMessage().startsWith("Failed to parse package recipe"), is(true));
     }
 
@@ -103,7 +103,7 @@ class PackageStoreTest {
         Path recipePath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0")
                 .resolve("not_exist_recipe.yaml");
 
-        Optional<Package> pkg = packageStore.findPackageRecipe(recipePath);
+        Optional<PackageRecipe> pkg = packageManager.findPackageRecipe(recipePath);
         assertThat(pkg.isPresent(), is(false));
     }
 
@@ -111,21 +111,21 @@ class PackageStoreTest {
     void GIVEN_package_in_memory_WHEN_attempt_save_package_THEN_successfully_save_to_file() throws Exception {
         Path recipePath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0")
                 .resolve("recipe.yaml");
-        Package pkg = packageStore.findPackageRecipe(recipePath).get();
+        PackageRecipe pkg = packageManager.findPackageRecipe(recipePath).get();
 
         Path saveToFile =
                 testCache.resolve(String.format("%s-%s.yaml", TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0"));
-        packageStore.savePackageRecipeToFile(pkg, saveToFile);
+        packageManager.savePackageRecipeToFile(pkg, saveToFile);
 
-        Package savedPackage = packageStore.findPackageRecipe(saveToFile).get();
-        assertThat(savedPackage, is(pkg));
+        PackageRecipe savedPackageRecipe = packageManager.findPackageRecipe(saveToFile).get();
+        assertThat(savedPackageRecipe, is(pkg));
     }
 
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
 
-        packageStore.downloadArtifactsIfNecessary(pkgId, Collections.emptyList());
+        packageManager.downloadArtifactsIfNecessary(pkgId, Collections.emptyList());
 
         verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
     }
@@ -134,7 +134,7 @@ class PackageStoreTest {
     void GIVEN_artifact_list_WHEN_attempt_download_artifact_THEN_invoke_downloader() throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
 
-        packageStore.downloadArtifactsIfNecessary(pkgId,
+        packageManager.downloadArtifactsIfNecessary(pkgId,
                 Arrays.asList(new URI("greengrass:binary1"), new URI("greengrass:binary2")));
 
         ArgumentCaptor<URI> uriArgumentCaptor = ArgumentCaptor.forClass(URI.class);
@@ -151,7 +151,7 @@ class PackageStoreTest {
     void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception() {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
 
-        Exception exception = assertThrows(PackageLoadingException.class, () -> packageStore
+        Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
                 .downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("docker:image1"))));
         assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
@@ -161,7 +161,7 @@ class PackageStoreTest {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0" + ".0"), "CoolServiceARN");
 
         Exception exception = assertThrows(PackageLoadingException.class,
-                () -> packageStore.downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("binary1"))));
+                () -> packageManager.downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("binary1"))));
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
@@ -170,9 +170,9 @@ class PackageStoreTest {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
         Path recipePath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.1.0")
                 .resolve("recipe.yaml");
-        Package pkg = packageStore.findPackageRecipe(recipePath).get();
+        PackageRecipe pkg = packageManager.findPackageRecipe(recipePath).get();
         when(packageServiceHelper.downloadPackageRecipe(any())).thenReturn(pkg);
-        Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
+        Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
         future.get(5, TimeUnit.SECONDS);
 
         assertThat(future.isDone(), is(true));
@@ -186,7 +186,7 @@ class PackageStoreTest {
         when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
-        Future<Void> future = packageStore.preparePackages(Collections.singletonList(pkgId));
+        Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
     }
 }
@@ -194,14 +194,14 @@ class PackageStoreTest {
 // TODO migrate the tests above over and remove "test_packages" and "mock_artifact_source".
 @Nested
 @ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
-class NewPackageStoreTest {
+class NewPackageRecipeManagerTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.1.0", Semver.SemverType.NPM);
     private static final PackageIdentifier MONITORING_SERVICE_PKG_ID =
             new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
 
     private static final Path TEST_ROOT_PATH =
-            Paths.get(PackageStoreTest.class.getResource("test_store_root").getPath());
+            Paths.get(PackageRecipeManagerTest.class.getResource("test_store_root").getPath());
 
     private static final String ACTIVE_VERSION_STR = "2.0.0";
     private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
@@ -218,11 +218,11 @@ class NewPackageStoreTest {
     @Mock
     private EvergreenService mockService;
 
-    private PackageStore packageStore;
+    private PackageManager packageManager;
 
     @BeforeEach
     void beforeEach() {
-        packageStore = new PackageStore(TEST_ROOT_PATH, packageServiceHelper, artifactDownloader,
+        packageManager = new PackageManager(TEST_ROOT_PATH, packageServiceHelper, artifactDownloader,
                 Executors.newSingleThreadExecutor(), kernel);
     }
 
@@ -242,7 +242,7 @@ class NewPackageStoreTest {
         // WHEN
         Requirement requirement = Requirement.buildNPM(">=1.0.0 <3.0.0");
         Iterator<PackageMetadata> iterator =
-                packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
+                packageManager.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
 
         // THEN
 
@@ -279,7 +279,7 @@ class NewPackageStoreTest {
         // WHEN
         Requirement requirement = Requirement.buildNPM(">=1.0.0 <3.0.0");
         Iterator<PackageMetadata> iterator =
-                packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
+                packageManager.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
 
         // THEN
 
@@ -322,7 +322,7 @@ class NewPackageStoreTest {
         // WHEN
         Requirement requirement = Requirement.buildNPM(">=1.0.0 <2.0.0");
         Iterator<PackageMetadata> iterator =
-                packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
+                packageManager.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
 
         // THEN
 
@@ -353,12 +353,12 @@ class NewPackageStoreTest {
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
-        assertThat(packageStore.getPackageVersionFromService(mockService), is(ACTIVE_VERSION));
+        assertThat(packageManager.getPackageVersionFromService(mockService), is(ACTIVE_VERSION));
     }
 
     @Test
     void GIVEN_recipe_exists_WHEN_getPackageMetadata_THEN_returnIt() throws Exception {
-        PackageMetadata packageMetadata = packageStore.getPackageMetadata(MONITORING_SERVICE_PKG_ID);
+        PackageMetadata packageMetadata = packageManager.getPackageMetadata(MONITORING_SERVICE_PKG_ID);
 
         assertThat(packageMetadata.getPackageIdentifier(), is(MONITORING_SERVICE_PKG_ID));
         assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(MONITORING_SERVICE_PKG_VERSION)));

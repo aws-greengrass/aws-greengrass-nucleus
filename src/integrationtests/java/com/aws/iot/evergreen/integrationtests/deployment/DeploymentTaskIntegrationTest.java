@@ -17,7 +17,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -77,7 +77,7 @@ class DeploymentTaskIntegrationTest {
     private static Logger logger;
 
     private static DependencyResolver dependencyResolver;
-    private static PackageStore packageStore;
+    private static PackageManager packageManager;
     private static KernelConfigResolver kernelConfigResolver;
 
     private DeploymentDocument sampleJobDocument;
@@ -102,8 +102,8 @@ class DeploymentTaskIntegrationTest {
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
 
-        // initialize packageStore and dependencyResolver
-        packageStore = new PackageStore(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
+        // initialize packageManager and dependencyResolver
+        packageManager = new PackageManager(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
                 new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
 
         Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource(
@@ -112,8 +112,8 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
-        dependencyResolver = new DependencyResolver(packageStore, kernel);
-        kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
+        dependencyResolver = new DependencyResolver(packageManager, kernel);
+        kernelConfigResolver = new KernelConfigResolver(packageManager, kernel);
     }
 
     @AfterAll
@@ -230,7 +230,7 @@ class DeploymentTaskIntegrationTest {
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
-        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver,
+        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
                 kernel, logger, sampleJobDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
