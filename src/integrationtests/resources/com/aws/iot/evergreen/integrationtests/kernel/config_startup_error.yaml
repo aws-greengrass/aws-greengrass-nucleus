@@ -2,7 +2,6 @@ services:
   startupError:
     lifecycle:
       startup: |-
-        sleep 2
         echo "STARTUP_ERROR"
         exit 1
 
