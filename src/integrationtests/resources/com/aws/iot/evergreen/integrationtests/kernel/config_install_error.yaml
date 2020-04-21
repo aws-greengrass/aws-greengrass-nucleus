@@ -2,7 +2,6 @@ services:
   installerror:
     lifecycle:
       install: |-
-        sleep 2
         echo "INSTALL_ERROR"
         exit 1
 

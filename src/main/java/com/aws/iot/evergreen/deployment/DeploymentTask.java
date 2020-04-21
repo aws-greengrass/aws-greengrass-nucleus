@@ -59,7 +59,7 @@ public class DeploymentTask implements Callable<Void> {
                     newConfig).get();
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue("deploymentId", deploymentDocument.getDeploymentId()).log("Finish deployment task");
-        // TODO: unwrap ExcutionException to see which one is retryable.
+        // TODO: unwrap ExecutionException to see which one is retryable.
         } catch (PackageVersionConflictException | UnexpectedPackagingException | ExecutionException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
         } catch (InterruptedException | IOException | PackagingException e) {
