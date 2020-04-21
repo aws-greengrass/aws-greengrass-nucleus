@@ -140,7 +140,7 @@ class DependencyResolverTest {
              * (1.0.0)/   \(>1.0)
              *      B1     B2
              *       \(1.0.0)
-             *        c1
+             *        C1
              */
 
             // prepare A
@@ -172,7 +172,7 @@ class DependencyResolverTest {
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Arrays.asList(packageB2_1_1_0, packageB2_1_2_0).iterator());
 
-            // prepare c1
+            // prepare C1
             PackageMetadata packageC_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_0_0), Collections.emptyMap());
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
@@ -203,7 +203,7 @@ class DependencyResolverTest {
              *  (1.0.0)/       /
              *        B1      /
              * (<1.1.0)\     /(>=1.0.0)
-             *           c1
+             *           C1
              */
 
             // prepare A
@@ -233,7 +233,7 @@ class DependencyResolverTest {
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
-            // prepare c1
+            // prepare C1
             PackageMetadata packageC_1_0_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_0_0), Collections.emptyMap());
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
@@ -292,7 +292,7 @@ class DependencyResolverTest {
              *  (1.0.0)/       /
              *        B1      /
              * (<1.0.0)\     /(>1.1.0)
-             *           c1
+             *           C1
              */
 
 
@@ -323,7 +323,7 @@ class DependencyResolverTest {
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
-            // prepare c1
+            // prepare C1
             lenient().when(mockPackageStore
                     .listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0 <1.0.0"))))
                     .thenReturn(Collections.emptyIterator());
@@ -351,7 +351,7 @@ class DependencyResolverTest {
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
-            // prepare c1
+            // prepare C1
             PackageMetadata packageC_1_2_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_2_0), Collections.emptyMap());
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0"))))
@@ -376,7 +376,7 @@ class DependencyResolverTest {
             /*
              * (add) A    (update) B1   (keep) B2   (delete) D
              *         \        |        |         /
-             *                  (update) c1
+             *                  (update) C1
              */
 
             // prepare A
@@ -405,7 +405,7 @@ class DependencyResolverTest {
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgB2), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageB2_1_1_0).iterator());
 
-            // prepare c1
+            // prepare C1
             PackageMetadata packageC_1_1_0 =
                     new PackageMetadata(new PackageIdentifier(pkgC1, v1_1_0), Collections.emptyMap());
             when(mockPackageStore.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
