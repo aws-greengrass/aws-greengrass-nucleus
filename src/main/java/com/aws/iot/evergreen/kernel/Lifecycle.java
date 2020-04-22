@@ -46,8 +46,7 @@ public class Lifecycle {
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
-    public static final Pair<State, State> NEW_TO_INSTALLED = new Pair<>(State.NEW, State.INSTALLED);
-    public static final Pair<State, State> INSTALLED_TO_RUNNING = new Pair<>(State.INSTALLED, State.RUNNING);
+    private static final Pair<State, State> INSTALLED_TO_RUNNING = new Pair<>(State.INSTALLED, State.RUNNING);
 
     private final EvergreenService evergreenService;
     private final Topic stateTopic;
@@ -296,12 +295,6 @@ public class Lifecycle {
             return true;
         }
 
-        // We're already handling the new to installed transition, so don't do anything now.
-        if (NEW_TO_INSTALLED.equals(currentStateTransition)) {
-            return true;
-        }
-
-        currentStateTransition = NEW_TO_INSTALLED;
         CountDownLatch installLatch = new CountDownLatch(1);
         setBackingTask(() -> {
             try {

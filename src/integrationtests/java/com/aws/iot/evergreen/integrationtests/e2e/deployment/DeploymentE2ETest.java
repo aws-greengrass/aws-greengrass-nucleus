@@ -210,8 +210,7 @@ class DeploymentE2ETest {
         String jobId = Utils.createJob(document, targets);
 
         Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
-        // CustomerApp should be in BROKEN state and Main should be INSTALLED.
-        assertEquals(State.INSTALLED, kernel.getMain().getState());
+        // CustomerApp should be in BROKEN state
         assertEquals(State.BROKEN, kernel.locate("CustomerApp").getState());
 
         // IoT Job should have failed.

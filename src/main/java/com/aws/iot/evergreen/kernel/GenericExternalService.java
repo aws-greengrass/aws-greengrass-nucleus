@@ -38,6 +38,7 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
+    private static final String PROCESSES_KEY = "processes";
     private final List<Exec> processes = new CopyOnWriteArrayList<>();
 
     /**
@@ -80,6 +81,13 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void install() throws InterruptedException {
+        try {
+            stopAllProcesses();
+        } catch (IOException e) {
+            logger.atWarn().kv(PROCESSES_KEY, processes)
+                    .log("Unable to stop all processes before performing install", e);
+        }
+
         if (run("install", null).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
@@ -89,6 +97,13 @@ public class GenericExternalService extends EvergreenService {
     // to operate properly
     @Override
     public synchronized void startup() throws InterruptedException {
+        try {
+            stopAllProcesses();
+        } catch (IOException e) {
+            logger.atWarn().kv(PROCESSES_KEY, processes)
+                    .log("Unable to stop all processes before performing startup", e);
+        }
+
         Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
@@ -112,6 +127,13 @@ public class GenericExternalService extends EvergreenService {
 
     @SuppressWarnings("PMD.CloseResource")
     private synchronized void handleRunScript() throws InterruptedException {
+        try {
+            stopAllProcesses();
+        } catch (IOException e) {
+            logger.atWarn().kv(PROCESSES_KEY, processes)
+                    .log("Unable to stop all processes before performing run", e);
+        }
+
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
@@ -159,7 +181,6 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    @SuppressWarnings("PMD.CloseResource")
     public synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
         try {
@@ -168,15 +189,23 @@ public class GenericExternalService extends EvergreenService {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
             return;
         }
+        try {
+            stopAllProcesses();
+            logger.atInfo().setEventType("generic-service-shutdown").log();
+        } catch (IOException ioe) {
+            logger.atError("generic-service-shutdown-error", ioe)
+                    .kv(PROCESSES_KEY, processes)
+                    .log("Unable to shutdown all processes");
+        }
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    private synchronized void stopAllProcesses() throws IOException {
         for (Exec e : processes) {
             if (e != null && e.isRunning()) {
-                try {
-                    e.close();
-                    logger.atInfo().setEventType("generic-service-shutdown").log();
-                    processes.remove(e);
-                } catch (IOException ioe) {
-                    logger.atError().setEventType("generic-service-shutdown-error").setCause(ioe).log();
-                }
+                e.close();
+                logger.atInfo().log("Shutdown process {}", e);
+                processes.remove(e);
             }
         }
     }
