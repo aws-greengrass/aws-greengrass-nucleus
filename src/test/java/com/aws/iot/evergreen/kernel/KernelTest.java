@@ -64,7 +64,7 @@ class KernelTest {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdown(1);
+        kernel.shutdown();
     }
 
     @Test

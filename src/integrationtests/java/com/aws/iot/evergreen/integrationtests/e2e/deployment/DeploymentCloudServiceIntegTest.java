@@ -20,6 +20,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpEntity;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -44,16 +46,17 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Credentials;
 
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class DeploymentCloudServiceIntegTest {
 
-    private static String CLOUD_SERVICE_URL
+    private static final String CLOUD_SERVICE_URL
             = "http://everg-everg-h5kz3uxz114v-1885244560.us-east-1.elb.amazonaws.com/deployments";
 
     //TODO: after cloud service support creating deployments for things in custom accounts, remove the assume role.
-    private static String assumeRoleArn = "arn:aws:iam::432173944312:role/EvergreenDeviceTestAssumeRole";
-    private static String HTTP_HEADER_ETAG = "x-amzn-iot-eg-etag";
-    private static List<String> createdIotJobIdList = new ArrayList<>();
+    private static final String assumeRoleArn = "arn:aws:iam::432173944312:role/EvergreenDeviceTestAssumeRole";
+    private static final String HTTP_HEADER_ETAG = "x-amzn-iot-eg-etag";
+    private static final List<String> createdIotJobIdList = new ArrayList<>();
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClients.createDefault();

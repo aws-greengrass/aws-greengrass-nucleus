@@ -79,7 +79,7 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    public void install() throws InterruptedException {
+    public synchronized void install() throws InterruptedException {
         stopAllProcesses();
 
         if (run("install", null).getLeft() == RunStatus.Errored) {
@@ -93,12 +93,14 @@ public class GenericExternalService extends EvergreenService {
     public synchronized void startup() throws InterruptedException {
         stopAllProcesses();
 
+        long startingStateGeneration = getStateGeneration();
+
         Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
                 logger.atInfo().kv("exitCode", exit).log("Startup script exited");
-                if (State.INSTALLED.equals(getState())) {
+                if (startingStateGeneration == getStateGeneration() && State.INSTALLED.equals(getState())) {
                     if (exit == 0) {
                         reportState(State.RUNNING);
                     } else {
@@ -118,13 +120,14 @@ public class GenericExternalService extends EvergreenService {
     @SuppressWarnings("PMD.CloseResource")
     private synchronized void handleRunScript() throws InterruptedException {
         stopAllProcesses();
+        long startingStateGeneration = getStateGeneration();
 
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
                 logger.atInfo().kv("exitCode", exit).log("Run script exited");
-                if (State.RUNNING.equals(getState())) {
+                if (startingStateGeneration == getStateGeneration() && State.RUNNING.equals(getState())) {
                     if (exit == 0) {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                         this.requestStop();
