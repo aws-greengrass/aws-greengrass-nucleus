@@ -10,10 +10,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
-import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -38,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 public class DependencyResolverBenchmark {
 
@@ -63,21 +59,16 @@ public class DependencyResolverBenchmark {
             kernel = new Kernel();
             kernel.parseArgs("-i", DependencyResolverBenchmark.class.getResource(getConfigFile()).toString());
             kernel.launch();
-            // TODO: Update local package store accordingly when the new implementation is ready
-            // TODO: Figure out if there's a better way to load resource directory in local package store
-            // For now, hardcode to be under root of kernel package
 
-            // initialize packageStore, dependencyResolver, and kernelConfigResolver
-            PackageStore packageStore = new PackageStore(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
-                    new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
-
+            // pre-load contents to package store
             Path localStoreContentPath = Paths.get(System.getProperty("user.dir"))
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
-
+          
             // pre-load contents to package store
             copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
-            resolver = new DependencyResolver(packageStore, kernel);
+            // get the resolver from context
+            resolver = kernel.getContext().get(DependencyResolver.class);
         }
 
         @TearDown(Level.Invocation)

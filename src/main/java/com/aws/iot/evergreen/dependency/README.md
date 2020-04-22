@@ -14,28 +14,50 @@ At the core are three related classes:
 
 You start by creating a context:
 ```java
-var c = new Context();
+Context context = new Context();
 ```
 
 Then you "get" an object from it:
 ```java
-var root = c.get(Bogon.class);
+Bogon bogon = c.get(Bogon.class);
 ```
 If there is no instance of the Bogon class in the context, it is created via it's default constructor.  Then, if it is a Lifecycle class, its lifecycle begins.
 
 Say the class looks like this:
 ```java
 class Bogon {
-    @Inject Engine e;
+    @Inject Engine engine;
 }
 ```
 When this class is created by the initial get(), it will be searched for dependencies that need to be injected, which will cause a get(Engine.class) to happen, and the process repeats.  One single initial "get" can cause a whole web of objects to be created.
 
 Done this way, every object is a singleton.  But if you need to have multiple similar objects in the context, they can be named:
 ```java
-    @Inject @Named("left")  Engine le; // left engine
-    @Inject @Named("right") Engine re; // right engine
+    @Inject @Named("left")  Engine left; // left engine
+    @Inject @Named("right") Engine right; // right engine
 ```
+
+Alternatively, you could also use Dependency injection via constructor:
+
+```java
+class BogonWithNamedConstructorInjection {
+    Engine leftEngine;
+    Engine rightEngine;
+
+    @Inject
+    public BogonWithNamedConstructorInjection(@Named("left") Engine leftEngine, @Named("right") Engine rightEngine) {
+        this.leftEngine = leftEngine;
+        this.rightEngine = rightEngine;
+        // more initialization logic with engines...
+    }
+}
+```
+If you need to do additional initialization logic with injected dependency, you could do Dependency Injection via 
+constructor.
+
+Only **one** constructor with @Inject annotation is allowed. Otherwise, DI would be unable to decide which one to 
+invoke when creating a new instance.
+
 
 # Lifecycles
 Objects that subclass GGService also participate in life cycle management.  Such objects
