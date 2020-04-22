@@ -45,7 +45,7 @@ public class LifecycleTest {
         context.put(ThreadPoolExecutor.class, ses);
         c1 v = context.get(c1.class);
         context.get(c1.class).requestStart();
-        context.get(c2.class).requestStart();
+        context.get(C2.class).requestStart();
         try {
             if (!cd.await(5, TimeUnit.SECONDS)) {
                 fail("Startup timed out");
@@ -57,7 +57,7 @@ public class LifecycleTest {
 
         cd = new CountDownLatch(2);
         context.get(c1.class).requestStop();
-        context.get(c2.class).requestStop();
+        context.get(C2.class).requestStop();
         try {
             if (!cd.await(1, TimeUnit.SECONDS)) {
                 fail("Stop timed out");
@@ -67,12 +67,12 @@ public class LifecycleTest {
             fail("Startup interrupted out");
         }
         assertNotNull(v);
-        assertNotNull(v.C2);
-        assertSame(v.C2, v.C2.C3.prov.get());
+        assertNotNull(v.c2);
+        assertSame(v.c2, v.c2.c3.prov.get());
         assertTrue(v.getState().isFunctioningProperly(), "c1:" + v.getState().toString());
         assertTrue(v.installCalled, v.toString());
         assertTrue(v.startupCalled, v.toString());
-        assertTrue(v.C2.startupCalled, v.C2.toString());
+        assertTrue(v.c2.startupCalled, v.c2.toString());
         assertTrue(v.getState().isFunctioningProperly());
         context.shutdown();
         try {
@@ -80,40 +80,28 @@ public class LifecycleTest {
         } catch (InterruptedException ex) {
         }
         assertTrue(v.shutdownCalled, v.toString());
-        assertTrue(v.C2.shutdownCalled, v.C2.toString());
+        assertTrue(v.c2.shutdownCalled, v.c2.toString());
         System.out.println("XYXXY: " + v.getState());
         assertEquals(State.FINISHED, v.getState());
-        assertNotNull(v.C2.C3, "non-lifecycle");
-        assertSame(v.C2.C3, v.C2.C3.self, "non-lifecycle-loop");
-        assertSame(v.C2, v.C2.C3.parent, "non-lifecycle-parent-ref");
-        assertEquals(42, context.get(Foo.class).what());
+        assertNotNull(v.c2.c3, "non-lifecycle");
+        assertSame(v.c2.c3, v.c2.c3.self, "non-lifecycle-loop");
+        assertSame(v.c2, v.c2.c3.parent, "non-lifecycle-parent-ref");
     }
 
-    public interface Foo {
-        int what();
-
-        class Default implements Foo {
-            @Override
-            public int what() {
-                return 42;
-            }
-        }
-    }
-
-    public static class c2 extends EvergreenService {
+    public static class C2 extends EvergreenService {
         final String id = "c2/" + ++seq;
         //        @Inject @StartWhen(NEW) c1 parent;
         public boolean shutdownCalled;
         public boolean startupCalled;
         @Inject
-        c3 C3;
+        LifecycleTest.C3 c3;
 
         {
             System.out.println("Creating  " + this);
         }
 
         @Inject
-        public c2(Context context) {
+        public C2(Context context) {
             super(Topics.errorNode(context, "c2", "testing"));
         }
 
@@ -125,9 +113,9 @@ public class LifecycleTest {
         @Override
         public void startup() throws InterruptedException {
             System.out.println("Startup " + this);
-            assertNotNull(C3);
+            assertNotNull(c3);
             startupCalled = true;
-            System.out.println("  C3=" + C3);
+            System.out.println("  c3=" + c3);
             cd.countDown();
             super.startup();
         }
@@ -141,13 +129,13 @@ public class LifecycleTest {
         }
     }
 
-    public static class c3 {
+    public static class C3 {
         @Inject
-        c3 self;
+        C3 self;
         @Inject
-        c2 parent;
+        C2 parent;
         @Inject
-        Provider<c2> prov;
+        Provider<C2> prov;
 
         {
             System.out.println("Hello from c3: " + this);
@@ -162,7 +150,7 @@ public class LifecycleTest {
     public class c1 extends EvergreenService {
         final String id = "c1/" + ++seq;
         @Inject
-        public c2 C2;
+        public LifecycleTest.C2 c2;
         public boolean shutdownCalled;
         public boolean startupCalled;
         public boolean installCalled;
@@ -190,7 +178,7 @@ public class LifecycleTest {
             super.startup();
             System.out.println("Startup called " + this);
             //dependencies must be started first
-            assertTrue(C2.getState().isFunctioningProperly());
+            assertTrue(c2.getState().isFunctioningProperly());
             System.out.println("Startup " + this);
             cd.countDown();
         }

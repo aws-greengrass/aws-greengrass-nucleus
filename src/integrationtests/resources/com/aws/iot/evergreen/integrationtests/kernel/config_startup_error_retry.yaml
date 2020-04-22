@@ -2,7 +2,6 @@ services:
   startupErrorRetry:
     lifecycle:
       startup: |-
-        sleep 1
         if [ -f "/tmp/egStartupErrorRetrySucceed" ]; then
           echo "StartUp_SUCCEED"
           rm /tmp/egStartupErrorRetrySucceed

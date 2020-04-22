@@ -12,10 +12,12 @@ import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -38,9 +40,17 @@ class KernelTest extends BaseITCase {
                     new ExpectedStdoutPattern(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
                     new ExpectedStdoutPattern(2, "I'm Frodo", "merge adding dependency")};
 
-    private static final CountDownLatch[] COUNT_DOWN_LATCHES =
-            {new CountDownLatch(6), new CountDownLatch(1), new CountDownLatch(2)};
+    private static final Map<Integer, CountDownLatch> COUNT_DOWN_LATCHES = new HashMap<>();
     private Kernel kernel;
+
+    @BeforeAll
+    static void beforeAll() {
+        for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
+            CountDownLatch existingCdl = COUNT_DOWN_LATCHES.get(pattern.group);
+            COUNT_DOWN_LATCHES.put(pattern.group,
+                    new CountDownLatch(existingCdl == null ? 1 : (int) (existingCdl.getCount() + 1)));
+        }
+    }
 
     @AfterEach
     void afterEach() {
@@ -102,17 +112,17 @@ class KernelTest extends BaseITCase {
                     System.out.println(String.format("KernelTest: Just saw stdout pattern: '%s' for '%s'.",
                             expectedStdoutPattern.pattern, expectedStdoutPattern.message));
 
-                    COUNT_DOWN_LATCHES[expectedStdoutPattern.group].countDown();
+                    COUNT_DOWN_LATCHES.get(expectedStdoutPattern.group).countDown();
 
-                    System.out.println("\tCOUNT_DOWN_LATCHES[" + expectedStdoutPattern.group + "]="
-                            + COUNT_DOWN_LATCHES[expectedStdoutPattern.group].getCount());
+                    System.out.println("\tCOUNT_DOWN_LATCHES[" + expectedStdoutPattern.group + "]=" + COUNT_DOWN_LATCHES
+                            .get(expectedStdoutPattern.group).getCount());
                 }
             }
         };
     }
 
     private void testGroup(int group) throws Exception {
-        COUNT_DOWN_LATCHES[group].await(100, TimeUnit.SECONDS);
+        COUNT_DOWN_LATCHES.get(group).await(100, TimeUnit.SECONDS);
 
         for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
             if (pattern.count > 0 && pattern.group == group) {
@@ -133,7 +143,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
     }
 
     @Test
@@ -148,7 +158,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
         kernel.getConfig().read(getClass().getResource("config_install_succeed_partial.yaml").toString());
@@ -160,11 +170,12 @@ class KernelTest extends BaseITCase {
                 serviceInstalled.countDown();
             }
         });
-        assertTrue(serviceInstalled.await(60, TimeUnit.SECONDS));
+        assertTrue(serviceInstalled.await(10, TimeUnit.SECONDS));
     }
 
     @Test
-    void GIVEN_service_install_fail_retry_succeed_WHEN_kernel_launches_THEN_service_install_succeeds() throws Exception {
+    void GIVEN_service_install_fail_retry_succeed_WHEN_kernel_launches_THEN_service_install_succeeds()
+            throws Exception {
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_install_error_retry.yaml").toString());
         kernel.launch();
@@ -175,7 +186,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(60, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(10, TimeUnit.SECONDS));
     }
 
     @Test
@@ -190,11 +201,12 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(15, TimeUnit.SECONDS));
     }
 
     @Test
-    void GIVEN_service_startup_fail_retry_succeed_WHEN_kernel_launches_THEN_service_startup_succeeds() throws Exception {
+    void GIVEN_service_startup_fail_retry_succeed_WHEN_kernel_launches_THEN_service_startup_succeeds()
+            throws Exception {
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_startup_error_retry.yaml").toString());
         kernel.launch();
@@ -205,7 +217,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(60, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(15, TimeUnit.SECONDS));
     }
 
     @Test
@@ -233,30 +245,29 @@ class KernelTest extends BaseITCase {
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
         kernel = new Kernel();
-        kernel.getContext().addGlobalStateChangeListener(
-                (EvergreenService service, State oldState, State newState) -> {
-                    if (expectedStateTransitionList.isEmpty()) {
-                        return;
-                    }
+        kernel.getContext().addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+            if (expectedStateTransitionList.isEmpty()) {
+                return;
+            }
 
-                    ExpectedStateTransition expected = expectedStateTransitionList.peek();
+            ExpectedStateTransition expected = expectedStateTransitionList.peek();
 
-                    if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
-                            .equals(expected.current)) {
-                        System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
-                                expected.was, expected.current));
+            if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
+                    .equals(expected.current)) {
+                System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
+                        expected.was, expected.current));
 
-                        expectedStateTransitionList.pollFirst();
+                expectedStateTransitionList.pollFirst();
 
-                        if (expectedStateTransitionList.isEmpty()) {
-                            assertionLatch.countDown();
-                        }
-                    }
-                });
+                if (expectedStateTransitionList.isEmpty()) {
+                    assertionLatch.countDown();
+                }
+            }
+        });
 
         kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
         kernel.launch();
-        assertionLatch.await(60, TimeUnit.SECONDS);
+        assertionLatch.await(15, TimeUnit.SECONDS);
 
         kernel.shutdown();
 

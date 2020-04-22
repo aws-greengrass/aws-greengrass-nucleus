@@ -2,7 +2,6 @@ services:
   installErrorRetry:
     lifecycle:
       install: |-
-        sleep 1
         if [ -f "/tmp/egInstallErrorRetrySucceed" ]; then
           echo "INSTALL_SUCCEED"
           rm /tmp/egInstallErrorRetrySucceed
