@@ -297,6 +297,10 @@ public class Lifecycle {
 
         CountDownLatch installLatch = new CountDownLatch(1);
         setBackingTask(() -> {
+            if (!State.NEW.equals(evergreenService.getState())) {
+                // Bail out if we're not in the expected state
+                return;
+            }
             try {
                 evergreenService.install();
             } catch (InterruptedException t) {
@@ -365,6 +369,11 @@ public class Lifecycle {
             } catch (InterruptedException e) {
                 logger.atWarn("service-dependency-error")
                         .log("Got interrupted while waiting for dependency ready");
+                return;
+            }
+
+            if (!State.INSTALLED.equals(evergreenService.getState())) {
+                // Bail out if we're not in the expected state after waiting for dependencies
                 return;
             }
             try {

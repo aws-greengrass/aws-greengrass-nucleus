@@ -38,7 +38,6 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
-    private static final String PROCESSES_KEY = "processes";
     private final List<Exec> processes = new CopyOnWriteArrayList<>();
 
     /**
@@ -81,12 +80,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void install() throws InterruptedException {
-        try {
-            stopAllProcesses();
-        } catch (IOException e) {
-            logger.atWarn().kv(PROCESSES_KEY, processes)
-                    .log("Unable to stop all processes before performing install", e);
-        }
+        stopAllProcesses();
 
         if (run("install", null).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
@@ -97,17 +91,13 @@ public class GenericExternalService extends EvergreenService {
     // to operate properly
     @Override
     public synchronized void startup() throws InterruptedException {
-        try {
-            stopAllProcesses();
-        } catch (IOException e) {
-            logger.atWarn().kv(PROCESSES_KEY, processes)
-                    .log("Unable to stop all processes before performing startup", e);
-        }
+        stopAllProcesses();
 
         Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
+                logger.atInfo().kv("exitCode", exit).log("Startup script exited");
                 if (State.INSTALLED.equals(getState())) {
                     if (exit == 0) {
                         reportState(State.RUNNING);
@@ -127,24 +117,19 @@ public class GenericExternalService extends EvergreenService {
 
     @SuppressWarnings("PMD.CloseResource")
     private synchronized void handleRunScript() throws InterruptedException {
-        try {
-            stopAllProcesses();
-        } catch (IOException e) {
-            logger.atWarn().kv(PROCESSES_KEY, processes)
-                    .log("Unable to stop all processes before performing run", e);
-        }
+        stopAllProcesses();
 
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
+                logger.atInfo().kv("exitCode", exit).log("Run script exited");
                 if (State.RUNNING.equals(getState())) {
                     if (exit == 0) {
-                        this.requestStop();
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
+                        this.requestStop();
                     } else {
                         reportState(State.ERRORED);
-                        logger.atError().setEventType("generic-service-errored").addKeyValue("exitCode", exit).log();
                     }
                 }
             }
@@ -189,23 +174,22 @@ public class GenericExternalService extends EvergreenService {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
             return;
         }
-        try {
-            stopAllProcesses();
-            logger.atInfo().setEventType("generic-service-shutdown").log();
-        } catch (IOException ioe) {
-            logger.atError("generic-service-shutdown-error", ioe)
-                    .kv(PROCESSES_KEY, processes)
-                    .log("Unable to shutdown all processes");
-        }
+        stopAllProcesses();
+        logger.atInfo().setEventType("generic-service-shutdown").log();
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized void stopAllProcesses() throws IOException {
+    private synchronized void stopAllProcesses() {
         for (Exec e : processes) {
             if (e != null && e.isRunning()) {
-                e.close();
-                logger.atInfo().log("Shutdown process {}", e);
-                processes.remove(e);
+                logger.atInfo().log("Shutting down process {}", e);
+                try {
+                    e.close();
+                    logger.atInfo().log("Shutdown completed for process {}", e);
+                    processes.remove(e);
+                } catch (IOException ex) {
+                    logger.atWarn().log("Shutdown timed out for process {}", e);
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,13 @@ class KernelTest extends BaseITCase {
     @AfterEach
     void afterEach() {
         kernel.shutdown();
+    }
+
+    @AfterAll
+    static void afterAll() {
+        for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
+            pattern.reset();
+        }
     }
 
     @Test
@@ -122,7 +130,7 @@ class KernelTest extends BaseITCase {
     }
 
     private void testGroup(int group) throws Exception {
-        COUNT_DOWN_LATCHES.get(group).await(100, TimeUnit.SECONDS);
+        COUNT_DOWN_LATCHES.get(group).await(15, TimeUnit.SECONDS);
 
         for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
             if (pattern.count > 0 && pattern.group == group) {
@@ -283,6 +291,7 @@ class KernelTest extends BaseITCase {
         final int group;
         final String pattern;
         final String message;
+        final int initialCount;
         int count;
 
         ExpectedStdoutPattern(int group, String pattern, String message, int count) {
@@ -290,10 +299,15 @@ class KernelTest extends BaseITCase {
             this.pattern = pattern;
             this.message = message;
             this.count = count;
+            initialCount = count;
         }
 
         ExpectedStdoutPattern(int group, String pattern, String message) {
             this(group, pattern, message, 1);
+        }
+
+        void reset() {
+            count = initialCount;
         }
     }
 
