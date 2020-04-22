@@ -11,7 +11,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +45,7 @@ import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtec
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ExtendWith(ExceptionLogProtector.class)
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 class DeploymentE2ETest {
     @TempDir
@@ -210,8 +210,7 @@ class DeploymentE2ETest {
         String jobId = Utils.createJob(document, targets);
 
         Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
-        // CustomerApp should be in BROKEN state and Main should be INSTALLED.
-        assertEquals(State.INSTALLED, kernel.getMain().getState());
+        // CustomerApp should be in BROKEN state
         assertEquals(State.BROKEN, kernel.locate("CustomerApp").getState());
 
         // IoT Job should have failed.

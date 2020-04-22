@@ -9,7 +9,9 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.util.Pair;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.Arrays;
@@ -30,6 +32,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nonnull;
 
@@ -45,7 +48,23 @@ public class Lifecycle {
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+    private static final Pair<State, State> INSTALLED_TO_RUNNING = new Pair<>(State.INSTALLED, State.RUNNING);
 
+    /*
+     * State generation is a value representing how many times the service has been in the INSTALLED state.
+     * It is to used determine if an action should be taken when that action would be run asynchronously.
+     * It is not sufficient to check if the state is what you want it to be, because the service may have
+     * restarted again by the time you are performing this check. Therefore, the generation is used to know
+     * that the service is still in the same state as you want it to be.
+     *
+     * For example, if we want to move the service to errored if installed takes too long, then we setup a callback
+     * to move it to errored if the state is installed. But this won't necessarily be correct because the service
+     * could have restarted in the mean time, so this old callback should not move it to errored since it's view
+     * of the world is outdated. If the callback checks both the state and the generation then it is assured to
+     * properly move the service into errored only when the callback's view of the world is correct.
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private final AtomicLong stateGeneration = new AtomicLong();
     private final EvergreenService evergreenService;
     private final Topic stateTopic;
     private final Logger logger;
@@ -69,8 +88,9 @@ public class Lifecycle {
     private final Map<State, Integer> stateToErroredCount = new HashMap<>();
     // We only need to track the ERROR for the state transition starting from NEW, INSTALLED and RUNNING because
     // these states impact whether the service can function as expected.
-    private static final Set<State> STATES_TO_ERRORED = new HashSet<>(Arrays.asList(State.NEW, State.INSTALLED,
-            State.RUNNING));
+    private static final Set<State> STATES_TO_ERRORED =
+            new HashSet<>(Arrays.asList(State.NEW, State.INSTALLED, State.RUNNING));
+    private Pair<State, State> currentStateTransition = null;
 
     /**
      * Constructor for lifecycle.
@@ -99,6 +119,10 @@ public class Lifecycle {
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
         // across different services.
         synchronized (State.class) {
+            currentStateTransition = null; //NOPMD
+            if (State.INSTALLED.equals(newState)) {
+                stateGeneration.incrementAndGet();
+            }
             prevState = currentState;
             stateTopic.withValue(newState);
             evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
@@ -189,8 +213,10 @@ public class Lifecycle {
             if (newStateList.equals(desiredStateList)) {
                 return;
             }
+
             desiredStateList.clear();
             desiredStateList.addAll(newStateList);
+
             // try insert to the queue, if queue full doesn't block.
             enqueueStateEvent("DesiredStateUpdated");
         }
@@ -288,8 +314,13 @@ public class Lifecycle {
         if (!desiredState.isPresent()) {
             return true;
         }
+
         CountDownLatch installLatch = new CountDownLatch(1);
         setBackingTask(() -> {
+            if (!State.NEW.equals(evergreenService.getState())) {
+                // Bail out if we're not in the expected state
+                return;
+            }
             try {
                 evergreenService.install();
             } catch (InterruptedException t) {
@@ -302,8 +333,9 @@ public class Lifecycle {
             }
         }, "install");
 
-        Topic installTimeOutTopic = evergreenService.config.find(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                LIFECYCLE_INSTALL_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+        Topic installTimeOutTopic = evergreenService.config
+                .find(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_INSTALL_NAMESPACE_TOPIC,
+                        TIMEOUT_NAMESPACE_TOPIC);
         Integer installTimeOut = installTimeOutTopic == null ? DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC
                 : (Integer) installTimeOutTopic.getOnce();
         boolean ok = installLatch.await(installTimeOut, TimeUnit.SECONDS);
@@ -320,24 +352,27 @@ public class Lifecycle {
 
     private boolean handleCurrentStateInstalled(Optional<State> desiredState,
                                                 AtomicReference<Future> triggerTimeOutReference) {
-        stopBackingTask();
         if (!desiredState.isPresent()) {
             return true;
         }
 
         switch (desiredState.get()) {
-            case FINISHED:
-                updateStateAndBroadcast(State.FINISHED);
-                return false;
+            // For new or finished, make sure to stop first because we may be
+            // currently transitioning from installed to running
             case NEW:
-                // This happens if a restart is requested while we're currently INSTALLED
-                updateStateAndBroadcast(State.NEW);
+            case FINISHED:
+                updateStateAndBroadcast(State.STOPPING);
                 return false;
             case RUNNING:
-                handleStateTransitionInstalledToRunning(triggerTimeOutReference);
+                // If we are already handling the installed to running transition, then don't do anything
+                if (!INSTALLED_TO_RUNNING.equals(currentStateTransition)) {
+                    stopBackingTask();
+                    currentStateTransition = INSTALLED_TO_RUNNING;
+                    handleStateTransitionInstalledToRunning(triggerTimeOutReference);
+                }
                 break;
             default:
-                // not allowed for NEW, STOPPING, ERRORED, BROKEN
+                // not allowed for STOPPING, ERRORED, BROKEN
                 logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
                         .log("Unexpected desired state");
                 break;
@@ -353,8 +388,12 @@ public class Lifecycle {
                 evergreenService.waitForDependencyReady();
                 logger.atInfo("service-starting").log();
             } catch (InterruptedException e) {
-                logger.atWarn("service-dependency-error")
-                        .log("Got interrupted while waiting for dependency ready");
+                logger.atWarn("service-dependency-error").log("Got interrupted while waiting for dependency ready");
+                return;
+            }
+
+            if (!State.INSTALLED.equals(evergreenService.getState())) {
+                // Bail out if we're not in the expected state after waiting for dependencies
                 return;
             }
             try {
@@ -369,19 +408,21 @@ public class Lifecycle {
                     Integer timeout = timeOutTopic == null ? DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC
                             : (Integer) timeOutTopic.getOnce();
 
-
+                    long initialStateGeneration = stateGeneration.get();
                     Future<?> schedule =
                             evergreenService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
-                                if (!State.RUNNING.equals(evergreenService.getState())) {
-                                    logger.atWarn("service-startup-timed-out")
-                                            .kv(TIMEOUT_NAMESPACE_TOPIC, timeout)
+                                // If the current state is still INSTALLED, then we failed to install
+                                // within the timeout and should move to ERRORED
+                                if (State.INSTALLED.equals(evergreenService.getState())
+                                        && initialStateGeneration == stateGeneration.get()) {
+                                    logger.atWarn("service-startup-timed-out").kv(TIMEOUT_NAMESPACE_TOPIC, timeout)
                                             .log("Service failed to startup within timeout");
                                     reportState(State.ERRORED);
                                 }
                             }, timeout, TimeUnit.SECONDS);
                     triggerTimeOutReference.set(schedule);
                 }
-                // TODO: rename to  initiateStartup. Service need to report state to RUNNING.
+                // TODO: rename to initiateStartup. Service need to report state to RUNNING.
                 evergreenService.startup();
             } catch (InterruptedException i) {
                 logger.atWarn("service-run-interrupted").log("Service interrupted while running startup");
@@ -451,8 +492,7 @@ public class Lifecycle {
         try {
             evergreenService.handleError();
         } catch (InterruptedException e) {
-            logger.atWarn("service-errorhandler-interrupted")
-                    .log("Service interrupted while running error handler");
+            logger.atWarn("service-errorhandler-interrupted").log("Service interrupted while running error handler");
             // Since we run the error handler in this thread, that means we should rethrow
             // in order to shutdown this thread since we were requested to stop
             throw e;
@@ -464,14 +504,13 @@ public class Lifecycle {
         }
 
         switch (prevState) {
+            // For both installed and running, make sure we stop first before retrying
+            case INSTALLED:
             case RUNNING:
                 updateStateAndBroadcast(State.STOPPING);
                 break;
             case NEW: // error in installing.
                 updateStateAndBroadcast(State.NEW);
-                break;
-            case INSTALLED: // error in starting
-                updateStateAndBroadcast(State.INSTALLED);
                 break;
             case STOPPING:
                 // not handled;

@@ -50,7 +50,7 @@ services:
   ticktock:
     lifecycle:
       run: echo tick-tock
-    periodic: 2 seconds
+    periodic: 1 seconds
   setenv:
     ANSWER: 42
   main:

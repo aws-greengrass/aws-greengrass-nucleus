@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutorService;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
-@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 public class EGServiceTestUtil {
 
     public static final String STATE_TOPIC_NAME = "_State";

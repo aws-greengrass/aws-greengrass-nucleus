@@ -11,7 +11,7 @@ import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 class PackageStoreTest {
 
     private Path testCache;
@@ -193,7 +193,7 @@ class PackageStoreTest {
 
 // TODO migrate the tests above over and remove "test_packages" and "mock_artifact_source".
 @Nested
-@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 class NewPackageStoreTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.1.0", Semver.SemverType.NPM);

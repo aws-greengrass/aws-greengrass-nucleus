@@ -22,6 +22,8 @@ jobs:
           # Only restore maven cache for this exact commit. If we start incrementing the version
           # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
+      - run: rm -rf /tmp/*
+        continue-on-error: true
       - name: Build with Maven
         run: mvn -ntp clean verify
       - name: Upload Failed Test Report
