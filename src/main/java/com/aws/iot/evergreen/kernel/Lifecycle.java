@@ -634,6 +634,10 @@ public class Lifecycle {
      */
     final void requestRestart() {
         synchronized (desiredStateList) {
+            // Ignore restart requests if the service is closed
+            if (isClosed.get()) {
+                return;
+            }
             // don't override in the case of re-install
             int index = desiredStateList.indexOf(State.NEW);
             if (index == -1) {
