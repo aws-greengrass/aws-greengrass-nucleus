@@ -326,18 +326,17 @@ public class Lifecycle {
         }
 
         switch (desiredState.get()) {
-            case FINISHED:
-                updateStateAndBroadcast(State.FINISHED);
-                return false;
+            // For new or finished, make sure to stop first because we may be
+            // currently transitioning from installed to running
             case NEW:
-                // This happens if a restart is requested while we're currently INSTALLED
-                updateStateAndBroadcast(State.NEW);
+            case FINISHED:
+                updateStateAndBroadcast(State.STOPPING);
                 return false;
             case RUNNING:
                 handleStateTransitionInstalledToRunning(triggerTimeOutReference);
                 break;
             default:
-                // not allowed for NEW, STOPPING, ERRORED, BROKEN
+                // not allowed for STOPPING, ERRORED, BROKEN
                 logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
                         .log("Unexpected desired state");
                 break;

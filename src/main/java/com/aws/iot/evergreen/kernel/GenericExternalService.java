@@ -86,8 +86,10 @@ public class GenericExternalService extends EvergreenService {
         }
     }
 
+    // Synchronize startup() and shutdown() as both are non-blocking, but need to have coordination
+    // to operate properly
     @Override
-    public void startup() throws InterruptedException {
+    public synchronized void startup() throws InterruptedException {
         RunStatus result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             runScript = null;
             if (getState() == State.INSTALLED) {
@@ -163,7 +165,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     @SuppressWarnings("PMD.CloseResource")
-    public void shutdown() {
+    public synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
         inShutdown = true;
         try {
