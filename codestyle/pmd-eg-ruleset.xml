@@ -79,26 +79,6 @@
     </rule>
     <rule ref="category/java/security.xml">
     </rule>
-    <rule name="AvoidGettingFutureWithoutTimeout"
-          language="java"
-          message="Calls to 'get()' on Futures must have a timeout"
-          class="net.sourceforge.pmd.lang.rule.XPathRule">
-        <description>
-            Calls to Future.get() will block forever. This is almost always undesirable.
-            To mitigate this potential issue, all calls to Future.get() ought to have a timeout.
-        </description>
-        <priority>2</priority>
-        <properties>
-            <property name="version" value="2.0"/>
-            <property name="xpath">
-                <value>
-                    <![CDATA[
-//PrimaryExpression[pmd-java:typeIs("java.util.concurrent.Future") and (PrimaryPrefix/Name[contains(@Image, "get")] and PrimarySuffix[@ArgumentCount=0]) or (PrimarySuffix/MemberSelector/MethodReference[@Image="get"])]
-]]>
-                </value>
-            </property>
-        </properties>
-    </rule>
 
     <rule name="DoNotLogWithoutLogging"
           language="java"
