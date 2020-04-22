@@ -384,7 +384,7 @@ public final class Exec implements Closeable {
     }
 
     public boolean isRunning() {
-        return !isClosed.get();
+        return process == null ? !isClosed.get() : process.isAlive();
     }
 
     @Override

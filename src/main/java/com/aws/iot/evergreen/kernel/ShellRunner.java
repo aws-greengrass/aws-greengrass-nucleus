@@ -15,19 +15,17 @@ public interface ShellRunner {
 
     Exec setup(String note, String command, EvergreenService onBehalfOf);
 
-    boolean successful(Exec e, String command, IntConsumer background, EvergreenService onBehalfOf)
+    boolean successful(Exec e, String note, IntConsumer background, EvergreenService onBehalfOf)
             throws InterruptedException;
 
     class Default implements ShellRunner {
         private static final String SCRIPT_NAME_KEY = "scriptName";
-        private String note;
 
         @Inject
         Kernel config;
 
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
-            this.note = note;
             if (!isEmpty(command) && onBehalfOf != null) {
                 return new Exec().withShell(command).withOut(s -> {
                     String ss = s.toString().trim();
@@ -45,13 +43,13 @@ public interface ShellRunner {
         }
 
         @Override
-        public boolean successful(Exec e, String command, IntConsumer background, EvergreenService onBehalfOf)
+        public boolean successful(Exec e, String note, IntConsumer background, EvergreenService onBehalfOf)
                 throws InterruptedException {
             onBehalfOf.logger.atInfo().setEventType("shell-runner-start").kv(SCRIPT_NAME_KEY, note)
-                    .kv("script", command).log();
+                    .kv("script", e.toString()).log();
             if (background == null) {
                 if (!e.successful(true)) {
-                    onBehalfOf.logger.atWarn().setEventType("shell-runner-error").kv("command", command).log();
+                    onBehalfOf.logger.atWarn().setEventType("shell-runner-error").kv("command", e.toString()).log();
                     return false;
                 }
             } else {

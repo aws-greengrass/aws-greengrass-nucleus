@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.util.Pair;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 
@@ -45,6 +46,8 @@ public class Lifecycle {
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+    public static final Pair<State, State> NEW_TO_INSTALLED = new Pair<>(State.NEW, State.INSTALLED);
+    public static final Pair<State, State> INSTALLED_TO_RUNNING = new Pair<>(State.INSTALLED, State.RUNNING);
 
     private final EvergreenService evergreenService;
     private final Topic stateTopic;
@@ -71,6 +74,7 @@ public class Lifecycle {
     // these states impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED = new HashSet<>(Arrays.asList(State.NEW, State.INSTALLED,
             State.RUNNING));
+    private Pair<State, State> currentStateTransition = null;
 
     /**
      * Constructor for lifecycle.
@@ -99,6 +103,7 @@ public class Lifecycle {
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged are consistent
         // across different services.
         synchronized (State.class) {
+            currentStateTransition = null; //NOPMD
             prevState = currentState;
             stateTopic.withValue(newState);
             evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
@@ -189,8 +194,10 @@ public class Lifecycle {
             if (newStateList.equals(desiredStateList)) {
                 return;
             }
+
             desiredStateList.clear();
             desiredStateList.addAll(newStateList);
+
             // try insert to the queue, if queue full doesn't block.
             enqueueStateEvent("DesiredStateUpdated");
         }
@@ -288,6 +295,13 @@ public class Lifecycle {
         if (!desiredState.isPresent()) {
             return true;
         }
+
+        // We're already handling the new to installed transition, so don't do anything now.
+        if (NEW_TO_INSTALLED.equals(currentStateTransition)) {
+            return true;
+        }
+
+        currentStateTransition = NEW_TO_INSTALLED;
         CountDownLatch installLatch = new CountDownLatch(1);
         setBackingTask(() -> {
             try {
@@ -320,7 +334,6 @@ public class Lifecycle {
 
     private boolean handleCurrentStateInstalled(Optional<State> desiredState,
                                                 AtomicReference<Future> triggerTimeOutReference) {
-        stopBackingTask();
         if (!desiredState.isPresent()) {
             return true;
         }
@@ -333,7 +346,12 @@ public class Lifecycle {
                 updateStateAndBroadcast(State.STOPPING);
                 return false;
             case RUNNING:
-                handleStateTransitionInstalledToRunning(triggerTimeOutReference);
+                // If we are already handling the installed to running transition, then don't do anything
+                if (!INSTALLED_TO_RUNNING.equals(currentStateTransition)) {
+                    stopBackingTask();
+                    currentStateTransition = INSTALLED_TO_RUNNING;
+                    handleStateTransitionInstalledToRunning(triggerTimeOutReference);
+                }
                 break;
             default:
                 // not allowed for STOPPING, ERRORED, BROKEN
@@ -367,7 +385,6 @@ public class Lifecycle {
                     // default time out is 120 seconds
                     Integer timeout = timeOutTopic == null ? DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC
                             : (Integer) timeOutTopic.getOnce();
-
 
                     Future<?> schedule =
                             evergreenService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
@@ -463,14 +480,13 @@ public class Lifecycle {
         }
 
         switch (prevState) {
+            // For both installed and running, make sure we stop first before retrying
+            case INSTALLED:
             case RUNNING:
                 updateStateAndBroadcast(State.STOPPING);
                 break;
             case NEW: // error in installing.
                 updateStateAndBroadcast(State.NEW);
-                break;
-            case INSTALLED: // error in starting
-                updateStateAndBroadcast(State.INSTALLED);
                 break;
             case STOPPING:
                 // not handled;

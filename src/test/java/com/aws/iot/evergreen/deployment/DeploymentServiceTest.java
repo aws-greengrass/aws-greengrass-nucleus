@@ -183,7 +183,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFutureWithException);
             startDeploymentServiceInAnotherThread();
 
-            verify(mockExecutorService, timeout(500)).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
             verify(mockIotJobsHelper, timeout(500)).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                     any());
             verify(mockIotJobsHelper, timeout(2000))

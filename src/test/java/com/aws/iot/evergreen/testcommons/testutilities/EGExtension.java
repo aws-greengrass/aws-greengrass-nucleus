@@ -11,9 +11,9 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
-import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
 
+@SuppressWarnings({"PMD.CollapsibleIfStatements"})
 public class EGExtension implements BeforeEachCallback, AfterEachCallback, BeforeAllCallback, AfterAllCallback,
         ParameterResolver {
 
@@ -60,8 +60,7 @@ public class EGExtension implements BeforeEachCallback, AfterEachCallback, Befor
     }
 
     @Override
-    public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
-            throws ParameterResolutionException {
+    public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
         for (Object o : implementors) {
             if (o instanceof ParameterResolver) {
                 if (((ParameterResolver) o).supportsParameter(parameterContext, extensionContext)) {
@@ -73,8 +72,7 @@ public class EGExtension implements BeforeEachCallback, AfterEachCallback, Befor
     }
 
     @Override
-    public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
-            throws ParameterResolutionException {
+    public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
         for (Object o : implementors) {
             if (o instanceof ParameterResolver) {
                 if (((ParameterResolver) o).supportsParameter(parameterContext, extensionContext)) {

@@ -12,10 +12,13 @@ import com.aws.iot.evergreen.ipc.AuthHandler;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.Pair;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
@@ -35,11 +38,7 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
-    private boolean inShutdown;
-    // currentScript is the Exec that's currently under executing
-    private Exec currentScript;
-    // runScript is the Exec to run the service and is currently under executing.
-    private Exec runScript;
+    private final List<Exec> processes = new CopyOnWriteArrayList<>();
 
     /**
      * Create a new GenericExternalService.
@@ -81,7 +80,7 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public void install() throws InterruptedException {
-        if (run("install", null) == RunStatus.Errored) {
+        if (run("install", null).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
     }
@@ -90,63 +89,59 @@ public class GenericExternalService extends EvergreenService {
     // to operate properly
     @Override
     public synchronized void startup() throws InterruptedException {
-        RunStatus result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
-            runScript = null;
-            if (getState() == State.INSTALLED) {
-                if (exit == 0) {
-                    reportState(State.RUNNING);
-                } else {
-                    serviceErrored("Non-zero exit code in startup");
+        Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
+            // Synchronize within the callback so that these reportStates don't interfere with
+            // the reportStates outside of the callback
+            synchronized (this) {
+                if (State.INSTALLED.equals(getState())) {
+                    if (exit == 0) {
+                        reportState(State.RUNNING);
+                    } else {
+                        serviceErrored("Non-zero exit code in startup");
+                    }
                 }
             }
         });
 
-        runScript = currentScript;
-        if (result == RunStatus.Errored) {
+        if (result.getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in startup");
-        } else if (result == RunStatus.NothingDone) {
+        } else if (result.getLeft() == RunStatus.NothingDone) {
             handleRunScript();
         }
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private void handleRunScript() throws InterruptedException {
-        // sync block will ensure that the call back can execute only after
-        // the service transition state based on RunStatus result
-        Object lock = new Object();
-        synchronized (lock) {
-            RunStatus result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
-                synchronized (lock) {
-                    runScript = null;
-                    if (!inShutdown) {
-                        if (exit == 0) {
-                            this.requestStop();
-                            logger.atInfo().setEventType("generic-service-stopping")
-                                    .log("Service finished running");
-                        } else {
-                            reportState(State.ERRORED);
-                            logger.atError().setEventType("generic-service-errored")
-                                    .addKeyValue("exitCode", exit).log();
-                        }
+    private synchronized void handleRunScript() throws InterruptedException {
+        Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
+            // Synchronize within the callback so that these reportStates don't interfere with
+            // the reportStates outside of the callback
+            synchronized (this) {
+                if (State.RUNNING.equals(getState())) {
+                    if (exit == 0) {
+                        this.requestStop();
+                        logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
+                    } else {
+                        reportState(State.ERRORED);
+                        logger.atError().setEventType("generic-service-errored").addKeyValue("exitCode", exit).log();
                     }
                 }
-            });
-            if (result == RunStatus.NothingDone) {
-                reportState(State.FINISHED);
-                logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
-            } else if (result == RunStatus.Errored) {
-                serviceErrored("Script errored in run");
-            } else {
-                reportState(State.RUNNING);
-                runScript = currentScript;
             }
+        });
+
+        if (result.getLeft() == RunStatus.NothingDone) {
+            reportState(State.FINISHED);
+            logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
+        } else if (result.getLeft() == RunStatus.Errored) {
+            serviceErrored("Script errored in run");
+        } else {
+            reportState(State.RUNNING);
         }
 
-        Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+        Topic timeoutTopic =
+                config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
         Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
         if (timeout != null) {
-            Exec processToClose = currentScript;
+            Exec processToClose = result.getRight();
             context.get(ScheduledExecutorService.class).schedule(() -> {
                 if (processToClose.isRunning()) {
                     try {
@@ -167,24 +162,23 @@ public class GenericExternalService extends EvergreenService {
     @SuppressWarnings("PMD.CloseResource")
     public synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
-        inShutdown = true;
         try {
             run("shutdown", null);
         } catch (InterruptedException ex) {
-            inShutdown = false;
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
             return;
         }
-        Exec e = runScript;
-        if (e != null && e.isRunning()) {
-            try {
-                e.close();
-                logger.atInfo().setEventType("generic-service-shutdown").log();
-            } catch (IOException ioe) {
-                logger.atError().setEventType("generic-service-shutdown-error").setCause(ioe).log();
+        for (Exec e : processes) {
+            if (e != null && e.isRunning()) {
+                try {
+                    e.close();
+                    logger.atInfo().setEventType("generic-service-shutdown").log();
+                    processes.remove(e);
+                } catch (IOException ioe) {
+                    logger.atError().setEventType("generic-service-shutdown-error").setCause(ioe).log();
+                }
             }
         }
-        inShutdown = false;
     }
 
     @Override
@@ -198,48 +192,52 @@ public class GenericExternalService extends EvergreenService {
      *
      * @param name       name of the command to run ("run", "install", "start").
      * @param background IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
-     * @return the status of the run.
+     * @return the status of the run and the Exec.
      */
-    protected RunStatus run(String name, IntConsumer background) throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(String name, IntConsumer background) throws InterruptedException {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(name);
-        return n == null ? RunStatus.NothingDone : run(n, background);
+        return n == null ? new Pair<>(RunStatus.NothingDone, null) : run(n, background);
     }
 
-    protected RunStatus run(Node n, IntConsumer background) throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(Node n, IntConsumer background) throws InterruptedException {
         return n instanceof Topic ? run((Topic) n, background, null)
-                : n instanceof Topics ? run((Topics) n, background) : RunStatus.Errored;
+                : n instanceof Topics ? run((Topics) n, background) : new Pair<>(RunStatus.Errored, null);
     }
 
-    protected RunStatus run(Topic t, IntConsumer background, Topics config) throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(Topic t, IntConsumer background, Topics config) throws InterruptedException {
         return run(t, Coerce.toString(t.getOnce()), background, config);
     }
 
-    // TODO: return Exec along with RunStatus instead of setting currentScript in this function
+    // Synchronize because we should only be running 1 thing at a time. Resolves concurrent access to currentScript.
     @SuppressWarnings("PMD.CloseResource")
-    protected RunStatus run(Topic t, String cmd, IntConsumer background, Topics config) throws InterruptedException {
+    protected synchronized Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, Topics config)
+            throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
         if (exec == null) {
-            return RunStatus.NothingDone;
+            return new Pair<>(RunStatus.NothingDone, null);
         }
-        currentScript = exec;
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
-        RunStatus ret = shellRunner.successful(exec, cmd, background, this) ? RunStatus.OK : RunStatus.Errored;
-        if (background == null) {
-            currentScript = null;
+
+        RunStatus ret =
+                shellRunner.successful(exec, t.getFullName(), background, this) ? RunStatus.OK : RunStatus.Errored;
+
+        // Track all running processes that we fork
+        if (exec.isRunning()) {
+            processes.add(exec);
         }
-        return ret;
+        return new Pair<>(ret, exec);
     }
 
-    protected RunStatus run(Topics t, IntConsumer background) throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background) throws InterruptedException {
         try {
             if (shouldSkip(t)) {
                 logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
-                return RunStatus.OK;
+                return new Pair<>(RunStatus.OK, null);
             }
         } catch (InputValidationException e) {
-            return RunStatus.Errored;
+            return new Pair<>(RunStatus.Errored, null);
         }
 
         Node script = t.getChild("script");
@@ -248,7 +246,7 @@ public class GenericExternalService extends EvergreenService {
         } else {
             logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
                     .log("Missing script");
-            return RunStatus.Errored;
+            return new Pair<>(RunStatus.Errored, null);
         }
     }
 

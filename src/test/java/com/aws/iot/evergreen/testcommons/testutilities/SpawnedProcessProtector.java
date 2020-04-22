@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.testcommons.testutilities;
 
+import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.zeroturnaround.process.PidUtil;
@@ -24,7 +25,12 @@ public class SpawnedProcessProtector implements AfterAllCallback {
 
     @Override
     public void afterAll(ExtensionContext context) throws Exception {
-        String[] cmd = new String[]{"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
+        // TODO: Will need a similar solution as below for windows.
+        if (Exec.isWindows) {
+            return;
+        }
+
+        String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
         Process proc = Runtime.getRuntime().exec(cmd);
         assertTrue(proc.waitFor(5, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
 
@@ -37,6 +43,12 @@ public class SpawnedProcessProtector implements AfterAllCallback {
                 System.err.println("PIDs: " + childPids);
 
                 for (String pid : childPids) {
+                    // Use ps to get the command which is running so we can more easily identify the leaker.
+                    // Uses inheritIO to simply print the output to the console
+                    new ProcessBuilder().command("ps", "-p", pid, "-o", "args").inheritIO().start()
+                            .waitFor(10, TimeUnit.SECONDS);
+
+                    // Kill the stray process
                     Processes.newPidProcess(Integer.parseInt(pid)).destroyForcefully();
                 }
 
