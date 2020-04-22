@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
@@ -13,7 +12,6 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
-import com.aws.iot.evergreen.util.CommitableFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,9 +27,7 @@ import software.amazon.awssdk.services.iot.model.JobExecution;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.JobStatus;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,12 +40,6 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,18 +51,12 @@ class DeploymentE2ETest {
     @TempDir
     Path tempRootDir;
 
-    private static String rootCaFilePath;
-    private static String privateKeyFilePath;
-    private static String certificateFilePath;
     private Kernel kernel;
     private Utils.ThingInfo thing;
 
     @BeforeEach
     void beforeEach() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        rootCaFilePath = tempRootDir.resolve("rootCA.pem").toString();
-        privateKeyFilePath = tempRootDir.resolve("privKey.key").toString();
-        certificateFilePath = tempRootDir.resolve("thingCert.crt").toString();
     }
 
     @AfterEach
@@ -261,24 +245,11 @@ class DeploymentE2ETest {
     }
 
     private void setupIotResourcesAndInjectIntoKernel() throws IOException {
-        Utils.downloadRootCAToFile(new File(rootCaFilePath));
         thing = Utils.createThing();
-        try (CommitableFile cf = CommitableFile.of(new File(privateKeyFilePath).toPath(), true)) {
-            cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
-        }
-        try (CommitableFile cf = CommitableFile.of(new File(certificateFilePath).toPath(), true)) {
-            cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
-        }
-
-        Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privateKeyFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).withValue(certificateFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(rootCaFilePath);
+        Utils.updateKernelConfigWithIotConfiguration(kernel, thing);
     }
 
-    private static void copyFolderRecursively(Path src, Path des) throws IOException {
+    public static void copyFolderRecursively(Path src, Path des) throws IOException {
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
 
             @Override
