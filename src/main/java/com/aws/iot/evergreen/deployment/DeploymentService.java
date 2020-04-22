@@ -215,7 +215,7 @@ public class DeploymentService extends EvergreenService {
 
     }
 
-    @SuppressWarnings({"PMD.NullAssignment", "PMD.AvoidGettingFutureWithoutTimeout"})
+    @SuppressWarnings("PMD.NullAssignment")
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Current deployment finished");
         try {

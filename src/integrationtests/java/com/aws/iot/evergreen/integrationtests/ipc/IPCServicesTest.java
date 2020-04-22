@@ -25,8 +25,10 @@ import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
@@ -39,6 +41,7 @@ import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -52,6 +55,11 @@ class IPCServicesTest {
     private static int port;
     private static String address;
     private static Kernel kernel;
+
+    @BeforeEach
+    void beforeEach(ExtensionContext context) {
+        ignoreExceptionWithMessage(context, "Connection reset by peer");
+    }
 
     @BeforeAll
     static void startKernel() throws Exception {

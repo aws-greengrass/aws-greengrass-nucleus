@@ -27,6 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 
@@ -37,6 +39,7 @@ public class LifecycleIPCAgent implements InjectionActions {
     // Map from service that is listened to --> Map of connection --> Function to call when service state changes
     private static final Map<String, Map<ConnectionContext, BiConsumer<State, State>>> listeners =
             new ConcurrentHashMap<>();
+    private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
     private Kernel kernel;
@@ -107,7 +110,6 @@ public class LifecycleIPCAgent implements InjectionActions {
         return LifecycleGenericResponse.builder().status(LifecycleResponseStatus.Success).build();
     }
 
-    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
     private BiConsumer<State, State> sendStateUpdateToListener(LifecycleListenRequest listenRequest,
                                                                ConnectionContext context) {
         return (oldState, newState) -> {
@@ -130,9 +132,9 @@ public class LifecycleIPCAgent implements InjectionActions {
                 // call the blocking "get" in a separate thread so we don't block the publish queue
                 executor.execute(() -> {
                     try {
-                        fut.get();
+                        fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
-                    } catch (InterruptedException | ExecutionException e) {
+                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
                         // Log
                         log.atError("error-sending-lifecycle-update")
                                 .kv("context", context)
