@@ -206,6 +206,9 @@ public class KernelLifecycle {
             scheduledExecutorService.shutdownNow();
             //TODO: this needs to be changed once state machine thread is using the shared executor
             logger.atInfo("executor-service-shutdown-complete").log();
+            logger.atInfo("context-shutdown-initiated").log();
+            kernel.getContext().close();
+            logger.atInfo("context-shutdown-complete").log();
         } catch (Throwable ex) {
             logger.atError("system-shutdown-error", ex).log();
         }

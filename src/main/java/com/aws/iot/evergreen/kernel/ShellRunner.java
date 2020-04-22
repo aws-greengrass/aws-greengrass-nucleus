@@ -15,7 +15,7 @@ public interface ShellRunner {
 
     Exec setup(String note, String command, EvergreenService onBehalfOf);
 
-    boolean successful(Exec e, String command, IntConsumer background, EvergreenService onBehalfOf)
+    boolean successful(Exec e, String note, IntConsumer background, EvergreenService onBehalfOf)
             throws InterruptedException;
 
     class Default implements ShellRunner {
@@ -27,10 +27,6 @@ public interface ShellRunner {
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
             if (!isEmpty(command) && onBehalfOf != null) {
-                if (!isEmpty(note)) {
-                    onBehalfOf.logger.atInfo().setEventType("shell-runner-start").kv(SCRIPT_NAME_KEY, note)
-                            .kv("script", command).log();
-                }
                 return new Exec().withShell(command).withOut(s -> {
                     String ss = s.toString().trim();
                     onBehalfOf.logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
@@ -47,11 +43,13 @@ public interface ShellRunner {
         }
 
         @Override
-        public boolean successful(Exec e, String command, IntConsumer background, EvergreenService onBehalfOf)
+        public boolean successful(Exec e, String note, IntConsumer background, EvergreenService onBehalfOf)
                 throws InterruptedException {
+            onBehalfOf.logger.atInfo().setEventType("shell-runner-start").kv(SCRIPT_NAME_KEY, note)
+                    .kv("script", e.toString()).log();
             if (background == null) {
                 if (!e.successful(true)) {
-                    onBehalfOf.logger.atWarn().setEventType("shell-runner-error").kv("command", command).log();
+                    onBehalfOf.logger.atWarn().setEventType("shell-runner-error").kv("command", e.toString()).log();
                     return false;
                 }
             } else {

@@ -10,7 +10,7 @@ services:
       install:
         all: echo All installed
       run: |-
-        echo main of config_install_error is running
+        echo main of config_install_succeed_partial is running
         while true; do
         date; sleep 5;
         done

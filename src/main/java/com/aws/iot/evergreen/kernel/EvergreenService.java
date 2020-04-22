@@ -525,6 +525,10 @@ public class EvergreenService implements InjectionActions {
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().startWhen));
     }
 
+    protected final long getStateGeneration() {
+        return lifecycle.getStateGeneration().get();
+    }
+
     protected Topics getLifecycleTopic() {
         return config.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
     }
