@@ -14,8 +14,8 @@ import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -57,7 +57,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
-@ExtendWith({MockitoExtension.class, ExceptionLogProtector.class})
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 public class DeploymentServiceTest extends EGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";

@@ -16,7 +16,7 @@ import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
@@ -59,7 +59,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(ExceptionLogProtector.class)
+@ExtendWith(EGExtension.class)
 class KernelLifecycleTest {
     Kernel mockKernel;
     KernelCommandLine mockKernelCommandLine;

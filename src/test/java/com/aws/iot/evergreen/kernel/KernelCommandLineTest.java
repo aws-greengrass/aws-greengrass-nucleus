@@ -6,7 +6,7 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(ExceptionLogProtector.class)
+@ExtendWith(EGExtension.class)
 class KernelCommandLineTest {
     @TempDir
     Path tempRootDir;
