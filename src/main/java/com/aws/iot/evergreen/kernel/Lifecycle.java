@@ -52,7 +52,7 @@ public class Lifecycle {
 
     /*
      * State generation is a value representing how many times the service has been in the INSTALLED state.
-     * It is used determine if an action should be taken when that action would be run asynchronously.
+     * It is to used determine if an action should be taken when that action would be run asynchronously.
      * It is not sufficient to check if the state is what you want it to be, because the service may have
      * restarted again by the time you are performing this check. Therefore, the generation is used to know
      * that the service is still in the same state as you want it to be.
