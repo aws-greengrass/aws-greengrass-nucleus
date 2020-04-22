@@ -15,10 +15,8 @@ import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
-import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -102,18 +100,15 @@ class DeploymentTaskIntegrationTest {
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
 
-        // initialize packageStore and dependencyResolver
-        packageStore = new PackageStore(kernel.getPackageStorePath(), new GreengrassPackageServiceHelper(),
-                new GreengrassRepositoryDownloader(), Executors.newSingleThreadExecutor(), kernel);
-
-        Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource(
-                "local_store_content").getPath());
+        // get required instances from context
+        packageStore = kernel.getContext().get(PackageStore.class);
+        dependencyResolver = kernel.getContext().get(DependencyResolver.class);
+        kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
 
         // pre-load contents to package store
+        Path localStoreContentPath =
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").getPath());
         copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
-
-        dependencyResolver = new DependencyResolver(packageStore, kernel);
-        kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
     }
 
     @AfterAll
@@ -230,26 +225,24 @@ class DeploymentTaskIntegrationTest {
     private Future<?> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
-        DeploymentTask deploymentTask = new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver,
-                kernel, logger, sampleJobDocument);
+        DeploymentTask deploymentTask =
+                new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
+                        sampleJobDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
     }
 
-    private static void copyFolderRecursively(Path src, Path des)
-            throws IOException {
+    private static void copyFolderRecursively(Path src, Path des) throws IOException {
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
 
             @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-                    throws IOException {
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Files.createDirectories(des.resolve(src.relativize(dir)));
                 return FileVisitResult.CONTINUE;
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 Files.copy(file, des.resolve(src.relativize(file)));
                 return FileVisitResult.CONTINUE;
             }
