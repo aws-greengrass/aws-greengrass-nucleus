@@ -193,6 +193,8 @@ public class GenericExternalService extends EvergreenService {
                 } catch (IOException ex) {
                     logger.atWarn().log("Shutdown timed out for process {}", e);
                 }
+            } else {
+                processes.remove(e);
             }
         }
     }
