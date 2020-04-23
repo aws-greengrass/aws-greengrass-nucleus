@@ -37,12 +37,13 @@ public class PackageStore {
 
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
 
-    private Path recipeDirectory;
+    private final Path recipeDirectory;
 
-    private Path artifactDirectory;
+    private final Path artifactDirectory;
 
     /**
      * Constructor. It will initialize both recipe and artifact directory.
+     *
      * @param packageStoreDirectory the root path for package store.
      * @throws PackagingException if fails to create recipe or artifact directory.
      */
@@ -210,7 +211,7 @@ public class PackageStore {
         return String.join("-", Arrays.copyOf(packageNameAndVersionParts, packageNameAndVersionParts.length - 1));
     }
 
-    private static Semver parseVersionFromFileName(String filename) throws UnexpectedPackagingException {
+    private static Semver parseVersionFromFileName(String filename) throws PackageLoadingException {
         // TODO validate filename
 
         // MonitoringService-1.0.0.yaml
@@ -223,7 +224,7 @@ public class PackageStore {
         try {
             return new Semver(versionStr);
         } catch (SemverException e) {
-            throw new UnexpectedPackagingException(
+            throw new PackageLoadingException(
                     String.format("PackageRecipe recipe file name: '%s' is corrupted!", filename), e);
         }
     }

@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
@@ -44,7 +43,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Every test in PackageStoreTest start with a new and clean package store by creating a temp folder. It pre loads
  * files from its test resource folder needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
  * any static folder directly as package store. The package store folder is deleted after each test.
- *
  */
 @ExtendWith({EGExtension.class})
 class PackageStoreTest {
@@ -165,7 +163,7 @@ class PackageStoreTest {
     }
 
     @Test
-    void getPackageMetadata() throws PackagingException, IOException {
+    void GIVEN_a_recipe_exists_WHEN_getPackageMetadata_then_return_it() throws PackagingException, IOException {
         // GIVEN
         String fileName = "MonitoringService-1.0.0.yaml";
 
