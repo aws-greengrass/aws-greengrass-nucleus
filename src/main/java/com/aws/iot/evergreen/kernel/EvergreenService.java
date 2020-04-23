@@ -85,6 +85,17 @@ public class EvergreenService implements InjectionActions {
 
         initDependenciesTopic();
         periodicityInformation = Periodicity.of(this);
+    }
+
+    @Override
+    public void postInject() {
+        // !IMPORTANT!
+        // Only start the lifecycle thread here and NOT in the constructor.
+        // Java construction order means that there would be a race between starting the lifecycle
+        // thread and the subclasses instance fields being set. This leads to very difficult to debug
+        // problems. Since postInject() only runs after construction, it is safe to start the lifecycle
+        // thread here.
+        // See Java Language Spec for more https://docs.oracle.com/javase/specs/jls/se8/html/jls-12.html#jls-12.5
         lifecycle.initLifecycleThread();
     }
 
