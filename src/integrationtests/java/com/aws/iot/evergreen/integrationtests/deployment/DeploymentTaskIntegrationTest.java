@@ -16,7 +16,7 @@ import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -75,7 +75,7 @@ class DeploymentTaskIntegrationTest {
     private static Logger logger;
 
     private static DependencyResolver dependencyResolver;
-    private static PackageStore packageStore;
+    private static PackageManager packageManager;
     private static KernelConfigResolver kernelConfigResolver;
 
     private DeploymentDocument sampleJobDocument;
@@ -101,7 +101,7 @@ class DeploymentTaskIntegrationTest {
         kernel.launch();
 
         // get required instances from context
-        packageStore = kernel.getContext().get(PackageStore.class);
+        packageManager = kernel.getContext().get(PackageManager.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
 
@@ -226,7 +226,7 @@ class DeploymentTaskIntegrationTest {
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
         DeploymentTask deploymentTask =
-                new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
+                new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, kernel, logger,
                         sampleJobDocument);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);

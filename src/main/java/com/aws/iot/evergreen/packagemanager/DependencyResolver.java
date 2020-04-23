@@ -40,7 +40,7 @@ public class DependencyResolver {
     private static final String PACKAGE_NAME_KEY = "packageName";
 
     @Inject
-    private PackageStore packageStore;
+    private PackageManager packageManager;
 
     @Inject
     private Kernel kernel;
@@ -141,7 +141,7 @@ public class DependencyResolver {
 
         Requirement req = Requirement.buildNPM(mergeSemverRequirements(versionConstraints.values()));
 
-        Iterator<PackageMetadata> versionsToExplore = packageStore.listAvailablePackageMetadata(pkgName, req);
+        Iterator<PackageMetadata> versionsToExplore = packageManager.listAvailablePackageMetadata(pkgName, req);
 
         if (!versionsToExplore.hasNext()) {
             errorMessage = Optional.of(buildErrorMessage(pkgName, resolvedPackageNameToVersion,
@@ -256,7 +256,7 @@ public class DependencyResolver {
             // add active service in device but the version constraints not in the deployment document
             if (rootPackagesToResolve.contains(serviceName) && !packageNameToVersionConstraints.keySet()
                     .contains(serviceName)) {
-                Semver version = packageStore.getPackageVersionFromService(evergreenService);
+                Semver version = packageManager.getPackageVersionFromService(evergreenService);
                 packageNameToVersionConstraints.putIfAbsent(serviceName, new HashMap<>());
                 packageNameToVersionConstraints.get(serviceName).putIfAbsent(ROOT_REQUIREMENT_KEY, version.getValue());
                 logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, serviceName).addKeyValue(VERSION_KEY, version)
