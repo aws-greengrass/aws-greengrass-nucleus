@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Every test in PackageStoreTest start with a new and clean package store by creating a temp folder. It pre loads
- * files from its test resource folder needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
+ * files from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
  * any static folder directly as package store. The package store folder is deleted after each test.
  */
 @ExtendWith({EGExtension.class})
