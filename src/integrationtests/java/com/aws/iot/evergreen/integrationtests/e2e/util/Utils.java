@@ -60,11 +60,13 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
@@ -83,21 +85,29 @@ public class Utils {
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final int DEFAULT_RETRIES = 5;
     private static final int DEFAULT_INITIAL_BACKOFF_MS = 100;
+    private static final Set<Class<? extends Throwable>> retryableIoTExceptions = new HashSet<>(Arrays.asList(
+            ThrottlingException.class, InternalException.class, InternalFailureException.class,
+            LimitExceededException.class));
 
     private Utils() {
     }
 
     public static String createJob(String document, String... targets) {
-        return createJob(iotClient, document, targets);
+        String jobId = UUID.randomUUID().toString();
+        createJobWithId(iotClient, document, jobId, targets);
+        return jobId;
     }
 
-    public static String createJob(IotClient client, String document, String... targets) {
-        String jobId = UUID.randomUUID().toString();
+    public static void createJobWithId(String document, String jobId, String... targets) {
+        createJobWithId(iotClient, document, jobId, targets);
+    }
 
-        retryIot(() -> client.createJob(
+    public static void createJobWithId(IotClient client, String document, String jobId, String... targets) {
+        retryIot(() -> iotClient.createJob(
                 CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
                         .document(document).description("E2E Test: " + new Date())
                         .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build()));
+
         createdJobsMap.compute(client, (k, existingJobs) -> {
             if (existingJobs == null) {
                 return new CopyOnWriteArraySet<>(Collections.singleton(jobId));
@@ -106,7 +116,6 @@ public class Utils {
                 return existingJobs;
             }
         });
-        return jobId;
     }
 
     public static void waitForJobToComplete(String jobId, Duration timeout) throws TimeoutException {
@@ -129,25 +138,24 @@ public class Utils {
         throw new TimeoutException();
     }
 
-    public static void waitForJobExecutionToComplete(String jobId, String thingName, Duration timeout) throws TimeoutException {
-        waitForJobExecutionToComplete(iotClient, jobId, thingName, timeout);
+    public static void waitForJobExecutionStatusToSatisfy(String jobId, String thingName, Duration timeout,
+                                                          Predicate<JobExecutionStatus> condition)
+            throws TimeoutException {
+        waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingName, timeout, condition);
     }
 
-    public static void waitForJobExecutionToComplete(IotClient client, String jobId, String thingName, Duration timeout) throws TimeoutException {
+    public static void waitForJobExecutionStatusToSatisfy(IotClient client, String jobId, String thingName,
+                                                          Duration timeout, Predicate<JobExecutionStatus> condition)
+            throws TimeoutException {
         Instant start = Instant.now();
-        while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
-            JobExecutionStatus status = retry(DEFAULT_RETRIES, 500,
-                        () -> client.describeJobExecution(
-                                DescribeJobExecutionRequest.builder()
-                                        .jobId(jobId)
-                                        .thingName(thingName).build()),
-                    ResourceNotFoundException.class,
-                    ThrottlingException.class,
-                    InternalException.class,
-                    InternalFailureException.class,
-                    LimitExceededException.class).execution().status();
+        Set<Class<? extends Throwable>> retryableExceptions = new HashSet<>(Arrays.asList(ResourceNotFoundException.class));
+        retryableExceptions.addAll(retryableIoTExceptions);
 
-            if (status.ordinal() > JobExecutionStatus.IN_PROGRESS.ordinal()) {
+        while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
+            JobExecutionStatus status = retry(DEFAULT_RETRIES, 5000, () -> client.describeJobExecution(
+                    DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingName).build()),
+                    retryableExceptions).execution().status();
+            if (condition.test(status)) {
                 return;
             }
             // Wait a little bit before checking again
@@ -157,6 +165,10 @@ public class Utils {
             }
         }
         throw new TimeoutException();
+    }
+
+    public static String createThingGroupAndAddThing(ThingInfo thingInfo) {
+        return createThingGroupAndAddThing(iotClient, thingInfo);
     }
 
     public static String createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
@@ -254,6 +266,10 @@ public class Utils {
         }
     }
 
+    public static void cleanAllCreatedThingGroups() {
+        cleanAllCreatedThingGroups(iotClient);
+    }
+
     public static void cleanAllCreatedThingGroups(IotClient client) {
         Set<String> createdThingGroups = createdThingGroupsMap.get(client);
         if (createdThingGroups == null) {
@@ -318,14 +334,12 @@ public class Utils {
     }
 
     public static <T, E extends IotException> T retryIot(CrashableSupplier<T, E> func) {
-        return retry(DEFAULT_RETRIES, DEFAULT_INITIAL_BACKOFF_MS, func, ThrottlingException.class,
-                InternalException.class, InternalFailureException.class, LimitExceededException.class);
+        return retry(DEFAULT_RETRIES, DEFAULT_INITIAL_BACKOFF_MS, func, retryableIoTExceptions);
     }
 
     @SuppressWarnings({"PMD.AssignmentInOperand", "PMD.AvoidCatchingThrowable"})
-    @SafeVarargs
     public static <T, E extends Throwable> T retry(int tries, int initialBackoffMillis, CrashableSupplier<T, E> func,
-                                                   Class<? extends Throwable>... retryableExceptions) throws E {
+                                                   Iterable<Class<? extends Throwable>> retryableExceptions) throws E {
         E lastException = null;
         int tryCount = 0;
         while (tryCount++ < tries) {

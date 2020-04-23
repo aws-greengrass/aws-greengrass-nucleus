@@ -51,12 +51,15 @@ public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String PROCESSED_DEPLOYMENTS_TOPICS = "ProcessedDeployments";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID = "JobId";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
+    public static final String UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG = "Timed out while updating the job status";
+    public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
+
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
-    private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID = "JobId";
-    private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
     private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS = "StatusDetails";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
@@ -348,7 +351,7 @@ public class DeploymentService extends EvergreenService {
                 } catch (ExecutionException e) {
                     if (e.getCause() instanceof MqttException) {
                         //caused due to connectivity issue
-                        logger.atWarn().setCause(e).log("Caught exception while updating job status");
+                        logger.atWarn().setCause(e).log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                         break;
                     }
                     //This happens when job status update gets rejected from the Iot Cloud
@@ -357,7 +360,7 @@ public class DeploymentService extends EvergreenService {
                             .log("Job status update rejected");
                 } catch (TimeoutException e) {
                     //assuming this is due to network issue
-                    logger.info("Timed out while updating the job status");
+                    logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
                     break;
                 } catch (InterruptedException e) {
                     logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status)

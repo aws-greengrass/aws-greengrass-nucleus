@@ -4,10 +4,12 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.model.DeploymentRequest;
+import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpEntity;
@@ -22,11 +24,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iot.IotClient;
+import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
@@ -41,9 +45,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import static com.aws.iot.evergreen.integrationtests.e2e.deployment.DeploymentE2ETest.copyFolderRecursively;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class DeploymentCloudServiceIntegTest {
 
@@ -107,7 +111,7 @@ public class DeploymentCloudServiceIntegTest {
 
         Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").getPath());
         // pre-load contents to package store
-        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
         Utils.ThingInfo thingInfo = Utils.createThing(iotClient);
         Utils.updateKernelConfigWithIotConfiguration(kernel, thingInfo);
@@ -125,7 +129,8 @@ public class DeploymentCloudServiceIntegTest {
         String jobId1 = sendCreateDeploymentRequest(thingGroupArn, document);
 
         // wait until deployment complete
-        Utils.waitForJobExecutionToComplete(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(2));
+        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(2),
+                s -> s.ordinal() > JobExecutionStatus.IN_PROGRESS.ordinal());
 
         assertEquals(State.FINISHED, kernel.getMain().getState());
         assertEquals(State.FINISHED, kernel.locate("CustomerApp").getState());
