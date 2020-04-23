@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.aws.iot.evergreen.packagemanager.TestHelper.COOL_DB_PACKAGE_NAME;
+import static com.aws.iot.evergreen.packagemanager.TestHelper.LOG_PACKAGE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
@@ -228,8 +230,8 @@ class PackageStoreTest {
 
     private static Map<String, String> getExpectedDependencies(Semver version) {
         return new HashMap<String, String>() {{
-            put("Log", version.toString());
-            put("Cool-Database", version.toString());
+            put(LOG_PACKAGE_NAME, version.toString());
+            put(COOL_DB_PACKAGE_NAME, version.toString());
         }};
     }
 }
