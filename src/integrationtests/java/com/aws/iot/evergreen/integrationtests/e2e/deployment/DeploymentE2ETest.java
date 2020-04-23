@@ -9,10 +9,12 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
+import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -28,12 +30,8 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.JobStatus;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -69,12 +68,13 @@ class DeploymentE2ETest {
 
     private void launchKernel(String configFile) throws IOException, InterruptedException {
         kernel = new Kernel().parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString());
-        setupIotResourcesAndInjectIntoKernel();
+        thing = Utils.createThing();
+        Utils.updateKernelConfigWithIotConfiguration(kernel, thing);
         kernel.launch();
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
-        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
@@ -183,9 +183,12 @@ class DeploymentE2ETest {
         JobExecution jobExecution = Utils.iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thing.thingName).build()).execution();
         assertEquals(JobExecutionStatus.FAILED, jobExecution.status());
-        assertEquals(
-                "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages: {SomeService-v1.0.0=1.0.0, SomeOldService-v0.9.0==0.9.0}",
-                jobExecution.statusDetails().detailsMap().get("error"));
+
+        String deploymentError = jobExecution.statusDetails().detailsMap().get("error");
+        assertThat(deploymentError, StringContains.containsString("com.aws.iot.evergreen.packagemanager.exceptions" +
+                ".PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages:"));
+        assertThat(deploymentError, StringContains.containsString("SomeService-v1.0.0=1.0.0"));
+        assertThat(deploymentError, StringContains.containsString("SomeOldService-v0.9.0==0.9.0"));
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId).build()).job().status());
     }
@@ -242,27 +245,4 @@ class DeploymentE2ETest {
         assertEquals(JobStatus.COMPLETED,
                 Utils.iotClient.describeJob(DescribeJobRequest.builder().jobId(jobId2).build()).job().status());
     }
-
-    private void setupIotResourcesAndInjectIntoKernel() throws IOException {
-        thing = Utils.createThing();
-        Utils.updateKernelConfigWithIotConfiguration(kernel, thing);
-    }
-
-    public static void copyFolderRecursively(Path src, Path des) throws IOException {
-        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
-
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories(des.resolve(src.relativize(dir)));
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, des.resolve(src.relativize(file)));
-                return FileVisitResult.CONTINUE;
-            }
-        });
-    }
-
 }
