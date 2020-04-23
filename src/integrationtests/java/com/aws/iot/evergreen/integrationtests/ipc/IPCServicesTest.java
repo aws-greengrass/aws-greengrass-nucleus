@@ -41,6 +41,7 @@ import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -168,7 +169,7 @@ class IPCServicesTest {
     }
 
     @Test
-    void lifecycleTest() throws Exception {
+    void lifecycleTest(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
                 .token((String) kernel.findServiceTopic("ServiceName").findLeafChild("_UID").getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
@@ -182,6 +183,8 @@ class IPCServicesTest {
         c.listenToStateChanges("ServiceName", p.getRight());
         c.reportState("ERRORED");
         p.getLeft().get(500, TimeUnit.MILLISECONDS);
+        // Ignore if IPC can't send us more lifecycle updates because the test is already done.
+        ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
         client.disconnect();
     }
 }
