@@ -13,7 +13,7 @@ import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -77,7 +77,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private DependencyResolver dependencyResolver;
 
     @Mock
-    private PackageStore packageStore;
+    private PackageManager packageManager;
 
     @Mock
     private KernelConfigResolver kernelConfigResolver;
@@ -95,7 +95,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         // Creating the class to be tested
         deploymentService =
                 new DeploymentService(config, mockExecutorService, mockKernel,
-                        dependencyResolver, packageStore, kernelConfigResolver, mockIotJobsHelper);
+                        dependencyResolver, packageManager, kernelConfigResolver, mockIotJobsHelper);
         deploymentsQueue = new LinkedBlockingQueue<>();
         deploymentService.setDeploymentsQueue(deploymentsQueue);
     }
