@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpEntity;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -44,6 +46,7 @@ import java.util.UUID;
 import static com.aws.iot.evergreen.integrationtests.e2e.deployment.DeploymentE2ETest.copyFolderRecursively;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class DeploymentCloudServiceIntegTest {
 
@@ -97,6 +100,7 @@ public class DeploymentCloudServiceIntegTest {
         Utils.cleanAllCreatedThings(iotClient);
         Utils.cleanAllCreatedThingGroups(iotClient);
         createdIotJobIdList.forEach(jobId -> Utils.cleanJob(iotClient, jobId));
+        createdIotJobIdList.clear();
     }
 
     @Test
@@ -113,6 +117,10 @@ public class DeploymentCloudServiceIntegTest {
         Utils.updateKernelConfigWithIotConfiguration(kernel, thingInfo);
 
         kernel.launch();
+
+        // TODO: without the sleep, deploymentService will queue the same job twice due to
+        // calling requestNextPendingJobDocument() in both initialization and handling job events.
+        Thread.sleep(10_000);
 
         // Create thing group and deployment
         String thingGroupArn = Utils.createThingGroupAndAddThing(iotClient, thingInfo);
