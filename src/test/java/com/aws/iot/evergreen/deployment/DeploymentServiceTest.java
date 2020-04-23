@@ -96,6 +96,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         deploymentService =
                 new DeploymentService(config, mockExecutorService, mockKernel,
                         dependencyResolver, packageManager, kernelConfigResolver, mockIotJobsHelper);
+        deploymentService.postInject();
         deploymentsQueue = new LinkedBlockingQueue<>();
         deploymentService.setDeploymentsQueue(deploymentsQueue);
     }
