@@ -152,7 +152,7 @@ public class Utils {
         retryableExceptions.addAll(retryableIoTExceptions);
 
         while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
-            JobExecutionStatus status = retry(DEFAULT_RETRIES, 1000, () -> client.describeJobExecution(
+            JobExecutionStatus status = retry(DEFAULT_RETRIES, 5000, () -> client.describeJobExecution(
                     DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingName).build()),
                     retryableExceptions).execution().status();
             if (condition.test(status)) {

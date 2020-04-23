@@ -7,14 +7,13 @@ package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.e2e.util.DeploymentJobHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -43,7 +42,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_T
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(ExceptionLogProtector.class)
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class MultipleDeploymentsTest {
     @TempDir
@@ -110,7 +109,6 @@ public class MultipleDeploymentsTest {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
             Utils.waitForJobToComplete(helper.jobId, Duration.ofMinutes(1));
 
-            assertEquals(State.FINISHED, kernel.locate(helper.targetPkgName).getState());
             assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
                     DescribeJobExecutionRequest.builder().jobId(helper.jobId).thingName(thing.thingName).build())
                     .execution().status());
@@ -149,7 +147,6 @@ public class MultipleDeploymentsTest {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
             Utils.waitForJobToComplete(helper.jobId, Duration.ofMinutes(1));
 
-            assertEquals(State.FINISHED, kernel.locate(helper.targetPkgName).getState());
             assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
                     DescribeJobExecutionRequest.builder().jobId(helper.jobId).thingName(thing.thingName).build())
                     .execution().status());

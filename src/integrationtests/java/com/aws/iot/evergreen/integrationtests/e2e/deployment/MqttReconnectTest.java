@@ -15,7 +15,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
-import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +53,7 @@ import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtec
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(ExceptionLogProtector.class)
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class MqttReconnectTest {
     @TempDir
@@ -134,6 +134,8 @@ public class MqttReconnectTest {
             }
         });
 
+        kernel.launch();
+
         // Create Job Doc
         String document = new ObjectMapper()
                 .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
@@ -146,9 +148,7 @@ public class MqttReconnectTest {
         String[] targets = {thingGroupArn};
         Utils.createJobWithId(document, jobId, targets);
 
-        kernel.launch();
-
-        assertTrue(jobInProgress.await(1, TimeUnit.MINUTES));
+        assertTrue(jobInProgress.await(3, TimeUnit.MINUTES));
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();
