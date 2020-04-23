@@ -54,7 +54,7 @@ public class PackageManager implements InjectionActions {
     private Kernel kernel;
 
     /**
-     * Constructor for PackageManager.
+     * PackageManager constructor.
      *
      * @param greengrassArtifactDownloader   greengrassArtifactDownloader
      * @param greengrassPackageServiceHelper greengrassPackageServiceHelper

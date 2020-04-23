@@ -333,12 +333,10 @@ class PackageManagerTest {
         assertThat(packageManager.getPackageVersionFromService(mockService), is(ACTIVE_VERSION));
     }
 
-
     private static Map<String, String> getExpectedDependencies(Semver version) {
         return new HashMap<String, String>() {{
             put("Log", version.toString());
             put("Cool-Database", version.toString());
         }};
     }
-
 }
