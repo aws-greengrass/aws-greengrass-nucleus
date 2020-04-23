@@ -41,6 +41,11 @@ public class PackageStore {
 
     private Path artifactDirectory;
 
+    /**
+     * Constructor. It will initialize both recipe and artifact directory.
+     * @param packageStoreDirectory the root path for package store.
+     * @throws PackagingException if fails to create recipe or artifact directory.
+     */
     @Inject
     public PackageStore(@Named("packageStoreDirectory") Path packageStoreDirectory) throws PackagingException {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);

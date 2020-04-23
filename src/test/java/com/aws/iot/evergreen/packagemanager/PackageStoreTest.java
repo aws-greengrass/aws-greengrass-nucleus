@@ -1,3 +1,6 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
@@ -5,6 +8,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +40,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith({ExceptionLogProtector.class})
+/**
+ * Every test in PackageStoreTest start with a new and clean package store by creating a temp folder. It pre loads
+ * files from its test resource folder needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
+ * any static folder directly as package store. The package store folder is deleted after each test.
+ *
+ */
+@ExtendWith({EGExtension.class})
 class PackageStoreTest {
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
 
