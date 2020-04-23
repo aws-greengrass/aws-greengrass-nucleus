@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
@@ -39,7 +40,7 @@ public class EGServiceTestUtil {
         Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
         Mockito.when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
         Mockito.when(config.getContext()).thenReturn(context);
-        Mockito.when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
+        lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
 
         return config;
     }
