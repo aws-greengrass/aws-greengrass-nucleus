@@ -13,9 +13,9 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
-import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.util.Coerce;
@@ -43,8 +43,8 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-public class PackageStore {
-    private static final Logger logger = LogManager.getLogger(PackageStore.class);
+public class PackageManager {
+    private static final Logger logger = LogManager.getLogger(PackageManager.class);
     private static final String RECIPE_DIRECTORY = "recipe";
     private static final String ARTIFACT_DIRECTORY = "artifact";
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
@@ -68,7 +68,7 @@ public class PackageStore {
     private final Kernel kernel;
 
     /**
-     * PackageStore constructor.
+     * PackageManager constructor.
      *
      * @param packageStoreDirectory directory for caching package recipes and artifacts
      * @param packageServiceHelper  greengrass package service client helper
@@ -77,10 +77,10 @@ public class PackageStore {
      * @param kernel                kernel
      */
     @Inject
-    public PackageStore(@Named("packageStoreDirectory") Path packageStoreDirectory,
-                        GreengrassPackageServiceHelper packageServiceHelper,
-                        GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
-                        Kernel kernel) {
+    public PackageManager(@Named("packageStoreDirectory") Path packageStoreDirectory,
+                          GreengrassPackageServiceHelper packageServiceHelper,
+                          GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
+                          Kernel kernel) {
         this.packageStoreDirectory = packageStoreDirectory;
         initializeSubDirectories(this.packageStoreDirectory);
         this.greengrassPackageServiceHelper = packageServiceHelper;
@@ -174,8 +174,8 @@ public class PackageStore {
             throws PackageLoadingException, PackageDownloadException {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         try {
-            Package pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
-            List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
+            PackageRecipe packageRecipe = findRecipeDownloadIfNotExisted(packageIdentifier);
+            List<URI> artifactURIList = packageRecipe.getArtifacts().stream().map(artifactStr -> {
                 try {
                     return new URI(artifactStr);
                 } catch (URISyntaxException e) {
@@ -193,10 +193,10 @@ public class PackageStore {
         }
     }
 
-    private Package findRecipeDownloadIfNotExisted(PackageIdentifier packageIdentifier)
+    private PackageRecipe findRecipeDownloadIfNotExisted(PackageIdentifier packageIdentifier)
             throws PackageDownloadException, PackageLoadingException {
         Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
-        Optional<Package> packageOptional = Optional.empty();
+        Optional<PackageRecipe> packageOptional = Optional.empty();
         try {
             packageOptional = findPackageRecipe(recipePath);
         } catch (PackageLoadingException e) {
@@ -205,9 +205,9 @@ public class PackageStore {
         if (packageOptional.isPresent()) {
             return packageOptional.get();
         } else {
-            Package pkg = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-            savePackageRecipeToFile(pkg, recipePath);
-            return pkg;
+            PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
+            savePackageRecipeToFile(packageRecipe, recipePath);
+            return packageRecipe;
         }
     }
 
@@ -218,8 +218,9 @@ public class PackageStore {
      * @return retrieved package recipe.
      * @throws PackageLoadingException if fails to find the target package recipe or failed to load recipe
      */
-    public Package getPackageRecipe(PackageIdentifier pkgId) throws PackageLoadingException {
-        Optional<Package> optionalPackage = findPackageRecipe(resolveRecipePath(pkgId.getName(), pkgId.getVersion()));
+    public PackageRecipe getPackageRecipe(PackageIdentifier pkgId) throws PackageLoadingException {
+        Optional<PackageRecipe> optionalPackage =
+                findPackageRecipe(resolveRecipePath(pkgId.getName(), pkgId.getVersion()));
 
         if (!optionalPackage.isPresent()) {
             // TODO refine exception and logs
@@ -230,7 +231,7 @@ public class PackageStore {
         return optionalPackage.get();
     }
 
-    Optional<Package> findPackageRecipe(Path recipePath) throws PackageLoadingException {
+    Optional<PackageRecipe> findPackageRecipe(Path recipePath) throws PackageLoadingException {
         logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
         if (!Files.exists(recipePath) || !Files.isRegularFile(recipePath)) {
             return Optional.empty();
@@ -244,15 +245,15 @@ public class PackageStore {
         }
 
         try {
-            return Optional.of(OBJECT_MAPPER.readValue(recipeContent, Package.class));
+            return Optional.of(OBJECT_MAPPER.readValue(recipeContent, PackageRecipe.class));
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
         }
     }
 
-    void savePackageRecipeToFile(Package pkg, Path saveToFile) throws PackageLoadingException {
+    void savePackageRecipeToFile(PackageRecipe packageRecipe, Path saveToFile) throws PackageLoadingException {
         try {
-            OBJECT_MAPPER.writeValue(saveToFile.toFile(), pkg);
+            OBJECT_MAPPER.writeValue(saveToFile.toFile(), packageRecipe);
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to save package recipe to %s", saveToFile), e);
         }
@@ -413,11 +414,11 @@ public class PackageStore {
      * @throws PackagingException if fails to find or parse the recipe
      */
     PackageMetadata getPackageMetadata(PackageIdentifier pkgId) throws PackagingException {
-        Package retrievedPackage = getPackageRecipe(pkgId);
+        PackageRecipe retrievedPackageRecipe = getPackageRecipe(pkgId);
 
         return new PackageMetadata(
-                new PackageIdentifier(retrievedPackage.getPackageName(), retrievedPackage.getVersion()),
-                retrievedPackage.getDependencies());
+                new PackageIdentifier(retrievedPackageRecipe.getPackageName(), retrievedPackageRecipe.getVersion()),
+                retrievedPackageRecipe.getDependencies());
     }
 
     private static String parsePackageNameFromFileName(String filename) {

@@ -18,7 +18,7 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -68,7 +68,7 @@ public class DeploymentService extends EvergreenService {
     @Inject
     private DependencyResolver dependencyResolver;
     @Inject
-    private PackageStore packageStore;
+    private PackageManager packageManager;
     @Inject
     private KernelConfigResolver kernelConfigResolver;
     @Inject
@@ -125,18 +125,18 @@ public class DeploymentService extends EvergreenService {
      * @param executorService      Executor service coming from kernel
      * @param kernel               The evergreen kernel
      * @param dependencyResolver   {@link DependencyResolver}
-     * @param packageStore         {@link PackageStore}
+     * @param packageManager         {@link PackageManager}
      * @param kernelConfigResolver {@link KernelConfigResolver}
      */
 
     DeploymentService(Topics topics, ExecutorService executorService, Kernel kernel,
-                      DependencyResolver dependencyResolver, PackageStore packageStore,
+                      DependencyResolver dependencyResolver, PackageManager packageManager,
                       KernelConfigResolver kernelConfigResolver, IotJobsHelper iotJobsHelper) {
         super(topics);
         this.executorService = executorService;
         this.kernel = kernel;
         this.dependencyResolver = dependencyResolver;
-        this.packageStore = packageStore;
+        this.packageManager = packageManager;
         this.kernelConfigResolver = kernelConfigResolver;
         this.iotJobsHelper = iotJobsHelper;
     }
@@ -272,7 +272,7 @@ public class DeploymentService extends EvergreenService {
             return;
         }
         DeploymentTask deploymentTask =
-                new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
+                new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, kernel, logger,
                         deploymentDocument);
         storeDeploymentStatusInConfig(deployment.getId(), JobStatus.IN_PROGRESS, new HashMap<>());
         updateStatusOfPersistedDeployments();

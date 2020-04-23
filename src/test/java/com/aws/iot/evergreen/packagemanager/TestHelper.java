@@ -3,7 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.packagemanager.models.Package;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -63,8 +63,8 @@ public final class TestHelper {
         return rootPath.resolve(testPackageName + "-" + testPackageVersion);
     }
 
-    public static Package getPackageObject(String recipe) throws IOException {
-        return OBJECT_MAPPER.readValue(recipe, Package.class);
+    public static PackageRecipe getPackageObject(String recipe) throws IOException {
+        return OBJECT_MAPPER.readValue(recipe, PackageRecipe.class);
     }
 
     public static String getPackageRecipeForTestPackage(String testPackageName, String testPackageVersion)
