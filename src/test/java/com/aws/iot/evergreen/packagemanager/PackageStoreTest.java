@@ -92,7 +92,7 @@ class PackageStoreTest {
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
-        packageStore.createPackageRecipe(recipe);
+        packageStore.savePackageRecipe(recipe);
 
         // THEN
         assertThat(expectedRecipeFile, anExistingFile());
@@ -224,7 +224,6 @@ class PackageStoreTest {
         Path expectedArtifactPath = artifactDirectory.resolve(MONITORING_SERVICE_PKG_ID.getName())
                 .resolve(MONITORING_SERVICE_PKG_ID.getVersion().getValue());
         assertThat(artifactPath.toAbsolutePath(), is(equalTo(expectedArtifactPath)));
-
     }
 
     private static Map<String, String> getExpectedDependencies(Semver version) {
@@ -233,5 +232,4 @@ class PackageStoreTest {
             put("Cool-Database", version.toString());
         }};
     }
-
 }

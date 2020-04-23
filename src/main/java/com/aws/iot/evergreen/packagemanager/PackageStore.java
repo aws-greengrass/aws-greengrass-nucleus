@@ -69,12 +69,12 @@ public class PackageStore {
     }
 
     /**
-     * Creates a package recipe in the package store on the disk.
+     * Creates or updates a package recipe in the package store on the disk.
      *
      * @param packageRecipe package recipe to be create.
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void createPackageRecipe(PackageRecipe packageRecipe) throws PackageLoadingException {
+    void savePackageRecipe(PackageRecipe packageRecipe) throws PackageLoadingException {
         Path recipePath = resolveRecipePath(packageRecipe.getPackageName(), packageRecipe.getVersion());
 
         try {
