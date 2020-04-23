@@ -1,3 +1,6 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
@@ -51,6 +54,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 class PackageManagerTest {
