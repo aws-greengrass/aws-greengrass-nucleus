@@ -135,7 +135,7 @@ public class IotJobsHelper {
         }
         Deployment deployment =
                 new Deployment(documentString, Deployment.DeploymentType.IOT_JOBS, jobExecutionData.jobId);
-        if (deploymentsQueue.offer(deployment)) {
+        if (!deploymentsQueue.contains(deployment) && deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
         }
     };

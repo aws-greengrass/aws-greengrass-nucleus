@@ -267,10 +267,17 @@ public class DependencyResolver {
 
     private String buildErrorMessage(final String pkgName, final Map<String, Semver> resolvedPackageNameToVersion,
                                      final Map<String, String> versionConstraints) {
-        Map<PackageIdentifier, String> pkgIdToVersionRequirements = new HashMap<>();
-        versionConstraints.forEach((dependingPkgName, versionRequirement) -> pkgIdToVersionRequirements
-                .put(new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName)),
-                        versionRequirement));
+        Map<String, String> pkgIdToVersionRequirements = new HashMap<>();
+        versionConstraints.forEach((dependingPkgName, versionRequirement) -> {
+            Semver dependingPkgVersion = resolvedPackageNameToVersion.get(dependingPkgName);
+            if (dependingPkgVersion == null) {
+                pkgIdToVersionRequirements.put(dependingPkgName, versionRequirement);
+            } else {
+                pkgIdToVersionRequirements.put(
+                        new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName))
+                        .toString(), versionRequirement);
+            }
+        });
         return String
                 .format("Conflicts in resolving package: %s. Version constraints from upstream packages: %s", pkgName,
                         pkgIdToVersionRequirements);
