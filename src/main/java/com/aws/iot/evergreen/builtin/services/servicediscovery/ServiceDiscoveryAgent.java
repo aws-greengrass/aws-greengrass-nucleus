@@ -84,7 +84,7 @@ public class ServiceDiscoveryAgent implements InjectionActions {
 
         // TODO input validation. https://sim.amazon.com/issues/P32540011
 
-        boolean pathIsReserved = kernel.orderedDependencies().parallelStream()
+        boolean pathIsReserved = kernel.orderedDependencies().stream()
                 .anyMatch(service -> {
                     Topic c = kernel.findServiceTopic(service.getName())
                             .findLeafChild(SERVICE_DISCOVERY_RESOURCE_CONFIG_KEY);

@@ -5,10 +5,14 @@ package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -25,17 +29,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
 
 @SuppressWarnings({"PMD.CloseResource", "PMD.NonStaticInitializer"})
 @ExtendWith(EGExtension.class)
 public class LifecycleTest {
     static int seq;
     static CountDownLatch cd;
+    private Context context;
 
-    @Test
-    public void T1() {
-        cd = new CountDownLatch(2);
-        Context context = new Context();
+    @BeforeEach
+    void beforeEach() {
+        context = new Context();
         ScheduledThreadPoolExecutor ses = new ScheduledThreadPoolExecutor(2);
         ExecutorService cachedPool = Executors.newCachedThreadPool();
         context.put(ScheduledThreadPoolExecutor.class, ses);
@@ -43,6 +48,20 @@ public class LifecycleTest {
         context.put(Executor.class, cachedPool);
         context.put(ExecutorService.class, cachedPool);
         context.put(ThreadPoolExecutor.class, ses);
+        context.put(Kernel.class, mock(Kernel.class));
+    }
+
+    @AfterEach
+    void afterEach() throws IOException {
+        context.get(ScheduledThreadPoolExecutor.class).shutdownNow();
+        context.get(ExecutorService.class).shutdownNow();
+        context.close();
+    }
+
+    @Test
+    public void T1() {
+        cd = new CountDownLatch(2);
+
         c1 v = context.get(c1.class);
         context.get(c1.class).requestStart();
         context.get(C2.class).requestStart();

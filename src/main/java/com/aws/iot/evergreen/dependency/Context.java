@@ -215,6 +215,7 @@ public class Context implements Closeable {
                 logger.atError("context-shutdown-error", t).kv(classKeyword, Coerce.toString(object)).log();
             }
         });
+        publishThread.interrupt();
     }
 
     @Override

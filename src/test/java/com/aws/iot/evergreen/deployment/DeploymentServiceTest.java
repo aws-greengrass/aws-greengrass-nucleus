@@ -48,7 +48,6 @@ import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtec
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.AdditionalMatchers.or;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -111,11 +110,12 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     }
 
     @AfterEach
-    void afterEach() {
+    void afterEach() throws InterruptedException {
         deploymentService.shutdown();
         if (deploymentServiceThread != null && deploymentServiceThread.isAlive()) {
             deploymentServiceThread.interrupt();
         }
+        mockKernel.shutdown();
     }
 
     @Nested
@@ -127,7 +127,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         }
 
         @AfterEach
-        public void tearDown() {
+        public void tearDown() throws InterruptedException {
             deploymentService.shutdown();
         }
 
@@ -404,8 +404,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         deploymentServiceThread = new Thread(() -> {
             try {
                 deploymentService.startup();
-            } catch (InterruptedException e) {
-                fail("Deployment service thread interrupted");
+            } catch (InterruptedException ignore) {
             }
         });
         deploymentServiceThread.start();

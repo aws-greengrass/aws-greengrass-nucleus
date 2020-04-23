@@ -64,7 +64,7 @@ class KernelTest {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdown(2);
+        kernel.shutdown(5);
     }
 
     @Test
@@ -128,7 +128,7 @@ class KernelTest {
     @Test
     void GIVEN_kernel_and_services_WHEN_orderedDependencies_with_a_cycle_THEN_no_dependencies_returned()
             throws InputValidationException {
-        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         EvergreenService mockMain =
@@ -156,7 +156,7 @@ class KernelTest {
             throws Exception {
         kernel.parseArgs();
 
-        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         EvergreenService mockMain =
