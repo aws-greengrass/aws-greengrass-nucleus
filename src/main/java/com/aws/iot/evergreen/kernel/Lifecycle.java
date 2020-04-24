@@ -672,4 +672,9 @@ public class Lifecycle {
             desiredStateList.add(State.FINISHED);
         }
     }
+
+    Optional<State> lastReportedState() {
+        return stateEventQueue.stream().filter(s -> s instanceof State).map(s -> (State) s)
+                .reduce((first, second) -> second);
+    }
 }
