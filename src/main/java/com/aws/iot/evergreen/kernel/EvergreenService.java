@@ -103,6 +103,20 @@ public class EvergreenService implements InjectionActions {
         return (State) state.getOnce();
     }
 
+    /**
+     * Returns true if either the current or the very last reported state (if any)
+     * is equal to the provided state.
+     *
+     * @param state state to check against
+     */
+    public boolean currentOrReportedStateIs(State state) {
+        if (state.equals(getState())) {
+            return true;
+        }
+        Optional<State> reportedState = lifecycle.lastReportedState();
+        return reportedState.isPresent() && reportedState.get().equals(state);
+    }
+
     public long getStateModTime() {
         return state.getModtime();
     }
