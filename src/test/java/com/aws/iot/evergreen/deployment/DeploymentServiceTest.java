@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -27,6 +28,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.verification.VerificationWithTimeout;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -63,6 +65,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final String TEST_JOB_ID_2 = "TEST_JOB_2";
     private static final String CONNECTION_ERROR = "Connection error";
+    private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
 
     @Mock
     IotJobsHelper mockIotJobsHelper;
@@ -96,6 +99,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         deploymentService =
                 new DeploymentService(config, mockExecutorService, mockKernel,
                         dependencyResolver, packageManager, kernelConfigResolver, mockIotJobsHelper);
+        deploymentService.postInject();
         deploymentsQueue = new LinkedBlockingQueue<>();
         deploymentService.setDeploymentsQueue(deploymentsQueue);
     }
@@ -172,7 +176,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentService.shutdown();
         }
 
-
         @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_fails_THEN_report_failed_job_status(ExtensionContext context)
                 throws Exception {
@@ -183,11 +186,33 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFutureWithException);
             startDeploymentServiceInAnotherThread();
 
-            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
-            verify(mockIotJobsHelper, timeout(500)).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
-                    any());
-            verify(mockIotJobsHelper, timeout(2000))
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockIotJobsHelper, WAIT_FOUR_SECONDS)
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
+            verify(mockIotJobsHelper, WAIT_FOUR_SECONDS)
                     .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.FAILED), any());
+            deploymentService.shutdown();
+        }
+
+        @Test
+        public void GIVEN_deployment_job_WHEN_deployment_process_fails_with_retry_THEN_retry_job(ExtensionContext context)
+                throws Exception {
+            CompletableFuture<Void> mockFutureWithException = new CompletableFuture<>();
+            ignoreExceptionUltimateCauseOfType(context, RetryableDeploymentTaskFailureException.class);
+            Throwable t = new RetryableDeploymentTaskFailureException(null);
+            mockFutureWithException.completeExceptionally(t);
+            when(mockExecutorService.submit(any(DeploymentTask.class)))
+                    .thenReturn(mockFutureWithException, mockFutureWithException,
+                                mockFuture);
+            startDeploymentServiceInAnotherThread();
+
+            // Expecting three invocations, once for each retry attempt
+            verify(mockExecutorService, WAIT_FOUR_SECONDS.times(3)).submit(any(DeploymentTask.class));
+            InOrder statusOrdering = inOrder(mockIotJobsHelper);
+            statusOrdering.verify(mockIotJobsHelper, WAIT_FOUR_SECONDS)
+                          .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS), any());
+            statusOrdering.verify(mockIotJobsHelper, WAIT_FOUR_SECONDS)
+                    .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED), any());
             deploymentService.shutdown();
         }
 
