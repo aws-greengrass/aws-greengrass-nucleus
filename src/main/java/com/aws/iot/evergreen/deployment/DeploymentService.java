@@ -15,8 +15,8 @@ import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFai
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -73,18 +73,18 @@ public class DeploymentService extends EvergreenService {
     @Setter
     private ExecutorService executorService;
     @Inject
-    private Kernel kernel;
-    @Inject
     private DependencyResolver dependencyResolver;
     @Inject
     private PackageManager packageManager;
     @Inject
     private KernelConfigResolver kernelConfigResolver;
     @Inject
+    private DeploymentConfigMerger deploymentConfigMerger;
+    @Inject
     private IotJobsHelper iotJobsHelper;
 
     @Getter
-    private Future<Void> currentProcessStatus = null;
+    private Future<DeploymentResult> currentProcessStatus = null;
 
     // This is very likely not thread safe. If the Deployment Service is split into multiple threads in a re-design
     // as mentioned in some other comments, this will need an update as well
@@ -135,23 +135,23 @@ public class DeploymentService extends EvergreenService {
     /**
      * Constructor for unit testing.
      *
-     * @param topics               The configuration coming from  kernel
-     * @param executorService      Executor service coming from kernel
-     * @param kernel               The evergreen kernel
-     * @param dependencyResolver   {@link DependencyResolver}
+     * @param topics                 The configuration coming from  kernel
+     * @param executorService        Executor service coming from kernel
+     * @param dependencyResolver     {@link DependencyResolver}
      * @param packageManager         {@link PackageManager}
-     * @param kernelConfigResolver {@link KernelConfigResolver}
+     * @param kernelConfigResolver   {@link KernelConfigResolver}
+     * @param deploymentConfigMerger {@link DeploymentConfigMerger}
+     * @param iotJobsHelper          {@link IotJobsHelper}
      */
-
-    DeploymentService(Topics topics, ExecutorService executorService, Kernel kernel,
-                      DependencyResolver dependencyResolver, PackageManager packageManager,
-                      KernelConfigResolver kernelConfigResolver, IotJobsHelper iotJobsHelper) {
+    DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
+                      PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
+                      DeploymentConfigMerger deploymentConfigMerger, IotJobsHelper iotJobsHelper) {
         super(topics);
         this.executorService = executorService;
-        this.kernel = kernel;
         this.dependencyResolver = dependencyResolver;
         this.packageManager = packageManager;
         this.kernelConfigResolver = kernelConfigResolver;
+        this.deploymentConfigMerger = deploymentConfigMerger;
         this.iotJobsHelper = iotJobsHelper;
     }
 
@@ -236,8 +236,20 @@ public class DeploymentService extends EvergreenService {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
             // if something is going wrong
-            currentProcessStatus.get();
-            storeDeploymentStatusInConfig(currentJobId, JobStatus.SUCCEEDED, new HashMap<>());
+            DeploymentResult result = currentProcessStatus.get();
+            if (result != null) {
+                DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
+                Map<String, String> statusDetails = new HashMap<>();
+                statusDetails.put("detailed-deployment-status", deploymentStatus.name());
+                if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
+                    storeDeploymentStatusInConfig(currentJobId, JobStatus.SUCCEEDED, statusDetails);
+                } else {
+                    if (result.getFailureCause() != null) {
+                        statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
+                    }
+                    storeDeploymentStatusInConfig(currentJobId, JobStatus.FAILED, statusDetails);
+                }
+            }
             currentJobAttemptCount.set(0);
         } catch (ExecutionException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentJobId).setCause(e)
@@ -292,8 +304,9 @@ public class DeploymentService extends EvergreenService {
             storeDeploymentStatusInConfig(deployment.getId(), JobStatus.FAILED, statusDetails);
             return;
         }
-        currentDeploymentTask = new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, kernel,
-                                                   logger, deploymentDocument);
+        currentDeploymentTask =
+                new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
+                        logger, deploymentDocument);
         storeDeploymentStatusInConfig(deployment.getId(), JobStatus.IN_PROGRESS, new HashMap<>());
         updateStatusOfPersistedDeployments();
         currentProcessStatus = executorService.submit(currentDeploymentTask);
@@ -392,8 +405,7 @@ public class DeploymentService extends EvergreenService {
         }
     }
 
-    @SuppressWarnings({"PMD.LooseCoupling"})
-    private void storeDeploymentStatusInConfig(String jobId, JobStatus status, HashMap<String, String> statusDetails) {
+    private void storeDeploymentStatusInConfig(String jobId, JobStatus status, Map<String, String> statusDetails) {
         //While this method is being run, another thread could be running the updateStatusOfPersistedDeployments
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS)) {
