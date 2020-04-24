@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -91,6 +92,7 @@ class DeploymentTaskIntegrationTest {
 
     private static Map<String, Long> outputMessagesToTimestamp;
     private CountDownLatch countDownLatch;
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     @TempDir
     static Path rootDir;
@@ -116,6 +118,11 @@ class DeploymentTaskIntegrationTest {
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").getPath());
         copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+    }
+
+    @AfterEach
+    void afterEach() {
+        executorService.shutdownNow();
     }
 
     @AfterAll
@@ -310,7 +317,6 @@ class DeploymentTaskIntegrationTest {
         DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
                         logger, sampleJobDocument);
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
         return executorService.submit(deploymentTask);
     }
 

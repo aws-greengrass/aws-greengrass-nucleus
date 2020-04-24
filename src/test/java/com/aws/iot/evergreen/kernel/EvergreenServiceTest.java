@@ -131,6 +131,9 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
             // In addition to the states that AwesomeService reports by itself in its loop, there are some more state
             // changes such as `INSTALLED` and `FINISHED`
             assertTrue(n.get() >= NUM * 2);
+        } finally {
+            ses.shutdownNow();
+            cachedPool.shutdownNow();
         }
     }
 }

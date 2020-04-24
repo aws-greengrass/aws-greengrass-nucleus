@@ -199,10 +199,14 @@ public class DeploymentService extends EvergreenService {
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown() throws InterruptedException {
         receivedShutdown.set(true);
         if (iotJobsHelper != null) {
-            iotJobsHelper.closeConnection();
+            try {
+                iotJobsHelper.closeConnection();
+            } catch (ExecutionException e) {
+                logger.atError().log("Error while closing IoT client", e);
+            }
         }
     }
 

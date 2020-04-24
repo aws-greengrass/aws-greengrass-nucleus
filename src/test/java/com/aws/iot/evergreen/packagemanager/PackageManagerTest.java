@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -67,16 +68,20 @@ class PackageManagerTest {
     @Mock
     private Kernel kernel;
 
+    private ExecutorService executor;
+
     @BeforeEach
     void beforeEach() {
+        executor = Executors.newSingleThreadExecutor();
         testCache = TestHelper.getPathForLocalTestCache();
         packageManager = new PackageManager(testCache, packageServiceHelper, artifactDownloader,
-                Executors.newSingleThreadExecutor(), kernel);
+                executor, kernel);
     }
 
     @AfterEach
     void cleanTestCache() throws Exception {
         TestHelper.cleanDirectory(testCache);
+        executor.shutdownNow();
     }
 
     @Test

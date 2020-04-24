@@ -20,6 +20,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.local.LocalAddress;
 import io.netty.util.Attribute;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +30,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
@@ -70,6 +72,8 @@ class AuthHandlerTest {
     @Captor
     ArgumentCaptor<FrameReader.MessageFrame> frameCaptor;
 
+    private Context context;
+
     @BeforeEach
     public void setupMocks() {
         lenient().when(mockCtx.channel()).thenReturn(mockChannel);
@@ -80,9 +84,17 @@ class AuthHandlerTest {
         mockAuth = spy(new AuthHandler(mock(Configuration.class), mock(IPCRouter.class)));
     }
 
+    @AfterEach
+    void afterEach() throws IOException {
+        if (context != null) {
+            context.close();
+        }
+    }
+
     @Test
     public void GIVEN_service_WHEN_register_auth_token_THEN_client_can_be_authenticated_with_token() throws Exception {
-        Configuration config = new Configuration(new Context());
+        context = new Context();
+        Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
 
         AuthHandler.registerAuthToken(new EvergreenService(
@@ -109,7 +121,8 @@ class AuthHandlerTest {
 
     @Test
     public void GIVEN_service_WHEN_try_to_authenticate_with_bad_token_THEN_is_rejected() throws Exception {
-        Configuration config = new Configuration(new Context());
+        context = new Context();
+        Configuration config = new Configuration(context);
 
         AuthHandler auth = new AuthHandler(config, mock(IPCRouter.class));
         AuthRequest authRequest = new AuthRequest("MyAuthToken");

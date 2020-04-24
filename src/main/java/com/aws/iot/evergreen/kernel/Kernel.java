@@ -75,7 +75,7 @@ public class Kernel {
     @Setter(AccessLevel.PACKAGE)
     private KernelLifecycle kernelLifecycle;
 
-    private Collection<EvergreenService> cachedOD = Collections.emptyList();
+    private Collection<EvergreenService> cachedOD = null;
 
     /**
      * Construct the Kernel and global Context.
@@ -123,8 +123,9 @@ public class Kernel {
         return kernelLifecycle.getMain();
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void clearODcache() {
-        cachedOD.clear();
+        cachedOD = null;
     }
 
     /**
@@ -133,7 +134,7 @@ public class Kernel {
      * @return collection of services in dependency order
      */
     public synchronized Collection<EvergreenService> orderedDependencies() {
-        if (!cachedOD.isEmpty()) {
+        if (cachedOD != null) {
             return cachedOD;
         }
 
