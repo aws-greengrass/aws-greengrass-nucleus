@@ -11,9 +11,9 @@ import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
-import com.aws.iot.evergreen.packagemanager.models.Package;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
@@ -40,7 +40,7 @@ public class KernelConfigResolver {
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
     @Inject
-    private PackageStore packageStore;
+    private PackageManager packageManager;
     @Inject
     private Kernel kernel;
 
@@ -75,7 +75,7 @@ public class KernelConfigResolver {
     private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document)
             throws PackageLoadingException {
 
-        Package pkg = packageStore.getPackageRecipe(packageIdentifier);
+        PackageRecipe packageRecipe = packageManager.getPackageRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
@@ -88,8 +88,8 @@ public class KernelConfigResolver {
         // These inconsistencies need to be addressed
 
         // Interpolate parameters
-        Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, pkg);
-        for (Map.Entry<String, Object> configKVPair : pkg.getLifecycle().entrySet()) {
+        Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
+        for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
             resolvedLifecycleConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
         }
 
@@ -98,11 +98,11 @@ public class KernelConfigResolver {
         // then change the following code accordingly
 
         // Generate dependencies
-        List<String> dependencyServiceNames = new ArrayList<>(pkg.getDependencies().keySet());
+        List<String> dependencyServiceNames = new ArrayList<>(packageRecipe.getDependencies().keySet());
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencyServiceNames);
 
         // State information for deployments
-        resolvedServiceConfig.put(VERSION_CONFIG_KEY, pkg.getVersion());
+        resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion());
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParams.stream()
                 .collect(Collectors.toMap(PackageParameter::getName, PackageParameter::getValue)));
 
@@ -174,24 +174,27 @@ public class KernelConfigResolver {
      * deployment document, if not, those stored in the kernel config for previous
      * deployments and defaults for the rest.
      */
-    private Set<PackageParameter> resolveParameterValuesToUse(DeploymentDocument document, Package pkg) {
+    private Set<PackageParameter> resolveParameterValuesToUse(DeploymentDocument document,
+                                                              PackageRecipe packageRecipe) {
         // If values for parameters were set in deployment they should be used
-        Set<PackageParameter> resolvedParams = new HashSet<>(getParametersFromDeployment(document, pkg));
+        Set<PackageParameter> resolvedParams = new HashSet<>(getParametersFromDeployment(document, packageRecipe));
 
         // If not set in deployment, use values from previous deployments that were stored in config
-        resolvedParams.addAll(getParametersStoredInConfig(pkg));
+        resolvedParams.addAll(getParametersStoredInConfig(packageRecipe));
 
         // Use defaults for parameters for which no values were set in current or previous deployment
-        resolvedParams.addAll(pkg.getPackageParameters());
+        resolvedParams.addAll(packageRecipe.getPackageParameters());
         return resolvedParams;
     }
 
     /*
      * Get parameter values for a package set by customer from deployment document.
      */
-    private Set<PackageParameter> getParametersFromDeployment(DeploymentDocument document, Package pkg) {
+    private Set<PackageParameter> getParametersFromDeployment(DeploymentDocument document,
+                                                              PackageRecipe packageRecipe) {
         Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
-                getMatchingPackageConfigFromDeployment(document, pkg.getPackageName(), pkg.getVersion().toString());
+                getMatchingPackageConfigFromDeployment(document, packageRecipe.getPackageName(),
+                        packageRecipe.getVersion().toString());
         if (packageConfigInDeployment.isPresent()) {
             return packageConfigInDeployment.get().getParameters();
         }
@@ -201,13 +204,13 @@ public class KernelConfigResolver {
     /*
      * Get parameter values for a package stored in config that were set by customer in previous deployment.
      */
-    private Set<PackageParameter> getParametersStoredInConfig(Package pkg) {
+    private Set<PackageParameter> getParametersStoredInConfig(PackageRecipe packageRecipe) {
         try {
-            EvergreenService service = kernel.locate(pkg.getPackageName());
+            EvergreenService service = kernel.locate(packageRecipe.getPackageName());
             Set<PackageParameter> parametersStoredInConfig = new HashSet<>();
 
             // Get only those parameters which are still valid for the current version of the package
-            pkg.getPackageParameters().forEach(parameterFromRecipe -> {
+            packageRecipe.getPackageParameters().forEach(parameterFromRecipe -> {
                 Optional<String> parameterValueStoredInConfig =
                         getParameterValueFromServiceConfig(service, parameterFromRecipe.getName());
                 if (parameterValueStoredInConfig.isPresent()) {

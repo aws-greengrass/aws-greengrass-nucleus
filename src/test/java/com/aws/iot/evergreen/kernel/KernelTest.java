@@ -64,7 +64,7 @@ class KernelTest {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdown();
+        kernel.shutdown(2);
     }
 
     @Test
@@ -76,14 +76,17 @@ class KernelTest {
         EvergreenService mockMain =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
         EvergreenService service1 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        service1.postInject();
         EvergreenService service2 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        service2.postInject();
 
         List<EvergreenService> od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
@@ -131,11 +134,13 @@ class KernelTest {
         EvergreenService mockMain =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
         EvergreenService service1 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        service1.postInject();
 
         // Introduce a dependency cycle
         service1.addOrUpdateDependency(mockMain, State.RUNNING, false);
@@ -157,10 +162,12 @@ class KernelTest {
         EvergreenService mockMain =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
         EvergreenService service1 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        service1.postInject();
 
         // Add dependency on service1 to main
         mockMain.addOrUpdateDependency(service1, State.RUNNING, false);

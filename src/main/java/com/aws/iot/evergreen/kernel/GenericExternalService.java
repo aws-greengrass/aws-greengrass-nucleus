@@ -28,7 +28,6 @@ import java.util.regex.Pattern;
 import static com.aws.iot.evergreen.kernel.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
-@SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     static final String[] sigCodes =

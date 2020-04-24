@@ -40,7 +40,7 @@ public class DependencyResolver {
     private static final String PACKAGE_NAME_KEY = "packageName";
 
     @Inject
-    private PackageStore packageStore;
+    private PackageManager packageManager;
 
     @Inject
     private Kernel kernel;
@@ -141,7 +141,7 @@ public class DependencyResolver {
 
         Requirement req = Requirement.buildNPM(mergeSemverRequirements(versionConstraints.values()));
 
-        Iterator<PackageMetadata> versionsToExplore = packageStore.listAvailablePackageMetadata(pkgName, req);
+        Iterator<PackageMetadata> versionsToExplore = packageManager.listAvailablePackageMetadata(pkgName, req);
 
         if (!versionsToExplore.hasNext()) {
             errorMessage = Optional.of(buildErrorMessage(pkgName, resolvedPackageNameToVersion,
@@ -256,7 +256,7 @@ public class DependencyResolver {
             // add active service in device but the version constraints not in the deployment document
             if (rootPackagesToResolve.contains(serviceName) && !packageNameToVersionConstraints.keySet()
                     .contains(serviceName)) {
-                Semver version = packageStore.getPackageVersionFromService(evergreenService);
+                Semver version = packageManager.getPackageVersionFromService(evergreenService);
                 packageNameToVersionConstraints.putIfAbsent(serviceName, new HashMap<>());
                 packageNameToVersionConstraints.get(serviceName).putIfAbsent(ROOT_REQUIREMENT_KEY, version.getValue());
                 logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, serviceName).addKeyValue(VERSION_KEY, version)
@@ -267,10 +267,17 @@ public class DependencyResolver {
 
     private String buildErrorMessage(final String pkgName, final Map<String, Semver> resolvedPackageNameToVersion,
                                      final Map<String, String> versionConstraints) {
-        Map<PackageIdentifier, String> pkgIdToVersionRequirements = new HashMap<>();
-        versionConstraints.forEach((dependingPkgName, versionRequirement) -> pkgIdToVersionRequirements
-                .put(new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName)),
-                        versionRequirement));
+        Map<String, String> pkgIdToVersionRequirements = new HashMap<>();
+        versionConstraints.forEach((dependingPkgName, versionRequirement) -> {
+            Semver dependingPkgVersion = resolvedPackageNameToVersion.get(dependingPkgName);
+            if (dependingPkgVersion == null) {
+                pkgIdToVersionRequirements.put(dependingPkgName, versionRequirement);
+            } else {
+                pkgIdToVersionRequirements.put(
+                        new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName))
+                        .toString(), versionRequirement);
+            }
+        });
         return String
                 .format("Conflicts in resolving package: %s. Version constraints from upstream packages: %s", pkgName,
                         pkgIdToVersionRequirements);

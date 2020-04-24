@@ -12,13 +12,14 @@ import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableExceptio
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.exceptions.InvalidRequestException;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -43,6 +44,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -51,12 +53,19 @@ public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String PROCESSED_DEPLOYMENTS_TOPICS = "ProcessedDeployments";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID = "JobId";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
+    public static final String UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG = "Timed out while updating the job status";
+    public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
+
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    // TODO: These should probably become configurable parameters eventually
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
-    private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID = "JobId";
-    private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
+    private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
+
     private static final String PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS = "StatusDetails";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
@@ -68,7 +77,7 @@ public class DeploymentService extends EvergreenService {
     @Inject
     private DependencyResolver dependencyResolver;
     @Inject
-    private PackageStore packageStore;
+    private PackageManager packageManager;
     @Inject
     private KernelConfigResolver kernelConfigResolver;
     @Inject
@@ -76,7 +85,12 @@ public class DeploymentService extends EvergreenService {
 
     @Getter
     private Future<Void> currentProcessStatus = null;
+
+    // This is very likely not thread safe. If the Deployment Service is split into multiple threads in a re-design
+    // as mentioned in some other comments, this will need an update as well
     private String currentJobId = null;
+    private final AtomicInteger currentJobAttemptCount = new AtomicInteger(0);
+    private DeploymentTask currentDeploymentTask = null;
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -125,18 +139,18 @@ public class DeploymentService extends EvergreenService {
      * @param executorService      Executor service coming from kernel
      * @param kernel               The evergreen kernel
      * @param dependencyResolver   {@link DependencyResolver}
-     * @param packageStore         {@link PackageStore}
+     * @param packageManager         {@link PackageManager}
      * @param kernelConfigResolver {@link KernelConfigResolver}
      */
 
     DeploymentService(Topics topics, ExecutorService executorService, Kernel kernel,
-                      DependencyResolver dependencyResolver, PackageStore packageStore,
+                      DependencyResolver dependencyResolver, PackageManager packageManager,
                       KernelConfigResolver kernelConfigResolver, IotJobsHelper iotJobsHelper) {
         super(topics);
         this.executorService = executorService;
         this.kernel = kernel;
         this.dependencyResolver = dependencyResolver;
-        this.packageStore = packageStore;
+        this.packageManager = packageManager;
         this.kernelConfigResolver = kernelConfigResolver;
         this.iotJobsHelper = iotJobsHelper;
     }
@@ -219,21 +233,28 @@ public class DeploymentService extends EvergreenService {
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Current deployment finished");
         try {
-            //No timeout is set here. Detection of error is delegated to downstream components like
+            // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
             // if something is going wrong
             currentProcessStatus.get();
             storeDeploymentStatusInConfig(currentJobId, JobStatus.SUCCEEDED, new HashMap<>());
+            currentJobAttemptCount.set(0);
         } catch (ExecutionException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentJobId).setCause(e)
                     .log("Caught exception while getting the status of the Job");
             Throwable t = e.getCause();
-            if (t instanceof NonRetryableDeploymentTaskFailureException) {
-                HashMap<String, String> statusDetails = new HashMap<>();
-                statusDetails.put("error", t.getMessage());
+            HashMap<String, String> statusDetails = new HashMap<>();
+            statusDetails.put("error", t.getMessage());
+            if (t instanceof NonRetryableDeploymentTaskFailureException
+                    || currentJobAttemptCount.get() >= DEPLOYMENT_MAX_ATTEMPTS) {
                 storeDeploymentStatusInConfig(currentJobId, JobStatus.FAILED, statusDetails);
+                currentJobAttemptCount.set(0);
+            } else if (t instanceof RetryableDeploymentTaskFailureException) {
+                // Resubmit task, increment attempt count and return
+                currentProcessStatus = executorService.submit(currentDeploymentTask);
+                currentJobAttemptCount.incrementAndGet();
+                return;
             }
-            //TODO: resubmit the job in case of RetryableDeploymentTaskFailureException
         }
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
@@ -271,13 +292,15 @@ public class DeploymentService extends EvergreenService {
             storeDeploymentStatusInConfig(deployment.getId(), JobStatus.FAILED, statusDetails);
             return;
         }
-        DeploymentTask deploymentTask =
-                new DeploymentTask(dependencyResolver, packageStore, kernelConfigResolver, kernel, logger,
-                        deploymentDocument);
+        currentDeploymentTask = new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, kernel,
+                                                   logger, deploymentDocument);
         storeDeploymentStatusInConfig(deployment.getId(), JobStatus.IN_PROGRESS, new HashMap<>());
         updateStatusOfPersistedDeployments();
-        currentProcessStatus = executorService.submit(deploymentTask);
+        currentProcessStatus = executorService.submit(currentDeploymentTask);
         currentJobId = deployment.getId();
+
+        // createNewDeployment will only be called at first attempt
+        currentJobAttemptCount.set(1);
     }
 
     private void subscribeToIotJobTopics() {
@@ -348,7 +371,7 @@ public class DeploymentService extends EvergreenService {
                 } catch (ExecutionException e) {
                     if (e.getCause() instanceof MqttException) {
                         //caused due to connectivity issue
-                        logger.atWarn().setCause(e).log("Caught exception while updating job status");
+                        logger.atWarn().setCause(e).log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                         break;
                     }
                     //This happens when job status update gets rejected from the Iot Cloud
@@ -357,7 +380,7 @@ public class DeploymentService extends EvergreenService {
                             .log("Job status update rejected");
                 } catch (TimeoutException e) {
                     //assuming this is due to network issue
-                    logger.info("Timed out while updating the job status");
+                    logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
                     break;
                 } catch (InterruptedException e) {
                     logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status)
