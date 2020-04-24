@@ -83,7 +83,7 @@ public class Topic extends Node {
     }
 
     public Topic withValue(Object nv) {
-        return withValue(System.currentTimeMillis(), nv);
+        return withNewerValue(System.currentTimeMillis(), nv);
     }
 
     /**
@@ -93,10 +93,23 @@ public class Topic extends Node {
      * @param proposed        new value.
      * @return this.
      */
-    public synchronized Topic withValue(long proposedModtime, final Object proposed) {
+    public Topic withNewerValue(long proposedModtime, final Object proposed) {
+        return withNewerValue(proposedModtime, proposed, false);
+    }
+
+    /**
+     * Set the value of this topic to a new value.
+     *
+     * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value
+     *                       unless this is forced
+     * @param proposed        new value.
+     * @param forceTimestamp indicate if the proposed time should be forced.
+     * @return this.
+     */
+    public synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean forceTimestamp) {
         final Object currentValue = value;
         final long currentModtime = modtime;
-        if (Objects.equals(proposed, currentValue) || proposedModtime < currentModtime) {
+        if (Objects.equals(proposed, currentValue) || !forceTimestamp && (proposedModtime < currentModtime)) {
             return this;
         }
         final Object validated = validate(proposed, currentValue);
@@ -128,7 +141,7 @@ public class Topic extends Node {
     @Override
     public void copyFrom(Node n) {
         if (n instanceof Topic) {
-            withValue(((Topic) n).modtime, ((Topic) n).value);
+            withNewerValue(((Topic) n).modtime, ((Topic) n).value);
         } else {
             throw new IllegalArgumentException(
                     "copyFrom: " + (n == null ? "NULL" : n.getFullName()) + " is already a container, not a leaf");
@@ -143,7 +156,7 @@ public class Topic extends Node {
      */
     public synchronized Topic dflt(Object dflt) {
         if (value == null) {
-            withValue(1, dflt); // defaults come from the dawn of time
+            withNewerValue(1, dflt); // defaults come from the dawn of time
         }
         return this;
     }

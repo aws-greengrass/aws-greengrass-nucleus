@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 
 import static com.aws.iot.evergreen.util.Coerce.toObject;
 import static com.aws.iot.evergreen.util.Utils.parseLong;
@@ -35,7 +36,7 @@ public final class ConfigurationReader {
             while (l != null) {
                 java.util.regex.Matcher m = logLine.matcher(l);
                 if (m.matches()) {
-                    c.lookup(seperator.split(m.group(2))).withValue(parseLong(m.group(1)), toObject(m.group(3)));
+                    c.lookup(seperator.split(m.group(2))).withNewerValue(parseLong(m.group(1)), toObject(m.group(3)));
                 }
                 l = in.readLine();
             }
@@ -58,5 +59,27 @@ public final class ConfigurationReader {
         Configuration c = new Configuration(context);
         ConfigurationReader.mergeTLogInto(c, p);
         return c;
+    }
+
+    /**
+     * Merge the given transaction log into the given configuration.
+     *
+     * @param config         configuration to merge into
+     * @param tlogPath       path of the tlog file to read to-be-merged config from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @throws IOException if reading fails
+     */
+    public static void mergeTlogIntoConfig(Configuration config, Path tlogPath, boolean forceTimestamp)
+            throws IOException {
+        // This can cause memory issues when the tlog files is large, use it only merge config that can fit in memory
+        // TODO : Maybe track this in benchmarking if the tlog file has the potential to cause memory issues
+        Iterator<String> logLines = Files.readAllLines(tlogPath).iterator();
+        while (logLines.hasNext()) {
+            java.util.regex.Matcher m = logLine.matcher(logLines.next());
+            if (m.matches()) {
+                config.lookup(seperator.split(m.group(2)))
+                        .withNewerValue(parseLong(m.group(1)), toObject(m.group(3)), forceTimestamp);
+            }
+        }
     }
 }

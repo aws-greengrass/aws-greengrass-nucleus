@@ -45,4 +45,7 @@ public class DeploymentDocument {
     @JsonProperty("Timestamp")
     private Long timestamp;
 
+    @JsonProperty("FailureHandlingPolicy")
+    private FailureHandlingPolicy failureHandlingPolicy;
+
 }
