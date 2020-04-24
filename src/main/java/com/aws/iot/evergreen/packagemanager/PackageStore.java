@@ -33,8 +33,8 @@ import javax.inject.Named;
 
 public class PackageStore {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
-    private static final String RECIPE_DIRECTORY = "recipe";
-    private static final String ARTIFACT_DIRECTORY = "artifact";
+    private static final String RECIPE_DIRECTORY = "recipes";
+    private static final String ARTIFACT_DIRECTORY = "artifacts";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
@@ -111,6 +111,7 @@ public class PackageStore {
         }
 
         try {
+            // TODO Add validation to validate recipe retried matches pkgId
             return Optional.of(RECIPE_SERIALIZER.readValue(recipeContent, PackageRecipe.class));
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
@@ -144,11 +145,7 @@ public class PackageStore {
      * @throws PackagingException if fails to find or parse the recipe
      */
     PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
-        PackageRecipe retrievedPackageRecipe = getPackageRecipe(pkgId);
-
-        return new PackageMetadata(
-                new PackageIdentifier(retrievedPackageRecipe.getPackageName(), retrievedPackageRecipe.getVersion()),
-                retrievedPackageRecipe.getDependencies());
+        return new PackageMetadata(pkgId, getPackageRecipe(pkgId).getDependencies());
     }
 
     /**

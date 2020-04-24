@@ -54,7 +54,7 @@ class PackageStoreTest {
             new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
 
 
-    private static final Path RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipe").getPath());
+    private static final Path RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipes").getPath());
 
     private PackageStore packageStore;
 
@@ -68,8 +68,8 @@ class PackageStoreTest {
     @BeforeEach
     void beforeEach() throws PackagingException {
         packageStore = new PackageStore(packageStoreRootPath.toAbsolutePath());
-        recipeDirectory = packageStoreRootPath.resolve("recipe");
-        artifactDirectory = packageStoreRootPath.resolve("artifact");
+        recipeDirectory = packageStoreRootPath.resolve("recipes");
+        artifactDirectory = packageStoreRootPath.resolve("artifacts");
     }
 
     @Test
