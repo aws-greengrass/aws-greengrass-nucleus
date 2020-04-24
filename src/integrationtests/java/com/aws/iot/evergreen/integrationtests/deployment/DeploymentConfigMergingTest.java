@@ -1,17 +1,23 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.integrationtests.kernel;
+package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,13 +43,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ServiceConfigMergingTest extends BaseITCase {
+class DeploymentConfigMergingTest extends BaseITCase {
     private Kernel kernel;
+    private DeploymentConfigMerger deploymentConfigMerger;
 
     @BeforeEach
     void before(TestInfo testInfo) {
         System.out.println("Running test: " + testInfo.getDisplayName());
         kernel = new Kernel();
+        deploymentConfigMerger = new DeploymentConfigMerger(kernel);
     }
 
     @AfterEach
@@ -54,7 +62,38 @@ class ServiceConfigMergingTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_running_single_service_WHEN_merge_change_to_service_THEN_service_restarts_with_new_config()
+    void GIVEN_kernel_running_with_some_config_WHEN_merge_simple_yaml_file_THEN_config_is_updated() throws Throwable {
+
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
+                mainRunning.countDown();
+            }
+        });
+        kernel.launch();
+
+        // WHEN
+        CountDownLatch mainRestarted = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
+                    .equals(State.INSTALLED)) {
+                mainRestarted.countDown();
+            }
+        });
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(),
+                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
+                .get(60, TimeUnit.SECONDS);
+
+        // THEN
+        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertThat((String) kernel.findServiceTopic("main").find("lifecycle", "run").getOnce(),
+                containsString("echo Now we\\'re in phase 3"));
+    }
+
+    @Test
+    void GIVEN_kernel_running_single_service_WHEN_merge_changes_service_THEN_service_restarts_with_new_config()
             throws Throwable {
 
         // GIVEN
@@ -77,7 +116,7 @@ class ServiceConfigMergingTest extends BaseITCase {
                 mainRestarted.countDown();
             }
         });
-        kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("setenv", new HashMap<Object, Object>() {{
@@ -128,7 +167,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
                 .collect(Collectors.toList());
         serviceList.add("new_service");
-        kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("dependencies", serviceList);
@@ -190,7 +229,7 @@ class ServiceConfigMergingTest extends BaseITCase {
                 .collect(Collectors.toList());
         serviceList.add("new_service");
 
-        kernel.mergeInNewConfig("id", System.currentTimeMillis(), new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put("dependencies", serviceList);
@@ -278,7 +317,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         kernel.getContext().addGlobalStateChangeListener(listener);
 
         EvergreenService main = kernel.locate("main");
-        kernel.mergeInNewConfig("id", System.currentTimeMillis(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig).get(60, TimeUnit.SECONDS);
 
         // Verify that first merge succeeded.
         assertEquals(State.RUNNING, main.getState());
@@ -302,7 +341,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         // THEN
         // merge in the same config the second time
         // merge shouldn't block
-        kernel.mergeInNewConfig("id", System.currentTimeMillis(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig).get(60, TimeUnit.SECONDS);
 
         // main and sleeperB should be running
         assertEquals(State.RUNNING, main.getState());
@@ -330,8 +369,7 @@ class ServiceConfigMergingTest extends BaseITCase {
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
 
         Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
-        Map<String, Map> servicesConfig =
-                (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         //removing all services in the current kernel config except sleeperB and main
         servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName) && !"main".equals(serviceName));
@@ -343,7 +381,8 @@ class ServiceConfigMergingTest extends BaseITCase {
         ((Map) servicesConfig.get("sleeperB").get(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
                 .put("run", "while true; do\n echo sleeperB_running; sleep 10\n done");
 
-        Future<Void> future = kernel.mergeInNewConfig("id", System.currentTimeMillis(), currentConfig);
+        Future<DeploymentResult> future =
+                deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("sleeperA".equals(service.getName()) && newState.isClosable()) {
@@ -370,5 +409,10 @@ class ServiceConfigMergingTest extends BaseITCase {
                 .map(EvergreenService::getName).collect(Collectors.toList());
 
         assertEquals(Arrays.asList("sleeperB", "main"), orderedDependencies);
+    }
+
+    private DeploymentDocument testDeploymentDocument() {
+        return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
+                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build();
     }
 }

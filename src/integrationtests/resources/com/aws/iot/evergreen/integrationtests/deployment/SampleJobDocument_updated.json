@@ -21,5 +21,6 @@
       ]
     }
   ],
-  "Timestamp": 1592574829000
+  "Timestamp": 1592574829000,
+  "FailureHandlingPolicy": "DO_NOTHING"
 }

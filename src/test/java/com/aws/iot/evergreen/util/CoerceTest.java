@@ -7,9 +7,17 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.List;
+
 import static com.aws.iot.evergreen.util.Coerce.toBoolean;
 import static com.aws.iot.evergreen.util.Coerce.toDouble;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
+import static com.aws.iot.evergreen.util.Coerce.toObject;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -82,6 +90,18 @@ public class CoerceTest {
         for (int i = 0; i < len; i++) {
             assertEquals(expect[i], t[i]);
         }
+    }
+
+    @Test
+    public void T6() {
+        assertThat((List<String>) toObject("[]"), is(empty()));
+        assertThat((List<String>) toObject("[  ]"), is(empty()));
+        assertThat((List<String>) toObject("[foo, bar, baz]"), containsInAnyOrder("foo", "bar", "baz"));
+        assertThat((List<String>) toObject("[ foo, bar, baz ]"), containsInAnyOrder("foo", "bar", "baz"));
+        assertThat((List<String>) toObject("[foo1, bar_2, baz-3]"), containsInAnyOrder("foo1", "bar_2", "baz-3"));
+        assertThat(toObject("foo, bar, baz]"), is(equalTo("foo, bar, baz]")));
+        assertThat(toObject("[foo, bar, baz"), is(equalTo("[foo, bar, baz")));
+        assertThat(toObject("foo, bar, baz"), is(equalTo("foo, bar, baz")));
     }
 
     enum en {Red, Green, Blue, Gross}
