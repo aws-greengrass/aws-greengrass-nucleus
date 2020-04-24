@@ -128,7 +128,6 @@ public class DeploymentConfigMerger {
                             totallyCompleteFuture
                                     .complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, e));
                         }
-                        return;
                     }
                 });
             });
@@ -140,8 +139,8 @@ public class DeploymentConfigMerger {
     /*
      * Rollback kernel to the state recorded before merging deployment config
      */
-    private void rollback(String deploymentId, CompletableFuture totallyCompleteFuture, Throwable failureCause,
-                          AggregateServicesChangeManager servicesChangeManager) {
+    private void rollback(String deploymentId, CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                          Throwable failureCause, AggregateServicesChangeManager servicesChangeManager) {
 
         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("Rolling back failed deployment");
 
