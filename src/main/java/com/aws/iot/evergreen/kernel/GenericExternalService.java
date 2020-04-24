@@ -126,7 +126,7 @@ public class GenericExternalService extends EvergreenService {
             // the reportStates outside of the callback
             synchronized (this) {
                 logger.atInfo().kv("exitCode", exit).log("Run script exited");
-                if (startingStateGeneration == getStateGeneration() && State.RUNNING.equals(getState())) {
+                if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
                     if (exit == 0) {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                         this.requestStop();
