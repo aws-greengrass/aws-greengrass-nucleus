@@ -8,9 +8,11 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.core.StringContains;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.nio.file.Path;
@@ -31,7 +33,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 @ExtendWith(EGExtension.class)
 public class ConfigurationTest {
-    final Configuration config = new Configuration(new Context());
+    Configuration config = new Configuration(new Context());
+
+    @AfterEach
+    void afterEach() throws IOException {
+        config.context.close();
+    }
 
     //    @Test
     public void T1() {
@@ -104,18 +111,17 @@ public class ConfigurationTest {
 
     @Test
     public void hmm() throws Throwable {
-        Configuration testConfig = new Configuration(new Context());
         try (InputStream inputStream = getClass().getResourceAsStream("test.yaml")) {
             assertNotNull(inputStream);
             //            System.out.println("resource: " + deepToString(inputStream, 200) + "\n\t" + getClass()
             //            .getName());
 //            dump(testConfig,"Before");
-            testConfig.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
+            config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
 //            dump(testConfig,"After");
-            Topics platforms = testConfig.findTopics("platforms");
+            Topics platforms = config.findTopics("platforms");
             //            platforms.forEachTopicSet(n -> System.out.println(n.name));
 
-            Topic testValue = testConfig.lookup("number");
+            Topic testValue = config.lookup("number");
             testValue.validate((nv, ov) -> {
                 int v = toInt(nv);
                 if (v < 0) {
@@ -131,7 +137,7 @@ public class ConfigurationTest {
             testValue.withValue(-10);
             assertEquals(0, testValue.getOnce());
             StringWriter sw = new StringWriter();
-            JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(testConfig.toPOJO(), sw);
+            JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(config.toPOJO(), sw);
             String tc = sw.toString();
             assertThat(tc, StringContains.containsString("\"{platform.invoke} {name}\""));
             assertThat(tc, StringContains.containsString("dependencies:\n    - \"greenlake\""));

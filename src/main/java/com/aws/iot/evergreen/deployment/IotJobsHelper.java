@@ -241,9 +241,13 @@ public class IotJobsHelper {
 
     /**
      * Closes the Mqtt connection.
+     *
+     * @throws ExecutionException   if disconnecting fails
+     * @throws InterruptedException if the thread gets interrupted
      */
-    public void closeConnection() {
+    public void closeConnection() throws ExecutionException, InterruptedException {
         if (connection != null && !connection.isNull()) {
+            connection.disconnect().get();
             connection.close();
         }
     }

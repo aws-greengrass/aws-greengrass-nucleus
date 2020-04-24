@@ -40,10 +40,12 @@ public class MergeTest {
 
     @Test
     public void testSomeMethod() throws Exception {
-        Configuration c = new Configuration(new Context());
-        c.read(Kernel.class.getResource("config.yaml"), false);
-        Configuration b = new Configuration(new Context()).copyFrom(c);
-        assertEquals(c.getRoot(), b.getRoot());
+        try (Context context = new Context()) {
+            Configuration c = new Configuration(context);
+            c.read(Kernel.class.getResource("config.yaml"), false);
+            Configuration b = new Configuration(context).copyFrom(c);
+            assertEquals(c.getRoot(), b.getRoot());
+        }
     }
 
     @Test
@@ -82,7 +84,7 @@ public class MergeTest {
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
                 () -> DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, curTime - 10L));
 
-        assertEquals("Service main in broken state after deployment",  ex.getMessage());
+        assertEquals("Service main in broken state after deployment", ex.getMessage());
     }
 
 }

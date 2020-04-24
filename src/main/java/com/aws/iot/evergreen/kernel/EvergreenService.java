@@ -131,7 +131,7 @@ public class EvergreenService implements InjectionActions {
 
     private synchronized void initDependenciesTopic() {
         externalDependenciesTopic.subscribe((what, node) -> {
-            if (!WhatHappened.changed.equals(what)) {
+            if (!WhatHappened.changed.equals(what) || node.getModtime() <= 1) {
                 return;
             }
             Iterable<String> depList = (Iterable<String>) node.getOnce();
