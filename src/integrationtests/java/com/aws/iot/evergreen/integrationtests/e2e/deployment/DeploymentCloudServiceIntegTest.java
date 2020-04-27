@@ -156,7 +156,7 @@ public class DeploymentCloudServiceIntegTest {
         logger.atInfo("create-deployment").kv("response-status", response.getStatusLine())
                 .kv("response-body", responseJson.toPrettyString()).log();
 
-        String jobId = responseJson.get("jobId").asText();
+        String jobId = responseJson.get("deploymentJob").get("jobId").asText();
         createdIotJobIdList.add(jobId);
         return jobId;
     }
