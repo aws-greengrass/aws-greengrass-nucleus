@@ -1,0 +1,19 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: Cool-Database
+Description: Test recipe for Evergreen packages
+Publisher: Me
+Version: '1.0.0'
+Lifecycle:
+  install:
+    all:
+      skipif: onpath git
+      script: sudo apt-get install git
+    debian:
+      skipif: onpath git
+      script: sudo apt-get install git
+    macos:
+      skipif: onpath git
+      script: brew install git
+Requires:
+  - homebrew
