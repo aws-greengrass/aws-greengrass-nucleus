@@ -129,8 +129,8 @@ public class DeploymentCloudServiceIntegTest {
         String jobId1 = sendCreateDeploymentRequest(thingGroupArn, document);
 
         // wait until deployment complete
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(2),
-                s -> s.ordinal() > JobExecutionStatus.IN_PROGRESS.ordinal());
+        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(3),
+                s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertEquals(State.FINISHED, kernel.getMain().getState());
         assertEquals(State.FINISHED, kernel.locate("CustomerApp").getState());
@@ -156,7 +156,7 @@ public class DeploymentCloudServiceIntegTest {
         logger.atInfo("create-deployment").kv("response-status", response.getStatusLine())
                 .kv("response-body", responseJson.toPrettyString()).log();
 
-        String jobId = responseJson.get("jobId").asText();
+        String jobId = responseJson.get("deploymentJob").get("jobId").asText();
         createdIotJobIdList.add(jobId);
         return jobId;
     }
