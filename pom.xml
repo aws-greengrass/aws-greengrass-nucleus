@@ -86,6 +86,21 @@
             <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
+            <groupId>com.amazonaws.services</groupId>
+            <artifactId>greengrasspackagemanagement</artifactId>
+            <version>1.11.1-SNAPSHOT</version>
+        </dependency>
+        <!-- TODO: This is temporary, adding because there is some confusion about which version
+        of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
+        service SDK is updated
+        -->
+        <dependency>
+            <artifactId>aws-java-sdk-core</artifactId>
+            <groupId>com.amazonaws</groupId>
+            <optional>false</optional>
+            <version>1.11.766</version>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.10</version>
