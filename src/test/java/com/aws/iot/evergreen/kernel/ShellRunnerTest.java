@@ -47,6 +47,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
             try (Exec exec = shellRunner.setup("note", "echo hi", evergreenService)) {
                 boolean ok = shellRunner.successful(exec, "note", null, evergreenService);
                 assertTrue(ok);
+                assertFalse(exec.isRunning());
             }
         }
     }
@@ -68,6 +69,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
                 assertTrue(ok);
                 assertTrue(latch.await(2, TimeUnit.SECONDS));
                 assertEquals(0, exitCode.get());
+                assertFalse(exec.isRunning());
             }
         }
     }
@@ -80,6 +82,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
             try (Exec exec = shellRunner.setup("note", "there_is_no_such_program", evergreenService)) {
                 boolean ok = shellRunner.successful(exec, "note", null, evergreenService);
                 assertFalse(ok);
+                assertFalse(exec.isRunning());
             }
         }
     }
@@ -101,6 +104,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
                 assertTrue(ok); // when runs in background, always return true
                 assertTrue(latch.await(2, TimeUnit.SECONDS));
                 assertEquals(127, exitCode.get());
+                assertFalse(exec.isRunning());
             }
         }
     }
