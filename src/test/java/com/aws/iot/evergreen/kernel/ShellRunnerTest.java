@@ -39,7 +39,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
     }
 
     @Test
-    void testForeground() throws Exception {
+    void GIVEN_shell_command_WHEN_run_in_foreground_THEN_succeeds() throws Exception {
         try (Context context = new Context()) {
             context.put(Kernel.class, kernel);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
@@ -51,7 +51,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
     }
 
     @Test
-    void testBackground() throws Exception {
+    void GIVEN_shell_command_WHEN_run_in_background_THEN_succeeds() throws Exception {
         final AtomicInteger exitCode = new AtomicInteger();
         final CountDownLatch latch = new CountDownLatch(1);
         IntConsumer background = (value) -> {
@@ -62,10 +62,10 @@ class ShellRunnerTest extends EGServiceTestUtil {
         try (Context context = new Context()) {
             context.put(Kernel.class, kernel);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
-            try (Exec exec = shellRunner.setup("note", "sleep 5", evergreenService)) {
+            try (Exec exec = shellRunner.setup("note", "sleep 0", evergreenService)) {
                 boolean ok = shellRunner.successful(exec, "note", background, evergreenService);
                 assertTrue(ok);
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                assertTrue(latch.await(2, TimeUnit.SECONDS));
                 assertEquals(0, exitCode.get());
             }
         }
