@@ -8,6 +8,8 @@ package com.aws.iot.evergreen.integrationtests.e2e.util;
 import com.aws.iot.evergreen.util.Exec;
 import lombok.AllArgsConstructor;
 
+import java.io.IOException;
+
 @AllArgsConstructor
 public class NetworkUtilsLinux extends NetworkUtils {
     private static final String enableOption = "--insert";
@@ -16,16 +18,17 @@ public class NetworkUtilsLinux extends NetworkUtils {
             "sudo iptables %s INPUT -p tcp --sport %s -j REJECT";
 
     @Override
-    public void disconnectMqtt() throws InterruptedException {
+    public void disconnectMqtt() throws InterruptedException, IOException {
         modifyPolicy(enableOption, "connection-loss", MQTT_PORTS);
     }
 
     @Override
-    public void recoverMqtt() throws InterruptedException {
+    public void recoverMqtt() throws InterruptedException, IOException {
         modifyPolicy(disableOption, "connection-recover", MQTT_PORTS);
     }
 
-    private void modifyPolicy(String option, String eventName, String... ports) throws InterruptedException {
+    private void modifyPolicy(String option, String eventName, String... ports) throws InterruptedException,
+            IOException {
         for (String port : ports) {
             logger.atWarn(eventName).kv("port", port).log(Exec.sh(String.format(commandFormat, option, port, option,
                     port)));

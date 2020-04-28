@@ -129,27 +129,27 @@ public final class Exec implements Closeable {
         return this;
     }
 
-    public static String cmd(String... command) throws InterruptedException {
+    public static String cmd(String... command) throws InterruptedException, IOException {
         return new Exec().withExec(command).execAndGetStringOutput();
     }
 
-    public static String sh(String command) throws InterruptedException {
+    public static String sh(String command) throws InterruptedException, IOException {
         return sh((File) null, command);
     }
 
-    public static String sh(File dir, String command) throws InterruptedException {
+    public static String sh(File dir, String command) throws InterruptedException, IOException {
         return new Exec().cd(dir).withShell(command).execAndGetStringOutput();
     }
 
-    public static String sh(Path dir, String command) throws InterruptedException {
+    public static String sh(Path dir, String command) throws InterruptedException, IOException {
         return sh(dir.toFile(), command);
     }
 
-    public static boolean successful(boolean ignoreStderr, String command) throws InterruptedException {
+    public static boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
         return new Exec().withShell(command).successful(ignoreStderr);
     }
 
-    public boolean successful(boolean ignoreStderr) throws InterruptedException {
+    public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
         exec();
         return (ignoreStderr || stderrc.getNlines() == 0) && process.exitValue() == 0;
     }
@@ -299,42 +299,33 @@ public final class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.AvoidRethrowingException")
-    private void exec() throws InterruptedException {
-        try {
-            process = Runtime.getRuntime().exec(cmds, environment, dir);
-            stderrc = new Copier(process.getErrorStream(), stderr);
-            stdoutc = new Copier(process.getInputStream(), stdout);
-            stderrc.start();
-            stdoutc.start();
-            if (whenDone == null) {
-                try {
-                    if (timeout < 0) {
-                        process.waitFor();
-                    } else {
-                        if (!process.waitFor(timeout, timeunit)) {
-                            (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
-                            process.destroyForcibly();
-                        }
-                    }
-                } catch (InterruptedException ie) {
-                    // We just got interrupted by something like the cancel(true) in setBackingTask
-                    // Give the process a touch more time to exit cleanly
-                    if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
+    private void exec() throws InterruptedException, IOException {
+        process = Runtime.getRuntime().exec(cmds, environment, dir);
+        stderrc = new Copier(process.getErrorStream(), stderr);
+        stdoutc = new Copier(process.getInputStream(), stdout);
+        stderrc.start();
+        stdoutc.start();
+        if (whenDone == null) {
+            try {
+                if (timeout < 0) {
+                    process.waitFor();
+                } else {
+                    if (!process.waitFor(timeout, timeunit)) {
+                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
                         process.destroyForcibly();
                     }
-                    throw ie;
                 }
-                stderrc.join(5000);
-                stdoutc.join(5000);
+            } catch (InterruptedException ie) {
+                // We just got interrupted by something like the cancel(true) in setBackingTask
+                // Give the process a touch more time to exit cleanly
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
+                    process.destroyForcibly();
+                }
+                throw ie;
             }
-        } catch (InterruptedException ex) {
-            // The thread was interrupted while we were executing. We rethrow the exception
-            // so that the caller knows to be interrupted and stop processing so that the
-            // thread can shutdown gracefully
-            throw ex;
-        } catch (IOException ex) {
-            logger.atError().kv("command", cmds).kv("pwd", dir).log("Error while running process", ex);
+            stderrc.join(5000);
+            stdoutc.join(5000);
         }
     }
 
@@ -343,15 +334,16 @@ public final class Exec implements Closeable {
      *
      * @return String of output.
      * @throws InterruptedException if thread is interrupted while executing
+     * @throws IOException if execution of the process fails to start
      */
-    public String execAndGetStringOutput() throws InterruptedException {
+    public String execAndGetStringOutput() throws InterruptedException, IOException {
         StringBuilder sb = new StringBuilder();
         Consumer<CharSequence> f = sb::append;
         withOut(f).withErr(f).exec();
         return sb.toString().trim();
     }
 
-    public void background(IntConsumer cb) throws InterruptedException {
+    public void background(IntConsumer cb) throws InterruptedException, IOException {
         whenDone = cb;
         exec();
     }
