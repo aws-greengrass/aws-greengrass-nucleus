@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
 class PackageManagerTest {
 
     private static final Path RECIPE_RESOURCE_PATH =
-            Paths.get(PackageManagerTest.class.getResource("recipe").getPath());
+            Paths.get(PackageManagerTest.class.getResource("recipes").getPath());
 
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final String ACTIVE_VERSION_STR = "2.0.0";
