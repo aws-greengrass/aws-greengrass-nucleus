@@ -40,7 +40,7 @@ public class KernelConfigResolver {
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
 
     @Inject
-    private PackageManager packageManager;
+    private PackageStore packageStore;
     @Inject
     private Kernel kernel;
 
@@ -75,7 +75,7 @@ public class KernelConfigResolver {
     private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document)
             throws PackageLoadingException {
 
-        PackageRecipe packageRecipe = packageManager.getPackageRecipe(packageIdentifier);
+        PackageRecipe packageRecipe = packageStore.getPackageRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();

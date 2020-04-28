@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.aws.iot.evergreen.packagemanager.TestHelper.COOL_DB_PACKAGE_NAME;
+import static com.aws.iot.evergreen.packagemanager.TestHelper.LOG_PACKAGE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
@@ -52,7 +54,6 @@ class PackageStoreTest {
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.0.0", Semver.SemverType.NPM);
     private static final PackageIdentifier MONITORING_SERVICE_PKG_ID =
             new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
-
 
     private static final Path RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipes").getPath());
 
@@ -256,8 +257,8 @@ class PackageStoreTest {
 
     private static Map<String, String> getExpectedDependencies(Semver version) {
         return new HashMap<String, String>() {{
-            put("Log", version.toString());
-            put("Cool-Database", version.toString());
+            put(LOG_PACKAGE_NAME, version.toString());
+            put(COOL_DB_PACKAGE_NAME, version.toString());
         }};
     }
 }

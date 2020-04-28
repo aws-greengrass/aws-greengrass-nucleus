@@ -33,6 +33,7 @@ import javax.inject.Named;
 
 public class PackageStore {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
+
     private static final String RECIPE_DIRECTORY = "recipes";
     private static final String ARTIFACT_DIRECTORY = "artifacts";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";

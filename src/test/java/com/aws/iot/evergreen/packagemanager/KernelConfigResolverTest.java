@@ -40,7 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
-public class KernelConfigResolverTest {
+class KernelConfigResolverTest {
     private static final String LIFECYCLE_CONFIG_ROOT_KEY = "lifecycle";
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";
@@ -55,7 +55,7 @@ public class KernelConfigResolverTest {
     @Mock
     private Kernel kernel;
     @Mock
-    private PackageManager packageManager;
+    private PackageStore packageStore;
     @Mock
     private EvergreenService mainService;
     @Mock
@@ -66,7 +66,7 @@ public class KernelConfigResolverTest {
     private Topic alreadyRunningServiceParameterConfig;
 
     @Test
-    public void GIVEN_deployment_for_package_WHEN_config_resolution_requested_THEN_add_service_and_dependency_service()
+    void GIVEN_deployment_for_package_WHEN_config_resolution_requested_THEN_add_service_and_dependency_service()
             throws Exception {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
@@ -91,8 +91,8 @@ public class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(
                         Arrays.asList(rootPackageDeploymentConfig, dependencyPackageDeploymentConfig)).build();
 
-        when(packageManager.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
-        when(packageManager.getPackageRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackageRecipe);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.getPackageRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackageRecipe);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
@@ -100,7 +100,7 @@ public class KernelConfigResolverTest {
         when(alreadyRunningService.getName()).thenReturn("IpcService");
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageManager, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -122,7 +122,7 @@ public class KernelConfigResolverTest {
     }
 
     @Test
-    public void GIVEN_deployment_for_existing_package_WHEN_config_resolution_requested_THEN_update_service()
+    void GIVEN_deployment_for_existing_package_WHEN_config_resolution_requested_THEN_update_service()
             throws Exception {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
@@ -137,7 +137,7 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageManager.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
@@ -145,7 +145,7 @@ public class KernelConfigResolverTest {
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageManager, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -161,7 +161,7 @@ public class KernelConfigResolverTest {
     }
 
     @Test
-    public void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_parameters_should_be_interpolated()
+    void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_parameters_should_be_interpolated()
             throws Exception {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
@@ -178,14 +178,14 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageManager.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageManager, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -210,7 +210,7 @@ public class KernelConfigResolverTest {
     }
 
     @Test
-    public void GIVEN_deployment_with_params_not_set_WHEN_previous_deployment_had_params_THEN_use_params_from_previous_deployment()
+    void GIVEN_deployment_with_params_not_set_WHEN_previous_deployment_had_params_THEN_use_params_from_previous_deployment()
             throws Exception {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
@@ -226,7 +226,7 @@ public class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
-        when(packageManager.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
@@ -240,7 +240,7 @@ public class KernelConfigResolverTest {
                 .thenReturn(null);
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageManager, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
         Map<Object, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
