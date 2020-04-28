@@ -1,5 +1,5 @@
 /*
- * Copyright Amazon.com Inc. or its affiliates.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -27,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
+import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
@@ -35,7 +36,9 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -54,18 +57,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
-@Tag("E2E")
+@Tag("E2E-EXCLUSIVE")
 public class MqttReconnectTest {
     @TempDir
-    static Path tempRootDir;
+    Path tempRootDir;
 
-    private static Kernel kernel;
-    private static Utils.ThingInfo thing;
-    private static String thingGroupArn;
-    private static final String dnsCacheTtlPropertyKey = "networkaddress.cache.ttl";
+    private Kernel kernel;
+    private Utils.ThingInfo thing;
+    private CreateThingGroupResponse thingGroupResp;
+    private final Set<String> createdIotJobs = new HashSet<>();
+    private final static String dnsCacheTtlPropertyKey = "networkaddress.cache.ttl";
     private String dnsCacheTtlValue;
 
-    private static final Duration DNS_CACHE_TTL = Duration.ofSeconds(10);
+    private final Duration DNS_CACHE_TTL = Duration.ofSeconds(10);
 
     @BeforeEach
     void beforeEach() throws Exception {
@@ -76,16 +80,18 @@ public class MqttReconnectTest {
         dnsCacheTtlValue = java.security.Security.getProperty(dnsCacheTtlPropertyKey);
         java.security.Security.setProperty(dnsCacheTtlPropertyKey, Long.toString(DNS_CACHE_TTL.getSeconds()));
 
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-
-        kernel = new Kernel().parseArgs("-i", MqttReconnectTest.class.getResource("blank_config.yaml").toString());
+        kernel = new Kernel()
+                .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
+                        .toAbsolutePath().toString());
         thing = Utils.createThing();
         Utils.updateKernelConfigWithIotConfiguration(kernel, thing);
-        thingGroupArn = Utils.createThingGroupAndAddThing(thing);
+        thingGroupResp = Utils.createThingGroupAndAddThing(thing);
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+
+        kernel.launch();
     }
 
     @AfterEach
@@ -97,17 +103,16 @@ public class MqttReconnectTest {
             kernel.shutdown();
         }
         // Cleanup all IoT thing resources we created
-        Utils.cleanAllCreatedThings();
-        Utils.cleanAllCreatedJobs();
-        Utils.cleanAllCreatedThingGroups();
+        Utils.cleanThing(thing);
+        createdIotJobs.forEach(jobId -> Utils.cleanJob(jobId));
+        createdIotJobs.clear();
+        Utils.cleanThingGroup(thingGroupResp.thingGroupName());
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
-            ExtensionContext context) throws Exception {
+    void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
-
         String jobId = UUID.randomUUID().toString();
 
         CountDownLatch jobInProgress = new CountDownLatch(1);
@@ -115,8 +120,8 @@ public class MqttReconnectTest {
         CountDownLatch connectionInterrupted = new CountDownLatch(1);
 
         // Subscribe to persisted deployment status
-        Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                DEPLOYMENT_SERVICE_TOPICS);
+        Topics deploymentServiceTopics = kernel.getConfig()
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
         Topics processedDeployments = deploymentServiceTopics.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
             if (!(newValue instanceof Topic)) {
@@ -134,28 +139,26 @@ public class MqttReconnectTest {
             }
         });
 
-        kernel.launch();
-
         // Create Job Doc
         String document = new ObjectMapper()
                 .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
                         .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays.asList(
-                                new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)
-                        )).build());
+                        .deploymentPackageConfigurationList(Arrays
+                                .asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)))
+                        .build());
 
         // Create job targeting our DUT
-        String[] targets = {thingGroupArn};
+        String[] targets = {thingGroupResp.thingGroupArn()};
         Utils.createJobWithId(document, jobId, targets);
+        createdIotJobs.add(jobId);
 
         assertTrue(jobInProgress.await(5, TimeUnit.MINUTES));
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();
-            if (UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG.equals(message)
-                    && m.getCause().getCause() instanceof MqttException
-                    || UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG.equals(message)
-                    && m.getCause().getCause() instanceof TimeoutException) {
+            if (UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG.equals(message) && m.getCause()
+                    .getCause() instanceof MqttException || UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG
+                    .equals(message) && m.getCause().getCause() instanceof TimeoutException) {
                 connectionInterrupted.countDown();
             }
         };
@@ -174,12 +177,12 @@ public class MqttReconnectTest {
         // Wait for DNS Cache to expire
         Thread.sleep(DNS_CACHE_TTL.plus(Duration.ofSeconds(1)).toMillis());
 
-        // Wait up to 5 minutes for the IoT job to be updated
-        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(1));
+        // Wait for the IoT job to be updated
+        Utils.waitForJobToComplete(jobId, Duration.ofMinutes(2));
 
         // Make sure that IoT Job was marked as successful
-        assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
-                DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thing.thingName).build())
-                .execution().status());
+        assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient
+                .describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thing.thingName)
+                        .build()).execution().status());
     }
 }

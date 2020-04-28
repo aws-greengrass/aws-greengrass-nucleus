@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
@@ -30,8 +31,10 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
@@ -44,25 +47,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
-public class MultipleDeploymentsTest {
+class MultipleDeploymentsTest {
     @TempDir
-    static Path tempRootDir;
+    Path tempRootDir;
 
-    private static Kernel kernel;
-    private static Utils.ThingInfo thing;
-    private static String thingGroupArn;
+    private Kernel kernel;
+    private Utils.ThingInfo thing;
+    private CreateThingGroupResponse thingGroupResp;
+    private final Set<String> createdIotJobs = new HashSet<>();
+
     private static final Logger logger = LogManager.getLogger(MultipleDeploymentsTest.class);
 
     @BeforeEach
     void beforeEach() throws IOException {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-
-        kernel = new Kernel().parseArgs("-i", MultipleDeploymentsTest.class.getResource("blank_config.yaml").toString());
+        kernel = new Kernel().parseArgs("-i", MultipleDeploymentsTest.class.getResource("blank_config.yaml")
+                .toString(), "-r", tempRootDir.toAbsolutePath().toString());
         thing = Utils.createThing();
         Utils.updateKernelConfigWithIotConfiguration(kernel, thing);
-        thingGroupArn = Utils.createThingGroupAndAddThing(thing);
+        thingGroupResp = Utils.createThingGroupAndAddThing(thing);
 
-        Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
+        Path localStoreContentPath = Paths
+                .get(MultipleDeploymentsTest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }
@@ -74,9 +79,10 @@ public class MultipleDeploymentsTest {
         }
 
         // Cleanup all IoT thing resources we created
-        Utils.cleanAllCreatedThings();
-        Utils.cleanAllCreatedJobs();
-        Utils.cleanAllCreatedThingGroups();
+        Utils.cleanThing(thing);
+        createdIotJobs.forEach(jobId -> Utils.cleanJob(jobId));
+        createdIotJobs.clear();
+        Utils.cleanThingGroup(thingGroupResp.thingGroupName());
     }
 
     // In this test, we bring the device online and connected to IoT Core, and then create 3 deployments in a row.
@@ -84,34 +90,32 @@ public class MultipleDeploymentsTest {
     // deployment service can process the deployments one by one based on the job order from IoT jobs.
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_online_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order()
-            throws Exception {
-        List<DeploymentJobHelper> helpers = Arrays.asList(
-                new DeploymentJobHelper("GreenSignal"),
-                new DeploymentJobHelper("SomeService"),
-                new DeploymentJobHelper("CustomerApp"));
+    void GIVEN_online_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order() throws Exception {
+        List<DeploymentJobHelper> helpers = Arrays
+                .asList(new DeploymentJobHelper("GreenSignal"), new DeploymentJobHelper("SomeService"), new DeploymentJobHelper("CustomerApp"));
 
         kernel.launch();
 
         subscribeToLocalDeploymentStatus(kernel, helpers);
 
         // Create multiple jobs
-        String[] targets = {thingGroupArn};
+        String[] targets = {thingGroupResp.thingGroupArn()};
         for (DeploymentJobHelper helper : helpers) {
             Utils.createJobWithId(helper.createIoTJobDocument(), helper.jobId, targets);
-            Utils.waitForJobExecutionStatusToSatisfy(helper.jobId, thing.thingName, Duration.ofMinutes(1),
-                    s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
+            createdIotJobs.add(helper.jobId);
+            Utils.waitForJobExecutionStatusToSatisfy(helper.jobId, thing.thingName, Duration.ofMinutes(1), s -> s
+                    .ordinal() >= JobExecutionStatus.QUEUED.ordinal());
             logger.atWarn().kv("jobId", helper.jobId).log("Created IoT Job");
         }
 
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
-            Utils.waitForJobToComplete(helper.jobId, Duration.ofMinutes(1));
+            Utils.waitForJobToComplete(helper.jobId, Duration.ofMinutes(5));
 
-            assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
-                    DescribeJobExecutionRequest.builder().jobId(helper.jobId).thingName(thing.thingName).build())
-                    .execution().status());
+            assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient
+                    .describeJobExecution(DescribeJobExecutionRequest.builder().jobId(helper.jobId)
+                            .thingName(thing.thingName).build()).execution().status());
         }
     }
 
@@ -121,19 +125,17 @@ public class MultipleDeploymentsTest {
     // notifications in this scenario.
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_offline_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order_eventually()
-            throws Exception {
-        List<DeploymentJobHelper> helpers = Arrays.asList(
-                new DeploymentJobHelper("GreenSignal"),
-                new DeploymentJobHelper("SomeService"),
-                new DeploymentJobHelper("CustomerApp"));
+    void GIVEN_offline_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order_eventually() throws Exception {
+        List<DeploymentJobHelper> helpers = Arrays
+                .asList(new DeploymentJobHelper("GreenSignal"), new DeploymentJobHelper("SomeService"), new DeploymentJobHelper("CustomerApp"));
 
         // Create multiple jobs
-        String[] targets = {thingGroupArn};
+        String[] targets = {thingGroupResp.thingGroupArn()};
         for (DeploymentJobHelper helper : helpers) {
             Utils.createJobWithId(helper.createIoTJobDocument(), helper.jobId, targets);
-            Utils.waitForJobExecutionStatusToSatisfy(helper.jobId, thing.thingName, Duration.ofMinutes(1),
-                    s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
+            createdIotJobs.add(helper.jobId);
+            Utils.waitForJobExecutionStatusToSatisfy(helper.jobId, thing.thingName, Duration.ofMinutes(1), s -> s
+                    .ordinal() >= JobExecutionStatus.QUEUED.ordinal());
             logger.atWarn().kv("jobId", helper.jobId).log("Created IoT Job");
         }
 
@@ -145,16 +147,17 @@ public class MultipleDeploymentsTest {
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
-            Utils.waitForJobToComplete(helper.jobId, Duration.ofMinutes(1));
+            Utils.waitForJobToComplete(helper.jobId, Duration.ofMinutes(5));
 
-            assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient.describeJobExecution(
-                    DescribeJobExecutionRequest.builder().jobId(helper.jobId).thingName(thing.thingName).build())
-                    .execution().status());
+            assertEquals(JobExecutionStatus.SUCCEEDED, Utils.iotClient
+                    .describeJobExecution(DescribeJobExecutionRequest.builder().jobId(helper.jobId)
+                            .thingName(thing.thingName).build()).execution().status());
         }
     }
 
     private void subscribeToLocalDeploymentStatus(Kernel kernel, List<DeploymentJobHelper> helpers) {
-        Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
+        Topics deploymentServiceTopics = kernel.getConfig()
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
         Topics processedDeployments = deploymentServiceTopics.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
             if (!(newValue instanceof Topic)) {
@@ -166,7 +169,7 @@ public class MultipleDeploymentsTest {
 
             for (int i = 0; i < helpers.size(); i++) {
                 if (i > 0 && helpers.get(i - 1).jobCompleted.getCount() > 0) {
-                    logger.atWarn().kv("jobId", helpers.get(i-1).jobId).log("Waiting for deployment job to complete");
+                    logger.atWarn().kv("jobId", helpers.get(i - 1).jobId).log("Waiting for deployment job to complete");
                     break;
                 }
                 if (helpers.get(i).jobId.equals(jobId) && "SUCCEEDED".equals(status)) {
@@ -177,5 +180,4 @@ public class MultipleDeploymentsTest {
             }
         });
     }
-
 }

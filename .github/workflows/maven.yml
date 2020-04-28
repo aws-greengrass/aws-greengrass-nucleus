@@ -83,13 +83,21 @@ jobs:
           aws-region: us-west-2
       - name: Build Tests
         run: mvn -ntp generate-test-sources generate-test-resources test-compile -DskipTests
-      - name: E2E Test
-        run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine=""
+      - name: Run E2E Tests in parallel
+        run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine="" -DforkCount=3C -DreuseForks=false
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
           name: Failed E2E Report
+          path: target/surefire-reports
+      - name: Run intrusive E2E Tests serially
+        run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E-EXCLUSIVE" -DexcludedGroups="" -Dsurefire.argLine=""
+      - name: Upload Failed Test Report
+        uses: actions/upload-artifact@v1.0.0
+        if: failure()
+        with:
+          name: Failed E2E-EXCLUSIVE Report
           path: target/surefire-reports
   publish:
     needs: build

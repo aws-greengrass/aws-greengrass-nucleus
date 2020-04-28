@@ -21,7 +21,6 @@ import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownload
 import com.aws.iot.evergreen.util.Coerce;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
-import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import java.net.URI;
@@ -36,22 +35,21 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-@NoArgsConstructor // for dependency injection
 public class PackageManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageManager.class);
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
     private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
 
-    private GreengrassRepositoryDownloader greengrassArtifactDownloader;
+    private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
 
-    private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
+    private final GreengrassPackageServiceHelper greengrassPackageServiceHelper;
 
-    private ExecutorService executorService;
+    private final ExecutorService executorService;
 
-    private PackageStore packageStore;
+    private final PackageStore packageStore;
 
-    private Kernel kernel;
+    private final Kernel kernel;
 
     /**
      * PackageManager constructor.

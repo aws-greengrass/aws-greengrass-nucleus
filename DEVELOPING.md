@@ -75,6 +75,17 @@ To ensure getting exact same result as CI, refer to the E2E test setup in [CI wo
 Additionally, `mvn verify` does not run the E2E tests by default since they take longer and require additional 
 resources.
 
+#### Run E2E tests in parallel
+To run E2E tests in parallel, append `-DforkCount=1C -DreuseForks=false` to the test command above. This enables
+Maven to run test classes in parallel with the number of forks up to the number of available CPU cores.
+
+Currently, tests cases within the same class should not run in parallel.
+This is due to the current limitation that global resources are used in logging features.
+
+#### Add a new E2E test
+For new tests which are non-intrusive to test environment, annotate with `@Tag("E2E")`.
+For those changing the underlying test environment, e.g. MQTT connection test, annotate with `@Tag("E2E-EXCLUSIVE")`.
+
 ## PR/CR
 Since development is on GitHub and not GitFarm we can't use `cr` to create a code review. Instead you must
 push to a remote branch. Pushing to a remote branch will give you a URL to open a pull request against `master`.
