@@ -19,8 +19,9 @@ public class EGExtension implements BeforeEachCallback, AfterEachCallback, Befor
 
     private static final ExceptionLogProtector logProt = new ExceptionLogProtector();
     private static final SpawnedProcessProtector processProt = new SpawnedProcessProtector();
+    private static final ThreadProtector threadProt = new ThreadProtector();
 
-    private static final Object[] implementors = {logProt, processProt};
+    private static final Object[] implementors = {logProt, processProt, threadProt};
 
 
     @Override

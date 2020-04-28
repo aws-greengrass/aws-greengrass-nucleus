@@ -7,6 +7,8 @@ import com.aws.iot.evergreen.config.Topic;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -164,6 +166,16 @@ public final class Coerce {
         return seperators.split(body);
     }
 
+    /**
+     * Convert object to a list of strings.
+     *
+     * @param o object to convert.
+     * @return resulting list.
+     */
+    public static List<String> toStringList(Object o) {
+        return Arrays.asList(toStringArray(o));
+    }
+
     public static <T extends Enum<?>> T toEnum(Class<T> cl, Object o) {
         return toEnum(cl, o, null);
     }
@@ -272,7 +284,7 @@ public final class Coerce {
         }
         if (o == null) {
             out.append("null");
-        } else if (o instanceof Boolean || o instanceof Number) {
+        } else if (o instanceof Boolean || o instanceof Number || o instanceof List) {
             out.append(o.toString());
         } else {
             appendQuotedString(o, out);
@@ -317,6 +329,9 @@ public final class Coerce {
         }
         if ("null".equals(s)) {
             return null;
+        }
+        if (unwrap.matcher(s).matches()) {
+            return toStringList(s);
         }
         Object v = specials.get(s);
         if (v != null) {

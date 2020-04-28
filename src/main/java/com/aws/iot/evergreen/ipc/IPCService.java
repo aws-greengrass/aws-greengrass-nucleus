@@ -112,11 +112,12 @@ public class IPCService extends EvergreenService {
      * Shutdown the IPC server.
      */
     @Override
-    public void shutdown() {
+    public void shutdown() throws InterruptedException {
         logger.atInfo().setEventType("ipc-shutdown").log();
-        //TODO: transition to errored state if shutdown failed ?
         workerGroup.shutdownGracefully();
         bossGroup.shutdownGracefully();
+        workerGroup.terminationFuture().sync();
+        bossGroup.terminationFuture().sync();
     }
 
     /**

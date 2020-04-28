@@ -17,8 +17,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,15 +40,17 @@ public class MergeTest {
 
     @Test
     public void testSomeMethod() throws Exception {
-        Configuration c = new Configuration(new Context());
-        c.read(Kernel.class.getResource("config.yaml"), false);
-        Configuration b = new Configuration(new Context()).copyFrom(c);
-        assertEquals(c.getRoot(), b.getRoot());
+        try (Context context = new Context()) {
+            Configuration c = new Configuration(context);
+            c.read(Kernel.class.getResource("config.yaml"), false);
+            Configuration b = new Configuration(context).copyFrom(c);
+            assertEquals(c.getRoot(), b.getRoot());
+        }
     }
 
     @Test
     public void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()
-            throws InterruptedException {
+            throws Exception {
         when(mockMainService.getState()).thenReturn(State.RUNNING);
         when(mockServiceA.getState()).thenReturn(State.RUNNING);
         when(mockServiceB.getState()).thenReturn(State.RUNNING);
@@ -67,8 +67,7 @@ public class MergeTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_one_service_is_broken_THEN_waitForServicesToStart_completes_Exceptionally()
-            throws InterruptedException {
+    public void GIVEN_deployment_WHEN_one_service_is_broken_THEN_waitForServicesToStart_completes_Exceptionally() {
         long curTime = System.currentTimeMillis();
         when(mockMainService.getState()).thenReturn(State.BROKEN);
         when(mockMainService.getStateModTime()).thenReturn(curTime);
@@ -80,15 +79,12 @@ public class MergeTest {
         when(mockServiceA.reachedDesiredState()).thenReturn(true);
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
         CompletableFuture<?> future = new CompletableFuture<>();
-        Set<EvergreenService> evergreenServices =
-                new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, curTime - 10L);
+        Set<EvergreenService> evergreenServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
 
-        ExecutionException t =
-                assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
-        ServiceUpdateException ex = (ServiceUpdateException) t.getCause();
+        ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
+                () -> DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, curTime - 10L));
 
-        assertEquals("Service main in broken state after deployment",  ex.getMessage());
+        assertEquals("Service main in broken state after deployment", ex.getMessage());
     }
 
 }

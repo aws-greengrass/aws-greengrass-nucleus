@@ -85,11 +85,36 @@ public class EvergreenService implements InjectionActions {
 
         initDependenciesTopic();
         periodicityInformation = Periodicity.of(this);
+    }
+
+    @Override
+    public void postInject() {
+        // !IMPORTANT!
+        // Only start the lifecycle thread here and NOT in the constructor.
+        // Java construction order means that there would be a race between starting the lifecycle
+        // thread and the subclasses instance fields being set. This leads to very difficult to debug
+        // problems. Since postInject() only runs after construction, it is safe to start the lifecycle
+        // thread here.
+        // See Java Language Spec for more https://docs.oracle.com/javase/specs/jls/se8/html/jls-12.html#jls-12.5
         lifecycle.initLifecycleThread();
     }
 
     public State getState() {
         return (State) state.getOnce();
+    }
+
+    /**
+     * Returns true if either the current or the very last reported state (if any)
+     * is equal to the provided state.
+     *
+     * @param state state to check against
+     */
+    public boolean currentOrReportedStateIs(State state) {
+        if (state.equals(getState())) {
+            return true;
+        }
+        Optional<State> reportedState = lifecycle.lastReportedState();
+        return reportedState.isPresent() && reportedState.get().equals(state);
     }
 
     public long getStateModTime() {
@@ -120,7 +145,7 @@ public class EvergreenService implements InjectionActions {
 
     private synchronized void initDependenciesTopic() {
         externalDependenciesTopic.subscribe((what, node) -> {
-            if (!WhatHappened.changed.equals(what)) {
+            if (!WhatHappened.changed.equals(what) || node.getModtime() <= 1) {
                 return;
             }
             Iterable<String> depList = (Iterable<String>) node.getOnce();

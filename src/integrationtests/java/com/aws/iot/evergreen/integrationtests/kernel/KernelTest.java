@@ -9,8 +9,6 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -37,9 +35,7 @@ class KernelTest extends BaseITCase {
                     new ExpectedStdoutPattern(0, "ANSWER=42", "global setenv"),
                     new ExpectedStdoutPattern(0, "EVERGREEN_UID=", "generated unique token"),
                     new ExpectedStdoutPattern(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
-                    new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'"),
-                    new ExpectedStdoutPattern(2, "JUSTME=fancy a spot of coffee?", "merge yaml"),
-                    new ExpectedStdoutPattern(2, "I'm Frodo", "merge adding dependency")};
+                    new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'")};
 
     private static final Map<Integer, CountDownLatch> COUNT_DOWN_LATCHES = new HashMap<>();
     private Kernel kernel;
@@ -93,12 +89,7 @@ class KernelTest extends BaseITCase {
                 .withValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
         testGroup(1);
 
-        System.out.println("Group 1 passed, now merging delta.yaml");
-        kernel.mergeInNewConfig("ID", System.currentTimeMillis(),
-                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
-                .get(60, TimeUnit.SECONDS);
-        testGroup(2);
-        System.out.println("Group 2 passed. We made it.");
+        System.out.println("Group 1 passed");
 
         // clean up
         Log4jLogEventBuilder.removeGlobalListener(logListener);

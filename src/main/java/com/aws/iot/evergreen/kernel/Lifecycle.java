@@ -604,6 +604,10 @@ public class Lifecycle {
      * Start Service.
      */
     final void requestStart() {
+        // Ignore start requests if the service is closed
+        if (isClosed.get()) {
+            return;
+        }
         synchronized (desiredStateList) {
             if (desiredStateList.isEmpty()) {
                 setDesiredState(State.RUNNING);
@@ -624,6 +628,10 @@ public class Lifecycle {
      * ReInstall Service.
      */
     final void requestReinstall() {
+        // Ignore reinstall requests if the service is closed
+        if (isClosed.get()) {
+            return;
+        }
         synchronized (desiredStateList) {
             setDesiredState(State.NEW, State.RUNNING);
         }
@@ -633,6 +641,10 @@ public class Lifecycle {
      * Restart Service.
      */
     final void requestRestart() {
+        // Ignore restart requests if the service is closed
+        if (isClosed.get()) {
+            return;
+        }
         synchronized (desiredStateList) {
             // don't override in the case of re-install
             int index = desiredStateList.indexOf(State.NEW);
@@ -659,5 +671,10 @@ public class Lifecycle {
             desiredStateList.subList(index + 1, desiredStateList.size()).clear();
             desiredStateList.add(State.FINISHED);
         }
+    }
+
+    Optional<State> lastReportedState() {
+        return stateEventQueue.stream().filter(s -> s instanceof State).map(s -> (State) s)
+                .reduce((first, second) -> second);
     }
 }

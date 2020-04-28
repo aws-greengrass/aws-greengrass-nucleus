@@ -64,7 +64,7 @@ class KernelTest {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdown();
+        kernel.shutdown(5);
     }
 
     @Test
@@ -76,14 +76,17 @@ class KernelTest {
         EvergreenService mockMain =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
         EvergreenService service1 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        service1.postInject();
         EvergreenService service2 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        service2.postInject();
 
         List<EvergreenService> od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
@@ -125,17 +128,19 @@ class KernelTest {
     @Test
     void GIVEN_kernel_and_services_WHEN_orderedDependencies_with_a_cycle_THEN_no_dependencies_returned()
             throws InputValidationException {
-        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         EvergreenService mockMain =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
         EvergreenService service1 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        service1.postInject();
 
         // Introduce a dependency cycle
         service1.addOrUpdateDependency(mockMain, State.RUNNING, false);
@@ -151,16 +156,18 @@ class KernelTest {
             throws Exception {
         kernel.parseArgs();
 
-        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         EvergreenService mockMain =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
         EvergreenService service1 =
                 new EvergreenService(kernel.getConfig()
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        service1.postInject();
 
         // Add dependency on service1 to main
         mockMain.addOrUpdateDependency(service1, State.RUNNING, false);

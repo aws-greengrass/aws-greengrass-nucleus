@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.constants.FileSuffix;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
+import lombok.NonNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,8 +33,9 @@ import javax.inject.Named;
 
 public class PackageStore {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
-    private static final String RECIPE_DIRECTORY = "recipe";
-    private static final String ARTIFACT_DIRECTORY = "artifact";
+
+    private static final String RECIPE_DIRECTORY = "recipes";
+    private static final String ARTIFACT_DIRECTORY = "artifacts";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
@@ -48,7 +51,7 @@ public class PackageStore {
      * @throws PackagingException if fails to create recipe or artifact directory.
      */
     @Inject
-    public PackageStore(@Named("packageStoreDirectory") Path packageStoreDirectory) throws PackagingException {
+    public PackageStore(@Named("packageStoreDirectory") @NonNull Path packageStoreDirectory) throws PackagingException {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
         if (!Files.exists(recipeDirectory)) {
             try {
@@ -74,7 +77,7 @@ public class PackageStore {
      * @param packageRecipe package recipe to be create.
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void savePackageRecipe(PackageRecipe packageRecipe) throws PackageLoadingException {
+    void savePackageRecipe(@NonNull PackageRecipe packageRecipe) throws PackageLoadingException {
         Path recipePath = resolveRecipePath(packageRecipe.getPackageName(), packageRecipe.getVersion());
 
         try {
@@ -92,7 +95,7 @@ public class PackageStore {
      * @return Optional of package recipe; empty if not found.
      * @throws PackageLoadingException if fails to parse the recipe file.
      */
-    Optional<PackageRecipe> findPackageRecipe(PackageIdentifier pkgId) throws PackageLoadingException {
+    Optional<PackageRecipe> findPackageRecipe(@NonNull PackageIdentifier pkgId) throws PackageLoadingException {
         Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
 
         logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
@@ -109,6 +112,7 @@ public class PackageStore {
         }
 
         try {
+            // TODO Add validation to validate recipe retried matches pkgId
             return Optional.of(RECIPE_SERIALIZER.readValue(recipeContent, PackageRecipe.class));
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
@@ -122,7 +126,7 @@ public class PackageStore {
      * @return retrieved package recipe.
      * @throws PackageLoadingException if fails to find the target package recipe or fails to parse the recipe file.
      */
-    PackageRecipe getPackageRecipe(PackageIdentifier pkgId) throws PackageLoadingException {
+    PackageRecipe getPackageRecipe(@NonNull PackageIdentifier pkgId) throws PackageLoadingException {
         Optional<PackageRecipe> optionalPackage = findPackageRecipe(pkgId);
 
         if (!optionalPackage.isPresent()) {
@@ -141,12 +145,8 @@ public class PackageStore {
      * @return PackageMetadata; non-null
      * @throws PackagingException if fails to find or parse the recipe
      */
-    PackageMetadata getPackageMetadata(PackageIdentifier pkgId) throws PackagingException {
-        PackageRecipe retrievedPackageRecipe = getPackageRecipe(pkgId);
-
-        return new PackageMetadata(
-                new PackageIdentifier(retrievedPackageRecipe.getPackageName(), retrievedPackageRecipe.getVersion()),
-                retrievedPackageRecipe.getDependencies());
+    PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
+        return new PackageMetadata(pkgId, getPackageRecipe(pkgId).getDependencies());
     }
 
     /**
@@ -157,7 +157,7 @@ public class PackageStore {
      * @return a list of PackageMetadata that satisfies the requirement.
      * @throws UnexpectedPackagingException if fails to parse version directory to Semver
      */
-    List<PackageMetadata> listAvailablePackageMetadata(final String packageName, Requirement requirement)
+    List<PackageMetadata> listAvailablePackageMetadata(@NonNull String packageName, @NonNull Requirement requirement)
             throws PackagingException {
         File[] recipeFiles = recipeDirectory.toFile().listFiles();
 
@@ -192,7 +192,7 @@ public class PackageStore {
      * @param packageIdentifier packageIdentifier
      * @return the artifact directory path for target package.
      */
-    Path resolveArtifactDirectoryPath(PackageIdentifier packageIdentifier) {
+    Path resolveArtifactDirectoryPath(@NonNull PackageIdentifier packageIdentifier) {
         return artifactDirectory.resolve(packageIdentifier.getName())
                 .resolve(packageIdentifier.getVersion().getValue());
     }
@@ -205,8 +205,7 @@ public class PackageStore {
         // TODO validate filename
 
         // MonitoringService-1.0.0.yaml
-        String suffix = ".yaml";
-        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
+        String[] packageNameAndVersionParts = filename.split(FileSuffix.YAML_SUFFIX)[0].split("-");
 
         return String.join("-", Arrays.copyOf(packageNameAndVersionParts, packageNameAndVersionParts.length - 1));
     }
@@ -215,8 +214,7 @@ public class PackageStore {
         // TODO validate filename
 
         // MonitoringService-1.0.0.yaml
-        String suffix = ".yaml";
-        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
+        String[] packageNameAndVersionParts = filename.split(FileSuffix.YAML_SUFFIX)[0].split("-");
 
         // PackageRecipe name could have '-'. Pick the last part since the version is always after the package name.
         String versionStr = packageNameAndVersionParts[packageNameAndVersionParts.length - 1];

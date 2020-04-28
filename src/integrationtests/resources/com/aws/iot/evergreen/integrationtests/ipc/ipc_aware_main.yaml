@@ -4,6 +4,7 @@ services:
     dependencies:
       - IPCService
     lifecycle:
-      startup:
-        mvn -q exec:java -f "$POM_DIR/pom.xml" -Dexec.mainClass="com.aws.iot.evergreen.integrationtests.ipc.sample.SampleIpcAwareServiceMovesToRunning" -Dexec.classpathScope="test"
-
+      startup: >-
+        mvn -q exec:java -f "$POM_DIR/pom.xml"
+        -Dexec.mainClass="com.aws.iot.evergreen.integrationtests.ipc.sample.SampleIpcAwareServiceMovesToRunning"
+        -Dexec.classpathScope="test" -Dexec.args="-Xms1m"

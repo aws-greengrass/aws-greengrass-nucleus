@@ -35,12 +35,13 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
+
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 
 /**
  * Evergreen-kernel.
@@ -74,8 +75,7 @@ public class Kernel {
     @Setter(AccessLevel.PACKAGE)
     private KernelLifecycle kernelLifecycle;
 
-    private final DeploymentConfigMerger deploymentConfigMerger;
-    private Collection<EvergreenService> cachedOD = Collections.emptyList();
+    private Collection<EvergreenService> cachedOD = null;
 
     /**
      * Construct the Kernel and global Context.
@@ -95,10 +95,9 @@ public class Kernel {
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine);
-        deploymentConfigMerger = new DeploymentConfigMerger(this);
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
-        context.put(DeploymentConfigMerger.class, deploymentConfigMerger);
+        context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
     }
 
     /**
@@ -124,8 +123,9 @@ public class Kernel {
         return kernelLifecycle.getMain();
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void clearODcache() {
-        cachedOD.clear();
+        cachedOD = null;
     }
 
     /**
@@ -134,7 +134,7 @@ public class Kernel {
      * @return collection of services in dependency order
      */
     public synchronized Collection<EvergreenService> orderedDependencies() {
-        if (!cachedOD.isEmpty()) {
+        if (cachedOD != null) {
             return cachedOD;
         }
 
@@ -191,7 +191,7 @@ public class Kernel {
      * @throws IOException if writing fails
      */
     public void writeEffectiveConfigAsTransactionLog(Path transactionLogPath) throws IOException {
-        ConfigurationWriter.logTransactionsTo(config, transactionLogPath).flushImmediately(true);
+        ConfigurationWriter.dump(config, transactionLogPath);
     }
 
     /**
@@ -208,7 +208,7 @@ public class Kernel {
         });
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put(EvergreenService.SERVICES_NAMESPACE_TOPIC, serviceMap);
+        configMap.put(SERVICES_NAMESPACE_TOPIC, serviceMap);
         try {
             JSON.std.with(new YAMLFactory().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)).write(configMap, w);
         } catch (IOException ex) {
@@ -218,25 +218,13 @@ public class Kernel {
 
     @Nullable
     public Topics findServiceTopic(String serviceName) {
-        return config.findTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, serviceName);
-    }
-
-    /**
-     * Merge in new configuration values and new services.
-     *
-     * @param deploymentId give an ID to the task to run
-     * @param timestamp    timestamp for all configuration values to use when merging (newer timestamps win)
-     * @param newConfig    the map of new configuration
-     * @return future which completes only once the config is merged and all the services in the config are running
-     */
-    public Future<Void> mergeInNewConfig(String deploymentId, long timestamp, Map<Object, Object> newConfig) {
-        return deploymentConfigMerger.mergeInNewConfig(deploymentId, timestamp, newConfig);
+        return config.findTopics(SERVICES_NAMESPACE_TOPIC, serviceName);
     }
 
     /**
      * Locate an EvergreenService by name in the kernel context.
      *
-     * @param name    name of the service to find
+     * @param name name of the service to find
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
      */
@@ -276,7 +264,7 @@ public class Kernel {
                     Constructor<?> ctor = clazz.getConstructor(Topics.class);
                     // Lookup the service topics here because the Topics passed into the EvergreenService
                     // constructor must not be null
-                    Topics topics = config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, name);
+                    Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
 
                     ret = (EvergreenService) ctor.newInstance(topics);
                     if (clazz.getAnnotation(Singleton.class) != null) {

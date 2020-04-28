@@ -55,8 +55,7 @@ class PackageStoreTest {
     private static final PackageIdentifier MONITORING_SERVICE_PKG_ID =
             new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
 
-
-    private static final Path RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipe").getPath());
+    private static final Path RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipes").getPath());
 
     private PackageStore packageStore;
 
@@ -70,8 +69,8 @@ class PackageStoreTest {
     @BeforeEach
     void beforeEach() throws PackagingException {
         packageStore = new PackageStore(packageStoreRootPath.toAbsolutePath());
-        recipeDirectory = packageStoreRootPath.resolve("recipe");
-        artifactDirectory = packageStoreRootPath.resolve("artifact");
+        recipeDirectory = packageStoreRootPath.resolve("recipes");
+        artifactDirectory = packageStoreRootPath.resolve("artifacts");
     }
 
     @Test
@@ -81,7 +80,7 @@ class PackageStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_not_exists_when_createPackageRecipe_THEN_recipe_file_created()
+    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created()
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = "MonitoringService-1.0.0.yaml";
@@ -101,6 +100,34 @@ class PackageStoreTest {
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
         assertThat(fileContent, is(equalTo(RECIPE_SERIALIZER.writeValueAsString(recipe))));
     }
+
+    @Test
+    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
+            throws IOException, PackageLoadingException {
+        // GIVEN
+        String fileName = "MonitoringService-1.0.0.yaml";
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        PackageRecipe recipe =
+                RECIPE_SERIALIZER.readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+
+
+        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+
+        boolean fileCreated = expectedRecipeFile.createNewFile();
+        assertTrue(fileCreated, "Failed to create empty recipe file.");
+
+        assertThat(expectedRecipeFile, is(anExistingFile()));
+
+        // WHEN
+        packageStore.savePackageRecipe(recipe);
+
+        // THEN
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
+        assertThat(fileContent, is(equalTo(RECIPE_SERIALIZER.writeValueAsString(recipe))));
+    }
+
 
     @Test
     void GIVEN_a_recipe_exists_WHEN_findPackageRecipe_THEN_return_it() throws Exception {

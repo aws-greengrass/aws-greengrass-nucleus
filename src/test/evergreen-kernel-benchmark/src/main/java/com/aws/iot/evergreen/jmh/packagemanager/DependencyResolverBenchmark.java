@@ -7,6 +7,7 @@ package com.aws.iot.evergreen.jmh.packagemanager;
 
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
@@ -48,7 +49,7 @@ public class DependencyResolverBenchmark {
                 Arrays.asList(
                         new DeploymentPackageConfiguration("boto3", "1.9.128", "", new HashSet<>(), new ArrayList<>()),
                         new DeploymentPackageConfiguration("awscli", "1.16.144", "", new HashSet<>(),
-                                new ArrayList<>())), "mockGroup1", 1L);
+                                new ArrayList<>())), "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
 
         private DependencyResolver resolver;
         private List<PackageIdentifier> result;

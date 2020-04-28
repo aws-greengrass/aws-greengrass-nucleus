@@ -41,7 +41,7 @@ class GenericExternalServiceTest extends BaseITCase {
         kernel.launch();
 
         // THEN
-        assertTrue(testErrored.await(60, TimeUnit.SECONDS));
+        assertTrue(testErrored.await(10, TimeUnit.SECONDS));
     }
 
     @Test

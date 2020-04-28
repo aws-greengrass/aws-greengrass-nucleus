@@ -28,7 +28,6 @@ import java.util.regex.Pattern;
 import static com.aws.iot.evergreen.kernel.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
-@SuppressWarnings("PMD.NullAssignment")
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     static final String[] sigCodes =
@@ -127,7 +126,7 @@ public class GenericExternalService extends EvergreenService {
             // the reportStates outside of the callback
             synchronized (this) {
                 logger.atInfo().kv("exitCode", exit).log("Run script exited");
-                if (startingStateGeneration == getStateGeneration() && State.RUNNING.equals(getState())) {
+                if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
                     if (exit == 0) {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                         this.requestStop();
