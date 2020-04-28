@@ -15,6 +15,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -625,7 +626,7 @@ public class Lifecycle {
             return;
         }
         synchronized (desiredStateList) {
-            if (desiredStateList.isEmpty()) {
+            if (desiredStateList.isEmpty() || desiredStateList.equals(Collections.singletonList(State.FINISHED))) {
                 setDesiredState(State.RUNNING);
                 return;
             }

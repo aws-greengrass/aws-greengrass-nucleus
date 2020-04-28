@@ -280,12 +280,6 @@ public class LifecycleTest {
         lifecycle = new Lifecycle(evergreenService, logger);
         initLifecycleState(lifecycle, State.INSTALLED);
 
-        Mockito.doAnswer((mock) -> {
-            // sleep to block state transition
-            Thread.sleep(5000);
-            return null;
-        }).when(evergreenService).handleError();
-
         AtomicInteger runningReported  = new AtomicInteger(0);
         AtomicInteger errorReported  = new AtomicInteger(0);
 
