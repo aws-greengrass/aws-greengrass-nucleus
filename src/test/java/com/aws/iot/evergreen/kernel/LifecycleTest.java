@@ -102,7 +102,8 @@ public class LifecycleTest {
 
         Thread.sleep(100);
         Mockito.verify(evergreenService).install();
-        assertEquals(lifecycle.getState(), State.INSTALLED);
+        Mockito.verify(evergreenService).startup();
+        assertEquals(lifecycle.getState(), State.STARTING);
     }
 
     @Test
@@ -280,16 +281,22 @@ public class LifecycleTest {
         lifecycle = new Lifecycle(evergreenService, logger);
         initLifecycleState(lifecycle, State.INSTALLED);
 
+        CountDownLatch processed = new CountDownLatch(1);
+        Mockito.doAnswer((mock) -> {
+            processed.countDown();
+            // sleep to block state transition
+            Thread.sleep(5000);
+            return null;
+        }).when(evergreenService).handleError();
+
         AtomicInteger runningReported  = new AtomicInteger(0);
         AtomicInteger errorReported  = new AtomicInteger(0);
 
-        CountDownLatch processed = new CountDownLatch(1);
         context.addGlobalStateChangeListener((service, old, newState) -> {
             if (newState.equals(State.RUNNING)) {
                 runningReported.incrementAndGet();
             } else if (newState.equals(State.ERRORED)) {
                 errorReported.incrementAndGet();
-                processed.countDown();
             }
         });
 
@@ -318,3 +325,4 @@ public class LifecycleTest {
         stateTopic.withValue(initState);
     }
 }
+
