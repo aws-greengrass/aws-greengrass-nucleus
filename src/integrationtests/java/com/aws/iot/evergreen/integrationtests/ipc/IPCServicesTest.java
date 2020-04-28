@@ -171,7 +171,7 @@ class IPCServicesTest {
     @Test
     void lifecycleTest(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild("_UID").getOnce()).build();
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()).build();
         IPCClient client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
 
