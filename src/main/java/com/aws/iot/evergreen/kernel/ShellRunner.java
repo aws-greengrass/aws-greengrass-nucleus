@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.util.Exec;
 
+import java.io.IOException;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 
@@ -45,15 +46,21 @@ public interface ShellRunner {
         @Override
         public boolean successful(Exec e, String note, IntConsumer background, EvergreenService onBehalfOf)
                 throws InterruptedException {
-            onBehalfOf.logger.atInfo().setEventType("shell-runner-start").kv(SCRIPT_NAME_KEY, note)
-                    .kv("script", e.toString()).log();
-            if (background == null) {
-                if (!e.successful(true)) {
-                    onBehalfOf.logger.atWarn().setEventType("shell-runner-error").kv("command", e.toString()).log();
-                    return false;
+            onBehalfOf.logger.atInfo("shell-runner-start").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString()).log();
+            try {
+                if (background == null) {
+                    if (!e.successful(true)) {
+                        onBehalfOf.logger.atWarn("shell-runner-error").kv(SCRIPT_NAME_KEY, note)
+                                .kv("command", e.toString()).log();
+                        return false;
+                    }
+                } else {
+                    e.background(background);
                 }
-            } else {
-                e.background(background);
+            } catch (IOException ex) {
+                onBehalfOf.logger.atError("shell-runner-error").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString())
+                        .log("Error while running process", ex);
+                return false;
             }
             return true;
         }

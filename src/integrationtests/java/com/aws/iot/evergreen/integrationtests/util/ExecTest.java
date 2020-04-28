@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.integrationtests.util;
 import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -17,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecTest {
     @Test
-    void test() throws InterruptedException {
+    void test() throws InterruptedException, IOException {
         if (Exec.isWindows) {
             return;
         }
@@ -32,7 +33,7 @@ class ExecTest {
     }
 
     @Test
-    void test2() throws InterruptedException {
+    void test2() throws InterruptedException, IOException {
         //        System.out.println(Exec.sh("printenv;java --version"));
         //        assertFalse(Exec.successful("java --version|egrep -i -q '(jdk|jre) *17\\.'"));
         //        assertTrue(Exec.successful("java --version|egrep -i -q '(jdk|jre) *11\\.'"));
