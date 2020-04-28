@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import lombok.Getter;
 
 import java.io.BufferedReader;
@@ -11,8 +13,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
  */
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public final class Exec implements Closeable {
+    private static final Logger logger = LogManager.getLogger(Exec.class);
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
     private static final Consumer<CharSequence> NOP = s -> {
@@ -64,8 +65,7 @@ public final class Exec implements Closeable {
             // after the .profile script is executed.  Fire up a login shell, then grab it's
             // path variable, but without using Exec shorthands to avoid initialization
             // order paradoxes.
-            Process hack = Runtime.getRuntime()
-                    .exec(new String[]{"bash", "-c", "echo 'echo $PATH'|bash --login|egrep':[^ ]'"});
+            Process hack = Runtime.getRuntime().exec(new String[]{"sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'"});
             StringBuilder path = new StringBuilder();
 
             Thread bg = new Thread(() -> {
@@ -81,9 +81,9 @@ public final class Exec implements Closeable {
             bg.join(2000);
             addPathEntries(path.toString().trim());
             // Ensure some level of sanity
-            ensurePresent("/usr/local/bin", "/bin", "/usr/bin", "/sbin", "/usr/sbin", System.getProperty("java.home"));
+            ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
         } catch (Throwable ex) {
-            ex.printStackTrace(System.out);
+            logger.atError().log("Error while initializing PATH", ex);
         }
         computePathString();
     }
@@ -129,35 +129,27 @@ public final class Exec implements Closeable {
         return this;
     }
 
-    private static void appendStackTrace(Throwable ex, Consumer<CharSequence> a) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        Utils.getUltimateCause(ex).printStackTrace(pw);
-        pw.flush();
-        a.accept(sw.toString());
-    }
-
-    public static String cmd(String... command) throws InterruptedException {
+    public static String cmd(String... command) throws InterruptedException, IOException {
         return new Exec().withExec(command).execAndGetStringOutput();
     }
 
-    public static String sh(String command) throws InterruptedException {
+    public static String sh(String command) throws InterruptedException, IOException {
         return sh((File) null, command);
     }
 
-    public static String sh(File dir, String command) throws InterruptedException {
+    public static String sh(File dir, String command) throws InterruptedException, IOException {
         return new Exec().cd(dir).withShell(command).execAndGetStringOutput();
     }
 
-    public static String sh(Path dir, String command) throws InterruptedException {
+    public static String sh(Path dir, String command) throws InterruptedException, IOException {
         return sh(dir.toFile(), command);
     }
 
-    public static boolean successful(boolean ignoreStderr, String command) throws InterruptedException {
+    public static boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
         return new Exec().withShell(command).successful(ignoreStderr);
     }
 
-    public boolean successful(boolean ignoreStderr) throws InterruptedException {
+    public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
         exec();
         return (ignoreStderr || stderrc.getNlines() == 0) && process.exitValue() == 0;
     }
@@ -307,44 +299,33 @@ public final class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.AvoidRethrowingException")
-    private void exec() throws InterruptedException {
-        try {
-            process = Runtime.getRuntime().exec(cmds, environment, dir);
-            stderrc = new Copier(process.getErrorStream(), stderr);
-            stdoutc = new Copier(process.getInputStream(), stdout);
-            stderrc.start();
-            stdoutc.start();
-            if (whenDone == null) {
-                try {
-                    if (timeout < 0) {
-                        process.waitFor();
-                    } else {
-                        if (!process.waitFor(timeout, timeunit)) {
-                            (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
-                            process.destroyForcibly();
-                        }
-                    }
-                } catch (InterruptedException ie) {
-                    // We just got interrupted by something like the cancel(true) in setBackingTask
-                    // Give the process a touch more time to exit cleanly
-                    if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
+    private void exec() throws InterruptedException, IOException {
+        process = Runtime.getRuntime().exec(cmds, environment, dir);
+        stderrc = new Copier(process.getErrorStream(), stderr);
+        stdoutc = new Copier(process.getInputStream(), stdout);
+        stderrc.start();
+        stdoutc.start();
+        if (whenDone == null) {
+            try {
+                if (timeout < 0) {
+                    process.waitFor();
+                } else {
+                    if (!process.waitFor(timeout, timeunit)) {
+                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
                         process.destroyForcibly();
                     }
-                    throw ie;
                 }
-                stderrc.join(5000);
-                stdoutc.join(5000);
+            } catch (InterruptedException ie) {
+                // We just got interrupted by something like the cancel(true) in setBackingTask
+                // Give the process a touch more time to exit cleanly
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
+                    process.destroyForcibly();
+                }
+                throw ie;
             }
-        } catch (InterruptedException ex) {
-            // The thread was interrupted while we were executing. We rethrow the exception
-            // so that the caller knows to be interrupted and stop processing so that the
-            // thread can shutdown gracefully
-            throw ex;
-        } catch (Throwable ex) {
-            if (stderr != null) {
-                appendStackTrace(ex, stderr);
-            }
+            stderrc.join(5000);
+            stdoutc.join(5000);
         }
     }
 
@@ -353,15 +334,16 @@ public final class Exec implements Closeable {
      *
      * @return String of output.
      * @throws InterruptedException if thread is interrupted while executing
+     * @throws IOException if execution of the process fails to start
      */
-    public String execAndGetStringOutput() throws InterruptedException {
+    public String execAndGetStringOutput() throws InterruptedException, IOException {
         StringBuilder sb = new StringBuilder();
         Consumer<CharSequence> f = sb::append;
         withOut(f).withErr(f).exec();
         return sb.toString().trim();
     }
 
-    public void background(IntConsumer cb) throws InterruptedException {
+    public void background(IntConsumer cb) throws InterruptedException, IOException {
         whenDone = cb;
         exec();
     }
@@ -472,8 +454,8 @@ public final class Exec implements Closeable {
                     // TODO: configurable timeout?
                     process.waitFor(10, TimeUnit.SECONDS); // be graceful
                     setClosed();
-                } catch (Throwable t) {
-                    t.printStackTrace(System.out);
+                } catch (InterruptedException ignore) {
+                    // Ignore as this thread is done running anyway and will exit
                 }
             }
         }

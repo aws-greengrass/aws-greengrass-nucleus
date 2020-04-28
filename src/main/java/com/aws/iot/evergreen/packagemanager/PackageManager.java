@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -12,28 +13,21 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
-import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.SerializerFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
-import com.vdurmont.semver4j.SemverException;
+import lombok.NoArgsConstructor;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -41,72 +35,42 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import javax.inject.Named;
 
-public class PackageManager {
+@NoArgsConstructor // for dependency injection
+public class PackageManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageManager.class);
-    private static final String RECIPE_DIRECTORY = "recipe";
-    private static final String ARTIFACT_DIRECTORY = "artifact";
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
     private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
 
-    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getRecipeSerializer();
+    private GreengrassRepositoryDownloader greengrassArtifactDownloader;
 
-    private Path recipeDirectory;
+    private GreengrassPackageServiceHelper greengrassPackageServiceHelper;
 
-    private Path artifactDirectory;
+    private ExecutorService executorService;
 
-    private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
+    private PackageStore packageStore;
 
-    private final GreengrassPackageServiceHelper greengrassPackageServiceHelper;
-
-    private final ExecutorService executorService;
-
-    private final Path packageStoreDirectory;
-
-    private final Kernel kernel;
+    private Kernel kernel;
 
     /**
      * PackageManager constructor.
      *
-     * @param packageStoreDirectory directory for caching package recipes and artifacts
-     * @param packageServiceHelper  greengrass package service client helper
-     * @param artifactDownloader    artifact downloader
-     * @param executorService       executor service
-     * @param kernel                kernel
+     * @param greengrassArtifactDownloader   greengrassArtifactDownloader
+     * @param greengrassPackageServiceHelper greengrassPackageServiceHelper
+     * @param executorService                executorService
+     * @param packageStore                   packageStore
+     * @param kernel                         kernel
      */
     @Inject
-    public PackageManager(@Named("packageStoreDirectory") Path packageStoreDirectory,
-                          GreengrassPackageServiceHelper packageServiceHelper,
-                          GreengrassRepositoryDownloader artifactDownloader, ExecutorService executorService,
-                          Kernel kernel) {
-        this.packageStoreDirectory = packageStoreDirectory;
-        initializeSubDirectories(this.packageStoreDirectory);
-        this.greengrassPackageServiceHelper = packageServiceHelper;
-        this.greengrassArtifactDownloader = artifactDownloader;
+    public PackageManager(GreengrassRepositoryDownloader greengrassArtifactDownloader,
+                          GreengrassPackageServiceHelper greengrassPackageServiceHelper,
+                          ExecutorService executorService, PackageStore packageStore, Kernel kernel) {
+        this.greengrassArtifactDownloader = greengrassArtifactDownloader;
+        this.greengrassPackageServiceHelper = greengrassPackageServiceHelper;
         this.executorService = executorService;
+        this.packageStore = packageStore;
         this.kernel = kernel;
-    }
-
-    private void initializeSubDirectories(Path packageStoreDirectory) {
-        this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
-        if (!Files.exists(recipeDirectory)) {
-            try {
-                Files.createDirectories(recipeDirectory);
-            } catch (IOException e) {
-                throw new RuntimeException(String.format("Failed to create recipe directory %s", recipeDirectory), e);
-            }
-        }
-        this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
-        if (!Files.exists(artifactDirectory)) {
-            try {
-                Files.createDirectories(artifactDirectory);
-            } catch (IOException e) {
-                throw new RuntimeException(String.format("Failed to create artifact directory %s", artifactDirectory),
-                        e);
-            }
-        }
     }
 
     /**
@@ -119,7 +83,7 @@ public class PackageManager {
      *     locally.
      * @throws PackagingException if fails when trying to list available package metadata
      */
-    public Iterator<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
+    Iterator<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
             throws PackagingException {
         // TODO Switch to customized Iterator to enable lazy iteration
 
@@ -129,7 +93,7 @@ public class PackageManager {
 
         // 2. list available packages locally
         List<PackageMetadata> packageMetadataList =
-                listAvailablePackageMetadataFromLocal(packageName, versionRequirement);
+                packageStore.listAvailablePackageMetadata(packageName, versionRequirement);
 
         // 3. If the active satisfied version presents, set it as the head of list.
         if (optionalActivePackageMetadata.isPresent()) {
@@ -146,7 +110,6 @@ public class PackageManager {
         }
 
         // TODO 4. list available packages from cloud when cloud SDK is ready.
-
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", packageMetadataList)
@@ -174,8 +137,8 @@ public class PackageManager {
             throws PackageLoadingException, PackageDownloadException {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         try {
-            PackageRecipe packageRecipe = findRecipeDownloadIfNotExisted(packageIdentifier);
-            List<URI> artifactURIList = packageRecipe.getArtifacts().stream().map(artifactStr -> {
+            PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
+            List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
                 try {
                     return new URI(artifactStr);
                 } catch (URISyntaxException e) {
@@ -195,78 +158,24 @@ public class PackageManager {
 
     private PackageRecipe findRecipeDownloadIfNotExisted(PackageIdentifier packageIdentifier)
             throws PackageDownloadException, PackageLoadingException {
-        Path recipePath = resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
         Optional<PackageRecipe> packageOptional = Optional.empty();
         try {
-            packageOptional = findPackageRecipe(recipePath);
+            packageOptional = packageStore.findPackageRecipe(packageIdentifier);
         } catch (PackageLoadingException e) {
-            logger.atWarn().log(String.format("Failed to load package from %s", recipePath), e);
+            logger.atWarn().log(String.format("Failed to load package recipe for %s", packageIdentifier), e);
         }
         if (packageOptional.isPresent()) {
             return packageOptional.get();
         } else {
             PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-            savePackageRecipeToFile(packageRecipe, recipePath);
+            packageStore.savePackageRecipe(packageRecipe);
             return packageRecipe;
         }
     }
 
-    /**
-     * Get the package recipe with given package identifier.
-     *
-     * @param pkgId package identifier
-     * @return retrieved package recipe.
-     * @throws PackageLoadingException if fails to find the target package recipe or failed to load recipe
-     */
-    public PackageRecipe getPackageRecipe(PackageIdentifier pkgId) throws PackageLoadingException {
-        Optional<PackageRecipe> optionalPackage =
-                findPackageRecipe(resolveRecipePath(pkgId.getName(), pkgId.getVersion()));
-
-        if (!optionalPackage.isPresent()) {
-            // TODO refine exception and logs
-            throw new PackageLoadingException(
-                    String.format("The recipe for package: '%s' doesn't exist in the local package store.", pkgId));
-        }
-
-        return optionalPackage.get();
-    }
-
-    Optional<PackageRecipe> findPackageRecipe(Path recipePath) throws PackageLoadingException {
-        logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
-        if (!Files.exists(recipePath) || !Files.isRegularFile(recipePath)) {
-            return Optional.empty();
-        }
-
-        byte[] recipeContent;
-        try {
-            recipeContent = Files.readAllBytes(recipePath);
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", recipePath), e);
-        }
-
-        try {
-            return Optional.of(OBJECT_MAPPER.readValue(recipeContent, PackageRecipe.class));
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
-        }
-    }
-
-    void savePackageRecipeToFile(PackageRecipe packageRecipe, Path saveToFile) throws PackageLoadingException {
-        try {
-            OBJECT_MAPPER.writeValue(saveToFile.toFile(), packageRecipe);
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to save package recipe to %s", saveToFile), e);
-        }
-    }
-
-    private Path resolveRecipePath(String packageName, Semver packageVersion) {
-        return recipeDirectory.resolve(String.format("%s-%s.yaml", packageName, packageVersion.getValue()));
-    }
-
     void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<URI> artifactList)
             throws PackageLoadingException, PackageDownloadException {
-        Path packageArtifactDirectory =
-                resolveArtifactDirectoryPath(packageIdentifier.getName(), packageIdentifier.getVersion());
+        Path packageArtifactDirectory = packageStore.resolveArtifactDirectoryPath(packageIdentifier);
         if (!Files.exists(packageArtifactDirectory) || !Files.isDirectory(packageArtifactDirectory)) {
             try {
                 Files.createDirectories(packageArtifactDirectory);
@@ -299,10 +208,6 @@ public class PackageManager {
         return artifacts;
     }
 
-    private Path resolveArtifactDirectoryPath(String packageName, Semver packageVersion) {
-        return artifactDirectory.resolve(packageName).resolve(packageVersion.getValue());
-    }
-
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
         String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
         if (GREENGRASS_SCHEME.equals(scheme)) {
@@ -311,7 +216,6 @@ public class PackageManager {
 
         throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
     }
-
 
     /**
      * Find the active version for a package.
@@ -366,87 +270,6 @@ public class PackageManager {
             return Optional.empty();
         }
 
-        return Optional.of(getPackageMetadata(new PackageIdentifier(packageName, activeVersion)));
+        return Optional.of(packageStore.getPackageMetadata(new PackageIdentifier(packageName, activeVersion)));
     }
-
-    /**
-     * list PackageMetadata for available packages that satisfies the requirement.
-     *
-     * @param packageName the target package
-     * @param requirement version requirement
-     * @return a list of PackageMetadata that satisfies the requirement.
-     * @throws UnexpectedPackagingException if fails to parse version directory to Semver
-     */
-    private List<PackageMetadata> listAvailablePackageMetadataFromLocal(final String packageName,
-                                                                        Requirement requirement)
-            throws PackagingException {
-        File[] recipeFiles = recipeDirectory.toFile().listFiles();
-
-        if (recipeFiles == null || recipeFiles.length == 0) {
-            return Collections.emptyList();
-        }
-
-        Arrays.sort(recipeFiles);
-
-        List<PackageMetadata> packageMetadataList = new ArrayList<>();
-
-        for (File recipeFile : recipeFiles) {
-            String recipePackageName = parsePackageNameFromFileName(recipeFile.getName());
-            // Only check the recipes for the package that we're looking for
-            if (!recipePackageName.equalsIgnoreCase(packageName)) {
-                continue;
-            }
-
-            Semver version = parseVersionFromFileName(recipeFile.getName());
-            if (requirement.isSatisfiedBy(version)) {
-                packageMetadataList.add(getPackageMetadata(new PackageIdentifier(packageName, version)));
-            }
-        }
-
-        return packageMetadataList;
-    }
-
-    /**
-     * Get package metadata for given package name and version.
-     *
-     * @param pkgId package id
-     * @return PackageMetadata; non-null
-     * @throws PackagingException if fails to find or parse the recipe
-     */
-    PackageMetadata getPackageMetadata(PackageIdentifier pkgId) throws PackagingException {
-        PackageRecipe retrievedPackageRecipe = getPackageRecipe(pkgId);
-
-        return new PackageMetadata(
-                new PackageIdentifier(retrievedPackageRecipe.getPackageName(), retrievedPackageRecipe.getVersion()),
-                retrievedPackageRecipe.getDependencies());
-    }
-
-    private static String parsePackageNameFromFileName(String filename) {
-        // TODO validate filename
-
-        // MonitoringService-1.0.0.yaml
-        String suffix = ".yaml";
-        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
-
-        return String.join("-", Arrays.copyOf(packageNameAndVersionParts, packageNameAndVersionParts.length - 1));
-    }
-
-    private static Semver parseVersionFromFileName(String filename) throws UnexpectedPackagingException {
-        // TODO validate filename
-
-        // MonitoringService-1.0.0.yaml
-        String suffix = ".yaml";
-        String[] packageNameAndVersionParts = filename.split(suffix)[0].split("-");
-
-        // Package name could have '-'. Pick the last part since the version is always after the package name.
-        String versionStr = packageNameAndVersionParts[packageNameAndVersionParts.length - 1];
-
-        try {
-            return new Semver(versionStr);
-        } catch (SemverException e) {
-            throw new UnexpectedPackagingException(
-                    String.format("Package recipe file name: '%s' is corrupted!", filename), e);
-        }
-    }
-
 }
