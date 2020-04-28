@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
@@ -74,8 +75,8 @@ public final class PlatformResolver {
             if (sysver.contains("solaris") || sysver.contains("sunos")) {
                 ranks.put("solaris", 22);
             }
-        } catch (InterruptedException e) {
-            logger.atError().log("Interrupted while running uname -a");
+        } catch (InterruptedException | IOException e) {
+            logger.atError().log("Error while running uname -a");
         }
         try {
             ranks.put(InetAddress.getLocalHost().getHostName(), 99);

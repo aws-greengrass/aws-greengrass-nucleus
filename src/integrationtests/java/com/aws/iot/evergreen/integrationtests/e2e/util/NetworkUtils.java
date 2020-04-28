@@ -9,6 +9,8 @@ import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 
+import java.io.IOException;
+
 public abstract class NetworkUtils {
     protected final String[] MQTT_PORTS = {"8883", "443"};
     protected static final Logger logger = LogManager.getLogger(NetworkUtils.class);
@@ -39,7 +41,7 @@ public abstract class NetworkUtils {
         }
     }
 
-    public abstract void disconnectMqtt() throws InterruptedException;
+    public abstract void disconnectMqtt() throws InterruptedException, IOException;
 
-    public abstract void recoverMqtt() throws InterruptedException;
+    public abstract void recoverMqtt() throws InterruptedException, IOException;
 }
