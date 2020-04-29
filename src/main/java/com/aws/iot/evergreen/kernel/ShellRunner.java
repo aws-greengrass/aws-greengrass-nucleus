@@ -28,16 +28,21 @@ public interface ShellRunner {
         @Override
         public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
             if (!isEmpty(command) && onBehalfOf != null) {
-                return new Exec().withShell(command).withOut(s -> {
-                    String ss = s.toString().trim();
-                    onBehalfOf.logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
-                            .kv("stdout", ss).log();
-                }).withErr(s -> {
-                    String ss = s.toString().trim();
-                    onBehalfOf.logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
-                            .kv("stderr", ss).log();
-                }).setenv("SVCUID",
-                        String.valueOf(onBehalfOf.getServiceConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
+                return new Exec()
+                        .withShell(command)
+                        .withOut(s -> {
+                            String ss = s.toString().trim();
+                            onBehalfOf.logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
+                                    .kv("stdout", ss).log();
+                        })
+                        .withErr(s -> {
+                            String ss = s.toString().trim();
+                            onBehalfOf.logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
+                                    .kv("stderr", ss).log();
+                        })
+                        .setenv("SVCUID",
+                                String.valueOf(onBehalfOf.getServiceConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
+                                        .getOnce()))
                         .cd(config.getWorkPath().toFile());
             }
             return null;
