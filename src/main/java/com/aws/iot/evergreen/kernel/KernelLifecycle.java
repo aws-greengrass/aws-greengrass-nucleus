@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -29,6 +30,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
@@ -185,7 +188,12 @@ public class KernelLifecycle {
                 logger.atInfo().log("Waiting for services to shutdown");
                 combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
-                logger.atError("services-shutdown-errored", e).log();
+                List<String> unclosedServices = IntStream.range(0, arr.length)
+                        .filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
+                        .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
+                logger.atError("services-shutdown-errored", e)
+                        .kv("unclosedServices", unclosedServices)
+                        .log();
             }
 
             // Wait for tasks in the executor to end.

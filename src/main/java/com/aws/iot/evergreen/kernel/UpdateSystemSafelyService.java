@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
@@ -36,8 +37,31 @@ public class UpdateSystemSafelyService extends EvergreenService {
     private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
     private final List<DisruptableCheck> disruptableChecks = new CopyOnWriteArrayList<>();
 
-    public UpdateSystemSafelyService(Topics c) {
+    private final DisruptableCheck egServiceCheck = new DisruptableCheck() {
+        @Override
+        public long whenIsDisruptionOK() {
+            return kernel.orderedDependencies().stream().mapToLong(EvergreenService::whenIsDisruptionOK).max()
+                    .orElse(0L);
+        }
+
+        @Override
+        public void disruptionCompleted() {
+        }
+    };
+
+    private final Kernel kernel;
+
+    /**
+     * Constructor for injection.
+     *
+     * @param c topics root
+     * @param k kernel
+     */
+    @Inject
+    public UpdateSystemSafelyService(Topics c, Kernel k) {
         super(c);
+        this.kernel = k;
+        addDisruptableCheck(egServiceCheck);
     }
 
     public void addDisruptableCheck(DisruptableCheck d) {
@@ -88,14 +112,10 @@ public class UpdateSystemSafelyService extends EvergreenService {
         // startup() is invoked on it's own thread
         reportState(State.RUNNING);
 
-        while (this.getState() != State.FINISHED) {
+        while (!State.FINISHED.equals(getState())) {
             synchronized (pendingActions) {
                 if (pendingActions.isEmpty()) {
-                    try {
-                        pendingActions.wait(10_000);
-                    } catch (InterruptedException e) {
-                        logger.atWarn().log("Interrupted while waiting for pending Actions");
-                    }
+                    pendingActions.wait(10_000);
                     continue;
                 }
             }

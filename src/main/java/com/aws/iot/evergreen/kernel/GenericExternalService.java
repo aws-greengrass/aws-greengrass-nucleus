@@ -17,10 +17,13 @@ import com.aws.iot.evergreen.util.Pair;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,6 +40,10 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
+    public static final String SAFE_UPDATE_TOPIC_NAME = "safeToUpdate";
+    public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
+    public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
+    public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
     private final List<Exec> processes = new CopyOnWriteArrayList<>();
 
     /**
@@ -178,6 +185,48 @@ public class GenericExternalService extends EvergreenService {
         }
         stopAllProcesses();
         logger.atInfo().setEventType("generic-service-shutdown").log();
+    }
+
+    @Override
+    protected long whenIsDisruptionOK() {
+        AtomicInteger exitCode = new AtomicInteger();
+        CountDownLatch doneRunning = new CountDownLatch(1);
+        try {
+            Pair<RunStatus, Exec> result = run(SAFE_UPDATE_TOPIC_NAME, (exit) -> {
+                exitCode.set(exit);
+                doneRunning.countDown();
+            });
+
+            // If we didn't do anything or we were unable to run the check, then it is safe to update
+            // since we cannot recover from being unable to run the check, we must assume it is safe
+            // to go ahead
+            if (result.getLeft().equals(RunStatus.NothingDone) || result.getLeft().equals(RunStatus.Errored)) {
+                return 0L;
+            }
+
+            int timeout = Coerce.toInt(
+                    config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            SAFE_UPDATE_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
+            if (doneRunning.await(timeout, TimeUnit.SECONDS)) {
+                // Define exit code 0 means that it is safe to update right now
+                if (exitCode.get() == 0) {
+                    return 0L;
+                }
+                // Set the re-check time to some seconds in the future
+                return Instant.now().plusSeconds(Coerce.toInt(
+                        config.findOrDefault(DEFAULT_SAFE_UPDATE_RECHECK_TIME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                SAFE_UPDATE_TOPIC_NAME, RECHECK_PERIOD_TOPIC_NAME))).toEpochMilli();
+            } else {
+                result.getRight().close();
+            }
+        } catch (InterruptedException ignore) {
+        } catch (IOException e) {
+            logger.atWarn().log("Error while running whenIsDisruptionOK", e);
+        }
+
+        // Similar to if there was an error while running the check, if we timed out we assume it is safe
+        // to continue, otherwise we can get into a state where a deployment can never proceed
+        return 0L;
     }
 
     @SuppressWarnings("PMD.CloseResource")

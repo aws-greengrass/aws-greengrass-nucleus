@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -409,6 +410,34 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .map(EvergreenService::getName).collect(Collectors.toList());
 
         assertEquals(Arrays.asList("sleeperB", "main"), orderedDependencies);
+    }
+
+    @Test
+    void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch mainFinished = new CountDownLatch(1);
+        kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+            if (t.getOnce().equals(State.FINISHED)) {
+                mainFinished.countDown();
+            }
+        });
+
+        // wait for main to finish
+        assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
+
+        Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+        ((Map) currentConfig.get(SERVICES_NAMESPACE_TOPIC)).remove("nondisruptable");
+
+        Future<DeploymentResult> future =
+                deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
+
+        assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
+                "Merge should not happen within 2 seconds");
+
+        future.get(20, TimeUnit.SECONDS);
     }
 
     private DeploymentDocument testDeploymentDocument() {
