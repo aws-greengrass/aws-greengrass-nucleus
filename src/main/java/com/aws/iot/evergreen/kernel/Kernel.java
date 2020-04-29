@@ -261,15 +261,22 @@ public class Kernel {
             // If found class, try to load service class from plugins.
             if (clazz != null) {
                 try {
-                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
                     // Lookup the service topics here because the Topics passed into the EvergreenService
                     // constructor must not be null
                     Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
 
-                    ret = (EvergreenService) ctor.newInstance(topics);
+                    try {
+                        Constructor<?> ctor = clazz.getConstructor(Topics.class);
+                        ret = (EvergreenService) ctor.newInstance(topics);
+                    } catch (NoSuchMethodException e) {
+                        // If the basic constructor doesn't exist, then try injecting from the context
+                        ret = (EvergreenService) context.newInstance(clazz);
+                    }
+
                     if (clazz.getAnnotation(Singleton.class) != null) {
                         context.put(ret.getClass(), v);
                     }
+
                     logger.atInfo("evergreen-service-loaded")
                             .kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
                     return ret;
