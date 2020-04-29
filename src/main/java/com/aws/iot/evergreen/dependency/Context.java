@@ -36,6 +36,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 import static com.aws.iot.evergreen.util.Utils.nullEmpty;
 
@@ -396,7 +397,8 @@ public class Context implements Closeable {
                     ImplementsService service = clazz.getAnnotation(ImplementsService.class);
                     if (service != null) {
                         String serviceName = service.name();
-                        args[i] = Context.this.get(Configuration.class).lookupTopics(serviceName);
+                        args[i] = Context.this.get(Configuration.class)
+                                .lookupTopics(SERVICES_NAMESPACE_TOPIC, serviceName);
                         continue;
                     }
                     args[i] = Topics.errorNode(Context.this, "message", "Synthetic args");
@@ -425,7 +427,6 @@ public class Context implements Closeable {
                 if (constructor.isAnnotationPresent(Inject.class)) {
                     return constructor;
                 }
-
             }
 
             // fall back to no arg constructor
