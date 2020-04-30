@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-public class EvergreenService implements InjectionActions {
+public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
@@ -287,8 +287,16 @@ public class EvergreenService implements InjectionActions {
      *     is granting permission to be disrupted.  Otherwise, it will be asked again
      *     sometime later.
      */
-    protected long whenIsDisruptionOK() {
+    @Override
+    public long whenIsDisruptionOK() {
         return 0;
+    }
+
+    /**
+     * Called when the disruption to the service has concluded.
+     */
+    @Override
+    public void disruptionCompleted() {
     }
 
     /**

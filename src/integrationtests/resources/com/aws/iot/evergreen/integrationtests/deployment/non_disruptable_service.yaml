@@ -17,3 +17,4 @@ services:
             touch /tmp/safeUpdateRetry
             exit 1
           fi
+      updatesCompleted: echo "Yes! Updates completed"

@@ -19,11 +19,12 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,6 +42,7 @@ public class GenericExternalService extends EvergreenService {
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
     public static final String SAFE_UPDATE_TOPIC_NAME = "safeToUpdate";
+    public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
     public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
     public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
     public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
@@ -147,8 +149,10 @@ public class GenericExternalService extends EvergreenService {
         if (result.getLeft() == RunStatus.NothingDone) {
             reportState(State.FINISHED);
             logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
+            return;
         } else if (result.getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in run");
+            return;
         } else {
             reportState(State.RUNNING);
         }
@@ -188,14 +192,10 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    protected long whenIsDisruptionOK() {
-        AtomicInteger exitCode = new AtomicInteger();
-        CountDownLatch doneRunning = new CountDownLatch(1);
+    public long whenIsDisruptionOK() {
+        CompletableFuture<Integer> exitFuture = new CompletableFuture<>();
         try {
-            Pair<RunStatus, Exec> result = run(SAFE_UPDATE_TOPIC_NAME, (exit) -> {
-                exitCode.set(exit);
-                doneRunning.countDown();
-            });
+            Pair<RunStatus, Exec> result = run(SAFE_UPDATE_TOPIC_NAME, exitFuture::complete);
 
             // If we didn't do anything or we were unable to run the check, then it is safe to update
             // since we cannot recover from being unable to run the check, we must assume it is safe
@@ -207,26 +207,56 @@ public class GenericExternalService extends EvergreenService {
             int timeout = Coerce.toInt(
                     config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                             SAFE_UPDATE_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
-            if (doneRunning.await(timeout, TimeUnit.SECONDS)) {
+            try {
+                int exitCode = exitFuture.get(timeout, TimeUnit.SECONDS);
                 // Define exit code 0 means that it is safe to update right now
-                if (exitCode.get() == 0) {
+                if (exitCode == 0) {
                     return 0L;
                 }
                 // Set the re-check time to some seconds in the future
                 return Instant.now().plusSeconds(Coerce.toInt(
                         config.findOrDefault(DEFAULT_SAFE_UPDATE_RECHECK_TIME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                                 SAFE_UPDATE_TOPIC_NAME, RECHECK_PERIOD_TOPIC_NAME))).toEpochMilli();
-            } else {
+            } catch (ExecutionException e) {
+                // Not possible
+            } catch (TimeoutException e) {
+                logger.atWarn().log("Timed out while running {}", SAFE_UPDATE_TOPIC_NAME);
                 result.getRight().close();
             }
         } catch (InterruptedException ignore) {
         } catch (IOException e) {
-            logger.atWarn().log("Error while running whenIsDisruptionOK", e);
+            logger.atWarn().log("Error while running {}", SAFE_UPDATE_TOPIC_NAME, e);
         }
 
         // Similar to if there was an error while running the check, if we timed out we assume it is safe
         // to continue, otherwise we can get into a state where a deployment can never proceed
         return 0L;
+    }
+
+    @Override
+    public void disruptionCompleted() {
+        CompletableFuture<Integer> exitFuture = new CompletableFuture<>();
+        try {
+            Pair<RunStatus, Exec> result = run(UPDATES_COMPLETED_TOPIC_NAME, exitFuture::complete);
+            if (result.getLeft().equals(RunStatus.NothingDone) || result.getLeft().equals(RunStatus.Errored)) {
+                return;
+            }
+
+            int timeout = Coerce.toInt(
+                    config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            UPDATES_COMPLETED_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
+            try {
+                exitFuture.get(timeout, TimeUnit.SECONDS);
+            } catch (ExecutionException e) {
+                // Not possible
+            } catch (TimeoutException e) {
+                logger.atWarn().log("Timed out while running {}", UPDATES_COMPLETED_TOPIC_NAME);
+                result.getRight().close();
+            }
+        } catch (InterruptedException ignore) {
+        } catch (IOException e) {
+            logger.atWarn().log("Error while running {}", UPDATES_COMPLETED_TOPIC_NAME, e);
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -262,22 +292,20 @@ public class GenericExternalService extends EvergreenService {
      */
     protected Pair<RunStatus, Exec> run(String name, IntConsumer background) throws InterruptedException {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(name);
-        return n == null ? new Pair<>(RunStatus.NothingDone, null) : run(n, background);
+        if (n == null) {
+            return new Pair<>(RunStatus.NothingDone, null);
+        }
+        if (n instanceof Topic) {
+            return run((Topic) n, Coerce.toString(((Topic) n).getOnce()), background);
+        }
+        if (n instanceof Topics) {
+            return run((Topics) n, background);
+        }
+        return new Pair<>(RunStatus.NothingDone, null);
     }
 
-    protected Pair<RunStatus, Exec> run(Node n, IntConsumer background) throws InterruptedException {
-        return n instanceof Topic ? run((Topic) n, background, null)
-                : n instanceof Topics ? run((Topics) n, background) : new Pair<>(RunStatus.Errored, null);
-    }
-
-    protected Pair<RunStatus, Exec> run(Topic t, IntConsumer background, Topics config) throws InterruptedException {
-        return run(t, Coerce.toString(t.getOnce()), background, config);
-    }
-
-    // Synchronize because we should only be running 1 thing at a time. Resolves concurrent access to currentScript.
     @SuppressWarnings("PMD.CloseResource")
-    protected synchronized Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, Topics config)
-            throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background) throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
         if (exec == null) {
@@ -308,7 +336,7 @@ public class GenericExternalService extends EvergreenService {
 
         Node script = t.getChild("script");
         if (script instanceof Topic) {
-            return run((Topic) script, background, t);
+            return run((Topic) script, Coerce.toString(((Topic) script).getOnce()), background);
         } else {
             logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
                     .log("Missing script");

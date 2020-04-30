@@ -16,6 +16,8 @@ import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
@@ -33,6 +35,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -429,7 +432,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 
         Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
-        ((Map) currentConfig.get(SERVICES_NAMESPACE_TOPIC)).remove("nondisruptable");
 
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
@@ -437,7 +439,20 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
                 "Merge should not happen within 2 seconds");
 
-        future.get(20, TimeUnit.SECONDS);
+        CountDownLatch sawUpdatesCompleted = new CountDownLatch(1);
+        Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
+            if ("Yes! Updates completed".equals(m.getContexts().get("stdout"))) {
+                sawUpdatesCompleted.countDown();
+            }
+        };
+
+        try {
+            Log4jLogEventBuilder.addGlobalListener(listener);
+            future.get(20, TimeUnit.SECONDS);
+            sawUpdatesCompleted.await(1, TimeUnit.SECONDS);
+        } finally {
+            Log4jLogEventBuilder.removeGlobalListener(listener);
+        }
     }
 
     private DeploymentDocument testDeploymentDocument() {
