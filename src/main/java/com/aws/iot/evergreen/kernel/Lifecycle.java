@@ -15,6 +15,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,7 +59,7 @@ public class Lifecycle {
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
 
     /*
-     * State generation is a value representing how many times the service has been in the INSTALLED state.
+     * State generation is a value representing how many times the service has been in the NEW/STARTING state.
      * It is to used determine if an action should be taken when that action would be run asynchronously.
      * It is not sufficient to check if the state is what you want it to be, because the service may have
      * restarted again by the time you are performing this check. Therefore, the generation is used to know
@@ -73,31 +74,43 @@ public class Lifecycle {
     @Getter(AccessLevel.PACKAGE)
     private final AtomicLong stateGeneration = new AtomicLong();
     private final EvergreenService evergreenService;
+
+
+    // lastReportedState stores the last reported state (not necessarily processed)
     private final AtomicReference<State> lastReportedState = new AtomicReference<>();
     private final Topic stateTopic;
     private final Logger logger;
     private final AtomicReference<Future> backingTask = new AtomicReference<>(CompletableFuture.completedFuture(null));
     private String backingTaskName;
-    private State prevState;
 
-    private Future<?> lifecycleFuture;
-    // A state event can be a state transition event, or a desired state updated notification.
+    private Future<?> lifecycleThread;
+    // A state event can be a reported state event, or a desired state updated notification.
     // TODO: make class of StateEvent instead of generic object.
     private final BlockingQueue<Object> stateEventQueue = new LinkedBlockingQueue<>();
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
     // ReInstall a service will set DesiredStateList to <FINISHED->NEW->RUNNING>
     private final List<State> desiredStateList = new CopyOnWriteArrayList<>();
-    private static final Set<State> ALLOWED_STATES_FOR_REPORTING =
-            new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED));
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
+
+    private static final Map<State, Collection<State>> ALLOWED_STATE_TRANSITION_FOR_REPORTING = new HashMap<>();
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
     private final Map<State, Integer> stateToErroredCount = new HashMap<>();
-    // We only need to track the ERROR for the state transition starting from NEW, INSTALLED and RUNNING because
-    // these states impact whether the service can function as expected.
+    // We only need to track the ERROR from these states because
+    // they impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
             new HashSet<>(Arrays.asList(State.NEW, State.STARTING, State.RUNNING));
+
+    static {
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.NEW, Arrays.asList(State.ERRORED));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.STARTING, new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED)));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.RUNNING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
+    }
 
     /**
      * Constructor for lifecycle.
@@ -107,24 +120,21 @@ public class Lifecycle {
      */
     public Lifecycle(EvergreenService evergreenService, Logger logger) {
         this.evergreenService = evergreenService;
-        this.prevState = State.NEW;
         this.stateTopic = initStateTopic(evergreenService.getConfig());
         this.logger = logger;
     }
 
     void reportState(State newState) {
-        logger.atInfo("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
-        if (!ALLOWED_STATES_FOR_REPORTING.contains(newState)) {
+        State lastState = lastReportedState.get();
+        if (lastState == null) {
+            lastState = getState();
+        }
+
+        Collection<State> allowedStatesForReporting = ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(lastState);
+        if (allowedStatesForReporting == null || !allowedStatesForReporting.contains(newState)) {
             logger.atWarn(INVALID_STATE_ERROR_EVENT).kv(NEW_STATE_METRIC_NAME, newState).log("Invalid reported state");
             return;
         }
-
-        if (newState.equals(State.RUNNING) && !currentOrReportedStateIs(State.STARTING)) {
-            logger.atWarn(INVALID_STATE_ERROR_EVENT).kv(NEW_STATE_METRIC_NAME, newState)
-                    .log("Service cannot report running when in the process of shutdown");
-            return;
-        }
-        // TODO: Add more validations
 
         internalReportState(newState);
     }
@@ -136,6 +146,7 @@ public class Lifecycle {
      *                 actual state
      */
     private synchronized void internalReportState(State newState) {
+        logger.atInfo("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         lastReportedState.set(newState);
 
         if (getState().equals(State.STARTING) && newState.equals(State.FINISHED)) {
@@ -247,6 +258,7 @@ public class Lifecycle {
 
     private void startStateTransition() throws InterruptedException {
         AtomicReference<Predicate<Object>> asyncFinishAction = new AtomicReference<>((stateEvent) -> true);
+        State prevState = getState();
         while (!(isClosed.get() && getState().isClosable())) {
             Optional<State> desiredState;
             State current = getState();
@@ -281,7 +293,7 @@ public class Lifecycle {
                     handleCurrentStateFinished(desiredState);
                     break;
                 case ERRORED:
-                    handleCurrentStateErrored(desiredState);
+                    handleCurrentStateErrored(desiredState, prevState);
                     break;
                 default:
                     logger.atError(INVALID_STATE_ERROR_EVENT).log("Unrecognized current state");
@@ -317,7 +329,7 @@ public class Lifecycle {
                     synchronized (State.class) {
                         prevState = current;
                         stateTopic.withValue(newState);
-                        evergreenService.getContext().globalNotifyStateChanged(evergreenService, prevState, newState);
+                        evergreenService.getContext().globalNotifyStateChanged(evergreenService, current, newState);
                     }
                 }
                 if (asyncFinishAction.get().test(stateEvent)) {
@@ -348,8 +360,9 @@ public class Lifecycle {
             return;
         }
 
+        long currentStateGeneration = stateGeneration.incrementAndGet();
         setBackingTask(() -> {
-            if (!State.NEW.equals(getState())) {
+            if (!State.NEW.equals(getState()) || getStateGeneration().get() != currentStateGeneration) {
                 // Bail out if we're not in the expected state
                 return;
             }
@@ -358,8 +371,7 @@ public class Lifecycle {
             } catch (InterruptedException t) {
                 logger.atWarn("service-install-interrupted").log("Service interrupted while running install");
             } catch (Throwable t) {
-                reportState(State.ERRORED);
-                logger.atError("service-install-error", t).log();
+                evergreenService.serviceErrored(t);
             }
         }, "install");
 
@@ -372,11 +384,9 @@ public class Lifecycle {
                 internalReportState(State.INSTALLED);
             }
         } catch (ExecutionException ee) {
-            logger.error("error in install", ee);
-            internalReportState(State.ERRORED);
+            evergreenService.serviceErrored(ee);
         } catch (TimeoutException te) {
-            logger.error("Timeout in install");
-            internalReportState(State.ERRORED);
+            evergreenService.serviceErrored("Timeout in install");
         } finally {
             stopBackingTask();
         }
@@ -417,13 +427,12 @@ public class Lifecycle {
             return;
         }
 
-        Future currentTask = backingTask.get();
-        if (currentTask != null && !currentTask.isDone()) {
-            internalReportState(State.STOPPING);
-            return;
-        }
-
         if (desiredState.get().equals(State.RUNNING)) {
+            // if there is already a startup() task running, do nothing.
+            Future currentTask = backingTask.get();
+            if (currentTask != null && !currentTask.isDone()) {
+                return;
+            }
             handleStateTransitionStartingToRunningAsync(asyncFinishAction);
         } else {
             internalReportState(State.STOPPING);
@@ -432,24 +441,25 @@ public class Lifecycle {
 
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidGettingFutureWithoutTimeout"})
     private void handleStateTransitionStartingToRunningAsync(AtomicReference<Predicate<Object>> asyncFinishAction) {
+        stateGeneration.incrementAndGet();
         Integer timeout = getTimeoutConfigValue(
                 LIFECYCLE_STARTUP_NAMESPACE_TOPIC, DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC);
         Future<?> schedule =
             evergreenService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
-                logger.atWarn("service-startup-timed-out")
-                        .kv(TIMEOUT_NAMESPACE_TOPIC, timeout)
-                        .log("Service failed to startup within timeout");
-                reportState(State.ERRORED);
+                evergreenService.serviceErrored("startup timeout");
             }, timeout, TimeUnit.SECONDS);
 
         setBackingTask(() -> {
             try {
+                if (!evergreenService.dependencyReady()) {
+                    internalReportState(State.INSTALLED);
+                    return;
+                }
                 evergreenService.startup();
             } catch (InterruptedException i) {
                 logger.atWarn("service-run-interrupted").log("Service interrupted while running startup");
             } catch (Throwable t) {
-                reportState(State.ERRORED);
-                logger.atError("service-runtime-error", t).log();
+                evergreenService.serviceErrored(t);
             }
         }, "start");
 
@@ -461,7 +471,7 @@ public class Lifecycle {
             }
 
             // else if desiredState is updated
-            Optional<State> nextDesiredState = peekOrRemoveFirstDesiredState(State.INSTALLED);
+            Optional<State> nextDesiredState = peekOrRemoveFirstDesiredState(State.STARTING);
             // Don't finish the state handling if the new desiredState is still RUNNING
             if (nextDesiredState.isPresent() && nextDesiredState.get().equals(State.RUNNING)) {
                 return false;
@@ -491,8 +501,7 @@ public class Lifecycle {
             } catch (InterruptedException i) {
                 logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
             } catch (Throwable t) {
-                reportState(State.ERRORED);
-                logger.atError("service-shutdown-error", t).log();
+                evergreenService.serviceErrored(t);
             }
         });
 
@@ -505,12 +514,10 @@ public class Lifecycle {
                 serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
             }
         } catch (ExecutionException ee) {
-            logger.error("Error in shutting down", ee);
-            internalReportState(State.ERRORED);
+            evergreenService.serviceErrored(ee);
         } catch (TimeoutException te) {
             shutdownFuture.cancel(true);
-            logger.error("Timeout shutdown");
-            internalReportState(State.ERRORED);
+            evergreenService.serviceErrored("Timeout shutdown");
         } finally {
             stopBackingTask();
         }
@@ -521,11 +528,10 @@ public class Lifecycle {
             return;
         }
 
-        logger.atInfo("service-state-transition").kv("desiredState", desiredState).log();
         serviceTerminatedMoveToDesiredState(desiredState.get());
     }
 
-    private void handleCurrentStateErrored(Optional<State> desiredState) throws InterruptedException {
+    private void handleCurrentStateErrored(Optional<State> desiredState, State prevState) throws InterruptedException {
         try {
             evergreenService.handleError();
         } catch (InterruptedException e) {
@@ -616,10 +622,10 @@ public class Lifecycle {
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     synchronized void initLifecycleThread() {
-        if (lifecycleFuture != null) {
+        if (lifecycleThread != null) {
             return;
         }
-        lifecycleFuture = evergreenService.getContext().get(ExecutorService.class).submit(() -> {
+        lifecycleThread = evergreenService.getContext().get(ExecutorService.class).submit(() -> {
             while (!isClosed.get()) {
                 try {
                     Thread.currentThread().setName(evergreenService.getName() + "-lifecycle");
@@ -642,8 +648,8 @@ public class Lifecycle {
         });
     }
 
-    public synchronized Future getLifecycleFuture() {
-        return lifecycleFuture;
+    public synchronized Future getLifecycleThread() {
+        return lifecycleThread;
     }
 
     void setClosed(boolean b) {

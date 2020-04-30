@@ -46,6 +46,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     @Getter
     protected final Topics config;
 
+    //TODO: make the field private
     @Getter
     public Context context;
 
@@ -97,7 +98,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         // problems. Since postInject() only runs after construction, it is safe to start the lifecycle
         // thread here.
         // See Java Language Spec for more https://docs.oracle.com/javase/specs/jls/se8/html/jls-12.html#jls-12.5
-        if (lifecycle.getLifecycleFuture() == null) {
+        if (lifecycle.getLifecycleThread() == null) {
             lifecycle.initLifecycleThread();
         }
     }
@@ -303,7 +304,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 }
                 lifecycle.setClosed(true);
                 requestStop();
-                lifecycle.getLifecycleFuture().get();
+                lifecycle.getLifecycleThread().get();
                 closeFuture.complete(null);
             } catch (Exception e) {
                 closeFuture.completeExceptionally(e);
@@ -412,7 +413,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return true;
     }
 
-    private boolean dependencyReady() {
+    protected boolean dependencyReady() {
         List<EvergreenService> ret =
                 dependencies.entrySet()
                         .stream()

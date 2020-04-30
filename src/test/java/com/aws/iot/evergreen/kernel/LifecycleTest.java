@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.lenient;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -47,11 +48,13 @@ public class LifecycleTest {
             "---\n"
             + "lifecycle:\n"
             + "  install:\n"
-            + "    timeout: 2\n"
+            + "    timeout: 1\n"
             + "  startup:\n"
-            + "    timeout: 3\n"
+            + "    timeout: 1\n"
             + "  shutdown:\n"
-            + "    timeout: 5\n";
+            + "    timeout: 1\n";
+
+    private static final Integer DEFAULT_TEST_TIMEOUT = 1;
 
     private final Logger logger = LogManager.getLogger("test");
     private Context context;
@@ -83,6 +86,7 @@ public class LifecycleTest {
 
         Mockito.when(evergreenService.getConfig()).thenReturn(config);
         Mockito.when(evergreenService.getContext()).thenReturn(context);
+        lenient().when(evergreenService.dependencyReady()).thenReturn(true);
     }
 
     @AfterEach
@@ -100,9 +104,8 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        Thread.sleep(100);
-        Mockito.verify(evergreenService).install();
-        Mockito.verify(evergreenService).startup();
+        Mockito.verify(evergreenService, Mockito.timeout(100)).install();
+        Mockito.verify(evergreenService, Mockito.timeout(100)).startup();
         assertEquals(lifecycle.getState(), State.STARTING);
     }
 
@@ -115,7 +118,7 @@ public class LifecycleTest {
         AtomicBoolean installInterrupted = new AtomicBoolean(false);
         Mockito.doAnswer((mock) -> {
             try {
-                Thread.sleep(20_000);
+                Thread.sleep(2000);
             } catch (InterruptedException e) {
                 installInterrupted.set(true);
             }
@@ -128,10 +131,15 @@ public class LifecycleTest {
             return null;
         }).when(evergreenService).handleError();
 
+        Mockito.doAnswer((mock) -> {
+            lifecycle.reportState(State.ERRORED);
+            return null;
+        }).when(evergreenService).serviceErrored(Mockito.anyString());
+
         // WHEN
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
-        boolean errorHandled = errorHandleLatch.await(10, TimeUnit.SECONDS);
+        boolean errorHandled = errorHandleLatch.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS);
 
         // THEN
         assertTrue(errorHandled);
@@ -149,7 +157,7 @@ public class LifecycleTest {
         AtomicBoolean startupInterrupted = new AtomicBoolean(false);
         Mockito.doAnswer((mock) -> {
             try {
-                Thread.sleep(20_000);
+                Thread.sleep(2000);
             } catch (InterruptedException e) {
                 startupInterrupted.set(true);
             }
@@ -170,10 +178,15 @@ public class LifecycleTest {
             return null;
         }).when(evergreenService).shutdown();
 
+        Mockito.doAnswer((mock) -> {
+            lifecycle.reportState(State.ERRORED);
+            return null;
+        }).when(evergreenService).serviceErrored(Mockito.anyString());
+
         // WHEN
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
-        boolean shutdownCalled = shutdownHandleLatch.await(10, TimeUnit.SECONDS);
+        boolean shutdownCalled = shutdownHandleLatch.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS);
 
         // THEN
         assertTrue(shutdownCalled);
@@ -192,7 +205,7 @@ public class LifecycleTest {
         Mockito.doAnswer((mock) -> {
             lifecycle.reportState(State.RUNNING);
             try {
-                Thread.sleep(20_000);
+                Thread.sleep(2000);
             } catch (InterruptedException e) {
                 startupInterrupted.set(true);
             }
@@ -235,7 +248,7 @@ public class LifecycleTest {
             // not report RUNNING here
             lifecycle.requestStop();
             try {
-                Thread.sleep(20_000);
+                Thread.sleep(2000);
             } catch (InterruptedException e) {
                 startupInterrupted.set(true);
             }
@@ -285,7 +298,7 @@ public class LifecycleTest {
         Mockito.doAnswer((mock) -> {
             processed.countDown();
             // sleep to block state transition
-            Thread.sleep(5000);
+            Thread.sleep(2000);
             return null;
         }).when(evergreenService).handleError();
 
@@ -304,7 +317,7 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        processed.await();
+        processed.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS);
 
         // THEN
         assertEquals(1, runningReported.get());

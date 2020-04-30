@@ -422,7 +422,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
-        kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
             if (t.getOnce().equals(State.FINISHED)) {
                 mainFinished.countDown();
             }
