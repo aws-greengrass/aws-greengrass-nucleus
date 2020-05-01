@@ -436,20 +436,31 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
 
-        assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
-                "Merge should not happen within 2 seconds");
-
-        CountDownLatch sawUpdatesCompleted = new CountDownLatch(1);
+        AtomicBoolean sawUpdatesCompleted = new AtomicBoolean();
+        AtomicBoolean unsafeToUpdate = new AtomicBoolean();
+        AtomicBoolean safeToUpdate = new AtomicBoolean();
         Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
             if ("Yes! Updates completed".equals(m.getContexts().get("stdout"))) {
-                sawUpdatesCompleted.countDown();
+                sawUpdatesCompleted.set(true);
+            }
+            if ("Not SafeUpdate".equals(m.getContexts().get("stdout"))) {
+                unsafeToUpdate.set(true);
+            }
+            if ("Safe Update".equals(m.getContexts().get("stdout"))) {
+                safeToUpdate.set(true);
             }
         };
 
         try {
             Log4jLogEventBuilder.addGlobalListener(listener);
+            assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
+                    "Merge should not happen within 2 seconds");
+            assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
+            assertFalse(safeToUpdate.get(), "Service should not yet be safe to update");
+
             future.get(20, TimeUnit.SECONDS);
-            sawUpdatesCompleted.await(1, TimeUnit.SECONDS);
+            assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
+            assertTrue(sawUpdatesCompleted.get(), "Service should have been called when the update was done");
         } finally {
             Log4jLogEventBuilder.removeGlobalListener(listener);
         }
