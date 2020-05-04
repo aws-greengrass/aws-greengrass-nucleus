@@ -96,7 +96,7 @@ public class DeploymentConfigMerger {
 
             kernel.getConfig().mergeMap(timestamp, newConfig);
             // wait until topic listeners finished processing mergeMap changes.
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
+            kernel.getContext().runOnPublishQueue(() -> {
                 // polling to wait for all services to be started.
                 kernel.getContext().get(ExecutorService.class).execute(() -> {
                     //TODO: Add timeout

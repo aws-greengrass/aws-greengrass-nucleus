@@ -163,6 +163,22 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
+     * Find, but do not create if missing, a topic (a name/value pair) in the
+     * config file. If the topic exists, it returns the value. If the topic does not
+     * exist, then it will return the default value provided.
+     *
+     * @param defaultV default value if the Topic was not found
+     * @param path String[] of node names to traverse to find or create the Topic
+     */
+    public Object findOrDefault(Object defaultV, String... path) {
+        Topic potentialTopic = find(path);
+        if (potentialTopic == null) {
+            return defaultV;
+        }
+        return potentialTopic.getOnce();
+    }
+
+    /**
      * Find, but do not create if missing, a topics in the config file. Returns null if missing.
      *
      * @param path String[] of node names to traverse to find or create the Topic

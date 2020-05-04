@@ -312,7 +312,7 @@ public final class Exec implements Closeable {
                 } else {
                     if (!process.waitFor(timeout, timeunit)) {
                         (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
-                        process.destroyForcibly();
+                        process.destroy();
                     }
                 }
             } catch (InterruptedException ie) {
@@ -354,10 +354,6 @@ public final class Exec implements Closeable {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
             isClosed.set(true);
-            process = null;
-            stderrc = null;
-            stdoutc = null;
-            whenDone = null;
             if (wd != null) {
                 wd.accept(exit);
             }

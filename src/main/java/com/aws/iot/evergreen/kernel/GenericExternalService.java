@@ -17,10 +17,14 @@ import com.aws.iot.evergreen.util.Pair;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,7 +41,13 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
-    private final List<Exec> processes = new CopyOnWriteArrayList<>();
+    public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
+    public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
+    public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
+    public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
+    public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
+    private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
+    private final List<Exec> safeUpdateProcesses = new CopyOnWriteArrayList<>();
 
     /**
      * Create a new GenericExternalService.
@@ -79,9 +89,9 @@ public class GenericExternalService extends EvergreenService {
 
     @Override
     public synchronized void install() throws InterruptedException {
-        stopAllProcesses();
+        stopAllLifecycleProcesses();
 
-        if (run("install", null).getLeft() == RunStatus.Errored) {
+        if (run("install", null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
     }
@@ -90,7 +100,7 @@ public class GenericExternalService extends EvergreenService {
     // to operate properly
     @Override
     public synchronized void startup() throws InterruptedException {
-        stopAllProcesses();
+        stopAllLifecycleProcesses();
 
         long startingStateGeneration = getStateGeneration();
 
@@ -107,7 +117,7 @@ public class GenericExternalService extends EvergreenService {
                     }
                 }
             }
-        });
+        }, lifecycleProcesses);
 
         if (result.getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in startup");
@@ -118,7 +128,7 @@ public class GenericExternalService extends EvergreenService {
 
     @SuppressWarnings("PMD.CloseResource")
     private synchronized void handleRunScript() throws InterruptedException {
-        stopAllProcesses();
+        stopAllLifecycleProcesses();
         long startingStateGeneration = getStateGeneration();
 
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
@@ -135,13 +145,15 @@ public class GenericExternalService extends EvergreenService {
                     }
                 }
             }
-        });
+        }, lifecycleProcesses);
 
         if (result.getLeft() == RunStatus.NothingDone) {
             reportState(State.FINISHED);
             logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
+            return;
         } else if (result.getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in run");
+            return;
         } else {
             reportState(State.RUNNING);
         }
@@ -171,17 +183,99 @@ public class GenericExternalService extends EvergreenService {
     public synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
         try {
-            run("shutdown", null);
+            run("shutdown", null, lifecycleProcesses);
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
             return;
         }
-        stopAllProcesses();
+        stopAllLifecycleProcesses();
         logger.atInfo().setEventType("generic-service-shutdown").log();
     }
 
+    @Override
+    public long whenIsDisruptionOK() {
+        stopAllSafeUpdateProcesses();
+        try {
+            CompletableFuture<Integer> exitFuture = new CompletableFuture<>();
+            Pair<RunStatus, Exec> result = run(SAFE_UPDATE_TOPIC_NAME, exitFuture::complete, safeUpdateProcesses);
+
+            // If we didn't do anything then it is safe to update
+            if (result.getLeft().equals(RunStatus.NothingDone)) {
+                return 0L;
+            }
+
+            // If it ran, then check the result or timeout
+            if (result.getLeft().equals(RunStatus.OK)) {
+                int timeout = Coerce.toInt(
+                        config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                SAFE_UPDATE_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
+                try {
+                    int exitCode = exitFuture.get(timeout, TimeUnit.SECONDS);
+                    // Define exit code 0 to mean that it is safe to update right now
+                    if (exitCode == 0) {
+                        logger.atDebug().log("{} returned 0, so it is safe to update now", SAFE_UPDATE_TOPIC_NAME);
+                        return 0L;
+                    }
+                } catch (ExecutionException e) {
+                    // Not possible
+                } catch (TimeoutException e) {
+                    logger.atWarn()
+                            .log("Timed out while running {}. Will try to update again later", SAFE_UPDATE_TOPIC_NAME);
+                }
+                result.getRight().close();
+            }
+        } catch (InterruptedException ignore) {
+        } catch (IOException e) {
+            logger.atWarn().log("Error while running {}. Will try to update again later", SAFE_UPDATE_TOPIC_NAME, e);
+        }
+
+        int recheckSeconds = Coerce.toInt(
+                config.findOrDefault(DEFAULT_SAFE_UPDATE_RECHECK_TIME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                        SAFE_UPDATE_TOPIC_NAME, RECHECK_PERIOD_TOPIC_NAME));
+        logger.atInfo().kv(RECHECK_PERIOD_TOPIC_NAME, recheckSeconds)
+                .log("{} decided it is unsafe to update now. Will try to update again later", SAFE_UPDATE_TOPIC_NAME);
+
+        // By default, if anything goes wrong we will assume it is not safe to update right now
+        return Instant.now().plusSeconds(recheckSeconds).toEpochMilli();
+    }
+
+    @Override
+    public void disruptionCompleted() {
+        stopAllSafeUpdateProcesses();
+        CompletableFuture<Integer> exitFuture = new CompletableFuture<>();
+        try {
+            Pair<RunStatus, Exec> result = run(UPDATES_COMPLETED_TOPIC_NAME, exitFuture::complete, safeUpdateProcesses);
+            if (result.getLeft().equals(RunStatus.NothingDone) || result.getLeft().equals(RunStatus.Errored)) {
+                return;
+            }
+
+            int timeout = Coerce.toInt(
+                    config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            UPDATES_COMPLETED_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
+            try {
+                exitFuture.get(timeout, TimeUnit.SECONDS);
+            } catch (ExecutionException e) {
+                // Not possible
+            } catch (TimeoutException e) {
+                logger.atWarn().log("Timed out while running {}", UPDATES_COMPLETED_TOPIC_NAME);
+            }
+            result.getRight().close();
+        } catch (InterruptedException ignore) {
+        } catch (IOException e) {
+            logger.atWarn().log("Error while running {}", UPDATES_COMPLETED_TOPIC_NAME, e);
+        }
+    }
+
+    private synchronized void stopAllLifecycleProcesses() {
+        stopProcesses(lifecycleProcesses);
+    }
+
+    private synchronized void stopAllSafeUpdateProcesses() {
+        stopProcesses(safeUpdateProcesses);
+    }
+
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized void stopAllProcesses() {
+    private synchronized void stopProcesses(List<Exec> processes) {
         for (Exec e : processes) {
             if (e != null && e.isRunning()) {
                 logger.atInfo().log("Shutting down process {}", e);
@@ -201,33 +295,34 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void handleError() throws InterruptedException {
         // A placeholder for error handling in GenericExternalService
-        run("handleError", null);
+        run("handleError", null, lifecycleProcesses);
     }
 
     /**
      * Run one of the commands defined in the config on the command line.
      *
-     * @param name       name of the command to run ("run", "install", "start").
-     * @param background IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
+     * @param name         name of the command to run ("run", "install", "start").
+     * @param background   IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
+     * @param trackingList List used to track running processes.
      * @return the status of the run and the Exec.
      */
-    protected Pair<RunStatus, Exec> run(String name, IntConsumer background) throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(String name, IntConsumer background, List<Exec> trackingList)
+            throws InterruptedException {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(name);
-        return n == null ? new Pair<>(RunStatus.NothingDone, null) : run(n, background);
+        if (n == null) {
+            return new Pair<>(RunStatus.NothingDone, null);
+        }
+        if (n instanceof Topic) {
+            return run((Topic) n, Coerce.toString(((Topic) n).getOnce()), background, trackingList);
+        }
+        if (n instanceof Topics) {
+            return run((Topics) n, background, trackingList);
+        }
+        return new Pair<>(RunStatus.NothingDone, null);
     }
 
-    protected Pair<RunStatus, Exec> run(Node n, IntConsumer background) throws InterruptedException {
-        return n instanceof Topic ? run((Topic) n, background, null)
-                : n instanceof Topics ? run((Topics) n, background) : new Pair<>(RunStatus.Errored, null);
-    }
-
-    protected Pair<RunStatus, Exec> run(Topic t, IntConsumer background, Topics config) throws InterruptedException {
-        return run(t, Coerce.toString(t.getOnce()), background, config);
-    }
-
-    // Synchronize because we should only be running 1 thing at a time. Resolves concurrent access to currentScript.
     @SuppressWarnings("PMD.CloseResource")
-    protected synchronized Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, Topics config)
+    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList)
             throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
@@ -242,12 +337,13 @@ public class GenericExternalService extends EvergreenService {
 
         // Track all running processes that we fork
         if (exec.isRunning()) {
-            processes.add(exec);
+            trackingList.add(exec);
         }
         return new Pair<>(ret, exec);
     }
 
-    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background) throws InterruptedException {
+    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background, List<Exec> trackingList)
+            throws InterruptedException {
         try {
             if (shouldSkip(t)) {
                 logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
@@ -259,7 +355,7 @@ public class GenericExternalService extends EvergreenService {
 
         Node script = t.getChild("script");
         if (script instanceof Topic) {
-            return run((Topic) script, background, t);
+            return run((Topic) script, Coerce.toString(((Topic) script).getOnce()), background, trackingList);
         } else {
             logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
                     .log("Missing script");

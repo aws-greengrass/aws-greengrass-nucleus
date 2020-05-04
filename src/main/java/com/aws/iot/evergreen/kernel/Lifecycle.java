@@ -577,6 +577,7 @@ public class Lifecycle {
         lifecycleFuture = evergreenService.getContext().get(ExecutorService.class).submit(() -> {
             while (!isClosed.get()) {
                 try {
+                    Thread.currentThread().setName(evergreenService.getName() + "-lifecycle");
                     startStateTransition();
                     return;
                 } catch (RejectedExecutionException e) {
