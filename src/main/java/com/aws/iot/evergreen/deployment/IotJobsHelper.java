@@ -102,6 +102,7 @@ public class IotJobsHelper {
          */
         Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
         if (jobs.containsKey(JobStatus.QUEUED)) {
+            logger.atInfo().log("Received new deployment notification. Requesting details");
             //Do not wait on the future in this async handler,
             //as it will block the thread which establishes
             // the MQTT connection. This will result in frozen MQTT connection
@@ -109,6 +110,7 @@ public class IotJobsHelper {
         }
         //TODO: If there was only one job, then indicate cancellation of that job.
         // Empty list will be received.
+        logger.atInfo().kv("jobs", jobs).log("Received other deployment notification. Not supported yet");
     };
 
     /**
@@ -118,6 +120,7 @@ public class IotJobsHelper {
      */
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
         if (response.execution == null) {
+            logger.atInfo().log("No deployment job found");
             return;
         }
         JobExecutionData jobExecutionData = response.execution;
@@ -234,6 +237,7 @@ public class IotJobsHelper {
         }
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
         this.thingName = deviceConfiguration.getThingName();
+        logger.dfltKv("ThingName", thingName);
         subscribeToJobsTopics();
         logger.atInfo().log("Connection established to Iot cloud");
     }
@@ -247,8 +251,10 @@ public class IotJobsHelper {
      */
     public void closeConnection() throws ExecutionException, InterruptedException {
         if (connection != null && !connection.isNull()) {
+            logger.atInfo().log("Closing connection to Iot cloud");
             connection.disconnect().get();
             connection.close();
+            logger.atInfo().log("Connection to Iot cloud is closed");
         }
     }
 
@@ -316,6 +322,7 @@ public class IotJobsHelper {
         //This method is specifically called from an async event notification handler. Async handler cannot block on
         // this future as that will freeze the MQTT connection.
         iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
+        logger.atDebug().log("Requesting the next deployment");
     }
 
     /**
@@ -367,6 +374,7 @@ public class IotJobsHelper {
                                                     Consumer<RejectedError> consumerReject)
             throws ExecutionException, InterruptedException, TimeoutException {
 
+        logger.atInfo().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = thingName;
@@ -378,6 +386,7 @@ public class IotJobsHelper {
         subscribed = iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE, consumerReject);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+        logger.atInfo().log("Subscribed to deployment job execution update.");
     }
 
     /**
@@ -390,10 +399,12 @@ public class IotJobsHelper {
      */
     protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
             throws ExecutionException, InterruptedException, TimeoutException {
+        logger.atInfo().log("Subscribing to deployment job event notifications.");
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
         request.thingName = thingName;
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+        logger.atInfo().log("Subscribed to deployment job event notifications.");
     }
 }

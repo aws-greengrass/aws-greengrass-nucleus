@@ -84,7 +84,7 @@ This is due to the current limitation that global resources are used in logging 
 
 #### Add a new E2E test
 For new tests which are non-intrusive to test environment, annotate with `@Tag("E2E")`.
-For those changing the underlying test environment, e.g. MQTT connection test, annotate with `@Tag("E2E-EXCLUSIVE")`.
+For those changing the underlying test environment, e.g. MQTT connection test, annotate with `@Tag("E2E-INTRUSIVE")`.
 
 ## PR/CR
 Since development is on GitHub and not GitFarm we can't use `cr` to create a code review. Instead you must

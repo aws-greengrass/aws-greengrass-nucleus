@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
-@Tag("E2E-EXCLUSIVE")
+@Tag("E2E-INTRUSIVE")
 public class MqttReconnectTest {
     @TempDir
     Path tempRootDir;

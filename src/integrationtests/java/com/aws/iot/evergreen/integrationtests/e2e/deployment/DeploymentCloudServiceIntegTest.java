@@ -137,7 +137,7 @@ public class DeploymentCloudServiceIntegTest {
         String jobId1 = sendCreateDeploymentRequest(thingGroupResp.thingGroupArn(), document);
 
         // wait until deployment complete
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(3), s -> s
+        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(5), s -> s
                 .equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));

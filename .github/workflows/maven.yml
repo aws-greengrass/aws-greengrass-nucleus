@@ -92,12 +92,12 @@ jobs:
           name: Failed E2E Report
           path: target/surefire-reports
       - name: Run intrusive E2E Tests serially
-        run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E-EXCLUSIVE" -DexcludedGroups="" -Dsurefire.argLine=""
+        run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E-INTRUSIVE" -DexcludedGroups="" -Dsurefire.argLine=""
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
-          name: Failed E2E-EXCLUSIVE Report
+          name: Failed E2E-INTRUSIVE Report
           path: target/surefire-reports
   publish:
     needs: build
