@@ -102,7 +102,7 @@ public class MqttReconnectTest {
         Utils.cleanAllCreatedThingGroups();
     }
 
-    @Timeout(value = 5, unit = TimeUnit.MINUTES)
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
             ExtensionContext context) throws Exception {
@@ -148,7 +148,7 @@ public class MqttReconnectTest {
         String[] targets = {thingGroupArn};
         Utils.createJobWithId(document, jobId, targets);
 
-        assertTrue(jobInProgress.await(3, TimeUnit.MINUTES));
+        assertTrue(jobInProgress.await(5, TimeUnit.MINUTES));
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();

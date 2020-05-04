@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-public class EvergreenService implements InjectionActions {
+public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
@@ -96,7 +96,9 @@ public class EvergreenService implements InjectionActions {
         // problems. Since postInject() only runs after construction, it is safe to start the lifecycle
         // thread here.
         // See Java Language Spec for more https://docs.oracle.com/javase/specs/jls/se8/html/jls-12.html#jls-12.5
-        lifecycle.initLifecycleThread();
+        if (lifecycle.getLifecycleFuture() == null) {
+            lifecycle.initLifecycleThread();
+        }
     }
 
     public State getState() {
@@ -272,6 +274,29 @@ public class EvergreenService implements InjectionActions {
         if (t != null) {
             t.shutdown();
         }
+    }
+
+    /**
+     * Called to check if the service can be disrupted to process a deployment.
+     * Default implementation returns 0, meaning that the service is safe
+     * to be disrupted.
+     *
+     * @return Estimated time when this handler will be willing to be disrupted,
+     *     expressed as milliseconds since the epoch. If
+     *     the returned value is less than now (System.currentTimeMillis()) the handler
+     *     is granting permission to be disrupted.  Otherwise, it will be asked again
+     *     sometime later.
+     */
+    @Override
+    public long whenIsDisruptionOK() {
+        return 0;
+    }
+
+    /**
+     * Called when the disruption to the service has concluded.
+     */
+    @Override
+    public void disruptionCompleted() {
     }
 
     /**

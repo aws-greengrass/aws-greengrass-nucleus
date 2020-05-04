@@ -1,0 +1,20 @@
+services:
+  main:
+    dependencies:
+      - nondisruptable
+  nondisruptable:
+    lifecycle:
+      install: rm /tmp/safeUpdateRetry || exit 0
+      checkIfSafeToUpdate:
+        recheckPeriod: 5
+        script: |-
+          if [ -f "/tmp/safeUpdateRetry" ]; then
+            echo "Safe Update"
+            rm /tmp/safeUpdateRetry
+            exit 0
+          else
+            echo "Not SafeUpdate"
+            touch /tmp/safeUpdateRetry
+            exit 1
+          fi
+      updatesCompleted: echo "Yes! Updates completed"

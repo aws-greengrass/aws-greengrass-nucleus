@@ -45,7 +45,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
 
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
@@ -132,9 +134,9 @@ public class DeploymentCloudServiceIntegTest {
         Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId1, thingInfo.thingName, Duration.ofMinutes(3),
                 s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        assertEquals(State.FINISHED, kernel.getMain().getState());
-        assertEquals(State.FINISHED, kernel.locate("CustomerApp").getState());
-        assertEquals(State.FINISHED, kernel.locate("SomeService").getState());
+        assertThat(kernel.getMain().getState(), anyOf(is(State.RUNNING), is(State.FINISHED)));
+        assertThat(kernel.locate("CustomerApp").getState(), anyOf(is(State.RUNNING), is(State.FINISHED)));
+        assertThat(kernel.locate("SomeService").getState(), anyOf(is(State.RUNNING), is(State.FINISHED)));
     }
 
     private String sendCreateDeploymentRequest(String targetThingGroupArn, DeploymentDocument document)
