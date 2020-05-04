@@ -6,9 +6,13 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
+
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 
 public abstract class Node {
     public final Context context;
@@ -151,6 +155,35 @@ public abstract class Node {
      */
     public boolean childOf(String n) {
         return n.equals(name) || parent != null && parent.childOf(n);
+    }
+
+    /**
+     * Get path of parents.
+     *
+     * @return list of strings with index 0 being the current node's name
+     */
+    public List<String> path() {
+        ArrayList<String> parents = new ArrayList<>();
+        parents.add(name);
+
+        if (parent != null) {
+            parents.addAll(parent.path());
+        }
+        return parents;
+    }
+
+    /**
+     * Find the service that this node belongs to (or null if it is not under a service).
+     *
+     * @return service name or null
+     */
+    public String findService() {
+        List<String> p = path();
+        int idx = p.lastIndexOf(SERVICES_NAMESPACE_TOPIC);
+        if (idx <= 0) {
+            return null;
+        }
+        return p.get(idx - 1);
     }
 
     /**

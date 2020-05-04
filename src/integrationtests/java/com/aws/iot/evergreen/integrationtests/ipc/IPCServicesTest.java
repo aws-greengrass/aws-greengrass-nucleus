@@ -4,10 +4,13 @@
 package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
@@ -33,15 +36,23 @@ import org.junit.jupiter.api.io.TempDir;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -170,7 +181,8 @@ class IPCServicesTest {
     @Test
     void lifecycleTest(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
         IPCClient client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
 
@@ -184,6 +196,55 @@ class IPCServicesTest {
         p.getLeft().get(500, TimeUnit.MILLISECONDS);
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
+        client.disconnect();
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_initial_state_sent(ExtensionContext context) throws Exception {
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
+        IPCClient client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> p = TestUtils.asyncAssertOnConsumer((a) -> {
+            assertThat(a, anEmptyMap());
+        });
+
+        c.subscribe(p.getRight());
+        p.getLeft().get(500, TimeUnit.MILLISECONDS);
+        client.disconnect();
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_values_sent_when_changed(ExtensionContext context)
+            throws Exception {
+        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
+        IPCClient client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(CUSTOM_CONFIG_NAMESPACE);
+        custom.createLeafChild("abc").withValue("ABC");
+
+        AtomicInteger numCalls = new AtomicInteger();
+        Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> p = TestUtils.asyncAssertOnConsumer((a) -> {
+            int callNum = numCalls.incrementAndGet();
+            assertThat(a, equalTo(custom.toPOJO()));
+
+            if (callNum == 1) {
+                assertThat(a, aMapWithSize(1));
+            } else if (callNum == 2) {
+                assertThat(a, aMapWithSize(2));
+            }
+        }, 2);
+
+        c.subscribe(p.getRight());
+        custom.createLeafChild("DDF").withValue("ddf");
+
+        p.getLeft().get(1, TimeUnit.SECONDS);
+
         client.disconnect();
     }
 }

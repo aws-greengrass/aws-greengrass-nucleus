@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.testcommons.testutilities;
 import com.aws.iot.evergreen.util.Pair;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -35,12 +36,21 @@ public final class TestUtils {
     }
 
     public static <A> Pair<CompletableFuture<Void>, Consumer<A>> asyncAssertOnConsumer(Consumer<A> c) {
+        return asyncAssertOnConsumer(c, 1);
+    }
+
+    public static <A> Pair<CompletableFuture<Void>, Consumer<A>> asyncAssertOnConsumer(Consumer<A> c, int numCalls) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        AtomicInteger calls = new AtomicInteger();
 
         return new Pair<>(f, (a) -> {
             try {
+                int callsSoFar = calls.incrementAndGet();
                 c.accept(a);
-                f.complete(null);
+
+                if (callsSoFar == numCalls) {
+                    f.complete(null);
+                }
             } catch (Throwable ex) {
                 f.completeExceptionally(ex);
             }
