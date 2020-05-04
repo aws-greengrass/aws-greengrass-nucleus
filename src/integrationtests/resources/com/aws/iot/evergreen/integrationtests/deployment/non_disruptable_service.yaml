@@ -5,7 +5,7 @@ services:
   nondisruptable:
     lifecycle:
       install: rm /tmp/safeUpdateRetry || exit 0
-      safeToUpdate:
+      checkIfSafeToUpdate:
         recheckPeriod: 5
         script: |-
           if [ -f "/tmp/safeUpdateRetry" ]; then

@@ -41,7 +41,7 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
-    public static final String SAFE_UPDATE_TOPIC_NAME = "safeToUpdate";
+    public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
     public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
     public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
     public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;

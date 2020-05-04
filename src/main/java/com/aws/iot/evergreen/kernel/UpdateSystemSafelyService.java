@@ -9,9 +9,7 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -20,12 +18,8 @@ import javax.inject.Singleton;
  * (or anything else that's disruptive and shouldn't be done until the system
  * is in a "safe" state).
  *
- * <p>It maintains two lists: one is a list of actions that will be executed when the
+ * <p>It maintains a list of actions that will be executed when the
  * system is next "disruptable".  This is typically code that is going to install an update.
- *
- * <p>The other is a list of functions that are called to check if the system is "disruptable".
- * For example, a TV might not be disruptable if it is being used, or a robot if it is
- * in motion.
  *
  * <p>If the update service is periodic, update actions will only be processed at that time.
  * Otherwise, it the update will be processed immediately, assuming that all disruptability
@@ -35,20 +29,6 @@ import javax.inject.Singleton;
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
     private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
-    private final List<DisruptableCheck> disruptableChecks = new CopyOnWriteArrayList<>();
-
-    private final DisruptableCheck egServiceCheck = new DisruptableCheck() {
-        @Override
-        public long whenIsDisruptionOK() {
-            return kernel.orderedDependencies().stream().mapToLong(EvergreenService::whenIsDisruptionOK).max()
-                    .orElse(0L);
-        }
-
-        @Override
-        public void disruptionCompleted() {
-            kernel.orderedDependencies().forEach(EvergreenService::disruptionCompleted);
-        }
-    };
 
     private final Kernel kernel;
 
@@ -62,15 +42,6 @@ public class UpdateSystemSafelyService extends EvergreenService {
     public UpdateSystemSafelyService(Topics c, Kernel k) {
         super(c);
         this.kernel = k;
-        addDisruptableCheck(egServiceCheck);
-    }
-
-    public void addDisruptableCheck(DisruptableCheck d) {
-        disruptableChecks.add(d);
-    }
-
-    public void removeDisruptableCheck(DisruptableCheck d) {
-        disruptableChecks.remove(d);
     }
 
     /**
@@ -102,8 +73,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
             }
         }
         pendingActions.clear();
-        for (DisruptableCheck c : disruptableChecks) {
-            c.disruptionCompleted(); // Notify disruption is over
+        for (EvergreenService s : kernel.orderedDependencies()) {
+            s.disruptionCompleted(); // Notify disruption is over
         }
     }
 
@@ -128,8 +99,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
 
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
-            for (DisruptableCheck c : disruptableChecks) {
-                long ct = c.whenIsDisruptionOK();
+            for (EvergreenService s : kernel.orderedDependencies()) {
+                long ct = s.whenIsDisruptionOK();
                 if (ct > maxt) {
                     maxt = ct;
                 }
