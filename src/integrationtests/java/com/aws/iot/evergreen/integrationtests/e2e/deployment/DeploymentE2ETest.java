@@ -85,11 +85,6 @@ class DeploymentE2ETest {
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
-
-        // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
-        // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
-        // creating new IoT job here.
-        Thread.sleep(10_000);
     }
 
     @Test

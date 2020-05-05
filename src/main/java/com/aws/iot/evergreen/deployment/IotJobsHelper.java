@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -70,6 +71,10 @@ public class IotJobsHelper {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
+    // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
+    // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
+    // with, and keep retrying the request until we get a non-empty response.
+    private static final AtomicInteger unprocessedJobs = new AtomicInteger(0);
 
     private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
@@ -102,11 +107,15 @@ public class IotJobsHelper {
          */
         Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
         if (jobs.containsKey(JobStatus.QUEUED)) {
+            // Only increment instead of adding number of jobs from the list, because we will get one notification for
+            // each new job QUEUED.
+            unprocessedJobs.incrementAndGet();
             logger.atInfo().log("Received new deployment notification. Requesting details");
             //Do not wait on the future in this async handler,
             //as it will block the thread which establishes
             // the MQTT connection. This will result in frozen MQTT connection
             requestNextPendingJobDocument();
+            return;
         }
         //TODO: If there was only one job, then indicate cancellation of that job.
         // Empty list will be received.
@@ -121,8 +130,14 @@ public class IotJobsHelper {
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
         if (response.execution == null) {
             logger.atInfo().log("No deployment job found");
+            if (unprocessedJobs.get() > 0) {
+                // Keep resending request for job details since we got notification of QUEUED jobs
+                logger.atDebug().log("Retry requesting next pending job document");
+                requestNextPendingJobDocument();
+            }
             return;
         }
+        unprocessedJobs.decrementAndGet();
         JobExecutionData jobExecutionData = response.execution;
 
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv("Status", jobExecutionData.status)
