@@ -26,6 +26,11 @@ public enum State {
     INSTALLED(true, false, false),
 
     /**
+     * The service has started, but hasn't report running yet.
+     */
+    STARTING(true, false, false),
+
+    /**
      * Up and running, operating normally. This is the only state that should
      * ever take a significant amount of time to run.
      */
