@@ -56,15 +56,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
@@ -79,9 +75,6 @@ public class Utils {
     public static IotClient iotClient = IotClient.builder().build();
 
     private static final String FULL_ACCESS_POLICY_NAME = "E2ETestFullAccess";
-    private static final Map<IotClient, Set<ThingInfo>> createdThingsMap = new ConcurrentHashMap<>();
-    private static final Map<IotClient, Set<String>> createdThingGroupsMap = new ConcurrentHashMap<>();
-    private static final Map<IotClient, Set<String>> createdJobsMap = new ConcurrentHashMap<>();
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final int DEFAULT_RETRIES = 5;
     private static final int DEFAULT_INITIAL_BACKOFF_MS = 100;
@@ -107,15 +100,6 @@ public class Utils {
                 CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
                         .document(document).description("E2E Test: " + new Date())
                         .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build()));
-
-        createdJobsMap.compute(client, (k, existingJobs) -> {
-            if (existingJobs == null) {
-                return new CopyOnWriteArraySet<>(Collections.singleton(jobId));
-            } else {
-                existingJobs.add(jobId);
-                return existingJobs;
-            }
-        });
     }
 
     public static void waitForJobToComplete(String jobId, Duration timeout) throws TimeoutException {
@@ -167,11 +151,11 @@ public class Utils {
         throw new TimeoutException();
     }
 
-    public static String createThingGroupAndAddThing(ThingInfo thingInfo) {
+    public static CreateThingGroupResponse createThingGroupAndAddThing(ThingInfo thingInfo) {
         return createThingGroupAndAddThing(iotClient, thingInfo);
     }
 
-    public static String createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
+    public static CreateThingGroupResponse createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
         String thingGroupName = "e2etestgroup-" + UUID.randomUUID().toString();
         CreateThingGroupResponse response = client.createThingGroup(CreateThingGroupRequest.builder()
                 .thingGroupName(thingGroupName)
@@ -181,16 +165,7 @@ public class Utils {
                 .thingArn(thingInfo.thingArn)
                 .thingGroupArn(response.thingGroupArn()).build());
 
-        createdThingGroupsMap.compute(client, (key, existingThingGroups) -> {
-            if (existingThingGroups == null) {
-                return new CopyOnWriteArraySet<>(Collections.singletonList(response.thingGroupName()));
-            } else {
-                existingThingGroups.add(response.thingGroupName());
-                return existingThingGroups;
-            }
-        });
-
-        return response.thingGroupArn();
+        return response;
     }
 
     public static ThingInfo createThing() {
@@ -228,57 +203,17 @@ public class Utils {
                 AttachThingPrincipalRequest.builder().thingName(thingName).principal(keyResponse.certificateArn())
                         .build()));
 
-        ThingInfo info = new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
+        return new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
                 keyResponse.certificatePem(), keyResponse.keyPair(), retryIot(() -> client
                 .describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build()))
                 .endpointAddress());
-        createdThingsMap.compute(client, (k, existingThings) -> {
-            if (existingThings == null) {
-                return new CopyOnWriteArraySet<>(Collections.singleton(info));
-            } else {
-                existingThings.add(info);
-                return existingThings;
-            }
-        });
-        return info;
     }
 
-    public static void cleanAllCreatedThings() {
-        cleanAllCreatedThings(iotClient);
-    }
+    public static void cleanThingGroup(String thingGroupName) { cleanThingGroup(iotClient, thingGroupName); }
 
-    public static void cleanAllCreatedThings(IotClient client) {
-        Set<ThingInfo> createdThingsInAccount = createdThingsMap.get(client);
-        if (createdThingsInAccount == null) {
-            return;
-        }
-        createdThingsInAccount.forEach(info -> cleanThing(client, info));
-    }
-
-    public static void cleanAllCreatedJobs() {
-        cleanAllCreatedJobs(iotClient);
-    }
-
-    public static void cleanAllCreatedJobs(IotClient client) {
-        Set<String> createdJobs = createdJobsMap.get(client);
-        if (createdJobs != null) {
-            createdJobs.forEach(jobId -> cleanJob(client, jobId));
-        }
-    }
-
-    public static void cleanAllCreatedThingGroups() {
-        cleanAllCreatedThingGroups(iotClient);
-    }
-
-    public static void cleanAllCreatedThingGroups(IotClient client) {
-        Set<String> createdThingGroups = createdThingGroupsMap.get(client);
-        if (createdThingGroups == null) {
-            return;
-        }
-        for (String thingGroupName: createdThingGroups) {
-            retryIot(() -> client.deleteThingGroup(DeleteThingGroupRequest.builder()
+    public static void cleanThingGroup(IotClient client, String thingGroupName) {
+        retryIot(() -> client.deleteThingGroup(DeleteThingGroupRequest.builder()
                 .thingGroupName(thingGroupName).build()));
-        }
     }
 
     public static void cleanThing(ThingInfo thing) {
@@ -294,7 +229,10 @@ public class Utils {
                 .newStatus(CertificateStatus.INACTIVE).build()));
         retryIot(() -> client.deleteCertificate(
                 DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build()));
-        createdThingsMap.getOrDefault(client, new HashSet<>()).remove(thing);
+    }
+
+    public static void cleanJob(String jobId) {
+        cleanJob(iotClient, jobId);
     }
 
     public static void cleanJob(IotClient client, String jobId) {
@@ -307,7 +245,6 @@ public class Utils {
             }
         }
         retryIot(() -> client.deleteJob(DeleteJobRequest.builder().jobId(jobId).force(true).build()));
-        createdJobsMap.getOrDefault(client, new HashSet<>()).remove(jobId);
     }
 
     public static void downloadRootCAToFile(File f) throws IOException {

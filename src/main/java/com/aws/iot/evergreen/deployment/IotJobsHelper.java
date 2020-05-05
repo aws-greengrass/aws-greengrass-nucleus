@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -70,6 +71,10 @@ public class IotJobsHelper {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
+    // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
+    // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
+    // with, and keep retrying the request until we get a non-empty response.
+    private static final AtomicInteger unprocessedJobs = new AtomicInteger(0);
 
     private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
@@ -102,13 +107,19 @@ public class IotJobsHelper {
          */
         Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
         if (jobs.containsKey(JobStatus.QUEUED)) {
+            // Only increment instead of adding number of jobs from the list, because we will get one notification for
+            // each new job QUEUED.
+            unprocessedJobs.incrementAndGet();
+            logger.atInfo().log("Received new deployment notification. Requesting details");
             //Do not wait on the future in this async handler,
             //as it will block the thread which establishes
             // the MQTT connection. This will result in frozen MQTT connection
             requestNextPendingJobDocument();
+            return;
         }
         //TODO: If there was only one job, then indicate cancellation of that job.
         // Empty list will be received.
+        logger.atInfo().kv("jobs", jobs).log("Received other deployment notification. Not supported yet");
     };
 
     /**
@@ -118,8 +129,15 @@ public class IotJobsHelper {
      */
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
         if (response.execution == null) {
+            logger.atInfo().log("No deployment job found");
+            if (unprocessedJobs.get() > 0) {
+                // Keep resending request for job details since we got notification of QUEUED jobs
+                logger.atDebug().log("Retry requesting next pending job document");
+                requestNextPendingJobDocument();
+            }
             return;
         }
+        unprocessedJobs.decrementAndGet();
         JobExecutionData jobExecutionData = response.execution;
 
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv("Status", jobExecutionData.status)
@@ -234,6 +252,7 @@ public class IotJobsHelper {
         }
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
         this.thingName = deviceConfiguration.getThingName();
+        logger.dfltKv("ThingName", thingName);
         subscribeToJobsTopics();
         logger.atInfo().log("Connection established to Iot cloud");
     }
@@ -247,8 +266,10 @@ public class IotJobsHelper {
      */
     public void closeConnection() throws ExecutionException, InterruptedException {
         if (connection != null && !connection.isNull()) {
+            logger.atInfo().log("Closing connection to Iot cloud");
             connection.disconnect().get();
             connection.close();
+            logger.atInfo().log("Connection to Iot cloud is closed");
         }
     }
 
@@ -316,6 +337,7 @@ public class IotJobsHelper {
         //This method is specifically called from an async event notification handler. Async handler cannot block on
         // this future as that will freeze the MQTT connection.
         iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
+        logger.atDebug().log("Requesting the next deployment");
     }
 
     /**
@@ -367,6 +389,7 @@ public class IotJobsHelper {
                                                     Consumer<RejectedError> consumerReject)
             throws ExecutionException, InterruptedException, TimeoutException {
 
+        logger.atInfo().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = thingName;
@@ -378,6 +401,7 @@ public class IotJobsHelper {
         subscribed = iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
                 QualityOfService.AT_LEAST_ONCE, consumerReject);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+        logger.atInfo().log("Subscribed to deployment job execution update.");
     }
 
     /**
@@ -390,10 +414,12 @@ public class IotJobsHelper {
      */
     protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
             throws ExecutionException, InterruptedException, TimeoutException {
+        logger.atInfo().log("Subscribing to deployment job event notifications.");
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
         request.thingName = thingName;
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+        logger.atInfo().log("Subscribed to deployment job event notifications.");
     }
 }
