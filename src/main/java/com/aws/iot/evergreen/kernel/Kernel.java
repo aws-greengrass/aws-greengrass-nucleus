@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -98,6 +99,21 @@ public class Kernel {
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
+    }
+
+    /**
+     * Find the service that a Node belongs to (or null if it is not under a service).
+     *
+     * @param node node to identify the service it belongs to
+     * @return service name or null
+     */
+    public static String findServiceForNode(Node node) {
+        List<String> p = node.path();
+        int idx = p.lastIndexOf(SERVICES_NAMESPACE_TOPIC);
+        if (idx <= 0) {
+            return null;
+        }
+        return p.get(idx - 1);
     }
 
     /**

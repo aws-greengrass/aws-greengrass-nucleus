@@ -12,8 +12,6 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-
 public abstract class Node {
     public final Context context;
     public final Topics parent;
@@ -170,20 +168,6 @@ public abstract class Node {
             parents.addAll(parent.path());
         }
         return parents;
-    }
-
-    /**
-     * Find the service that this node belongs to (or null if it is not under a service).
-     *
-     * @return service name or null
-     */
-    public String findService() {
-        List<String> p = path();
-        int idx = p.lastIndexOf(SERVICES_NAMESPACE_TOPIC);
-        if (idx <= 0) {
-            return null;
-        }
-        return p.get(idx - 1);
     }
 
     /**

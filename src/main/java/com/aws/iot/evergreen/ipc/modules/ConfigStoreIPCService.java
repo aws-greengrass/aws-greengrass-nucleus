@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreClientOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreGenericResponse;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreReadValueRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,11 +69,19 @@ public class ConfigStoreIPCService extends EvergreenService {
             //TODO: add version compatibility check
             ConfigStoreClientOpCodes opCode = ConfigStoreClientOpCodes.values()[applicationMessage.getOpCode()];
             ConfigStoreGenericResponse configStoreGenericResponse = new ConfigStoreGenericResponse();
-            if (ConfigStoreClientOpCodes.SUBSCRIBE_ALL.equals(opCode)) {
-                configStoreGenericResponse = agent.subscribe(context);
-            } else {
-                configStoreGenericResponse.setStatus(ConfigStoreResponseStatus.InvalidRequest);
-                configStoreGenericResponse.setErrorMessage("Unknown request type " + opCode.toString());
+            switch (opCode) {
+                case SUBSCRIBE_ALL:
+                    configStoreGenericResponse = agent.subscribe(context);
+                    break;
+                case READ_KEY:
+                    ConfigStoreReadValueRequest readRequest =
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), ConfigStoreReadValueRequest.class);
+                    configStoreGenericResponse = agent.read(readRequest, context);
+                    break;
+                default:
+                    configStoreGenericResponse.setStatus(ConfigStoreResponseStatus.InvalidRequest);
+                    configStoreGenericResponse.setErrorMessage("Unknown request type " + opCode.toString());
+                    break;
             }
 
             ApplicationMessage responseMessage = ApplicationMessage.builder().version(applicationMessage.getVersion())
@@ -82,8 +91,7 @@ public class ConfigStoreIPCService extends EvergreenService {
             logger.atError().setEventType("configstore-ipc-error").setCause(e).log("Failed to handle message");
             try {
                 ConfigStoreGenericResponse response =
-                        ConfigStoreGenericResponse.builder().status(ConfigStoreResponseStatus.InternalError)
-                                .errorMessage(e.getMessage()).build();
+                        new ConfigStoreGenericResponse(ConfigStoreResponseStatus.InternalError, e.getMessage());
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
                                 .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();
