@@ -30,5 +30,4 @@ Dependencies:
     Cool-Database: '1.0'
   macos:
     mac-log: '1.0'
-Requires:
-  - homebrew
+

@@ -75,8 +75,11 @@ public class GenericExternalService extends EvergreenService {
                 requestReinstall();
                 return;
             }
-            // By default for any change, just restart the service
-            requestRestart();
+
+            // Restart service for changes to the lifecycle config or if environment variables changed
+            if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)) {
+                requestRestart();
+            }
         });
 
         AuthHandler.registerAuthToken(this);
@@ -400,7 +403,7 @@ public class GenericExternalService extends EvergreenService {
         }
 
         addEnv(exec, src.parent); // add parents contributions first
-        Node env = src.getChild("setenv");
+        Node env = src.getChild(SETENV_CONFIG_NAMESPACE);
         if (env instanceof Topics) {
             ((Topics) env).forEach(n -> {
                 if (n instanceof Topic) {

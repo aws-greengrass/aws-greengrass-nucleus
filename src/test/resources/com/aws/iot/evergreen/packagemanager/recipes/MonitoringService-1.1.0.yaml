@@ -20,5 +20,3 @@ Artifacts:
 Dependencies:
   Log: '1.1.0'
   Cool-Database: '1.1.0'
-Requires:
-  - homebrew

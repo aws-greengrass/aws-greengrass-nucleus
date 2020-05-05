@@ -15,5 +15,3 @@ Lifecycle:
     macos:
       skipif: onpath git
       script: brew install git
-Requires:
-  - homebrew

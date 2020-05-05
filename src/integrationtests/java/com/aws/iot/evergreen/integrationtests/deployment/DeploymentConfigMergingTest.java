@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -123,7 +124,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put("setenv", new HashMap<Object, Object>() {{
+                    put(SETENV_CONFIG_NAMESPACE, new HashMap<Object, Object>() {{
                         put("HELLO", "redefined");
                     }});
                 }});
@@ -132,7 +133,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
-        assertEquals("redefined", kernel.findServiceTopic("main").find("setenv", "HELLO").getOnce());
+        assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
         assertThat((String) kernel.findServiceTopic("main").find("lifecycle", "run").getOnce(),
                 containsString("echo \"Running main\""));
     }
