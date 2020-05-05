@@ -82,7 +82,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                    .equals(State.INSTALLED)) {
+                    .equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -116,7 +116,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                    .equals(State.INSTALLED)) {
+                    .equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -163,7 +163,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
-                    && oldState.equals(State.INSTALLED)) {
+                    && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -224,7 +224,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
-                    && oldState.equals(State.INSTALLED)) {
+                    && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -314,7 +314,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.get() && service.getName().equals("main") && newState.equals(State.RUNNING)
-                    && oldState.equals(State.INSTALLED)) {
+                    && oldState.equals(State.STARTING)) {
                 mainRestarted.set(true);
             }
         };
@@ -363,7 +363,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
-        kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
             if (((State) t.getOnce()).isRunning()) {
                 mainRunningLatch.countDown();
             }
@@ -422,7 +422,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
-        kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
             if (t.getOnce().equals(State.FINISHED)) {
                 mainFinished.countDown();
             }

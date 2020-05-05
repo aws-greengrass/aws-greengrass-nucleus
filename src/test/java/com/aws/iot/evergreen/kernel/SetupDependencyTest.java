@@ -1,7 +1,6 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Subscriber;
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.Assertions;
@@ -28,9 +27,6 @@ public class SetupDependencyTest extends EGServiceTestUtil {
     void GIVEN_no_dependencies_added_WHEN_dependency_is_added_THEN_dependency_add_successful() throws Exception {
         // GIVEN
         EvergreenService dep1 = Mockito.mock(EvergreenService.class);
-        Topic depStateTopic = Mockito.mock(Topic.class);
-        Mockito.when(depStateTopic.subscribe(Mockito.any(Subscriber.class))).thenReturn(depStateTopic);
-        Mockito.when(dep1.getStateTopic()).thenReturn(depStateTopic);
 
         // WHEN
         evergreenService.addOrUpdateDependency(dep1, State.INSTALLED, false);
@@ -46,11 +42,9 @@ public class SetupDependencyTest extends EGServiceTestUtil {
     void GIVEN_dependency_exist_WHEN_dependency_is_updated_THEN_update_successful() throws Exception {
         // GIVEN
         EvergreenService dep1 = Mockito.mock(EvergreenService.class);
-        Topic depStateTopic = Mockito.mock(Topic.class);
-        Mockito.when(depStateTopic.subscribe(Mockito.any(Subscriber.class))).thenReturn(depStateTopic);
-        Mockito.when(dep1.getStateTopic()).thenReturn(depStateTopic);
 
         evergreenService.addOrUpdateDependency(dep1, State.INSTALLED, false);
+        Mockito.verify(dep1).addStateSubscriber(Mockito.any(Subscriber.class));
 
         Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
@@ -64,6 +58,6 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         Assertions.assertEquals(1, dependencies.size());
         Assertions.assertEquals(State.RUNNING, dependencies.get(dep1));
         // Remove the previous subscriber.
-        Mockito.verify(depStateTopic).remove(Mockito.any(Subscriber.class));
+        Mockito.verify(dep1).removeStateSubscriber(Mockito.any(Subscriber.class));
     }
 }
