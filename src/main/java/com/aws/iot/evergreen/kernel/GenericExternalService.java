@@ -109,7 +109,7 @@ public class GenericExternalService extends EvergreenService {
             // the reportStates outside of the callback
             synchronized (this) {
                 logger.atInfo().kv("exitCode", exit).log("Startup script exited");
-                if (startingStateGeneration == getStateGeneration() && State.INSTALLED.equals(getState())) {
+                if (startingStateGeneration == getStateGeneration() && State.STARTING.equals(getState())) {
                     if (exit == 0) {
                         reportState(State.RUNNING);
                     } else {
