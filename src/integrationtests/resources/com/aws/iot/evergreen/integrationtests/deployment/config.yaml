@@ -1,12 +1,11 @@
 ---
 services:
-  ticktock:
+  bar:
     lifecycle:
-      run: echo tick-tock phase 3
-      periodic: 2 seconds
+      run: echo bar-service phase 3
   main:
     lifecycle:
       install:
         all: echo All installed
     dependencies:
-      - ticktock:INSTALLED
+      - bar:INSTALLED

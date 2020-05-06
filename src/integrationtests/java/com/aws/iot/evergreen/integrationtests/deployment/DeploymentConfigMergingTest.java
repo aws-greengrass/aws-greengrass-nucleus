@@ -16,6 +16,8 @@ import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +33,9 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -78,7 +82,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                    .equals(State.INSTALLED)) {
+                    .equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -112,7 +116,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                    .equals(State.INSTALLED)) {
+                    .equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -159,7 +163,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
-                    && oldState.equals(State.INSTALLED)) {
+                    && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -220,7 +224,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
-                    && oldState.equals(State.INSTALLED)) {
+                    && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -310,7 +314,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
             // Only count main as started if its dependency (new_service) has already been started
             if (newServiceStarted.get() && service.getName().equals("main") && newState.equals(State.RUNNING)
-                    && oldState.equals(State.INSTALLED)) {
+                    && oldState.equals(State.STARTING)) {
                 mainRestarted.set(true);
             }
         };
@@ -359,7 +363,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
-        kernel.getMain().getStateTopic().subscribe((WhatHappened what, Topic t) -> {
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
             if (((State) t.getOnce()).isRunning()) {
                 mainRunningLatch.countDown();
             }
@@ -409,6 +413,57 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .map(EvergreenService::getName).collect(Collectors.toList());
 
         assertEquals(Arrays.asList("sleeperB", "main"), orderedDependencies);
+    }
+
+    @Test
+    void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch mainFinished = new CountDownLatch(1);
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
+            if (t.getOnce().equals(State.FINISHED)) {
+                mainFinished.countDown();
+            }
+        });
+
+        // wait for main to finish
+        assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
+
+        Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+
+        Future<DeploymentResult> future =
+                deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
+
+        AtomicBoolean sawUpdatesCompleted = new AtomicBoolean();
+        AtomicBoolean unsafeToUpdate = new AtomicBoolean();
+        AtomicBoolean safeToUpdate = new AtomicBoolean();
+        Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
+            if ("Yes! Updates completed".equals(m.getContexts().get("stdout"))) {
+                sawUpdatesCompleted.set(true);
+            }
+            if ("Not SafeUpdate".equals(m.getContexts().get("stdout"))) {
+                unsafeToUpdate.set(true);
+            }
+            if ("Safe Update".equals(m.getContexts().get("stdout"))) {
+                safeToUpdate.set(true);
+            }
+        };
+
+        try {
+            Log4jLogEventBuilder.addGlobalListener(listener);
+            assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
+                    "Merge should not happen within 2 seconds");
+            assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
+            assertFalse(safeToUpdate.get(), "Service should not yet be safe to update");
+
+            future.get(20, TimeUnit.SECONDS);
+            assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
+            assertTrue(sawUpdatesCompleted.get(), "Service should have been called when the update was done");
+        } finally {
+            Log4jLogEventBuilder.removeGlobalListener(listener);
+        }
     }
 
     private DeploymentDocument testDeploymentDocument() {

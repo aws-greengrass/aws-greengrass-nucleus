@@ -163,4 +163,16 @@ public abstract class Node {
         return parentNeedsToKnow;
     }
 
+    /**
+     * Get the root of the config store.
+     *
+     * @return Root Topics
+     */
+    public Topics getRoot() {
+        Topics p = parent;
+        while (p.parent != null) {
+            p = p.parent;
+        }
+        return p;
+    }
 }

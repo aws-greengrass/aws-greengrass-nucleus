@@ -21,7 +21,7 @@ public class Topics extends Node implements Iterable<Node> {
 
     private static final Logger logger = LogManager.getLogger(Topics.class);
 
-    Topics(Context c, String n, Topics p) {
+    public Topics(Context c, String n, Topics p) {
         super(c, n, p);
     }
 
@@ -160,6 +160,22 @@ public class Topics extends Node implements Iterable<Node> {
             n = n.findInteriorChild(path[i]);
         }
         return n == null ? null : n.findLeafChild(path[limit]);
+    }
+
+    /**
+     * Find, but do not create if missing, a topic (a name/value pair) in the
+     * config file. If the topic exists, it returns the value. If the topic does not
+     * exist, then it will return the default value provided.
+     *
+     * @param defaultV default value if the Topic was not found
+     * @param path String[] of node names to traverse to find or create the Topic
+     */
+    public Object findOrDefault(Object defaultV, String... path) {
+        Topic potentialTopic = find(path);
+        if (potentialTopic == null) {
+            return defaultV;
+        }
+        return potentialTopic.getOnce();
     }
 
     /**

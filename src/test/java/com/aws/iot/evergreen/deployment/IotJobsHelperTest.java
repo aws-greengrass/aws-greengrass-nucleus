@@ -197,6 +197,7 @@ public class IotJobsHelperTest {
                 QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
         JobExecutionData jobExecutionData = new JobExecutionData();
         jobExecutionData.jobId = TEST_JOB_ID;
+        jobExecutionData.status = JobStatus.QUEUED;
         HashMap<String, Object> sampleJobDocument = new HashMap<>();
         sampleJobDocument.put("DeploymentId", TEST_JOB_ID);
         jobExecutionData.jobDocument = sampleJobDocument;

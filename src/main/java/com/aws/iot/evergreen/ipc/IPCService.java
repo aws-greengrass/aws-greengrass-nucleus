@@ -73,7 +73,7 @@ public class IPCService extends EvergreenService {
             String serverUri = "tcp://" + LOCAL_IP + ":" + port;
             // adding KERNEL_URI under setenv of the root topic. All subsequent processes will have KERNEL_URI
             // set via environment variables
-            Topic kernelUri = config.parent.lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
+            Topic kernelUri = config.getRoot().lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
             kernelUri.withValue(serverUri);
 
             super.startup();

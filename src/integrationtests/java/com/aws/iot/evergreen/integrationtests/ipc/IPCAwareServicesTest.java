@@ -32,7 +32,8 @@ class IPCAwareServicesTest extends BaseITCase {
 
         // start kernel
         kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("ipc_aware_main.yaml").toString());    }
+        kernel.parseArgs("-i", this.getClass().getResource("ipc_aware_main.yaml").toString());
+    }
 
     @AfterEach
     void teardown() {
@@ -40,7 +41,8 @@ class IPCAwareServicesTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running(ExtensionContext context) throws Exception {
+    void GIVEN_ipc_aware_service_WHEN_report_state_as_running_THEN_kernel_updates_state_as_running(
+            ExtensionContext context) throws Exception {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
 
         CountDownLatch serviceRunning = new CountDownLatch(1);

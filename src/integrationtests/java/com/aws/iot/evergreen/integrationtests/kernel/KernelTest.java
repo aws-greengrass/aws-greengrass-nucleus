@@ -228,8 +228,8 @@ class KernelTest extends BaseITCase {
                         new ExpectedStateTransition("installErrorRetry", State.NEW, State.INSTALLED),
 
                         // main service doesn't start until dependency ready
-                        new ExpectedStateTransition("runErrorRetry", State.INSTALLED, State.RUNNING),
-                        new ExpectedStateTransition("main", State.INSTALLED, State.RUNNING),
+                        new ExpectedStateTransition("runErrorRetry", State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition("main", State.STARTING, State.RUNNING),
 
                         // runErrorRetry restart on error
                         new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),

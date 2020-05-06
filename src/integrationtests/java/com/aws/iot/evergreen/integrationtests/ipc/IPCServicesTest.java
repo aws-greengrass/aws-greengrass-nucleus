@@ -18,7 +18,6 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotFoundException;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
@@ -82,7 +81,7 @@ class IPCServicesTest {
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
         Topic kernelUri =
-                kernel.getConfig().lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "setenv", KERNEL_URI_ENV_VARIABLE_NAME);
+                kernel.getConfig().getRoot().lookup("setenv", KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();
