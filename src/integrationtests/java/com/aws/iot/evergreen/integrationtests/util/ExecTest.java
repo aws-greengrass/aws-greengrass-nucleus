@@ -6,11 +6,14 @@ package com.aws.iot.evergreen.integrationtests.util;
 import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,44 +21,124 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecTest {
     @Test
-    void test() throws InterruptedException, IOException {
+    void Given_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException, IOException {
         if (Exec.isWindows) {
             return;
         }
-        String s = Exec.cmd("pwd");
-        //        System.out.println("pwd: "+s);
+        final String command = "pwd";
+        String s = Exec.cmd(command);
         assertFalse(s.contains("\n"));
         assertTrue(s.startsWith("/"));
-        assertEquals(s, Exec.sh("pwd"));
+        assertEquals(s, Exec.sh(command));
         String s2 = Exec.sh("ifconfig -a;echo Hello");
-        //        System.out.println(s2);
         assertTrue(s2.contains("Hello"));
+        String expectedDir = System.getProperty("user.home");
+        assertEquals(expectedDir, Exec.sh(new File(expectedDir), command));
+        assertEquals(expectedDir, Exec.sh(Paths.get(expectedDir), command));
+        assertTrue(Exec.successful(false, command));
     }
 
     @Test
-    void test2() throws InterruptedException, IOException {
-        //        System.out.println(Exec.sh("printenv;java --version"));
-        //        assertFalse(Exec.successful("java --version|egrep -i -q '(jdk|jre) *17\\.'"));
-        //        assertTrue(Exec.successful("java --version|egrep -i -q '(jdk|jre) *11\\.'"));
-        assertFalse(Exec.successful(false, "echo openjdk 11.0|egrep -i -q '(jdk|jre) *18\\.'"));
-        assertTrue(new Exec().withShell("echo openjdk 11.0|egrep -i -q '(jdk|jre) *11\\.'").withDumpOut()
-                .successful(false));
-    }
-
-    @Test
-    void test3() throws Exception {
+    void GIVEN_exec_WHEN_command_executed_in_background_THEN_success() throws Exception {
         CountDownLatch done = new CountDownLatch(1);
-        List<String> o = new ArrayList<>();
-        List<String> e = new ArrayList<>();
+        List<String> stdoutMessages = new ArrayList<>();
+        List<String> stderrMessages = new ArrayList<>();
 
-        new Exec().withShell("pwd").withOut(str -> o.add(str.toString())).withErr(str -> e.add(str.toString()))
+        new Exec().withShell("pwd")
+                .withOut(str -> stdoutMessages.add(str.toString()))
+                .withErr(str -> stderrMessages.add(str.toString()))
                 .background(exc -> done.countDown());
-        assertTrue(done.await(10, TimeUnit.SECONDS));
-        //        System.out.println("O: "+deepToString(o));
-        //        System.out.println("E: "+deepToString(e));
-        assertEquals(0, e.size());
-        assertEquals(1, o.size());
-        assertTrue(o.get(0).startsWith("/"));
+        // Wait for 1 second for command to finish
+        assertTrue(done.await(1, TimeUnit.SECONDS));
+        assertEquals(0, stderrMessages.size());
+        assertEquals(1, stdoutMessages.size());
+        assertTrue(stdoutMessages.get(0).startsWith("/"));
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_exec_WHEN_running_command_closed_THEN_success() throws IOException, InterruptedException {
+        // close waits for atmost 7 seconds before close
+        String command = "sleep 10";
+        CountDownLatch done = new CountDownLatch(1);
+        Exec exec = new Exec();
+        exec.withShell(command).background(exc -> done.countDown());
+        assertTrue(exec.isRunning());
+        exec.close();
+        assertFalse(exec.isRunning());
+        // closing again should be no op, it should not throw
+        exec.close();
+        assertFalse(exec.isRunning());
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_exec_WHEN_command_outputs_THEN_output_captured() throws InterruptedException, IOException {
+        Exec exec = new Exec();
+        String expectedOutput = "HELLO";
+        String command = "echo " + expectedOutput;
+        StringBuilder stdout = new StringBuilder();
+        StringBuilder stderr = new StringBuilder();
+        Consumer<CharSequence> stdoutConsumer = c -> stdout.append(c);
+        Consumer<CharSequence> stderrConsumer = c -> stderr.append(c);
+        exec = exec.withShell(command).withOut(stdoutConsumer).withErr(stderrConsumer);
+        assertTrue(exec.successful(false));
+        // new line for shell
+        assertEquals(expectedOutput.length() + 1, stdout.length());
+        assertEquals(0, stderr.length());
+
+        // reinit consumers
+        stdout.setLength(0);
+        stderr.setLength(0);
+
+        String stdErrCommand = command + " 1>&2";
+        exec = exec.withShell(stdErrCommand);
+        assertFalse(exec.successful(false));
+        assertEquals(0, stdout.length());
+        // new line for shell
+        assertEquals(expectedOutput.length() + 1, stderr.length());
+        exec.close();
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_exec_WHEN_changing_directories_THEN_success() throws InterruptedException, IOException {
+        Exec exec = new Exec();
+        final String getWorkingDirCmd = "pwd";
+        // By default Exec uses home current directory for exec
+        String expectedDir = System.getProperty("user.dir");
+        String defaultDir = exec.withExec(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(expectedDir, defaultDir);
+
+        // Now change it to some other directory
+        // TODO: Change this to a proper root to work on all platforms
+        expectedDir = "/";
+        String changedDir = exec.cd(new File(expectedDir)).withExec(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(expectedDir, changedDir);
+
+        // Now use the file argument to change into another directory again
+        // File argument would use the current directory ("/") as base
+        expectedDir = System.getProperty("user.home");
+        changedDir = exec.cd(expectedDir).withExec(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(expectedDir, changedDir);
+
+        // Now change it to root again
+        expectedDir = "/";
+        changedDir = exec.cd(new File(expectedDir)).withExec(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(expectedDir, changedDir);
+
+        // by default cd change to home directory
+        expectedDir = System.getProperty("user.home");
+        changedDir = exec.cd().withExec(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(expectedDir, changedDir);
+        exec.close();
+    }
+
+    @Test
+    void GIVEN_exec_WHEN_stringfied_THEN_success() {
+        // TODO: length of 90 as per the class does not seem to work
+        String fakeCommand = "THIS IS FAKE COMMAND";
+        assertEquals(String.format("[\"%s\"]", fakeCommand), new Exec().withExec(fakeCommand).toString());
     }
 
 }
