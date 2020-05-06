@@ -39,6 +39,13 @@ public final class TestUtils {
         return asyncAssertOnConsumer(c, 1);
     }
 
+    /**
+     * Creates a test utility wrapping a given Consumer and returning a new Consumer and Future.
+     * Use the Future to validate that the Consumer is called numCalls times without any exceptions.
+     *
+     * @param c Consumer to wrap
+     * @param numCalls number of expected calls
+     */
     public static <A> Pair<CompletableFuture<Void>, Consumer<A>> asyncAssertOnConsumer(Consumer<A> c, int numCalls) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         AtomicInteger calls = new AtomicInteger();

@@ -19,6 +19,7 @@ public abstract class Node {
     private final String name;
     protected CopyOnWriteArraySet<Watcher> watchers;
     private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
+    private List<String> path;
 
     protected Node(Context c, String n, Topics p) {
         context = c;
@@ -161,13 +162,17 @@ public abstract class Node {
      * @return list of strings with index 0 being the current node's name
      */
     public List<String> path() {
-        ArrayList<String> parents = new ArrayList<>();
-        parents.add(name);
+        if (path != null) {
+            return path;
+        }
+
+        path = new ArrayList<>();
+        path.add(name);
 
         if (parent != null) {
-            parents.addAll(parent.path());
+            path.addAll(parent.path());
         }
-        return parents;
+        return path;
     }
 
     /**

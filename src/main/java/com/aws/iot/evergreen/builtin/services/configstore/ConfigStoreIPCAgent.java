@@ -62,16 +62,13 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         }
 
         List<String> nodePath = node.path();
-        // Ensure that the node which changed was part of the custom config
-        int customConfigIndex = nodePath.lastIndexOf(CUSTOM_CONFIG_NAMESPACE);
-        // Compare < 1 because we want to capture only changes under the "custom" key and not the "custom" key itself
-        if (customConfigIndex < 1) {
+        // The path should have at least 5 items: null (root), services, serviceName, custom, <someKey>
+        if (nodePath.size() < 5) {
             return;
         }
-        // Ensure the path is <service_name>.custom.<other stuff>
-        // path is reversed, so we check serviceNameIndex - 1 == customConfigIndex
-        int serviceNameIndex = nodePath.lastIndexOf(serviceName);
-        if (serviceNameIndex < 0 || (serviceNameIndex - 1) != customConfigIndex) {
+        // Ensure that the node which changed was part of the custom config
+        int customConfigIndex = nodePath.size() - 4;
+        if (!nodePath.get(customConfigIndex).equals(CUSTOM_CONFIG_NAMESPACE)) {
             return;
         }
 
