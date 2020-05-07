@@ -1,0 +1,18 @@
+services:
+  main:
+    dependencies:
+      - service_with_dynamic_config
+    lifecycle:
+      run:
+        echo "Running main" && sleep 100
+  service_with_dynamic_config:
+    lifecycle:
+      install:
+        echo "Installing service_with_dynamic_config"
+      run:
+        echo "Running service_with_dynamic_config" && sleep 1000
+    version: 1.0.0
+    setenv:
+      my_env_var: var1
+    custom:
+      my_custom_key: 'my_custom_initial_value'

@@ -28,7 +28,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -78,20 +80,27 @@ public class KernelConfigResolver {
         PackageRecipe packageRecipe = packageStore.getPackageRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
-        Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
-
-        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
-
-        // TODO : Package recipe format is not in alignment with the changed Kernel config syntax,
-        // which leads to inconsistent naming, e.g. lifecycle per new Kernel config syntax is one of several config
-        // keys while per current package recipe format it's the entire config for that package
-        // These inconsistencies need to be addressed
 
         // Interpolate parameters
+        Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
         for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
             resolvedLifecycleConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
         }
+        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
+
+        Map<Object, Object> resolvedCustomConfig = new HashMap<>();
+        for (Map.Entry<String, Object> configKVPair : packageRecipe.getCustomConfig().entrySet()) {
+            resolvedCustomConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
+        }
+        resolvedServiceConfig.put(CUSTOM_CONFIG_NAMESPACE, resolvedCustomConfig);
+
+        Map<String, String> resolvedSetEnvConfig = new HashMap<>();
+        for (Map.Entry<String, String> configKVPair : packageRecipe.getEnvironmentVariables().entrySet()) {
+            resolvedSetEnvConfig.put(configKVPair.getKey(), (String) interpolate(configKVPair.getValue(),
+                    resolvedParams));
+        }
+        resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
         // TODO : Update package recipe format to include all information that service dependencies config
         // expects according to the new syntax e.g. isHotPluggable, dependency service state,

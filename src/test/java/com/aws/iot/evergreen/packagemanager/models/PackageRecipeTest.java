@@ -73,9 +73,6 @@ public class PackageRecipeTest {
         assertThat(testPkg.getDependencies().size(), is(1));
         assertThat(testPkg.getDependencies(), IsMapContaining.hasEntry("mac-log", "1.0"));
 
-        assertThat(testPkg.getRequires(), IsCollectionWithSize.hasSize(1));
-        assertThat(testPkg.getRequires().get(0), is("homebrew"));
-
         Set<PackageParameter> paramList = testPkg.getPackageParameters();
         assertThat(paramList.isEmpty(), is(false));
         PackageParameter parameter = new PackageParameter("TestParam", "TestVal", "String");

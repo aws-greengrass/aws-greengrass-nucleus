@@ -41,15 +41,18 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 class KernelConfigResolverTest {
-    private static final String LIFECYCLE_CONFIG_ROOT_KEY = "lifecycle";
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
+    private static final String MOCK_CUSTOM_CONFIG_KEY = "my_custom_config";
+    private static final String MOCK_ENV_VAR_NAME = "my_env_var";
     private static final String KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY = "dependencies";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
             "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
             "echo running service in Package %s with param {{params:%s_Param_2.value}}";
+    private static final String MOCK_CUSTOM_CONFIG_FORMAT = "{{params:%s_Param_1.value}}";
+    private static final String MOCK_ENV_VAR_FORMAT = "{{params:%s_Param_2.value}}";
     private static final String TEST_INPUT_PACKAGE_A = "PackageA";
     private static final String TEST_INPUT_PACKAGE_B = "PackageB";
     @Mock
@@ -199,14 +202,25 @@ class KernelConfigResolverTest {
         Map<String, String> serviceInstallCommand =
                 (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
 
+        // Parameter value set in deployment will be used for lifecycle install section
         assertThat("If parameter value was set in deployment, it should be used",
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
                 equalTo("echo installing service in Package PackageA " + "with param PackageA_Param_1_value"));
 
+        // Parameter value set in deployment will be used for custom config section
+        assertThat("If parameter value was set in deployment, it should be used",
+                getValueForCustomConfigKey(MOCK_CUSTOM_CONFIG_KEY, TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("PackageA_Param_1_value"));
+
+        // Parameter value was not set in deployment, so default will be used for lifecycle run section
         assertThat("If no parameter value was set in deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("echo running service in Package " + "PackageA with param PackageA_Param_2_default_value"));
 
+        // Parameter value was not set in deployment, so default will be used for setenv section
+        assertThat("If no parameter value was set in deployment, the default value should be used",
+                getServiceEnvVar(MOCK_ENV_VAR_NAME, TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("PackageA_Param_2_default_value"));
     }
 
     @Test
@@ -275,7 +289,7 @@ class KernelConfigResolverTest {
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
                 parameters, getSimplePackageLifecycle(packageName), Collections.emptyList(), dependencies,
-                Collections.emptyList());
+                getSimpleCustomConfigString(packageName), getSimpleEnvVariables(packageName));
     }
 
     private Map<String, String> getSimpleParameterMap(String packageName) {
@@ -299,6 +313,18 @@ class KernelConfigResolverTest {
         return lifecycle;
     }
 
+    private Map<String, Object> getSimpleCustomConfigString(String packageName) {
+        Map<String, Object> customConfig = new HashMap<>();
+        customConfig.put(MOCK_CUSTOM_CONFIG_KEY, String.format(MOCK_CUSTOM_CONFIG_FORMAT, packageName));
+        return customConfig;
+    }
+
+    private Map<String, String> getSimpleEnvVariables(String packageName) {
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put(MOCK_ENV_VAR_NAME, String.format(MOCK_ENV_VAR_FORMAT, packageName));
+        return envVars;
+    }
+
     // utilities for verification
     private Object getServiceRunCommand(String serviceName, Map<Object, Object> config) {
         return getValueForLifecycleKey(LIFECYCLE_RUN_KEY, serviceName, config);
@@ -310,16 +336,27 @@ class KernelConfigResolverTest {
 
     private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
         Iterable<String> dependencyList =
-                (Iterable<String>) getLifecycleConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
+                (Iterable<String>) getServiceConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
         return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
     }
 
-    private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
-        Map<Object, Object> map = getLifecycleConfig(serviceName, config);
-        return ((Map<Object, Object>) map.get(LIFECYCLE_CONFIG_ROOT_KEY)).get(key);
+    private Object getValueForCustomConfigKey(String key, String serviceName,
+                                                           Map<Object, Object> config) {
+        Map<Object, Object> serviceConfig = getServiceConfig(serviceName, config);
+        return ((Map<Object, Object>) serviceConfig.get(EvergreenService.CUSTOM_CONFIG_NAMESPACE)).get(key);
     }
 
-    private Map<Object, Object> getLifecycleConfig(String serviceName, Map<Object, Object> config) {
+    private  String getServiceEnvVar(String varName, String serviceName, Map<Object, Object> config) {
+        Map<Object, Object> serviceConfig = getServiceConfig(serviceName, config);
+        return ((Map<String, String>) serviceConfig.get(EvergreenService.SETENV_CONFIG_NAMESPACE)).get(varName);
+    }
+
+    private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
+        Map<Object, Object> serviceConfig = getServiceConfig(serviceName, config);
+        return ((Map<Object, Object>) serviceConfig.get(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC)).get(key);
+    }
+
+    private Map<Object, Object> getServiceConfig(String serviceName, Map<Object, Object> config) {
         return (Map<Object, Object>) config.get(serviceName);
     }
 }
