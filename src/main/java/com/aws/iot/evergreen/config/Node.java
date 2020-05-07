@@ -6,6 +6,8 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
@@ -17,6 +19,7 @@ public abstract class Node {
     private final String name;
     protected CopyOnWriteArraySet<Watcher> watchers;
     private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
+    private List<String> path;
 
     protected Node(Context c, String n, Topics p) {
         context = c;
@@ -151,6 +154,25 @@ public abstract class Node {
      */
     public boolean childOf(String n) {
         return n.equals(name) || parent != null && parent.childOf(n);
+    }
+
+    /**
+     * Get path of parents.
+     *
+     * @return list of strings with index 0 being the current node's name
+     */
+    public List<String> path() {
+        if (path != null) {
+            return path;
+        }
+
+        path = new ArrayList<>();
+        path.add(name);
+
+        if (parent != null) {
+            path.addAll(parent.path());
+        }
+        return path;
     }
 
     /**

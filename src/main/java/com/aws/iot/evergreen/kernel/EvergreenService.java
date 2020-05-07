@@ -40,6 +40,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
+    public static final String CUSTOM_CONFIG_NAMESPACE = "custom";
 
     private static final String CURRENT_STATE_METRIC_NAME = "currentState";
 

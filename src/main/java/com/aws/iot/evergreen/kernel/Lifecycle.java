@@ -648,7 +648,7 @@ public class Lifecycle {
         });
     }
 
-    public synchronized Future getLifecycleThread() {
+    public synchronized Future<?> getLifecycleThread() {
         return lifecycleThread;
     }
 
