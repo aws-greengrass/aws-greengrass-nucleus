@@ -14,6 +14,8 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -96,7 +98,9 @@ public class Lifecycle {
     private static final Map<State, Collection<State>> ALLOWED_STATE_TRANSITION_FOR_REPORTING = new HashMap<>();
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
-    private final Map<State, Integer> stateToErroredCount = new HashMap<>();
+    private final Map<State, List<Long>> stateToErroredCount = new HashMap<>();
+    private static final long THRESHOLD = Duration.ofHours(1).toMillis();
+
     // We only need to track the ERROR from these states because
     // they impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
@@ -158,13 +162,26 @@ public class Lifecycle {
 
         if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
             // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
-            stateToErroredCount.compute(currentState, (k, v) -> (v == null) ? 1 : v + 1);
+            stateToErroredCount.compute(currentState, (k, v) -> {
+                if (v == null) {
+                    v = new ArrayList<>();
+                }
+
+                final long now = System.currentTimeMillis();
+                if (v.size() > 0 && now - v.get(v.size() - 1) >= THRESHOLD) {
+                    v.clear();
+                }
+
+                v.add(now);
+                return v;
+            });
         } else {
             // If the reported state is a non-ERRORED state, we would like to reset the ERROR counter for the current
             // state. This is to avoid putting the service to BROKEN state because of transient issues.
-            stateToErroredCount.put(currentState, 0);
+            stateToErroredCount.put(currentState, null);
         }
-        if (stateToErroredCount.get(currentState) > MAXIMUM_CONTINUAL_ERROR) {
+        if (stateToErroredCount.get(currentState) != null
+                && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
             enqueueStateEvent(State.BROKEN);
         } else {
             enqueueStateEvent(newState);
