@@ -244,7 +244,7 @@ public class Kernel {
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
      */
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"UseSpecificCatch","PMD.AvoidCatchingThrowable"})
     public EvergreenService locate(String name) throws ServiceLoadException {
         return context.getValue(EvergreenService.class, name).computeObjectIfEmpty(v -> {
             Topics serviceRootTopics = findServiceTopic(name);
@@ -321,5 +321,22 @@ public class Kernel {
     public Kernel parseArgs(String... args) {
         kernelCommandLine.parseArgs(args);
         return this;
+    }
+    
+    /*
+     * I added this method because it's really handy for any external service that's
+     * accessing files.  But it's just a trampoline method, which is like a chalkboard
+     * squeak.  They really bug me.  But then I noticed that Kernel.java is
+     * filled with trampolines.  And two objects that are the target of the trampolines,
+     * and which are otherwise unused.  It all gets much cleaner if kernelCommandline
+     * and kernelLifecycle are just accessed through dependency injection where they're
+     * needed.  I did this edit, and it got rid of a pile of code.  But it blew the
+     * the unit tests out of the water.  mock(x) is actively injection-hostile.  I
+     * started down the road of fixing the tests, but it got *way* out of hand.
+     * So I went back to the trampoline form.  Someday this should be cleaned up.
+     *                                                              - jag
+     */
+    public String deTilde(String filename) {
+        return kernelCommandLine.deTilde(filename);
     }
 }
