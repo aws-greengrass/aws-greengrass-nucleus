@@ -15,5 +15,5 @@ coverage
 jmh-result.json
 work
 bin
-config
+/config
 evergreen.metrics

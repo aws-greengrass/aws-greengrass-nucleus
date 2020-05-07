@@ -11,6 +11,7 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.function.Predicate;
 
 import static com.aws.iot.evergreen.util.Coerce.toObject;
 import static com.aws.iot.evergreen.util.Utils.parseLong;
@@ -67,9 +68,12 @@ public final class ConfigurationReader {
      * @param config         configuration to merge into
      * @param tlogPath       path of the tlog file to read to-be-merged config from
      * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
+     *
      * @throws IOException if reading fails
      */
-    public static void mergeTlogIntoConfig(Configuration config, Path tlogPath, boolean forceTimestamp)
+    public static void mergeTlogIntoConfig(Configuration config, Path tlogPath, boolean forceTimestamp,
+                                           Predicate<Topic> mergeCondition)
             throws IOException {
         // This can cause memory issues when the tlog files is large, use it only merge config that can fit in memory
         // TODO : Maybe track this in benchmarking if the tlog file has the potential to cause memory issues
@@ -77,8 +81,11 @@ public final class ConfigurationReader {
         while (logLines.hasNext()) {
             java.util.regex.Matcher m = logLine.matcher(logLines.next());
             if (m.matches()) {
-                config.lookup(seperator.split(m.group(2)))
-                        .withNewerValue(parseLong(m.group(1)), toObject(m.group(3)), forceTimestamp);
+                String matchedValue = m.group(2);
+                Topic targetTopic = config.lookup(seperator.split(matchedValue));
+                if (mergeCondition == null || mergeCondition.test(targetTopic)) {
+                    targetTopic.withNewerValue(parseLong(m.group(1)), toObject(m.group(3)), forceTimestamp);
+                }
             }
         }
     }
