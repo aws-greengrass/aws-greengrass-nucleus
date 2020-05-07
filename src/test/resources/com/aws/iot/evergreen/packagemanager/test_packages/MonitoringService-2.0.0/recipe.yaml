@@ -9,5 +9,4 @@ Lifecycle:
     skipif: onpath git
     script: sudo apt-get install git
   run: /path/to/run
-Requires:
-  - homebrew
+
