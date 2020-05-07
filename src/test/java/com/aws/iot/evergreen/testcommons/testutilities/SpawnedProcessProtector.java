@@ -31,9 +31,9 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
     public void afterEach(ExtensionContext context) throws Exception {
         List<String> childPids = getChildPids();
         if (!childPids.isEmpty()) {
-            System.err.println("Child PID not cleaned after test case " + context.getDisplayName()
-             + ". Child PIDs: "
-             + Strings.join(childPids, ','));
+            System.err.println(
+                    "Child PID not cleaned after test case " + context.getDisplayName() + ". Child PIDs: " + Strings
+                            .join(childPids, ','));
         }
     }
 
@@ -41,24 +41,24 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
     public void afterAll(ExtensionContext context) throws Exception {
         List<String> childPids = getChildPids();
 
-                    if (!childPids.isEmpty()) {
-                System.err.println("Not all child PIDs were stopped before the test ended!");
-                System.err.println("Going to try killing them for you, but this is a problem which must be fixed");
-                System.err.println("PIDs: " + childPids);
+        if (!childPids.isEmpty()) {
+            System.err.println("Not all child PIDs were stopped before the test ended!");
+            System.err.println("Going to try killing them for you, but this is a problem which must be fixed");
+            System.err.println("PIDs: " + childPids);
 
-                for (String pid : childPids) {
-                    // Use ps to get the command which is running so we can more easily identify the leaker.
-                    // Uses inheritIO to simply print the output to the console
-                    new ProcessBuilder().command("ps", "-p", pid, "-o", "args").inheritIO().start()
-                            .waitFor(10, TimeUnit.SECONDS);
+            for (String pid : childPids) {
+                // Use ps to get the command which is running so we can more easily identify the leaker.
+                // Uses inheritIO to simply print the output to the console
+                new ProcessBuilder().command("ps", "-p", pid, "-o", "args").inheritIO().start()
+                        .waitFor(10, TimeUnit.SECONDS);
 
-                    // Kill the stray process
-                    Processes.newPidProcess(Integer.parseInt(pid)).destroyForcefully();
-                }
-
-                fail("Child PIDs not all cleaned up: " + childPids.toString()
-                        + ".\n Processes not killed or kernel not shutdown.");
+                // Kill the stray process
+                Processes.newPidProcess(Integer.parseInt(pid)).destroyForcefully();
             }
+
+            fail("Child PIDs not all cleaned up: " + childPids.toString()
+                    + ".\n Processes not killed or kernel not shutdown.");
+        }
     }
 
     private List<String> getChildPids() throws IOException, InterruptedException {
