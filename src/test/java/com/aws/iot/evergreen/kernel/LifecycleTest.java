@@ -106,7 +106,7 @@ public class LifecycleTest {
 
         Mockito.verify(evergreenService, Mockito.timeout(100)).install();
         Mockito.verify(evergreenService, Mockito.timeout(100)).startup();
-        assertEquals(lifecycle.getState(), State.STARTING);
+        assertEquals(State.STARTING, lifecycle.getState());
     }
 
     @Test
@@ -324,6 +324,52 @@ public class LifecycleTest {
         assertEquals(1, errorReported.get());
     }
 
+    @Test
+    void GIVEN_state_running_WHEN_errored_3_times_THEN_broken() throws InterruptedException {
+        lifecycle = new Lifecycle(evergreenService, logger);
+        initLifecycleState(lifecycle, State.NEW);
+
+        CountDownLatch reachedRunning1 = new CountDownLatch(1);
+        CountDownLatch reachedRunning2 = new CountDownLatch(1);
+        CountDownLatch reachedRunning3 = new CountDownLatch(1);
+        Mockito.doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning1.countDown();
+            return null;
+        }).doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning2.countDown();
+            return null;
+        }).doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning3.countDown();
+            return null;
+        }).when(evergreenService).startup();
+
+        lifecycle.initLifecycleThread();
+        lifecycle.requestStart();
+        assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());
+
+        // Report 1st error
+        lifecycle.reportState(State.ERRORED);
+        assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+
+        // Report 2nd error
+        lifecycle.reportState(State.ERRORED);
+        assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+
+        // Report 3rd error
+        lifecycle.reportState(State.ERRORED);
+        Thread.sleep(1000);
+        assertEquals(State.BROKEN, lifecycle.getState());
+    }
+
     private class MinPriorityThreadFactory implements ThreadFactory {
         @Override
         public Thread newThread(Runnable r) {
@@ -338,4 +384,3 @@ public class LifecycleTest {
         stateTopic.withValue(initState);
     }
 }
-
