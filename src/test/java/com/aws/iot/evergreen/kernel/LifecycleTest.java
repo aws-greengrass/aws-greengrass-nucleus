@@ -424,7 +424,7 @@ public class LifecycleTest {
         assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
 
         // Report 3rd error, but after a while
-        clock = Clock.offset(clock, Duration.ofHours(2));
+        clock = Clock.offset(clock, Duration.ofHours(1).plusMillis(1));
         context.put(Clock.class, clock);
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning4.await(5, TimeUnit.SECONDS));

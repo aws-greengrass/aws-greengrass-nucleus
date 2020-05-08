@@ -100,8 +100,7 @@ public class Lifecycle {
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
     private final Map<State, List<Long>> stateToErroredCount = new HashMap<>();
-    private static final long THRESHOLD = Duration.ofHours(1).toMillis();
-
+    private static final long ERROR_RESET_TIME = Duration.ofHours(1).toMillis();
     // We only need to track the ERROR from these states because
     // they impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
@@ -169,7 +168,7 @@ public class Lifecycle {
                 }
 
                 final long now = evergreenService.getContext().get(Clock.class).millis();
-                if (v.size() > 0 && now - v.get(v.size() - 1) >= THRESHOLD) {
+                if (v.size() > 0 && now - v.get(v.size() - 1) >= ERROR_RESET_TIME) {
                     v.clear();
                 }
 
