@@ -4,6 +4,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -370,6 +373,63 @@ public class LifecycleTest {
         lifecycle.reportState(State.ERRORED);
         Thread.sleep(1000);
         assertEquals(State.BROKEN, lifecycle.getState());
+    }
+
+    @Test
+    void GIVEN_state_running_WHEN_errored_long_time_in_between_THEN_not_broken() throws InterruptedException {
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+        context.put(Clock.class, clock);
+
+        lifecycle = new Lifecycle(evergreenService, logger);
+        initLifecycleState(lifecycle, State.NEW);
+
+        CountDownLatch reachedRunning1 = new CountDownLatch(1);
+        CountDownLatch reachedRunning2 = new CountDownLatch(1);
+        CountDownLatch reachedRunning3 = new CountDownLatch(1);
+        CountDownLatch reachedRunning4 = new CountDownLatch(1);
+        Mockito.doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning1.countDown();
+            return null;
+        }).doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning2.countDown();
+            return null;
+        }).doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning3.countDown();
+            return null;
+        }).doAnswer(mock -> {
+            lifecycle.reportState(State.RUNNING);
+            reachedRunning4.countDown();
+            return null;
+        }).when(evergreenService).startup();
+
+        lifecycle.initLifecycleThread();
+        lifecycle.requestStart();
+        assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());
+
+        // Report 1st error
+        lifecycle.reportState(State.ERRORED);
+        assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+
+        // Report 2nd error
+        lifecycle.reportState(State.ERRORED);
+        assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+
+        // Report 3rd error, but after a while
+        clock = Clock.offset(clock, Duration.ofHours(2));
+        context.put(Clock.class, clock);
+        lifecycle.reportState(State.ERRORED);
+        assertTrue(reachedRunning4.await(5, TimeUnit.SECONDS));
+        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
+        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
     }
 
     private class MinPriorityThreadFactory implements ThreadFactory {
