@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -167,7 +168,7 @@ public class Lifecycle {
                     v = new ArrayList<>();
                 }
 
-                final long now = System.currentTimeMillis();
+                final long now = evergreenService.getContext().get(Clock.class).millis();
                 if (v.size() > 0 && now - v.get(v.size() - 1) >= THRESHOLD) {
                     v.clear();
                 }

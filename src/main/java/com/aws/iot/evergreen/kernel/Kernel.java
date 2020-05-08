@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -99,6 +100,7 @@ public class Kernel {
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
+        context.put(Clock.class, Clock.systemUTC());
     }
 
     /**

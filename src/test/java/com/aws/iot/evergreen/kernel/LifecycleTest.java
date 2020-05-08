@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.kernel;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -76,6 +77,7 @@ public class LifecycleTest {
         context.put(Executor.class, executorService);
         context.put(ExecutorService.class, executorService);
         context.put(ThreadPoolExecutor.class, ses);
+        context.put(Clock.class, Clock.systemUTC());
 
         config = new Topics(context, "MockService", null);
         try (InputStream inputStream = new ByteArrayInputStream(BLANK_CONFIG_YAML_WITH_TIMEOUT.getBytes())) {
