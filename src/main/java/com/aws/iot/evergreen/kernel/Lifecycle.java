@@ -43,6 +43,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
+import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
+
 @SuppressFBWarnings(value = "JLM_JSR166_UTILCONCURRENT_MONITORENTER",
         justification = "We're synchronizing on the desired state list which is fine")
 public class Lifecycle {
@@ -50,6 +52,7 @@ public class Lifecycle {
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
+    public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
 
     private static final String STATE_TOPIC_NAME = "_State";
     private static final String NEW_STATE_METRIC_NAME = "newState";
@@ -60,6 +63,7 @@ public class Lifecycle {
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+    private static final long DEFAULT_ERROR_RESET_TIME_IN_SEC = Duration.ofHours(1).getSeconds();
 
     /*
      * State generation is a value representing how many times the service has been in the NEW/STARTING state.
@@ -100,7 +104,6 @@ public class Lifecycle {
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
     private final Map<State, List<Long>> stateToErroredCount = new HashMap<>();
-    private static final long ERROR_RESET_TIME = Duration.ofHours(1).toMillis();
     // We only need to track the ERROR from these states because
     // they impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
@@ -168,7 +171,7 @@ public class Lifecycle {
                 }
 
                 final long now = evergreenService.getContext().get(Clock.class).millis();
-                if (v.size() > 0 && now - v.get(v.size() - 1) >= ERROR_RESET_TIME) {
+                if (v.size() > 0 && now - v.get(v.size() - 1) >= getErrorResetTime() * 1000L) {
                     v.clear();
                 }
 
@@ -747,9 +750,13 @@ public class Lifecycle {
     }
 
     private Integer getTimeoutConfigValue(String nameSpace, Integer defaultValue) {
-        Topic timeoutTopic = evergreenService.getConfig()
-                .find(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace,
-                        TIMEOUT_NAMESPACE_TOPIC);
-        return timeoutTopic == null ? defaultValue : (Integer) timeoutTopic.getOnce();
+        return Coerce.toInt(evergreenService.getConfig().findOrDefault(defaultValue,
+                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace, TIMEOUT_NAMESPACE_TOPIC));
+    }
+
+    private int getErrorResetTime() {
+        return Coerce.toInt(evergreenService.getConfig().findOrDefault(DEFAULT_ERROR_RESET_TIME_IN_SEC,
+                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,
+                ERROR_RESET_TIME_TOPIC));
     }
 }
