@@ -29,6 +29,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import lombok.Setter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,8 +85,8 @@ public class LifecycleTest {
             fail(e);
         }
 
-        Mockito.when(evergreenService.getConfig()).thenReturn(config);
-        Mockito.when(evergreenService.getContext()).thenReturn(context);
+        lenient().when(evergreenService.getConfig()).thenReturn(config);
+        lenient().when(evergreenService.getContext()).thenReturn(context);
         lenient().when(evergreenService.dependencyReady()).thenReturn(true);
     }
 
@@ -336,6 +337,82 @@ public class LifecycleTest {
     private void initLifecycleState(Lifecycle lf, State initState) {
         Topic stateTopic = lf.getStateTopic();
         stateTopic.withValue(initState);
+    }
+
+
+    @Test
+    public void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
+        Topics serviceRoot = new Topics(context, "services", null);
+        Topics testServiceTopics = new Topics(context, "testService", serviceRoot);
+        TestService testService = new TestService(testServiceTopics);
+
+        Topics dependencyServiceTopics = new Topics(context, "dependencyService", serviceRoot);
+        TestService dependencyService = new TestService(dependencyServiceTopics);
+
+        testService.addOrUpdateDependency(dependencyService, State.RUNNING, false);
+
+        CountDownLatch serviceStarted = new CountDownLatch(1);
+        testService.setStartupRunnable(
+            () -> {
+                try {
+                    serviceStarted.countDown();
+                    Thread.sleep(10_000);
+                } catch (InterruptedException ie) {
+                    return;
+                }
+            }
+        );
+        dependencyService.setStartupRunnable(
+            () -> dependencyService.reportState(State.RUNNING)
+        );
+
+        // init lifecycle
+        testService.postInject();
+        testService.requestStart();
+        dependencyService.postInject();
+        dependencyService.requestStart();
+
+        // GIVEN service in state STARTING
+        assertTrue(serviceStarted.await(100, TimeUnit.MILLISECONDS));
+        assertEquals(State.STARTING, testService.getState());
+
+        CountDownLatch serviceRestarted = new CountDownLatch(2);
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (!"testService".equals(service.getName())) {
+                return;
+            }
+            if (State.STARTING.equals(oldState) && State.STOPPING.equals(newState) &&
+                    serviceRestarted.getCount() == 2) {
+                serviceRestarted.countDown();
+                return;
+            }
+
+            if (State.INSTALLED.equals(oldState) && State.STARTING.equals(newState) &&
+                    serviceRestarted.getCount() == 1) {
+                serviceRestarted.countDown();
+                return;
+            }
+        });
+
+        // WHEN dependency errored
+        dependencyService.reportState(State.ERRORED);
+
+        // THEN
+        assertTrue(serviceRestarted.await(100, TimeUnit.MILLISECONDS));
+    }
+
+    private class TestService extends EvergreenService {
+        @Setter
+        private Runnable startupRunnable = () -> {};
+
+        TestService(Topics topics) {
+            super(topics);
+        }
+
+        @Override
+        public void startup() {
+            startupRunnable.run();
+        }
     }
 }
 

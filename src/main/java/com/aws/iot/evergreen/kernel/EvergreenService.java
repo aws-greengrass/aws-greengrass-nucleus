@@ -346,7 +346,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, State startWhenState) {
         return (WhatHappened what, Topic t) -> {
-            if ((State.INSTALLED.equals(getState()) || State.RUNNING.equals(getState()))
+            if ((State.STARTING.equals(getState()) || State.RUNNING.equals(getState()))
                     && !dependencyReady(dependentEvergreenService, startWhenState)) {
                 requestRestart();
                 logger.atInfo("service-restart").log("Restarting service because dependency {} was in a bad state",
