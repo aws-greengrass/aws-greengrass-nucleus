@@ -46,6 +46,9 @@ import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalMatchers.or;
@@ -317,9 +320,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 mockIotJobsHelperInOrder.verify(mockIotJobsHelper, timeout(1000))
                         .updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.SUCCEEDED),  any());
 
-                processedDeployments = mockKernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
-                        DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
-                assertEquals(0, processedDeployments.size());
+                assertThat(() -> processedDeployments.size(), eventuallyEval(is(0), Duration.ofMillis(100)));
             }
 
             @Test
@@ -387,7 +388,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
                 Topics processedDeployments = mockKernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS);
-                assertEquals(0, processedDeployments.size());
+                assertThat(() -> processedDeployments.size(), eventuallyEval(is(0), Duration.ofMillis(100)));
             }
         }
     }
