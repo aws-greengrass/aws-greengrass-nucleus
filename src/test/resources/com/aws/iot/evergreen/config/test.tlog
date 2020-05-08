@@ -1,0 +1,17 @@
+1,system.rootpath,"/tmp"
+1588872930086,setenv.AWS_GG_KERNEL_URI,"tcp://127.0.0.1:37743"
+1,services.servicediscovery.dependencies,[]
+1588872929914,services.YellowSignal.lifecycle.run,"echo proceed with caution This is not a test"
+1588872929914,services.YellowSignal.version,"1.0.0"
+1588872929914,services.YellowSignal.parameters.message,"This is not a test"
+1588872929914,services.YellowSignal.dependencies,[]
+1,services.IPCService.dependencies,[]
+1,services.SafeSystemUpdate.dependencies,[]
+1,services.DeploymentService.dependencies,[]
+1588872925144,services.main.lifecycle.install,"echo All installed"
+1588872925144,services.main.lifecycle.run,"echo $PATH\npwd\nprintenv\nwhile true; do\ndate; sleep 5; echo RUNNING\ndone"
+1588872929914,services.main.dependencies,[YellowSignal, DeploymentService, lifecycleipc, IPCService, servicediscovery, SafeSystemUpdate]
+1,services.lifecycleipc.dependencies,[]
+1588872928102,services._AUTH_TOKENS.FakeToken,"main"
+1588872930080,services._AUTH_TOKENS.FakeToken2,"YellowSignal"
+1588872931120,services.YellowSignal.notMerged.testTopic,"TLogValue"
