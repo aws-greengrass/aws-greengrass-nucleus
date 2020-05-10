@@ -44,6 +44,8 @@ public class DeploymentConfigMerger {
     private static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
 
+    public static final String DEPLOYMENT_SAFE_NAMESPACE_TOPIC = "notRolledBack";
+
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
     @Inject
@@ -103,6 +105,10 @@ public class DeploymentConfigMerger {
                     try {
                         servicesChangeManager.startNewServices();
 
+                        // Restart any services that may have been broken before this deployment
+                        // This is added to allow deployments to fix broken services
+                        servicesChangeManager.reinstallBrokenServices();
+
                         Set<EvergreenService> servicesToTrack = servicesChangeManager.servicesToTrack();
                         logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack)
                                 .log("Applied new service config. Waiting for services to complete update");
@@ -148,8 +154,14 @@ public class DeploymentConfigMerger {
         long mergeTime;
         try {
             mergeTime = System.currentTimeMillis();
+            // The lambda is set up to ignore anything that is a child of DEPLOYMENT_SAFE_NAMESPACE_TOPIC
+            // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
+            // they like in the config
             ConfigurationReader.mergeTlogIntoConfig(kernel.getConfig(),
-                    kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)), true);
+                                                    kernel.getConfigPath().resolve(
+                                                            String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)),
+                                                    true,
+                                                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
@@ -166,6 +178,7 @@ public class DeploymentConfigMerger {
                 // TODO: Add timeout
                 try {
                     servicesChangeManager.startNewServices();
+                    servicesChangeManager.reinstallBrokenServices();
 
                     Set<EvergreenService> servicesToTrackForRollback = servicesChangeManager.servicesToTrack();
 
@@ -316,6 +329,20 @@ public class DeploymentConfigMerger {
             for (String serviceName : servicesToAdd) {
                 EvergreenService service = kernel.locate(serviceName);
                 service.requestStart();
+            }
+        }
+
+        /**
+         * Used during rollback, ensures any services that were broken during the update are able to restart.
+         *
+         * @throws ServiceLoadException when any service to be started could not be located
+         */
+        public void reinstallBrokenServices() throws ServiceLoadException {
+            for (String serviceName : servicesToUpdate) {
+                EvergreenService service = kernel.locate(serviceName);
+                if (service.currentOrReportedStateIs(State.BROKEN)) {
+                    service.requestReinstall();
+                }
             }
         }
 

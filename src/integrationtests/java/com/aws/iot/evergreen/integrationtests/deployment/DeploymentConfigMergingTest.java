@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.integrationtests.deployment;
 
+import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
@@ -18,12 +19,16 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,8 +43,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_SAFE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -48,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(EGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
@@ -383,7 +392,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         dependencies.removeIf(s -> s.contains("sleeperA"));
         servicesConfig.get("main").put("dependencies", dependencies);
         // updating service B's run
-        ((Map) servicesConfig.get("sleeperB").get(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
+        ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
                 .put("run", "while true; do\n echo sleeperB_running; sleep 10\n done");
 
         Future<DeploymentResult> future =
@@ -467,8 +476,77 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }
     }
 
+    @Test
+    void GIVEN_service_running_with_rollback_safe_param_WHEN_rollback_THEN_rollback_safe_param_not_updated(
+            ExtensionContext context)
+            throws Throwable {
+
+        ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
+
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
+
+        kernel.launch();
+
+        Configuration config = kernel.getConfig();
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB",
+                      DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+              .withNewerValue(System.currentTimeMillis(), "initialValue");
+
+        // WHEN
+        // merge broken config
+        HashMap<Object, Object> brokenConfig = new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("sleeperB", new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                        put("run", "exit -1");
+                    }});
+                }});
+            }});
+        }};
+
+        CountDownLatch sleeperBErrored = new CountDownLatch(1);
+        CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
+        GlobalStateChangeListener listener = (service, oldState, newState) -> {
+            if (service.getName().equals("sleeperB")) {
+                if (newState.equals(State.ERRORED)) {
+                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB",
+                                DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+                          .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
+                    sleeperBErrored.countDown();
+                } else if (sleeperBErrored.getCount() == 0 && newState.equals(State.RUNNING)) {
+                    // Rollback should only count after error
+                    sleeperBRolledBack.countDown();
+                }
+            }
+        };
+
+        kernel.getContext().addGlobalStateChangeListener(listener);
+        DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(testRollbackDeploymentDocument(),
+                                                                          brokenConfig)
+                                                        .get(30, TimeUnit.SECONDS);
+
+        // THEN
+        // deployment should have errored and rolled back
+        assertTrue(sleeperBErrored.await(1, TimeUnit.SECONDS));
+        assertTrue(sleeperBRolledBack.await(1, TimeUnit.SECONDS));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+
+        // Value set in listener should not have been rolled back
+        assertEquals("setOnErrorValue",
+                     config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB",
+                                 DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey").getOnce());
+        // remove listener
+        kernel.getContext().removeGlobalStateChangeListener(listener);
+    }
+
     private DeploymentDocument testDeploymentDocument() {
         return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
-                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build();
+                                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build();
+    }
+
+    private DeploymentDocument testRollbackDeploymentDocument() {
+        return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("rollback_id")
+                                 .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK).build();
     }
 }
