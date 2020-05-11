@@ -20,6 +20,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -355,25 +358,21 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 3rd error
         lifecycle.reportState(State.ERRORED);
-        Thread.sleep(1000);
-        assertEquals(State.BROKEN, lifecycle.getState());
+        assertThat(lifecycle::getState, eventuallyEval(is(State.BROKEN)));
     }
 
     @Test
@@ -409,28 +408,24 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 3rd error, but after a while
         clock = Clock.offset(clock, Duration.ofHours(1).plusMillis(1));
         context.put(Clock.class, clock);
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning4.await(5, TimeUnit.SECONDS));
-        Thread.sleep(1000); // Lifecycle thread needs some time to process the state transition
-        assertEquals(State.RUNNING, lifecycle.getState());  // Expect to recover
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
     }
 
     private class MinPriorityThreadFactory implements ThreadFactory {

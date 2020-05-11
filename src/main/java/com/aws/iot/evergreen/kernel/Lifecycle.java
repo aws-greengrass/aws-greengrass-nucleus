@@ -43,8 +43,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
-import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-
 @SuppressFBWarnings(value = "JLM_JSR166_UTILCONCURRENT_MONITORENTER",
         justification = "We're synchronizing on the desired state list which is fine")
 public class Lifecycle {
@@ -756,7 +754,6 @@ public class Lifecycle {
 
     private int getErrorResetTime() {
         return Coerce.toInt(evergreenService.getConfig().findOrDefault(DEFAULT_ERROR_RESET_TIME_IN_SEC,
-                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,
-                ERROR_RESET_TIME_TOPIC));
+                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, ERROR_RESET_TIME_TOPIC));
     }
 }
