@@ -33,7 +33,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     ConfigurationWriter(Configuration c, Writer o) {
         out = o;
         conf = c;
-        conf.getRoot().listen(this);
+        conf.getRoot().addWatcher(this);
     }
 
     ConfigurationWriter(Configuration c, Path p) throws IOException {
