@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.lenient;
 
+import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
@@ -78,7 +79,9 @@ public class LifecycleTest {
         context.put(ExecutorService.class, executorService);
         context.put(ThreadPoolExecutor.class, ses);
 
-        config = new Topics(context, "MockService", null);
+        Topics rootConfig = new Configuration(context).getRoot();
+        config = rootConfig.createInteriorChild(EvergreenService.SERVICES_NAMESPACE_TOPIC)
+                .createInteriorChild("MockService");
         try (InputStream inputStream = new ByteArrayInputStream(BLANK_CONFIG_YAML_WITH_TIMEOUT.getBytes())) {
             config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
         } catch (IOException e) {
@@ -342,11 +345,12 @@ public class LifecycleTest {
 
     @Test
     public void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
-        Topics serviceRoot = new Topics(context, "services", null);
-        Topics testServiceTopics = new Topics(context, "testService", serviceRoot);
+        Topics serviceRoot = new Configuration(context).getRoot()
+                .createInteriorChild(EvergreenService.SERVICES_NAMESPACE_TOPIC);
+        Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
         TestService testService = new TestService(testServiceTopics);
 
-        Topics dependencyServiceTopics = new Topics(context, "dependencyService", serviceRoot);
+        Topics dependencyServiceTopics = serviceRoot.createInteriorChild("dependencyService");
         TestService dependencyService = new TestService(dependencyServiceTopics);
 
         testService.addOrUpdateDependency(dependencyService, State.RUNNING, false);
