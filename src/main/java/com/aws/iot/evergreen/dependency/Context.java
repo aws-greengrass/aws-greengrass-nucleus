@@ -4,9 +4,7 @@
 package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -291,10 +289,6 @@ public class Context implements Closeable {
             }
         }
         return ret.get();
-    }
-
-    public void queuePublish(Topic t) {
-        runOnPublishQueue(() -> t.fire(WhatHappened.changed));
     }
 
     private boolean onPublishThread() {

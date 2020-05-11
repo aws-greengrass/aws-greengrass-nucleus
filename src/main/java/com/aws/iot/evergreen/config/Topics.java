@@ -21,7 +21,7 @@ public class Topics extends Node implements Iterable<Node> {
 
     private static final Logger logger = LogManager.getLogger(Topics.class);
 
-    public Topics(Context c, String n, Topics p) {
+    Topics(Context c, String n, Topics p) {
         super(c, n, p);
     }
 
@@ -39,15 +39,11 @@ public class Topics extends Node implements Iterable<Node> {
         return t;
     }
 
-    public void appendValueTo(Appendable a) throws IOException {
-        a.append(String.valueOf(children));
-    }
-
     @Override
     public void appendTo(Appendable a) throws IOException {
         appendNameTo(a);
         a.append(':');
-        appendValueTo(a);
+        a.append(String.valueOf(children));
     }
 
     public int size() {
@@ -290,7 +286,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return this
      */
     public Topics subscribe(ChildChanged cc) {
-        if (listen(cc)) {
+        if (addWatcher(cc)) {
             cc.childChanged(WhatHappened.initialized, null);
         }
         return this;

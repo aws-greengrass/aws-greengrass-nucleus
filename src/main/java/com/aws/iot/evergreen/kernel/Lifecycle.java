@@ -196,7 +196,7 @@ public class Lifecycle {
         Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
         state.withParentNeedsToKnow(false);
         state.withValue(State.NEW);
-        state.validate((newStateObj, oldStateObj) -> {
+        state.addValidator((newStateObj, oldStateObj) -> {
             State newState = Coerce.toEnum(State.class, newStateObj);
             return newState == null ? oldStateObj : newStateObj;
         });
