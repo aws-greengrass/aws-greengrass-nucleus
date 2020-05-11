@@ -501,7 +501,7 @@ public class LifecycleTest {
         dependencyService.reportState(State.ERRORED);
 
         // THEN
-        assertTrue(serviceRestarted.await(100, TimeUnit.MILLISECONDS));
+        assertTrue(serviceRestarted.await(200, TimeUnit.MILLISECONDS));
     }
 
     private class TestService extends EvergreenService {
