@@ -1,7 +1,7 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Subscriber;
-import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.dependency.Type;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,13 +29,13 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         EvergreenService dep1 = Mockito.mock(EvergreenService.class);
 
         // WHEN
-        evergreenService.addOrUpdateDependency(dep1, State.INSTALLED, false);
+        evergreenService.addOrUpdateDependency(dep1, Type.SOFT, false);
 
         // THEN
-        Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
+        Map<EvergreenService, Type> dependencies = evergreenService.getDependencies();
         // verify dependency added
         Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1));
+        Assertions.assertEquals(Type.SOFT, dependencies.get(dep1));
     }
 
     @Test
@@ -43,20 +43,20 @@ public class SetupDependencyTest extends EGServiceTestUtil {
         // GIVEN
         EvergreenService dep1 = Mockito.mock(EvergreenService.class);
 
-        evergreenService.addOrUpdateDependency(dep1, State.INSTALLED, false);
+        evergreenService.addOrUpdateDependency(dep1, Type.SOFT, false);
         Mockito.verify(dep1).addStateSubscriber(Mockito.any(Subscriber.class));
 
-        Map<EvergreenService, State> dependencies = evergreenService.getDependencies();
+        Map<EvergreenService, Type> dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.INSTALLED, dependencies.get(dep1));
+        Assertions.assertEquals(Type.SOFT, dependencies.get(dep1));
 
         // WHEN
-        evergreenService.addOrUpdateDependency(dep1, State.RUNNING, true);
+        evergreenService.addOrUpdateDependency(dep1, Type.HARD, true);
 
         // THEN
         dependencies = evergreenService.getDependencies();
         Assertions.assertEquals(1, dependencies.size());
-        Assertions.assertEquals(State.RUNNING, dependencies.get(dep1));
+        Assertions.assertEquals(Type.HARD, dependencies.get(dep1));
         // Remove the previous subscriber.
         Mockito.verify(dep1).removeStateSubscriber(Mockito.any(Subscriber.class));
     }

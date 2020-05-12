@@ -1,0 +1,15 @@
+---
+services:
+  HardDependency:
+    lifecycle:
+      run:
+        script: while true; do sleep 1000; done
+  CustomerApp:
+    dependencies:
+    - HardDependency:HARD
+    lifecycle:
+      run:
+        script: while true; do sleep 1000; done
+  main:
+    dependencies:
+    - CustomerApp:HARD

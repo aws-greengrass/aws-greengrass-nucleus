@@ -5,7 +5,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.dependency.Type;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
@@ -414,10 +414,10 @@ class DependencyResolverTest {
                     .thenReturn(Collections.singletonList(packageC_1_1_0).iterator());
 
             when(kernel.getMain()).thenReturn(mainService);
-            Map<EvergreenService, State> serviceMap = new HashMap<>();
-            serviceMap.put(mockServiceB1, State.RUNNING);
-            serviceMap.put(mockServiceB2, State.RUNNING);
-            serviceMap.put(mockServiceD, State.RUNNING);
+            Map<EvergreenService, Type> serviceMap = new HashMap<>();
+            serviceMap.put(mockServiceB1, Type.HARD);
+            serviceMap.put(mockServiceB2, Type.HARD);
+            serviceMap.put(mockServiceD, Type.HARD);
             when(mainService.getDependencies()).thenReturn(serviceMap);
             when(mockServiceB1.getName()).thenReturn(pkgB1);
             when(mockServiceB2.getName()).thenReturn(pkgB2);
