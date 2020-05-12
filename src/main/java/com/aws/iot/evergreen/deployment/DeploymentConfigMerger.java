@@ -87,8 +87,8 @@ public class DeploymentConfigMerger {
                     takeSnapshotForRollback(deploymentId);
                 } catch (IOException e) {
                     // Failed to record snapshot hence did not execute merge, no rollback needed
-                    logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to take a "
-                            + "snapshot for rollback");
+                    logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                            .log("Failed to take a " + "snapshot for rollback");
                     totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
                     return;
                 }
@@ -158,10 +158,8 @@ public class DeploymentConfigMerger {
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
             ConfigurationReader.mergeTlogIntoConfig(kernel.getConfig(),
-                                                    kernel.getConfigPath().resolve(
-                                                            String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)),
-                                                    true,
-                                                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
+                    kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)), true,
+                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");

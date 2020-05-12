@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
@@ -171,7 +172,7 @@ class KernelTest {
 
         // Add dependency on service1 to main
         mockMain.addOrUpdateDependency(service1, State.RUNNING, false);
-        ((List<String>) kernel.findServiceTopic("main").findLeafChild("dependencies").getOnce())
+        ((List<String>) kernel.findServiceTopic("main").findLeafChild(SERVICE_DEPENDENCIES_CONFIG_KEY).getOnce())
                 .add("service1");
         kernel.findServiceTopic("service1")
                 .lookup(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run", "script")
