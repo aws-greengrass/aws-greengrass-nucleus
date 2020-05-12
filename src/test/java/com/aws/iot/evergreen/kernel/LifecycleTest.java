@@ -155,9 +155,7 @@ public class LifecycleTest {
 
         // THEN
         assertTrue(errorHandled);
-        // sleep to let error handle finished
-        Thread.sleep(100);
-        assertTrue(installInterrupted.get());
+        assertThat(installInterrupted::get, eventuallyEval(is(true)));
     }
 
     @Test
@@ -202,9 +200,7 @@ public class LifecycleTest {
 
         // THEN
         assertTrue(shutdownCalled);
-        // sleep to let shutdown finished
-        Thread.sleep(100);
-        assertTrue(startupInterrupted.get());
+        assertThat(startupInterrupted::get, eventuallyEval(is(true)));
     }
 
     @Test
@@ -234,8 +230,7 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        Thread.sleep(100);
-        assertEquals(State.RUNNING, lifecycle.getState());
+        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
 
         // WHEN
         lifecycle.requestStop();
@@ -244,9 +239,8 @@ public class LifecycleTest {
         // THEN
         Mockito.verify(evergreenService).startup();
         Mockito.verify(evergreenService).shutdown();
-        Thread.sleep(100);
-        assertTrue(startupInterrupted.get());
-        assertEquals(State.FINISHED, lifecycle.getState());
+        assertThat(startupInterrupted::get, eventuallyEval(is(true)));
+        assertThat(lifecycle::getState, eventuallyEval(is(State.FINISHED)));
     }
 
     @Test
@@ -282,9 +276,8 @@ public class LifecycleTest {
         Mockito.verify(evergreenService).startup();
         Mockito.verify(evergreenService).shutdown();
 
-        Thread.sleep(100);
-        assertTrue(startupInterrupted.get());
-        assertEquals(State.FINISHED, lifecycle.getState());
+        assertThat(startupInterrupted::get, eventuallyEval(is(true)));
+        assertThat(lifecycle::getState, eventuallyEval(is(State.FINISHED)));
     }
 
     @Test
