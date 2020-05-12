@@ -7,8 +7,8 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.Type;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -94,7 +94,7 @@ class KernelTest {
         assertThat(od, hasSize(1));
         assertEquals(mockMain, od.get(0));
 
-        mockMain.addOrUpdateDependency(service1, Type.HARD, false);
+        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
 
         od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
@@ -103,7 +103,7 @@ class KernelTest {
         assertEquals(service1, od.get(0));
         assertEquals(mockMain, od.get(1));
 
-        mockMain.addOrUpdateDependency(service2, Type.HARD, false);
+        mockMain.addOrUpdateDependency(service2, DependencyType.HARD, false);
 
         od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
@@ -114,7 +114,7 @@ class KernelTest {
         assertThat(od.get(1), anyOf(is(service1), is(service2)));
         assertEquals(mockMain, od.get(2));
 
-        service1.addOrUpdateDependency(service2, Type.HARD, false);
+        service1.addOrUpdateDependency(service2, DependencyType.HARD, false);
 
         od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
@@ -144,8 +144,8 @@ class KernelTest {
         service1.postInject();
 
         // Introduce a dependency cycle
-        service1.addOrUpdateDependency(mockMain, Type.HARD, false);
-        mockMain.addOrUpdateDependency(service1, Type.HARD, false);
+        service1.addOrUpdateDependency(mockMain, DependencyType.HARD, false);
+        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
 
         List<EvergreenService> od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
@@ -171,7 +171,7 @@ class KernelTest {
         service1.postInject();
 
         // Add dependency on service1 to main
-        mockMain.addOrUpdateDependency(service1, Type.HARD, false);
+        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
         ((List<String>) kernel.findServiceTopic("main").findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).getOnce())
                 .add("service1");
         kernel.findServiceTopic("service1")

@@ -5,7 +5,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.dependency.Type;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -450,7 +450,7 @@ public class LifecycleTest {
         Topics dependencyServiceTopics = serviceRoot.createInteriorChild("dependencyService");
         TestService dependencyService = new TestService(dependencyServiceTopics);
 
-        testService.addOrUpdateDependency(dependencyService, Type.HARD, false);
+        testService.addOrUpdateDependency(dependencyService, DependencyType.HARD, false);
 
         CountDownLatch serviceStarted = new CountDownLatch(1);
         testService.setStartupRunnable(

@@ -7,8 +7,8 @@ package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.Crashable;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.dependency.Type;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
@@ -169,7 +169,7 @@ public class ServiceDependencyLifecycleTest {
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
                 put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(HardDependency + ":" + Type.HARD));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(HardDependency + ":" + DependencyType.HARD));
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                             put("script", "while true; do sleep 1000; done");
@@ -303,7 +303,7 @@ public class ServiceDependencyLifecycleTest {
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
                 put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(SoftDependency + ":" + Type.SOFT));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(SoftDependency + ":" + DependencyType.SOFT));
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                             put("script", "while true; do sleep 1000; done");
@@ -390,7 +390,7 @@ public class ServiceDependencyLifecycleTest {
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
                 put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + Type.HARD));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.HARD));
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                             put("script", "while true; do sleep 1000; done");
@@ -425,7 +425,7 @@ public class ServiceDependencyLifecycleTest {
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
                 put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + Type.SOFT));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.SOFT));
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                             put("script", "while true; do sleep 1000; done");

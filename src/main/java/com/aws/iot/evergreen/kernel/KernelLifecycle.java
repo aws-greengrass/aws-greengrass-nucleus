@@ -6,9 +6,9 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.ConfigurationWriter;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.Type;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -73,7 +73,7 @@ public class KernelLifecycle {
 
         autostart.forEach(s -> {
             try {
-                mainService.addOrUpdateDependency(kernel.locate(s), Type.HARD, true);
+                mainService.addOrUpdateDependency(kernel.locate(s), DependencyType.HARD, true);
             } catch (ServiceLoadException se) {
                 logger.atError().log("Unable to load service {}", s, se);
             } catch (InputValidationException e) {

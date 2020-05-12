@@ -8,9 +8,9 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.dependency.Type;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -318,7 +318,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      *                                  Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService, Type dependencyType,
+    public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService,
+                                                   DependencyType dependencyType,
                                                    boolean isDefault) throws InputValidationException {
         if (dependentEvergreenService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
@@ -337,7 +338,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         });
     }
 
-    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, Type dependencyType) {
+    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService,
+                                                  DependencyType dependencyType) {
         return (WhatHappened what, Topic t) -> {
             if ((State.STARTING.equals(getState()) || State.RUNNING.equals(getState())) && !dependencyReady(
                     dependentEvergreenService, dependencyType)) {
@@ -358,7 +360,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         Kernel kernel = context.get(Kernel.class);
         for (EvergreenService evergreenService : kernel.orderedDependencies()) {
             for (Map.Entry<EvergreenService, DependencyInfo> entry : evergreenService.dependencies.entrySet()) {
-                if (entry.getKey().equals(this) && Type.HARD.equals(entry.getValue().dependencyType)) {
+                if (entry.getKey().equals(this) && DependencyType.HARD.equals(entry.getValue().dependencyType)) {
                     dependers.add(evergreenService);
                 }
             }
@@ -418,10 +420,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return ret.isEmpty();
     }
 
-    private boolean dependencyReady(EvergreenService v, Type dependencyType) {
+    private boolean dependencyReady(EvergreenService v, DependencyType dependencyType) {
         State state = v.getState();
         // Soft dependency can be in any state, while hard dependency has to be in RUNNING, STOPPING or FINISHED.
-        return dependencyType.equals(Type.SOFT) || state.isHappy() && State.RUNNING.preceedsOrEqual(state);
+        return dependencyType.equals(DependencyType.SOFT) || state.isHappy() && State.RUNNING.preceedsOrEqual(state);
     }
 
     void waitForDependencyReady() throws InterruptedException {
@@ -445,27 +447,27 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return config;
     }
 
-    private Map<EvergreenService, Type> getDependencyTypeMap(Iterable<String> dependencyList)
+    protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)
             throws InputValidationException, ServiceLoadException {
-        HashMap<EvergreenService, Type> ret = new HashMap<>();
+        HashMap<EvergreenService, DependencyType> ret = new HashMap<>();
         for (String dependency : dependencyList) {
             String[] dependencyInfo = dependency.split(":");
             if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
                 throw new InputValidationException("Bad dependency syntax");
             }
-            Pair<EvergreenService, Type> dep =
+            Pair<EvergreenService, DependencyType> dep =
                     parseSingleDependency(dependencyInfo[0], dependencyInfo.length > 1 ? dependencyInfo[1] : null);
             ret.put(dep.getLeft(), dep.getRight());
         }
         return ret;
     }
 
-    private Pair<EvergreenService, Type> parseSingleDependency(String name, String typeString)
+    private Pair<EvergreenService, DependencyType> parseSingleDependency(String name, String typeString)
             throws InputValidationException, ServiceLoadException {
-        Type type = null;
+        DependencyType type = null;
         if (typeString != null && !typeString.isEmpty()) {
             // do "friendly" match
-            for (Type s : Type.values()) {
+            for (DependencyType s : DependencyType.values()) {
                 if (typeString.regionMatches(true, 0, s.name(), 0, typeString.length())) {
                     type = s;
                     break;
@@ -477,13 +479,13 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         }
 
         EvergreenService d = context.get(Kernel.class).locate(name);
-        return new Pair<>(d, type == null ? Type.HARD : type);
+        return new Pair<>(d, type == null ? DependencyType.HARD : type);
     }
 
     private synchronized void setupDependencies(Iterable<String> dependencyList)
             throws ServiceLoadException, InputValidationException {
-        Map<EvergreenService, Type> oldDependencies = new HashMap<>(getDependencies());
-        Map<EvergreenService, Type> keptDependencies = getDependencyTypeMap(dependencyList);
+        Map<EvergreenService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
+        Map<EvergreenService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
 
         Set<EvergreenService> removedDependencies = dependencies.entrySet().stream()
                 .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
@@ -547,7 +549,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     //TODO: return the entire dependency info
-    public Map<EvergreenService, Type> getDependencies() {
+    public Map<EvergreenService, DependencyType> getDependencies() {
         return dependencies.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
@@ -567,7 +569,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     @AllArgsConstructor
     protected static class DependencyInfo {
         // dependency type. Default to be HARD.
-        Type dependencyType;
+        DependencyType dependencyType;
         // true if the dependency isn't explicitly declared in config
         boolean isDefaultDependency;
         Subscriber stateTopicSubscriber;
