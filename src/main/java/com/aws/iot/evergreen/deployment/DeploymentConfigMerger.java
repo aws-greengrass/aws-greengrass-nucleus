@@ -19,6 +19,7 @@ import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.CrashableSupplier;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -87,8 +88,8 @@ public class DeploymentConfigMerger {
                     takeSnapshotForRollback(deploymentId);
                 } catch (IOException e) {
                     // Failed to record snapshot hence did not execute merge, no rollback needed
-                    logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to take a "
-                            + "snapshot for rollback");
+                    logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                            .log("Failed to take a snapshot for rollback");
                     totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
                     return;
                 }
@@ -113,7 +114,8 @@ public class DeploymentConfigMerger {
                         logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack)
                                 .log("Applied new service config. Waiting for services to complete update");
 
-                        waitForServicesToStart(servicesToTrack, totallyCompleteFuture, mergeTime);
+                        waitForServicesToStart(servicesChangeManager::servicesToTrack, totallyCompleteFuture,
+                                mergeTime);
                         if (totallyCompleteFuture.isCancelled()) {
                             // TODO : Does this need rolling back to old config?
                             logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
@@ -158,10 +160,8 @@ public class DeploymentConfigMerger {
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
             ConfigurationReader.mergeTlogIntoConfig(kernel.getConfig(),
-                                                    kernel.getConfigPath().resolve(
-                                                            String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)),
-                                                    true,
-                                                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
+                    kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)), true,
+                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
@@ -180,9 +180,7 @@ public class DeploymentConfigMerger {
                     servicesChangeManager.startNewServices();
                     servicesChangeManager.reinstallBrokenServices();
 
-                    Set<EvergreenService> servicesToTrackForRollback = servicesChangeManager.servicesToTrack();
-
-                    waitForServicesToStart(servicesToTrackForRollback, totallyCompleteFuture, mergeTime);
+                    waitForServicesToStart(servicesChangeManager::servicesToTrack, totallyCompleteFuture, mergeTime);
 
                     servicesChangeManager.removeObsoleteServices();
                     logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
@@ -213,13 +211,15 @@ public class DeploymentConfigMerger {
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
+     * @throws ServiceLoadException   if the service cannot be located in the kernel
      */
-    public static void waitForServicesToStart(Set<EvergreenService> servicesToTrack,
-                                              CompletableFuture<?> totallyCompleteFuture, long mergeTime)
-            throws InterruptedException, ServiceUpdateException {
+    public static void waitForServicesToStart(
+            CrashableSupplier<Set<EvergreenService>, ServiceLoadException> servicesToTrack,
+            CompletableFuture<?> totallyCompleteFuture, long mergeTime)
+            throws InterruptedException, ServiceUpdateException, ServiceLoadException {
         while (!totallyCompleteFuture.isCancelled()) {
             boolean allServicesRunning = true;
-            for (EvergreenService service : servicesToTrack) {
+            for (EvergreenService service : servicesToTrack.apply()) {
                 State state = service.getState();
 
                 // If a service is previously BROKEN, its state might have not been updated yet when this check
@@ -237,6 +237,8 @@ public class DeploymentConfigMerger {
                     continue;
                 }
                 allServicesRunning = false;
+                logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceName", service.getName()).kv("state", state)
+                        .log("Waiting for service to start");
             }
             if (allServicesRunning) {
                 return;

@@ -61,7 +61,7 @@ public class MergeTest {
         CompletableFuture<?> future = new CompletableFuture<>();
         Set<EvergreenService> evergreenServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, System.currentTimeMillis());
+        DeploymentConfigMerger.waitForServicesToStart(() -> evergreenServices, future, System.currentTimeMillis());
 
         assertFalse(future.isCompletedExceptionally());
     }
@@ -82,7 +82,7 @@ public class MergeTest {
         Set<EvergreenService> evergreenServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
 
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
-                () -> DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, curTime - 10L));
+                () -> DeploymentConfigMerger.waitForServicesToStart(() -> evergreenServices, future, curTime - 10L));
 
         assertEquals("Service main in broken state after deployment", ex.getMessage());
     }

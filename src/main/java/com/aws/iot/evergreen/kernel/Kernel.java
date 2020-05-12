@@ -6,8 +6,10 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
 import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -21,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
@@ -43,6 +46,7 @@ import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.LOAD_JAR_CONFIG_KEY;
 
 /**
  * Evergreen-kernel.
@@ -244,9 +248,25 @@ public class Kernel {
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
      */
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public EvergreenService locate(String name) throws ServiceLoadException {
-        return context.getValue(EvergreenService.class, name).computeObjectIfEmpty(v -> {
+        return locate(name, false);
+    }
+
+    /**
+     * Locate an EvergreenService by name in the kernel context.
+     *
+     * @param name name of the service to find
+     * @param reload true
+     * @return found service or null
+     * @throws ServiceLoadException if service cannot load
+     */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    public EvergreenService locate(String name, boolean reload) throws ServiceLoadException {
+        return context.getValue(EvergreenService.class, name).computeObject(v -> {
+            if (!v.isEmpty() && !reload) {
+                return (EvergreenService) v.get();
+            }
+
             Topics serviceRootTopics = findServiceTopic(name);
 
             Class<?> clazz = null;
@@ -263,42 +283,11 @@ public class Kernel {
                 }
             }
 
-            // try to find service implementation class from plugins.
-            if (clazz == null) {
-                Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
-                if (si != null) {
-                    logger.atInfo().kv(EvergreenService.SERVICE_NAME_KEY, name)
-                            .log("Attempt to load service from plugins");
-                    clazz = si.get(name);
-                }
-            }
-
             EvergreenService ret;
-            // If found class, try to load service class from plugins.
-            if (clazz != null) {
-                try {
-                    // Lookup the service topics here because the Topics passed into the EvergreenService
-                    // constructor must not be null
-                    Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
-
-                    try {
-                        Constructor<?> ctor = clazz.getConstructor(Topics.class);
-                        ret = (EvergreenService) ctor.newInstance(topics);
-                    } catch (NoSuchMethodException e) {
-                        // If the basic constructor doesn't exist, then try injecting from the context
-                        ret = (EvergreenService) context.newInstance(clazz);
-                    }
-
-                    if (clazz.getAnnotation(Singleton.class) != null) {
-                        context.put(ret.getClass(), v);
-                    }
-
-                    logger.atInfo("evergreen-service-loaded")
-                            .kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
+            if (!reload) {
+                ret = findServiceInstanceInPlugins(name, v, clazz);
+                if (ret != null) {
                     return ret;
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
-                            ex);
                 }
             }
 
@@ -306,16 +295,82 @@ public class Kernel {
                 throw new ServiceLoadException("No matching definition in system model for: " + name);
             }
 
+            Topic loadJarTopic = serviceRootTopics.findLeafChild(LOAD_JAR_CONFIG_KEY);
+            if (loadJarTopic != null && loadJarTopic.getOnce() != null) {
+                File jar = new File(Coerce.toString(loadJarTopic.getOnce())).getAbsoluteFile();
+                if (jar.exists()) {
+                    try {
+                        context.get(EZPlugins.class).loadToCache(false, jar.toURI().toURL());
+                        ret = findServiceInstanceInPlugins(name, v, null);
+                        if (ret != null) {
+                            return ret;
+                        }
+                    } catch (IOException e) {
+                        throw new ServiceLoadException(String.format("Can't load service %s from jar %s", name, jar),
+                                e);
+                    }
+                } else {
+                    throw new ServiceLoadException(
+                            String.format("Can't load service %s from jar %s, because the jar does not exist", name,
+                                    jar));
+                }
+            }
+
             // if not found, initialize GenericExternalService
             try {
                 ret = new GenericExternalService(serviceRootTopics);
-                logger.atInfo("generic-service-loaded")
-                        .kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
+                logger.atInfo("generic-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
             } catch (Throwable ex) {
                 throw new ServiceLoadException("Can't create generic service instance " + name, ex);
             }
             return ret;
         });
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    private EvergreenService findServiceInstanceInPlugins(String name, Context.Value v, Class<?> clazz)
+            throws ServiceLoadException {
+        EvergreenService ret;
+        // try to find service implementation class from plugins.
+        if (clazz == null) {
+            clazz = findServiceClassInPlugins(name);
+        }
+
+        // If found class, try to load service class from plugins.
+        if (clazz != null) {
+            try {
+                // Lookup the service topics here because the Topics passed into the EvergreenService
+                // constructor must not be null
+                Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
+
+                try {
+                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
+                    ret = (EvergreenService) ctor.newInstance(topics);
+                } catch (NoSuchMethodException e) {
+                    // If the basic constructor doesn't exist, then try injecting from the context
+                    ret = (EvergreenService) context.newInstance(clazz);
+                }
+
+                if (clazz.getAnnotation(Singleton.class) != null) {
+                    context.put(ret.getClass(), v);
+                }
+
+                logger.atInfo("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
+                return ret;
+            } catch (Throwable ex) {
+                throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(), ex);
+            }
+        }
+        return null;
+    }
+
+    private Class<?> findServiceClassInPlugins(String name) {
+        Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
+        if (si != null) {
+            logger.atInfo().kv(EvergreenService.SERVICE_NAME_KEY, name).log("Attempt to load service from plugins");
+            return si.get(name);
+        }
+        return null;
     }
 
     public Kernel parseArgs(String... args) {

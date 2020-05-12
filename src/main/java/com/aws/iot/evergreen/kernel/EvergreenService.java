@@ -33,10 +33,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.LOAD_JAR_CONFIG_KEY;
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions, DisruptableCheck {
-    public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_NAME_KEY = "serviceName";
@@ -88,6 +88,17 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         this.lifecycle = new Lifecycle(this, logger);
 
         initDependenciesTopic();
+        topics.subscribe((w, n) -> {
+            if (n instanceof Topic && n.childOf(LOAD_JAR_CONFIG_KEY)) {
+                try {
+                    context.get(Kernel.class).locate(getName(), true).requestStart();
+                    close(false);
+                } catch (ServiceLoadException e) {
+                    serviceErrored(e);
+                }
+            }
+        });
+
         periodicityInformation = Periodicity.of(this);
     }
 
@@ -110,8 +121,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Returns true if either the current or the very last reported state (if any)
-     * is equal to the provided state.
+     * Returns true if either the current or the very last reported state (if any) is equal to the provided state.
      *
      * @param state state to check against
      */
@@ -126,13 +136,11 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     /**
      * public API for service to report state. Allowed state are RUNNING, FINISHED, ERRORED.
      *
-     * @param newState reported state from the service which should eventually be set as the service's
-     *                 actual state
+     * @param newState reported state from the service which should eventually be set as the service's actual state
      */
     public synchronized void reportState(State newState) {
         lifecycle.reportState(newState);
     }
-
 
 
     private synchronized void initDependenciesTopic() {
@@ -231,8 +239,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Called when this service is known to be needed to make sure that required
-     * additional software is installed.
+     * Called when this service is known to be needed to make sure that required additional software is installed.
      *
      * @throws InterruptedException if the install task was interrupted while running
      */
@@ -240,9 +247,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Called when all dependencies are RUNNING. If there are no dependencies,
-     * it is called right after postInject.  The service doesn't transition to RUNNING
-     * until *after* this state is complete.
+     * Called when all dependencies are RUNNING. If there are no dependencies, it is called right after postInject.  The
+     * service doesn't transition to RUNNING until *after* this state is complete.
      *
      * @throws InterruptedException if the startup task was interrupted while running
      */
@@ -263,15 +269,12 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Called to check if the service can be disrupted to process a deployment.
-     * Default implementation returns 0, meaning that the service is safe
-     * to be disrupted.
+     * Called to check if the service can be disrupted to process a deployment. Default implementation returns 0,
+     * meaning that the service is safe to be disrupted.
      *
-     * @return Estimated time when this handler will be willing to be disrupted,
-     *     expressed as milliseconds since the epoch. If
-     *     the returned value is less than now (System.currentTimeMillis()) the handler
-     *     is granting permission to be disrupted.  Otherwise, it will be asked again
-     *     sometime later.
+     * @return Estimated time when this handler will be willing to be disrupted, expressed as milliseconds since the
+     *         epoch. If the returned value is less than now (System.currentTimeMillis()) the handler is granting
+     *         permission to be disrupted.  Otherwise, it will be asked again sometime later.
      */
     @Override
     public long whenIsDisruptionOK() {
@@ -290,8 +293,18 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      *
      * @return future completes when the lifecycle thread shuts down.
      */
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public final CompletableFuture<Void> close() {
+        return close(true);
+    }
+
+    /**
+     * Moves the service to finished state and shuts down lifecycle thread.
+     *
+     * @param waitForDependers true if the service should wait for dependers to exit before shutting down.
+     * @return future completes when the lifecycle thread shuts down.
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public final CompletableFuture<Void> close(boolean waitForDependers) {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
         context.get(Executor.class).execute(() -> {
             try {
@@ -299,10 +312,12 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 if (t != null) {
                     t.shutdown();
                 }
-                try {
-                    waitForDependersToExit();
-                } catch (InterruptedException e) {
-                    logger.error("Interrupted waiting for dependers to exit");
+                if (waitForDependers) {
+                    try {
+                        waitForDependersToExit();
+                    } catch (InterruptedException e) {
+                        logger.error("Interrupted waiting for dependers to exit");
+                    }
                 }
                 lifecycle.setClosed(true);
                 requestStop();
@@ -321,8 +336,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * @param dependentEvergreenService the service to add as a dependency.
      * @param startWhen                 the state that the dependent service must be in before starting the current
      *                                  service.
-     * @param isDefault                 True if the dependency is added without explicit declaration
-     *                                  in 'dependencies' Topic.
+     * @param isDefault                 True if the dependency is added without explicit declaration in 'dependencies'
+     *                                  Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
     public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService, State startWhen,
@@ -346,8 +361,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, State startWhenState) {
         return (WhatHappened what, Topic t) -> {
-            if ((State.STARTING.equals(getState()) || State.RUNNING.equals(getState()))
-                    && !dependencyReady(dependentEvergreenService, startWhenState)) {
+            if ((State.STARTING.equals(getState()) || State.RUNNING.equals(getState())) && !dependencyReady(
+                    dependentEvergreenService, startWhenState)) {
                 requestRestart();
                 logger.atInfo("service-restart").log("Restarting service because dependency {} was in a bad state",
                         dependentEvergreenService.getName());
@@ -391,8 +406,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             }
         };
         // subscribing to depender state changes
-        dependers.forEach(
-                dependerEvergreenService -> dependerEvergreenService.addStateSubscriber(dependerExitWatcher));
+        dependers.forEach(dependerEvergreenService -> dependerEvergreenService.addStateSubscriber(dependerExitWatcher));
 
         synchronized (dependersExitedLock) {
             while (!dependersExited(dependers)) {
@@ -417,11 +431,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     protected boolean dependencyReady() {
         List<EvergreenService> ret =
-                dependencies.entrySet()
-                        .stream()
-                        .filter(e -> !dependencyReady(e.getKey(), e.getValue().startWhen))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toList());
+                dependencies.entrySet().stream().filter(e -> !dependencyReady(e.getKey(), e.getValue().startWhen))
+                        .map(Map.Entry::getKey).collect(Collectors.toList());
         if (!ret.isEmpty()) {
             logger.atDebug("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
         }
@@ -519,8 +530,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 }
                 addOrUpdateDependency(dependentEvergreenService, startWhen, false);
             } catch (InputValidationException e) {
-                logger.atWarn("add-dependency")
-                        .log("Unable to add dependency {}", dependentEvergreenService, e);
+                logger.atWarn("add-dependency").log("Unable to add dependency {}", dependentEvergreenService, e);
             }
         });
 

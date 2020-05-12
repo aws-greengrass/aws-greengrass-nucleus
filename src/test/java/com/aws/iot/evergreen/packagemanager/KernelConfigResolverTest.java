@@ -289,7 +289,7 @@ class KernelConfigResolverTest {
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
                 parameters, getSimplePackageLifecycle(packageName), Collections.emptyList(), dependencies,
-                getSimpleCustomConfigString(packageName), getSimpleEnvVariables(packageName));
+                getSimpleCustomConfigString(packageName), getSimpleEnvVariables(packageName), null);
     }
 
     private Map<String, String> getSimpleParameterMap(String packageName) {

@@ -56,6 +56,8 @@ public class PackageRecipe {
 
     private final Map<String, String> environmentVariables;
 
+    private final String sameJVMJar;
+
     /**
      * Constructor for Jackson to deserialize.
      *
@@ -70,6 +72,7 @@ public class PackageRecipe {
      * @param dependencies          List of dependencies
      * @param customConfig          Custom config to store in kernel config store
      * @param environmentVariables  Environment variables for the service
+     * @param sameJVMJar            Path to jar file which should be loaded into the Kernel JVM
      * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
@@ -86,7 +89,8 @@ public class PackageRecipe {
                          @JsonProperty("CustomConfig") @JsonDeserialize(
                                  using = MapFieldDeserializer.class) Map<String, Object> customConfig,
                          @JsonProperty("EnvironmentVariables") @JsonDeserialize(
-                                 using = MapFieldDeserializer.class) Map<String, String> environmentVariables) {
+                                 using = MapFieldDeserializer.class) Map<String, String> environmentVariables,
+                         @JsonProperty("LoadJar") String sameJVMJar) {
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -100,6 +104,7 @@ public class PackageRecipe {
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
         this.customConfig = customConfig == null ? Collections.emptyMap() : customConfig;
         this.environmentVariables = environmentVariables == null ? Collections.emptyMap() : environmentVariables;
+        this.sameJVMJar = sameJVMJar;
     }
 
     @JsonSerialize(using = SemverSerializer.class)

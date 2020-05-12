@@ -451,6 +451,19 @@ public class Context implements Closeable {
             return putAndInjectFields(mappingFunction.apply(this));
         }
 
+        /**
+         * Computes and return T.
+         *
+         * @param mappingFunction maps from Value to T
+         * @param <E>             CheckedException
+         * @return the current (existing or computed) object instance
+         * @throws E when mapping function throws checked exception
+         */
+        public final synchronized <E extends Exception> T computeObject(
+                CrashableFunction<Value, T, E> mappingFunction) throws E {
+            return putAndInjectFields(mappingFunction.apply(this));
+        }
+
         public boolean isEmpty() {
             return object == null;
         }

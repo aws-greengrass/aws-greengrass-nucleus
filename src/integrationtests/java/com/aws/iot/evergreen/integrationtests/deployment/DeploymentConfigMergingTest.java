@@ -20,7 +20,6 @@ import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
@@ -47,12 +46,15 @@ import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.LOAD_JAR_CONFIG_KEY;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -91,8 +93,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                    .equals(State.STARTING)) {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -102,7 +103,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
-        assertThat((String) kernel.findServiceTopic("main").find("lifecycle", "run").getOnce(),
+        assertThat((String) kernel.findServiceTopic("main").find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run").getOnce(),
                 containsString("echo Now we\\'re in phase 3"));
     }
 
@@ -125,8 +126,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState
-                    .equals(State.STARTING)) {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -143,7 +143,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
         assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-        assertThat((String) kernel.findServiceTopic("main").find("lifecycle", "run").getOnce(),
+        assertThat((String) kernel.findServiceTopic("main").find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run").getOnce(),
                 containsString("echo \"Running main\""));
     }
 
@@ -184,11 +184,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put("dependencies", serviceList);
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, serviceList);
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
-                    put("lifecycle", new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put("run", new HashMap<Object, Object>() {{
                             put("script", "sleep 60");
                         }});
@@ -246,18 +246,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put("dependencies", serviceList);
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, serviceList);
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
-                    put("lifecycle", new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
-                    put("dependencies", Arrays.asList("new_service2"));
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2", new HashMap<Object, Object>() {{
-                    put("lifecycle", new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
                 }});
@@ -282,18 +282,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put("dependencies", Arrays.asList("new_service"));
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("new_service"));
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
-                    put("lifecycle", new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
-                    put("dependencies", Arrays.asList("new_service2"));
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2", new HashMap<Object, Object>() {{
-                    put("lifecycle", new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put("run", "sleep 60");
                     }});
                 }});
@@ -387,10 +387,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         //removing all services in the current kernel config except sleeperB and main
         servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName) && !"main".equals(serviceName));
-        List<String> dependencies = new ArrayList<>((List<String>) servicesConfig.get("main").get("dependencies"));
+        List<String> dependencies =
+                new ArrayList<>((List<String>) servicesConfig.get("main").get(SERVICE_DEPENDENCIES_CONFIG_KEY));
         //removing main's dependency on sleeperA, Now sleeperA is an unused dependency
         dependencies.removeIf(s -> s.contains("sleeperA"));
-        servicesConfig.get("main").put("dependencies", dependencies);
+        servicesConfig.get("main").put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencies);
         // updating service B's run
         ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
                 .put("run", "while true; do\n echo sleeperB_running; sleep 10\n done");
@@ -478,8 +479,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_service_running_with_rollback_safe_param_WHEN_rollback_THEN_rollback_safe_param_not_updated(
-            ExtensionContext context)
-            throws Throwable {
+            ExtensionContext context) throws Throwable {
 
         ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
 
@@ -489,9 +489,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         Configuration config = kernel.getConfig();
-        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB",
-                      DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
-              .withNewerValue(System.currentTimeMillis(), "initialValue");
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+                .withNewerValue(System.currentTimeMillis(), "initialValue");
 
         // WHEN
         // merge broken config
@@ -510,9 +509,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("sleeperB")) {
                 if (newState.equals(State.ERRORED)) {
-                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB",
-                                DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
-                          .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
+                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+                            .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
                     sleeperBErrored.countDown();
                 } else if (sleeperBErrored.getCount() == 0 && newState.equals(State.RUNNING)) {
                     // Rollback should only count after error
@@ -522,9 +520,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         };
 
         kernel.getContext().addGlobalStateChangeListener(listener);
-        DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(testRollbackDeploymentDocument(),
-                                                                          brokenConfig)
-                                                        .get(30, TimeUnit.SECONDS);
+        DeploymentResult result =
+                deploymentConfigMerger.mergeInNewConfig(testRollbackDeploymentDocument(), brokenConfig)
+                        .get(30, TimeUnit.SECONDS);
 
         // THEN
         // deployment should have errored and rolled back
@@ -534,19 +532,78 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // Value set in listener should not have been rolled back
         assertEquals("setOnErrorValue",
-                     config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB",
-                                 DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey").getOnce());
+                config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+                        .getOnce());
         // remove listener
         kernel.getContext().removeGlobalStateChangeListener(listener);
     }
 
+    @Test
+    void GIVEN_kernel_running_services_WHEN_merge_adds_same_jvm_service_THEN_new_service_added(ExtensionContext context)
+            throws Throwable {
+        ignoreExceptionUltimateCauseWithMessage(context,
+                "Service TokenExchangeService in broken state after deployment");
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("onlyMain.yaml").toString());
+        kernel.launch();
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
+            if (((State) t.getOnce()).isRunning()) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        // wait for main to run
+        assertTrue(mainRunningLatch.await(20, TimeUnit.SECONDS));
+
+        HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("TokenExchangeService"));
+                }});
+
+                put("TokenExchangeService", new HashMap<Object, Object>() {{
+                    put(LOAD_JAR_CONFIG_KEY, getClass().getResource("TES.jar").getPath());
+                }});
+            }});
+        }};
+
+        Future<DeploymentResult> future = deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig);
+        future.get(30, TimeUnit.SECONDS);
+
+        EvergreenService tes = kernel.locate("TokenExchangeService");
+        assertEquals("com.aws.iot.evergreen.tes.TokenExchangeService", tes.getClass().getName());
+        assertEquals(State.BROKEN, tes.getState());
+
+        newConfig = new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
+                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("TokenExchangeService"));
+                }});
+
+                put("TokenExchangeService", new HashMap<Object, Object>() {{
+                    put(LOAD_JAR_CONFIG_KEY, getClass().getResource("TES2.jar").getPath());
+                }});
+            }});
+        }};
+
+        future = deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig);
+        future.get(45, TimeUnit.SECONDS);
+
+        EvergreenService tes2 = kernel.locate("TokenExchangeService");
+        assertEquals("com.aws.iot.evergreen.tes.TokenExchangeService", tes2.getClass().getName());
+        assertEquals(State.BROKEN, tes2.getState());
+        assertNotEquals(tes, tes2);
+    }
+
     private DeploymentDocument testDeploymentDocument() {
         return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
-                                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build();
+                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build();
     }
 
     private DeploymentDocument testRollbackDeploymentDocument() {
         return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("rollback_id")
-                                 .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK).build();
+                .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK).build();
     }
 }

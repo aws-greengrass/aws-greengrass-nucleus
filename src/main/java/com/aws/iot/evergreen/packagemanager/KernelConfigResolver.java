@@ -36,7 +36,8 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESP
 @NoArgsConstructor
 public class KernelConfigResolver {
 
-    private static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
+    public static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
+    public static final String LOAD_JAR_CONFIG_KEY = "loadJar";
     public static final String VERSION_CONFIG_KEY = "version";
     protected static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
@@ -47,9 +48,9 @@ public class KernelConfigResolver {
     private Kernel kernel;
 
     /**
-     * Create a kernel config map from a list of package identifiers and deployment document.
-     * For each package, it first retrieves its recipe, then merges the parameter values into the recipe, and last
-     * transform it to a kernel config key-value pair.
+     * Create a kernel config map from a list of package identifiers and deployment document. For each package, it first
+     * retrieves its recipe, then merges the parameter values into the recipe, and last transform it to a kernel config
+     * key-value pair.
      *
      * @param packagesToDeploy package identifiers for resolved packages that are to be deployed
      * @param document         deployment document
@@ -97,8 +98,8 @@ public class KernelConfigResolver {
 
         Map<String, String> resolvedSetEnvConfig = new HashMap<>();
         for (Map.Entry<String, String> configKVPair : packageRecipe.getEnvironmentVariables().entrySet()) {
-            resolvedSetEnvConfig.put(configKVPair.getKey(), (String) interpolate(configKVPair.getValue(),
-                    resolvedParams));
+            resolvedSetEnvConfig
+                    .put(configKVPair.getKey(), (String) interpolate(configKVPair.getValue(), resolvedParams));
         }
         resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
@@ -114,6 +115,8 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion());
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParams.stream()
                 .collect(Collectors.toMap(PackageParameter::getName, PackageParameter::getValue)));
+        resolvedServiceConfig.put(LOAD_JAR_CONFIG_KEY, packageRecipe.getSameJVMJar() == null ? null
+                : packageStore.resolveArtifactDirectoryPath(packageIdentifier).resolve(packageRecipe.getSameJVMJar()));
 
         return resolvedServiceConfig;
     }
