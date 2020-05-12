@@ -36,7 +36,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESP
 @NoArgsConstructor
 public class KernelConfigResolver {
 
-    private static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
+    public static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
     public static final String VERSION_CONFIG_KEY = "version";
     protected static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";

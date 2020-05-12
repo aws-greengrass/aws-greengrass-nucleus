@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -35,7 +36,7 @@ public class EGServiceTestUtil {
 
     public Topics initializeMockedConfig() {
         Mockito.when(config.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
-        Mockito.when(config.createLeafChild(eq("dependencies"))).thenReturn(requiresTopic);
+        Mockito.when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_CONFIG_KEY))).thenReturn(requiresTopic);
         Mockito.when(config.getName()).thenReturn(serviceFullName);
         Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
         Mockito.when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
