@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -46,7 +47,6 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String MOCK_CUSTOM_CONFIG_KEY = "my_custom_config";
     private static final String MOCK_ENV_VAR_NAME = "my_env_var";
-    private static final String KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY = "dependencies";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
             "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
@@ -336,7 +336,7 @@ class KernelConfigResolverTest {
 
     private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
         Iterable<String> dependencyList =
-                (Iterable<String>) getServiceConfig(serviceName, config).get(KERNEL_CONFIG_SERVICE_DEPENDENCIES_KEY);
+                (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_CONFIG_KEY);
         return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
     }
 
