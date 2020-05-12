@@ -14,6 +14,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,6 +50,7 @@ public class Lifecycle {
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
+    public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
 
     private static final String STATE_TOPIC_NAME = "_State";
     private static final String NEW_STATE_METRIC_NAME = "newState";
@@ -57,6 +61,7 @@ public class Lifecycle {
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
+    private static final long DEFAULT_ERROR_RESET_TIME_IN_SEC = Duration.ofHours(1).getSeconds();
 
     /*
      * State generation is a value representing how many times the service has been in the NEW/STARTING state.
@@ -96,7 +101,7 @@ public class Lifecycle {
     private static final Map<State, Collection<State>> ALLOWED_STATE_TRANSITION_FOR_REPORTING = new HashMap<>();
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
-    private final Map<State, Integer> stateToErroredCount = new HashMap<>();
+    private final Map<State, List<Long>> stateToErroredCount = new HashMap<>();
     // We only need to track the ERROR from these states because
     // they impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
@@ -158,13 +163,26 @@ public class Lifecycle {
 
         if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
             // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
-            stateToErroredCount.compute(currentState, (k, v) -> (v == null) ? 1 : v + 1);
+            stateToErroredCount.compute(currentState, (k, v) -> {
+                if (v == null) {
+                    v = new ArrayList<>();
+                }
+
+                final long now = evergreenService.getContext().get(Clock.class).millis();
+                if (v.size() > 0 && now - v.get(v.size() - 1) >= getErrorResetTime() * 1000L) {
+                    v.clear();
+                }
+
+                v.add(now);
+                return v;
+            });
         } else {
             // If the reported state is a non-ERRORED state, we would like to reset the ERROR counter for the current
             // state. This is to avoid putting the service to BROKEN state because of transient issues.
-            stateToErroredCount.put(currentState, 0);
+            stateToErroredCount.put(currentState, null);
         }
-        if (stateToErroredCount.get(currentState) > MAXIMUM_CONTINUAL_ERROR) {
+        if (stateToErroredCount.get(currentState) != null
+                && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
             enqueueStateEvent(State.BROKEN);
         } else {
             enqueueStateEvent(newState);
@@ -730,9 +748,12 @@ public class Lifecycle {
     }
 
     private Integer getTimeoutConfigValue(String nameSpace, Integer defaultValue) {
-        Topic timeoutTopic = evergreenService.getConfig()
-                .find(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace,
-                        TIMEOUT_NAMESPACE_TOPIC);
-        return timeoutTopic == null ? defaultValue : (Integer) timeoutTopic.getOnce();
+        return Coerce.toInt(evergreenService.getConfig().findOrDefault(defaultValue,
+                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace, TIMEOUT_NAMESPACE_TOPIC));
+    }
+
+    private int getErrorResetTime() {
+        return Coerce.toInt(evergreenService.getConfig().findOrDefault(DEFAULT_ERROR_RESET_TIME_IN_SEC,
+                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, ERROR_RESET_TIME_TOPIC));
     }
 }
