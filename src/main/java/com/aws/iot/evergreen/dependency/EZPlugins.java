@@ -75,10 +75,11 @@ public class EZPlugins {
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource")
+    // Class loader must stay open, otherwise we won't be able to load all classes from the jar
     private void loadPlugins(boolean trusted, Path p) throws IOException {
-        try (URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()})) {
-            loadPlugins(trusted, cl);
-        }
+        URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()});
+        loadPlugins(trusted, cl);
     }
 
     /**
