@@ -20,7 +20,7 @@ public enum DependencyType {
 
     /**
      * Soft dependencies have independent lifecycle from the depending service.
-     * e.g. the depending service can remain its state if any soft dependency errors out.
+     * e.g. the depending service can remain in its state if any soft dependency errors out.
      */
     SOFT("SOFT");
 

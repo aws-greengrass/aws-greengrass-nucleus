@@ -70,8 +70,9 @@ public class PackageRecipeTest {
         // TODO: Check for providers
         assertThat(testPkg.getArtifacts(), IsCollectionWithSize.hasSize(1));
 
-        assertThat(testPkg.getDependencies().size(), is(1));
-        assertThat(testPkg.getDependencies(), IsMapContaining.hasEntry("mac-log", "1.0"));
+        Map<String, RecipeDependencyProperties> dependencies = testPkg.getDependencies();
+        assertThat(dependencies.size(), is(1));
+        assertThat(dependencies, IsMapContaining.hasEntry("mac-log", new RecipeDependencyProperties("1.0")));
 
         Set<PackageParameter> paramList = testPkg.getPackageParameters();
         assertThat(paramList.isEmpty(), is(false));
@@ -154,5 +155,21 @@ public class PackageRecipeTest {
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_VERSION_PACKAGE_NAME, "1.0.0");
         assertThrows(IOException.class, () -> TestHelper.getPackageObject(monitorServiceRecipeContents),
                 "Expected IOException but didn't throw");
+    }
+
+    @Test
+    void GIVEN_invalid_dependency_not_a_map_WHEN_try_create_package_recipe_THEN_throws_exception() throws IOException, URISyntaxException {
+        String recipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_NOT_MAP_PACKAGE_NAME, "1.0.0");
+        assertThrows(IOException.class, () -> TestHelper.getPackageObject(recipeContents),
+                "Expected PackageLoadingException but didn't throw");
+    }
+
+    @Test
+    void GIVEN_invalid_dependency_missing_version_requirements_WHEN_try_create_package_recipe_THEN_throws_exception() throws IOException, URISyntaxException {
+        String recipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME, "1.0.0");
+        assertThrows(IOException.class, () -> TestHelper.getPackageObject(recipeContents),
+                "Expected PackageLoadingException but didn't throw");
     }
 }

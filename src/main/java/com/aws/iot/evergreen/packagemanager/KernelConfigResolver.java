@@ -120,13 +120,11 @@ public class KernelConfigResolver {
         }
         resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
-        // TODO : Update package recipe format to include all information that service dependencies config
-        // expects according to the new syntax e.g. dependencyType,
-        // then change the following code accordingly
-
         // Generate dependencies
-        List<String> dependencyServiceNames = new ArrayList<>(packageRecipe.getDependencies().keySet());
-        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyServiceNames);
+        List<String> dependencyConfig = new ArrayList<>();
+        packageRecipe.getDependencies().forEach((name, prop) -> dependencyConfig.add(prop.getDependencyType() == null
+                ? name : name + ":" + prop.getDependencyType()));
+        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion());
@@ -191,9 +189,9 @@ public class KernelConfigResolver {
 
         Map<Object, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
-        kernel.getMain().getDependencies().keySet().forEach(evergreenService -> {
+        kernel.getMain().getDependencies().forEach((evergreenService, dependencyType) -> {
             if (!(evergreenService instanceof GenericExternalService)) {
-                mainDependencies.add(evergreenService.getName());
+                mainDependencies.add(evergreenService.getName() + ":" + dependencyType);
             }
         });
         mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);

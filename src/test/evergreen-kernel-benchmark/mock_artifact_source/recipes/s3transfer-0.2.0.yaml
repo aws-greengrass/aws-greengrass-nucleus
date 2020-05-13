@@ -5,4 +5,5 @@ Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '0.2.0'
 Dependencies:
-  botocore: '<2.0.0 >=1.12.36'
+  botocore:
+    VersionRequirements: '<2.0.0 >=1.12.36'
