@@ -48,9 +48,11 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
 
             for (String pid : childPids) {
                 // Use ps to get the command which is running so we can more easily identify the leaker.
-                // Uses inheritIO to simply print the output to the console
-                new ProcessBuilder().command("ps", "-p", pid, "-o", "args").inheritIO().start()
-                        .waitFor(10, TimeUnit.SECONDS);
+                Process proc = new ProcessBuilder().command("ps", "-p", pid, "-o", "args").start();
+                proc.waitFor(10, TimeUnit.SECONDS);
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                    br.lines().forEach(System.err::println);
+                }
 
                 // Kill the stray process
                 Processes.newPidProcess(Integer.parseInt(pid)).destroyForcefully();

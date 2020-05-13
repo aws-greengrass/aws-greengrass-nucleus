@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -275,7 +276,46 @@ class KernelConfigResolverTest {
         assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
+    }
 
+    @Test
+    void GIVEN_deployment_with_artifact_WHEN_config_resolution_requested_THEN_artifact_path_should_be_interpolated()
+            throws Exception {
+        // GIVEN
+        PackageIdentifier rootPackageIdentifier =
+                new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
+
+        PackageRecipe rootPackageRecipe = new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootPackageIdentifier.getVersion(), "", "", Collections.emptySet(), new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                        Collections.emptyList());
+        DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
+                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
+
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveArtifactDirectoryPath(rootPackageIdentifier))
+                .thenReturn(Paths.get("/packages/artifacts"));
+        when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
+        Map<Object, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{{artifacts:path}} should be replace by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar /packages/artifacts/test.jar -x arg"));
     }
 
     // utilities for mocking input
