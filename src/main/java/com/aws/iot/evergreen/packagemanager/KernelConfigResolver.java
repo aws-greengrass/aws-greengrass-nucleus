@@ -29,11 +29,11 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 
 public class KernelConfigResolver {
 
-    public static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
     public static final String VERSION_CONFIG_KEY = "version";
     protected static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
@@ -121,12 +121,12 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
         // TODO : Update package recipe format to include all information that service dependencies config
-        // expects according to the new syntax e.g. isHotPluggable, dependency service state,
+        // expects according to the new syntax e.g. dependencyType,
         // then change the following code accordingly
 
         // Generate dependencies
         List<String> dependencyServiceNames = new ArrayList<>(packageRecipe.getDependencies().keySet());
-        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencyServiceNames);
+        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyServiceNames);
 
         // State information for deployments
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion());
@@ -196,7 +196,7 @@ public class KernelConfigResolver {
                 mainDependencies.add(evergreenService.getName());
             }
         });
-        mainServiceConfig.put(SERVICE_DEPENDENCIES_CONFIG_KEY, mainDependencies);
+        mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
         return mainServiceConfig;
     }
 

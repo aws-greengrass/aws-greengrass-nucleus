@@ -1,5 +1,25 @@
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.dependency.DependencyType;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.jr.ob.JSON;
+import lombok.Setter;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,25 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.lenient;
-
-import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
-import lombok.Setter;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class LifecycleTest {
@@ -449,7 +450,7 @@ public class LifecycleTest {
         Topics dependencyServiceTopics = serviceRoot.createInteriorChild("dependencyService");
         TestService dependencyService = new TestService(dependencyServiceTopics);
 
-        testService.addOrUpdateDependency(dependencyService, State.RUNNING, false);
+        testService.addOrUpdateDependency(dependencyService, DependencyType.HARD, false);
 
         CountDownLatch serviceStarted = new CountDownLatch(1);
         testService.setStartupRunnable(

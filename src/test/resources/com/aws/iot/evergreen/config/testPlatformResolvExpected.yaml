@@ -5,7 +5,7 @@ services:
 
   influxdb:
     dependencies:
-      - homebrew:AwaitingStartup
+      - homebrew
 
     lifecycle:
       install:

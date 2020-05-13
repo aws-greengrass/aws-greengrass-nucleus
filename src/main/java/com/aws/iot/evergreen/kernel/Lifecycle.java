@@ -52,7 +52,7 @@ public class Lifecycle {
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
 
-    private static final String STATE_TOPIC_NAME = "_State";
+    public static final String STATE_TOPIC_NAME = "_State";
     private static final String NEW_STATE_METRIC_NAME = "newState";
 
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;

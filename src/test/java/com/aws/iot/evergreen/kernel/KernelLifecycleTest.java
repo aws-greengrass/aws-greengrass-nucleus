@@ -10,7 +10,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -124,7 +124,7 @@ class KernelLifecycleTest {
 
         kernelLifecycle.launch();
         // Expect 2 times because I returned 2 plugins from above: IPC and Deployment
-        verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(State.RUNNING), eq(true));
+        verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(DependencyType.HARD), eq(true));
     }
 
     @Test
