@@ -14,8 +14,6 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -33,23 +32,40 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_T
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 
-@AllArgsConstructor
-@NoArgsConstructor
 public class KernelConfigResolver {
 
     public static final String VERSION_CONFIG_KEY = "version";
     protected static final String PARAMETERS_CONFIG_KEY = "parameters";
-    private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
+    private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
+    private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
+    // Map from Namespace -> Key -> Function which returns the replacement value
+    private final Map<String, Map<String, Function<PackageIdentifier, String>>> systemParameters = new HashMap<>();
 
-    @Inject
-    private PackageStore packageStore;
-    @Inject
-    private Kernel kernel;
+    private final PackageStore packageStore;
+    private final Kernel kernel;
 
     /**
-     * Create a kernel config map from a list of package identifiers and deployment document.
-     * For each package, it first retrieves its recipe, then merges the parameter values into the recipe, and last
-     * transform it to a kernel config key-value pair.
+     * Constructor.
+     *
+     * @param packageStore package store used to look up packages
+     * @param kernel       kernel
+     */
+    @Inject
+    public KernelConfigResolver(PackageStore packageStore, Kernel kernel) {
+        this.packageStore = packageStore;
+        this.kernel = kernel;
+
+        // More system parameters can be added over time by extending this map with new namespaces/keys
+        HashMap<String, Function<PackageIdentifier, String>> artifactNamespace = new HashMap<>();
+        artifactNamespace
+                .put("path", (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        systemParameters.put("artifacts", artifactNamespace);
+    }
+
+    /**
+     * Create a kernel config map from a list of package identifiers and deployment document. For each package, it first
+     * retrieves its recipe, then merges the parameter values into the recipe, and last transform it to a kernel config
+     * key-value pair.
      *
      * @param packagesToDeploy package identifiers for resolved packages that are to be deployed
      * @param document         deployment document
@@ -85,20 +101,22 @@ public class KernelConfigResolver {
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
         for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
-            resolvedLifecycleConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
+            resolvedLifecycleConfig.put(configKVPair.getKey(),
+                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
 
         Map<Object, Object> resolvedCustomConfig = new HashMap<>();
         for (Map.Entry<String, Object> configKVPair : packageRecipe.getCustomConfig().entrySet()) {
-            resolvedCustomConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
+            resolvedCustomConfig.put(configKVPair.getKey(),
+                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(CUSTOM_CONFIG_NAMESPACE, resolvedCustomConfig);
 
         Map<String, String> resolvedSetEnvConfig = new HashMap<>();
         for (Map.Entry<String, String> configKVPair : packageRecipe.getEnvironmentVariables().entrySet()) {
-            resolvedSetEnvConfig.put(configKVPair.getKey(), (String) interpolate(configKVPair.getValue(),
-                    resolvedParams));
+            resolvedSetEnvConfig.put(configKVPair.getKey(),
+                    (String) interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
@@ -121,33 +139,48 @@ public class KernelConfigResolver {
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
-    private Object interpolate(Object configValue, Set<PackageParameter> packageParameters) {
-
+    private Object interpolate(Object configValue, Set<PackageParameter> packageParameters,
+                               PackageIdentifier packageIdentifier) {
         Object result = configValue;
+
         if (configValue instanceof String) {
-            String value = (String) configValue;
-
-            // Handle package parameters
-            for (final PackageParameter parameter : packageParameters) {
-                value = value.replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()),
-                        parameter.getValue());
-            }
-            result = value;
-
-            // TODO : Handle system parameters
+            result = replace((String) configValue, packageIdentifier, packageParameters);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
             Map<Object, Object> resolvedChildConfig = new HashMap<>();
             for (Map.Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
-                resolvedChildConfig
-                        .put(childLifecycle.getKey(), interpolate(childLifecycle.getValue(), packageParameters));
+                resolvedChildConfig.put(childLifecycle.getKey(),
+                        interpolate(childLifecycle.getValue(), packageParameters, packageIdentifier));
             }
             result = resolvedChildConfig;
         }
         // TODO : Do we want to support other config types than map of
         // string k,v pairs? e.g. how should lists be handled?
         return result;
+    }
+
+    private String replace(String stringValue, PackageIdentifier packageIdentifier,
+                           Set<PackageParameter> packageParameters) {
+        // Handle package parameters
+        for (final PackageParameter parameter : packageParameters) {
+            stringValue = stringValue
+                    .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
+        }
+
+        // Handle system parameter replacement
+        for (Map.Entry<String, Map<String, Function<PackageIdentifier, String>>> namespaceEntry : systemParameters
+                .entrySet()) {
+            for (Map.Entry<String, Function<PackageIdentifier, String>> keyEntry : namespaceEntry.getValue()
+                    .entrySet()) {
+                String toReplace = String.format(INTERPOLATION_FORMAT, namespaceEntry.getKey(), keyEntry.getKey());
+                if (stringValue.contains(toReplace)) {
+                    stringValue = stringValue.replace(toReplace, keyEntry.getValue().apply(packageIdentifier));
+                }
+            }
+        }
+
+        return stringValue;
     }
 
 
