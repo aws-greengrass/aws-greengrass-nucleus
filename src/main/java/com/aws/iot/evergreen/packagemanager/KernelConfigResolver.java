@@ -40,6 +40,7 @@ public class KernelConfigResolver {
     public static final String VERSION_CONFIG_KEY = "version";
     protected static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
+    private static final String ARTIFACT_PATH_REFERENCE_FORMAT = "{{artifacts:path}}";
 
     @Inject
     private PackageStore packageStore;
@@ -47,9 +48,9 @@ public class KernelConfigResolver {
     private Kernel kernel;
 
     /**
-     * Create a kernel config map from a list of package identifiers and deployment document.
-     * For each package, it first retrieves its recipe, then merges the parameter values into the recipe, and last
-     * transform it to a kernel config key-value pair.
+     * Create a kernel config map from a list of package identifiers and deployment document. For each package, it first
+     * retrieves its recipe, then merges the parameter values into the recipe, and last transform it to a kernel config
+     * key-value pair.
      *
      * @param packagesToDeploy package identifiers for resolved packages that are to be deployed
      * @param document         deployment document
@@ -85,20 +86,22 @@ public class KernelConfigResolver {
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
         for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
-            resolvedLifecycleConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
+            resolvedLifecycleConfig.put(configKVPair.getKey(),
+                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
 
         Map<Object, Object> resolvedCustomConfig = new HashMap<>();
         for (Map.Entry<String, Object> configKVPair : packageRecipe.getCustomConfig().entrySet()) {
-            resolvedCustomConfig.put(configKVPair.getKey(), interpolate(configKVPair.getValue(), resolvedParams));
+            resolvedCustomConfig.put(configKVPair.getKey(),
+                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(CUSTOM_CONFIG_NAMESPACE, resolvedCustomConfig);
 
         Map<String, String> resolvedSetEnvConfig = new HashMap<>();
         for (Map.Entry<String, String> configKVPair : packageRecipe.getEnvironmentVariables().entrySet()) {
-            resolvedSetEnvConfig.put(configKVPair.getKey(), (String) interpolate(configKVPair.getValue(),
-                    resolvedParams));
+            resolvedSetEnvConfig.put(configKVPair.getKey(),
+                    (String) interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
@@ -121,18 +124,25 @@ public class KernelConfigResolver {
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
-    private Object interpolate(Object configValue, Set<PackageParameter> packageParameters) {
-
+    private Object interpolate(Object configValue, Set<PackageParameter> packageParameters,
+                               PackageIdentifier packageIdentifier) {
         Object result = configValue;
+
         if (configValue instanceof String) {
-            String value = (String) configValue;
+            String stringValue = (String) configValue;
 
             // Handle package parameters
             for (final PackageParameter parameter : packageParameters) {
-                value = value.replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()),
-                        parameter.getValue());
+                stringValue = stringValue
+                        .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
             }
-            result = value;
+            // Handle {{artifacts:path}}
+            if (stringValue.contains(ARTIFACT_PATH_REFERENCE_FORMAT)) {
+                stringValue = stringValue.replace(ARTIFACT_PATH_REFERENCE_FORMAT,
+                        packageStore.resolveArtifactDirectoryPath(packageIdentifier).toAbsolutePath().toString());
+            }
+
+            result = stringValue;
 
             // TODO : Handle system parameters
         }
@@ -140,8 +150,8 @@ public class KernelConfigResolver {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
             Map<Object, Object> resolvedChildConfig = new HashMap<>();
             for (Map.Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
-                resolvedChildConfig
-                        .put(childLifecycle.getKey(), interpolate(childLifecycle.getValue(), packageParameters));
+                resolvedChildConfig.put(childLifecycle.getKey(),
+                        interpolate(childLifecycle.getValue(), packageParameters, packageIdentifier));
             }
             result = resolvedChildConfig;
         }
