@@ -14,8 +14,6 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -32,20 +31,36 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESP
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 
-@AllArgsConstructor
-@NoArgsConstructor
 public class KernelConfigResolver {
 
     public static final String SERVICE_DEPENDENCIES_CONFIG_KEY = "dependencies";
     public static final String VERSION_CONFIG_KEY = "version";
     protected static final String PARAMETERS_CONFIG_KEY = "parameters";
-    private static final String PARAMETER_REFERENCE_FORMAT = "{{params:%s.value}}";
-    private static final String ARTIFACT_PATH_REFERENCE_FORMAT = "{{artifacts:path}}";
+    private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
+    private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
+    // Map from Namespace -> Key -> Function which returns the replacement value
+    private final Map<String, Map<String, Function<PackageIdentifier, String>>> systemParameters = new HashMap<>();
 
+    private final PackageStore packageStore;
+    private final Kernel kernel;
+
+    /**
+     * Constructor.
+     *
+     * @param packageStore package store used to look up packages
+     * @param kernel       kernel
+     */
     @Inject
-    private PackageStore packageStore;
-    @Inject
-    private Kernel kernel;
+    public KernelConfigResolver(PackageStore packageStore, Kernel kernel) {
+        this.packageStore = packageStore;
+        this.kernel = kernel;
+
+        // More system parameters can be added over time by extending this map with new namespaces/keys
+        HashMap<String, Function<PackageIdentifier, String>> artifactNamespace = new HashMap<>();
+        artifactNamespace
+                .put("path", (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        systemParameters.put("artifacts", artifactNamespace);
+    }
 
     /**
      * Create a kernel config map from a list of package identifiers and deployment document. For each package, it first
@@ -129,22 +144,7 @@ public class KernelConfigResolver {
         Object result = configValue;
 
         if (configValue instanceof String) {
-            String stringValue = (String) configValue;
-
-            // Handle package parameters
-            for (final PackageParameter parameter : packageParameters) {
-                stringValue = stringValue
-                        .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
-            }
-            // Handle {{artifacts:path}}
-            if (stringValue.contains(ARTIFACT_PATH_REFERENCE_FORMAT)) {
-                stringValue = stringValue.replace(ARTIFACT_PATH_REFERENCE_FORMAT,
-                        packageStore.resolveArtifactDirectoryPath(packageIdentifier).toAbsolutePath().toString());
-            }
-
-            result = stringValue;
-
-            // TODO : Handle system parameters
+            result = replace((String) configValue, packageIdentifier, packageParameters);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
@@ -158,6 +158,29 @@ public class KernelConfigResolver {
         // TODO : Do we want to support other config types than map of
         // string k,v pairs? e.g. how should lists be handled?
         return result;
+    }
+
+    private String replace(String stringValue, PackageIdentifier packageIdentifier,
+                           Set<PackageParameter> packageParameters) {
+        // Handle package parameters
+        for (final PackageParameter parameter : packageParameters) {
+            stringValue = stringValue
+                    .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
+        }
+
+        // Handle system parameter replacement
+        for (Map.Entry<String, Map<String, Function<PackageIdentifier, String>>> namespaceEntry : systemParameters
+                .entrySet()) {
+            for (Map.Entry<String, Function<PackageIdentifier, String>> keyEntry : namespaceEntry.getValue()
+                    .entrySet()) {
+                String toReplace = String.format(INTERPOLATION_FORMAT, namespaceEntry.getKey(), keyEntry.getKey());
+                if (stringValue.contains(toReplace)) {
+                    stringValue = stringValue.replace(toReplace, keyEntry.getValue().apply(packageIdentifier));
+                }
+            }
+        }
+
+        return stringValue;
     }
 
 
