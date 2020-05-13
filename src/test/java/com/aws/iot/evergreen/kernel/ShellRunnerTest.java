@@ -7,9 +7,10 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.aws.iot.evergreen.util.Exec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,14 +30,29 @@ class ShellRunnerTest extends EGServiceTestUtil {
     @Mock
     private Kernel kernel;
 
+    @TempDir
+    protected Path tempDir;
+
     private EvergreenService evergreenService;
 
     @BeforeEach
     void beforeEach() {
         Topics config = initializeMockedConfig();
         when(config.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
-        when(kernel.getWorkPath()).thenReturn(Paths.get(System.getProperty("user.dir")));
+        when(kernel.getWorkPath()).thenReturn(tempDir);
         evergreenService = new EvergreenService(config);
+    }
+
+    @Test
+    void GIVEN_shell_command_WHEN_setup_THEN_sets_exec_cwd_to_work_path_with_service() throws Exception {
+        try (Context context = new Context()) {
+            context.put(Kernel.class, kernel);
+            final ShellRunner shellRunner = context.get(ShellRunner.class);
+            try (Exec exec = shellRunner.setup("note", "echo hi", evergreenService)) {
+                assertEquals(kernel.getWorkPath().resolve(evergreenService.getName()).toFile().toString(),
+                        exec.cwd().toString());
+            }
+        }
     }
 
     @Test
