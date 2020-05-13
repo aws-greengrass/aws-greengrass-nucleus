@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
@@ -33,13 +34,12 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions, DisruptableCheck {
-    public static final String STATE_TOPIC_NAME = "_State";
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
+    public static final String SERVICE_DEPENDENCIES_NAMESPACE_TOPIC = "dependencies";
     public static final String SERVICE_NAME_KEY = "serviceName";
     public static final String CUSTOM_CONFIG_NAMESPACE = "custom";
     public static final String SETENV_CONFIG_NAMESPACE = "setenv";
@@ -85,7 +85,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
 
         this.externalDependenciesTopic =
-                topics.createLeafChild(SERVICE_DEPENDENCIES_CONFIG_KEY).dflt(new ArrayList<String>());
+                topics.createLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).dflt(new ArrayList<String>());
         this.externalDependenciesTopic.withParentNeedsToKnow(false);
         this.lifecycle = new Lifecycle(this, logger);
 
@@ -313,15 +313,15 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * Add a dependency.
      *
      * @param dependentEvergreenService the service to add as a dependency.
-     * @param startWhen                 the state that the dependent service must be in before starting the current
-     *                                  service.
+     * @param dependencyType            type of the dependency.
      * @param isDefault                 True if the dependency is added without explicit declaration in 'dependencies'
      *                                  Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService, State startWhen,
+    public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService,
+                                                   DependencyType dependencyType,
                                                    boolean isDefault) throws InputValidationException {
-        if (dependentEvergreenService == null || startWhen == null) {
+        if (dependentEvergreenService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
 
@@ -331,17 +331,18 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             if (dependencyInfo != null) {
                 dependentEvergreenService.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
             }
-            Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, startWhen);
+            Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, dependencyType);
             dependentEvergreenService.addStateSubscriber(subscriber);
             context.get(Kernel.class).clearODcache();
-            return new DependencyInfo(startWhen, isDefault, subscriber);
+            return new DependencyInfo(dependencyType, isDefault, subscriber);
         });
     }
 
-    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService, State startWhenState) {
+    private Subscriber createDependencySubscriber(EvergreenService dependentEvergreenService,
+                                                  DependencyType dependencyType) {
         return (WhatHappened what, Topic t) -> {
             if ((State.STARTING.equals(getState()) || State.RUNNING.equals(getState())) && !dependencyReady(
-                    dependentEvergreenService, startWhenState)) {
+                    dependentEvergreenService, dependencyType)) {
                 requestRestart();
                 logger.atInfo("service-restart").log("Restarting service because dependency {} was in a bad state",
                         dependentEvergreenService.getName());
@@ -354,13 +355,14 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         };
     }
 
-    private List<EvergreenService> getDependers() {
+    private List<EvergreenService> getHardDependers() {
         List<EvergreenService> dependers = new ArrayList<>();
         Kernel kernel = context.get(Kernel.class);
         for (EvergreenService evergreenService : kernel.orderedDependencies()) {
-            boolean isDepender = evergreenService.dependencies.keySet().stream().anyMatch(d -> d.equals(this));
-            if (isDepender) {
-                dependers.add(evergreenService);
+            for (Map.Entry<EvergreenService, DependencyInfo> entry : evergreenService.dependencies.entrySet()) {
+                if (entry.getKey().equals(this) && DependencyType.HARD.equals(entry.getValue().dependencyType)) {
+                    dependers.add(evergreenService);
+                }
             }
         }
         return dependers;
@@ -376,7 +378,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     private void waitForDependersToExit() throws InterruptedException {
 
-        List<EvergreenService> dependers = getDependers();
+        List<EvergreenService> dependers = getHardDependers();
         Subscriber dependerExitWatcher = (WhatHappened what, Topic t) -> {
             synchronized (dependersExitedLock) {
                 if (dependersExited(dependers)) {
@@ -410,7 +412,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     protected boolean dependencyReady() {
         List<EvergreenService> ret =
-                dependencies.entrySet().stream().filter(e -> !dependencyReady(e.getKey(), e.getValue().startWhen))
+                dependencies.entrySet().stream().filter(e -> !dependencyReady(e.getKey(), e.getValue().dependencyType))
                         .map(Map.Entry::getKey).collect(Collectors.toList());
         if (!ret.isEmpty()) {
             logger.atDebug("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
@@ -418,9 +420,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return ret.isEmpty();
     }
 
-    private boolean dependencyReady(EvergreenService v, State startWhenState) {
+    private boolean dependencyReady(EvergreenService v, DependencyType dependencyType) {
         State state = v.getState();
-        return state.isHappy() && (startWhenState == null || startWhenState.preceedsOrEqual(state));
+        // Soft dependency can be in any state, while hard dependency has to be in RUNNING, STOPPING or FINISHED.
+        return dependencyType.equals(DependencyType.SOFT) || state.isHappy() && State.RUNNING.preceedsOrEqual(state);
     }
 
     void waitForDependencyReady() throws InterruptedException {
@@ -444,49 +447,45 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return config;
     }
 
-    private Map<EvergreenService, State> getDependencyStateMap(Iterable<String> dependencyList)
+    protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)
             throws InputValidationException, ServiceLoadException {
-        HashMap<EvergreenService, State> ret = new HashMap<>();
+        HashMap<EvergreenService, DependencyType> ret = new HashMap<>();
         for (String dependency : dependencyList) {
             String[] dependencyInfo = dependency.split(":");
             if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
                 throw new InputValidationException("Bad dependency syntax");
             }
-            Pair<EvergreenService, State> dep =
+            Pair<EvergreenService, DependencyType> dep =
                     parseSingleDependency(dependencyInfo[0], dependencyInfo.length > 1 ? dependencyInfo[1] : null);
             ret.put(dep.getLeft(), dep.getRight());
         }
         return ret;
     }
 
-    private Pair<EvergreenService, State> parseSingleDependency(String name, String startWhen)
+    private Pair<EvergreenService, DependencyType> parseSingleDependency(String name, String typeString)
             throws InputValidationException, ServiceLoadException {
-        if (startWhen == null) {
-            startWhen = State.RUNNING.toString();
-        }
-        State x = null;
-        int len = startWhen.length();
-        if (len > 0) {
+        DependencyType type = null;
+        if (typeString != null && !typeString.isEmpty()) {
             // do "friendly" match
-            for (State s : State.values()) {
-                if (startWhen.regionMatches(true, 0, s.name(), 0, len)) {
-                    x = s;
+            for (DependencyType s : DependencyType.values()) {
+                if (typeString.regionMatches(true, 0, s.name(), 0, typeString.length())) {
+                    type = s;
                     break;
                 }
             }
-            if (x == null) {
-                throw new InputValidationException(startWhen + " does not match any EvergreenService state name");
+            if (type == null) {
+                throw new InputValidationException(typeString + " does not match any Service dependency type");
             }
         }
 
         EvergreenService d = context.get(Kernel.class).locate(name);
-        return new Pair<>(d, x == null ? State.RUNNING : x);
+        return new Pair<>(d, type == null ? DependencyType.HARD : type);
     }
 
     private synchronized void setupDependencies(Iterable<String> dependencyList)
             throws ServiceLoadException, InputValidationException {
-        Map<EvergreenService, State> oldDependencies = new HashMap<>(getDependencies());
-        Map<EvergreenService, State> keptDependencies = getDependencyStateMap(dependencyList);
+        Map<EvergreenService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
+        Map<EvergreenService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
 
         Set<EvergreenService> removedDependencies = dependencies.entrySet().stream()
                 .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
@@ -502,12 +501,12 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         }
 
         AtomicBoolean hasNewService = new AtomicBoolean(false);
-        keptDependencies.forEach((dependentEvergreenService, startWhen) -> {
+        keptDependencies.forEach((dependentEvergreenService, dependencyType) -> {
             try {
                 if (!oldDependencies.containsKey(dependentEvergreenService)) {
                     hasNewService.set(true);
                 }
-                addOrUpdateDependency(dependentEvergreenService, startWhen, false);
+                addOrUpdateDependency(dependentEvergreenService, dependencyType, false);
             } catch (InputValidationException e) {
                 logger.atWarn("add-dependency").log("Unable to add dependency {}", dependentEvergreenService, e);
             }
@@ -516,7 +515,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         if (hasNewService.get()) {
             requestRestart();
         } else if (!dependencyReady() && !getState().equals(State.FINISHED)) {
-            // if dependency 'startWhen' changed, restart this service.
+            // if dependency type changed, restart this service.
             requestRestart();
         }
     }
@@ -550,9 +549,9 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     //TODO: return the entire dependency info
-    public Map<EvergreenService, State> getDependencies() {
+    public Map<EvergreenService, DependencyType> getDependencies() {
         return dependencies.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().startWhen));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
 
     protected final long getStateGeneration() {
@@ -569,8 +568,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     @AllArgsConstructor
     protected static class DependencyInfo {
-        // starting at which state when the dependency is considered Ready. Default to be RUNNING.
-        State startWhen;
+        // dependency type. Default to be HARD.
+        DependencyType dependencyType;
         // true if the dependency isn't explicitly declared in config
         boolean isDefaultDependency;
         Subscriber stateTopicSubscriber;

@@ -297,11 +297,11 @@ public class Context implements Closeable {
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
-    public @interface StartWhen {
+    public @interface ServiceDependencyType {
         /**
          * What state to start the service.
          */
-        State value();
+        DependencyType value();
     }
 
     public class Value<T> implements Provider<T> {
@@ -506,12 +506,12 @@ public class Context implements Closeable {
                                             .putAndInjectFields((EvergreenService) v);
                                 }
                             }
-                            StartWhen startWhen = f.getAnnotation(StartWhen.class);
+                            ServiceDependencyType dependencyType = f.getAnnotation(ServiceDependencyType.class);
                             f.setAccessible(true);
                             f.set(object, v);
                             if (asService != null && v instanceof EvergreenService) {
                                 asService.addOrUpdateDependency((EvergreenService) v,
-                                        startWhen == null ? State.RUNNING : startWhen.value(), true);
+                                        dependencyType == null ? DependencyType.HARD : dependencyType.value(), true);
                             }
                             logger.atTrace("class-inject-complete").kv(classKeyword, f.getName()).log();
                         } catch (Throwable ex) {

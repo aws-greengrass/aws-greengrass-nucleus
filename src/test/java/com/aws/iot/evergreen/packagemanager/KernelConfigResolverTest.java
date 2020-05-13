@@ -5,15 +5,15 @@ package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -99,7 +99,7 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
 
         // WHEN
@@ -144,7 +144,7 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
 
         // WHEN
@@ -244,7 +244,7 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
         when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_1"))
@@ -336,7 +336,7 @@ class KernelConfigResolverTest {
 
     private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
         Iterable<String> dependencyList =
-                (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_CONFIG_KEY);
+                (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
         return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
     }
 

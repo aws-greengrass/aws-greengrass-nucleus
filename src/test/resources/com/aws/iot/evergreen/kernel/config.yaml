@@ -116,11 +116,11 @@ services:
         - git
         - hello-docker
         - hello-docker-nginx
-        - ticktock:INSTALLED
+        - ticktock
       linux:
         - jdk11
         - git
-        - ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
+        - ticktock # Remove docker dependency for github code check run due to docker install failure.
     xyzzy: localhttp, broken
     setenv:
       JUSTME: fancy a spot of tea?
