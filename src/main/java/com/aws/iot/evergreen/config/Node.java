@@ -108,7 +108,7 @@ public abstract class Node {
      *
      * @param s subscriber to remove
      */
-    public void remove(Subscriber s) {
+    public void remove(Watcher s) {
         if (watchers != null) {
             watchers.remove(s);
         }
