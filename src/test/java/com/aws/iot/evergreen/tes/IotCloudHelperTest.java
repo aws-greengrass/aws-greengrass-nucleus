@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -19,7 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 public class IotCloudHelperTest {
     private static final String CLOUD_RESPONSE = "HELLO WORLD";
     private static final String HOST = "localhost";

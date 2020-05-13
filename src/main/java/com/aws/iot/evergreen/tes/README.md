@@ -1,4 +1,5 @@
-# TokenExchangeService is responsible for vending AWS credentials for device certificates, so that components running
+# TokenExchangeService
+It is responsible for vending AWS credentials for device certificates, so that components running
 on Evergreen can seamlessly communicate with cloud using AWS clients.
 
 # Startup

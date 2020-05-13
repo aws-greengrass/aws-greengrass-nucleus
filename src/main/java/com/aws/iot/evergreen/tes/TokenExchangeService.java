@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
@@ -21,7 +22,11 @@ import javax.inject.Singleton;
 @ImplementsService(name = "TokenExchangeService", autostart = false)
 @Singleton
 public class TokenExchangeService extends EvergreenService {
-    private static final Logger LOGGER = LogManager.getLogger(TokenExchangeService.class);
+    private static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
+    // TODO: change when auth is supported
+    private static final String TES_AUTH_ENV_VARIABLE_NAME = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
+    //TODO: this is used by GG daemon, revisit for backward compatibility
+    private static final int DEFAULT_PORT = 8000;
     private int port;
     private String iotEndpoint;
     private HttpServerImpl server;
@@ -39,7 +44,7 @@ public class TokenExchangeService extends EvergreenService {
         super(topics);
         // TODO: Add support for other params like role Aliases
         topics.lookup("port")
-                .dflt(6666)
+                .dflt(DEFAULT_PORT)
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
 
@@ -65,27 +70,29 @@ public class TokenExchangeService extends EvergreenService {
     @Override
     @SuppressWarnings("PMD.CloseResource")
     public void startup() {
-        LOGGER.atInfo().addKeyValue("port", port).log("Starting Token Server at port {}", port);
+        // TODO: Support tes restart with change in configuration like port, endpoint.
+        logger.atInfo().addKeyValue("port", port).log("Starting Token Server at port {}", port);
         try {
             IotConnectionManager connManager = iotConnectionManagerFactory.getIotConnectionManager(iotEndpoint,
                     deviceConfigurationHelper.getDeviceConfiguration());
             IotCloudHelper cloudHelper = new IotCloudHelper();
             server = new HttpServerImpl(port, new CredentialRequestHandler(cloudHelper, connManager));
             server.start();
+            setEnvVariablesForDependencies();
+            reportState(State.RUNNING);
         } catch (IOException | DeviceConfigurationException e) {
-            LOGGER.error("Caught exception...", e);
+            logger.atError().setCause(e).log();
             reportState(State.ERRORED);
         }
-        reportState(State.RUNNING);
     }
 
     @Override
     public void shutdown() {
-        LOGGER.atInfo().log("TokenExchangeService is shutting down!");
+        logger.atInfo().log("TokenExchangeService is shutting down!");
         if (server != null) {
             server.stop();
         }
-        LOGGER.atInfo().log("Stopped Server at port {}", port);
+        logger.atInfo().log("Stopped Server at port {}", port);
     }
 
     public static class IotConnectionManagerFactory {
@@ -94,5 +101,15 @@ public class TokenExchangeService extends EvergreenService {
                 throws DeviceConfigurationException {
             return new IotConnectionManager(iotEndpoint, deviceConfiguration);
         }
+    }
+
+    private void setEnvVariablesForDependencies() {
+        Topic tesUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME);
+        final String tesUriValue = "http://localhost:" + port + HttpServerImpl.URL;
+        tesUri.withValue(tesUriValue);
+        Topic tesAuth = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, TES_AUTH_ENV_VARIABLE_NAME);
+        // TODO: Add auth support
+        final String tesAuthValue = "Basic auth_not_supported";
+        tesAuth.withValue(tesAuthValue);
     }
 }

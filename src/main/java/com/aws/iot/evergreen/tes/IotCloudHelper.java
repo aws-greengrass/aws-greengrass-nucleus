@@ -102,7 +102,7 @@ public class IotCloudHelper {
                         HTTP_HEADER_ERROR_TYPE, error, HTTP_HEADER_REQUEST_ID));
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            LOGGER.error("Http request failed with error {}", e);
+            LOGGER.error("Http request failed with error", e);
             throw new AWSIotException(e);
         }
         return responseBody.toString();
