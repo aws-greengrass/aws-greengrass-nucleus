@@ -328,7 +328,13 @@ public class GenericExternalService extends EvergreenService {
     protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList)
             throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        Exec exec = shellRunner.setup(t.getFullName(), cmd, this);
+        Exec exec;
+        try {
+            exec = shellRunner.setup(t.getFullName(), cmd, this);
+        } catch (IOException e) {
+            logger.atError().log("Error setting up to run {}", t.getFullName(), e);
+            return new Pair<>(RunStatus.Errored, null);
+        }
         if (exec == null) {
             return new Pair<>(RunStatus.NothingDone, null);
         }
