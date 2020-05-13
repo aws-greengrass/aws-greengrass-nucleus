@@ -89,11 +89,12 @@ public class KernelLifecycle {
                 kernel.writeEffectiveConfig(configurationFile);
                 Files.deleteIfExists(transactionLogPath);
             } else {
-                if (Files.exists(configurationFile)) {
-                    kernel.getConfig().read(configurationFile);
-                }
+                // Prefer the tlog because the yaml config file will not be up to date
                 if (Files.exists(transactionLogPath)) {
                     kernel.getConfig().read(transactionLogPath);
+                }
+                if (Files.exists(configurationFile)) {
+                    kernel.getConfig().read(configurationFile);
                 }
             }
             tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath);
