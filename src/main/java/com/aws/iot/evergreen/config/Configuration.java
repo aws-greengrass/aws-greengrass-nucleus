@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.util.Utils.extension;
@@ -75,6 +76,7 @@ public class Configuration {
      *
      * @param path String[] of node names to traverse to find the Topic
      */
+    @Nullable
     public Topic find(String... path) {
         return root.find(path);
     }
@@ -85,6 +87,7 @@ public class Configuration {
      *
      * @param path String[] of node names to traverse to find the Topics
      */
+    @Nullable
     public Topics findTopics(String... path) {
         return root.findTopics(path);
     }
