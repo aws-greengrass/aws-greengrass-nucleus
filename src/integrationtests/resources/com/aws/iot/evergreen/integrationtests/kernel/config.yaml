@@ -68,9 +68,9 @@ services:
       macos:
         - git
         - hello-docker
-        - ticktock:INSTALLED
+        - ticktock:SOFT
       linux:
         - git
-        - ticktock:INSTALLED # Remove docker dependency for github code check run due to docker install failure.
+        - ticktock:SOFT # Remove docker dependency for github code check run due to docker install failure.
     setenv:
       JUSTME: fancy a spot of tea?

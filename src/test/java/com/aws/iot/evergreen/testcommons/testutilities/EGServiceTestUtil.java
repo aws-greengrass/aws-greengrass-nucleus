@@ -11,7 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Lifecycle.STATE_TOPIC_NAME;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -19,7 +20,6 @@ import static org.mockito.Mockito.mock;
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class EGServiceTestUtil {
 
-    public static final String STATE_TOPIC_NAME = "_State";
     protected String serviceFullName = "EvergreenServiceFullName";
 
     @Mock
@@ -36,7 +36,7 @@ public class EGServiceTestUtil {
 
     public Topics initializeMockedConfig() {
         Mockito.when(config.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
-        Mockito.when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_CONFIG_KEY))).thenReturn(requiresTopic);
+        Mockito.when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(requiresTopic);
         Mockito.when(config.getName()).thenReturn(serviceFullName);
         Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
         Mockito.when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
