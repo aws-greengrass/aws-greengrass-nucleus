@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -26,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.any;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 public class HttpServerImplTest {
     private static final int serverPort = 6666;
     private static final String mockResponse = "Hello World";

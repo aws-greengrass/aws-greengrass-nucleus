@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +20,7 @@ import static org.mockito.Mockito.when;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 public class CredentialRequestHandlerTest {
 
     private static final String RESPONSE_STR = "HELLO";
