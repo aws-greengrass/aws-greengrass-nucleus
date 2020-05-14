@@ -18,5 +18,9 @@ Lifecycle:
 Artifacts:
   - greengrass:monitor_artifact_100.txt
 Dependencies:
-  Log: '2.0'
-  Cool-Database: '1.0'
+  Log:
+    VersionRequirements: '2.0'
+    DependencyType: SOFT
+  Cool-Database:
+    VersionRequirements: '1.0'
+    DependencyType: HARD

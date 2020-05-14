@@ -18,5 +18,9 @@ Lifecycle:
 Artifacts:
   - %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
 Dependencies:
-  Log: '2.0'
-  Cool-Database: '1.0'
+  Log:
+    VersionRequirements: '2.0'
+    DependencyType: Soft
+  Cool-Database:
+    VersionRequirements: '1.0'
+    DependencyType: hARD

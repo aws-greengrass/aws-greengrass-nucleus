@@ -9,4 +9,5 @@ Lifecycle:
     echo "Breaking service broke."
     exit 1
 Dependencies:
-  Mosquitto: 1.0.0
+  Mosquitto:
+    VersionRequirements: 1.0.0

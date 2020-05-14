@@ -1,0 +1,10 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: DependencyMissingVersion
+Description: Test recipe for Evergreen packages
+Publisher: Me
+Version: '1.0.0'
+Dependencies:
+  macos:
+    Log: '2.0'
+    Cool-Database: '2.0'

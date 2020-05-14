@@ -10,5 +10,7 @@ Lifecycle:
     script: sudo apt-get install git
   run: /path/to/run
 Dependencies:
-  Log: '3.0.0'
-  Cool-Database: '3.0.0'
+  Log:
+    VersionRequirements: '3.0.0'
+  Cool-Database:
+    VersionRequirements: '3.0.0'

@@ -19,5 +19,6 @@ Lifecycle:
     ubuntu:
       script: echo "By mosquitto signing off!"
 Dependencies:
-  GreenSignal: "=1.0.0"
+  GreenSignal:
+    VersionRequirements: "=1.0.0"
 

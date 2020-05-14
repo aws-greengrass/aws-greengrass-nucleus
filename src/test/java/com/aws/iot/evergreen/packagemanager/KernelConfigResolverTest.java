@@ -11,9 +11,11 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
@@ -80,7 +82,8 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier, dependencyPackageIdentifier);
 
         PackageRecipe rootPackageRecipe =
-                getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.singletonMap(TEST_INPUT_PACKAGE_B, "2.3"),
+                getPackage(TEST_INPUT_PACKAGE_A, "1.2",
+                        Collections.singletonMap(TEST_INPUT_PACKAGE_B, new RecipeDependencyProperties("2.3")),
                         Collections.emptyMap());
         PackageRecipe dependencyPackageRecipe =
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap());
@@ -119,7 +122,7 @@ class KernelConfigResolverTest {
         assertThat("Main service must depend on new service",
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
-                dependencyListContains("main", "IpcService", servicesConfig));
+                dependencyListContains("main", "IpcService" + ":" + DependencyType.HARD, servicesConfig));
         assertThat("New service must depend on dependency service",
                 dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
@@ -319,8 +322,9 @@ class KernelConfigResolverTest {
     }
 
     // utilities for mocking input
-    private PackageRecipe getPackage(String packageName, String packageVersion, Map<String, String> dependencies,
-                                     Map<String, String> packageParamsWithDefaultsRaw) {
+    private PackageRecipe getPackage(String packageName, String packageVersion,
+                                     Map<String, RecipeDependencyProperties> dependencies,
+                                     Map<String, String> packageParamsWithDefaultsRaw) throws PackageLoadingException {
 
         Set<PackageParameter> parameters = packageParamsWithDefaultsRaw.entrySet().stream()
                 .map(entry -> new PackageParameter(entry.getKey(), entry.getValue(), "STRING"))
