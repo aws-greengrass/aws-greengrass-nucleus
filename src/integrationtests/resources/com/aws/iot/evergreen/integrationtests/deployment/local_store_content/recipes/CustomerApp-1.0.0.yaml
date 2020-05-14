@@ -12,4 +12,5 @@ Lifecycle:
   run:
     echo "Hello evergreen. {{params:sampleText.value}}"
 Dependencies:
-  Mosquitto: 1.0.0
+  Mosquitto:
+    VersionRequirements: 1.0.0

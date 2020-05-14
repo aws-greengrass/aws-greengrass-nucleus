@@ -21,6 +21,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +30,8 @@ import java.util.Set;
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class PackageRecipe {
+    private static final String DEPENDENCY_VERSION_REQUIREMENTS_KEY = "versionrequirements";
+    private static final String DEPENDENCY_TYPE_KEY = "dependencytype";
 
     // TODO: Will be used for schema versioning in the future
     private final RecipeTemplateVersion recipeTemplateVersion;
@@ -50,7 +53,7 @@ public class PackageRecipe {
     // TODO: Migrate to artifact objects, this is only a list of URLs at the moment
     private final List<String> artifacts;
 
-    private final Map<String, String> dependencies;
+    private final Map<String, RecipeDependencyProperties> dependencies;
 
     private final Map<String, Object> customConfig;
 
@@ -82,11 +85,13 @@ public class PackageRecipe {
                                  using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
                          @JsonProperty("Artifacts") List<String> artifacts,
                          @JsonProperty("Dependencies") @JsonDeserialize(
-                                 using = MapFieldDeserializer.class) Map<String, String> dependencies,
+                                 using = DependencyMapDeserializer.class)
+                                     Map<String, RecipeDependencyProperties> dependencies,
                          @JsonProperty("CustomConfig") @JsonDeserialize(
                                  using = MapFieldDeserializer.class) Map<String, Object> customConfig,
                          @JsonProperty("EnvironmentVariables") @JsonDeserialize(
                                  using = MapFieldDeserializer.class) Map<String, String> environmentVariables) {
+
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.packageName = packageName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -116,6 +121,56 @@ public class PackageRecipe {
                     SerializerFactory.getRecipeSerializer().convertValue(jsonParser.readValueAsTree(), Map.class);
 
             return (Map<String, Object>) PlatformResolver.resolvePlatform(map);
+        }
+    }
+
+    private static class DependencyMapDeserializer extends JsonDeserializer<Map<String, RecipeDependencyProperties>> {
+        @Override
+        public Map<String, RecipeDependencyProperties> deserialize(JsonParser p, DeserializationContext ctxt)
+                throws IOException {
+            Object resolved = PlatformResolver.resolvePlatform(
+                    SerializerFactory.getRecipeSerializer().convertValue(p.readValueAsTree(), Map.class));
+            if (resolved == null) {
+                return Collections.emptyMap();
+            }
+            if (!(resolved instanceof Map)) {
+                throw new IOException(String.format("Illegal dependency syntax in package recipe. Dependencies "
+                        + "after platform resolution should be a map, but actually: %s", resolved));
+            }
+
+            Map<String, RecipeDependencyProperties> dependencyPropertiesMap = new HashMap<>();
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>) resolved).entrySet()) {
+                String name = entry.getKey();
+                Object value = entry.getValue();
+                if (!(value instanceof Map)) {
+                    throw new IOException(String.format("Illegal dependency syntax in package recipe. Dependency %s "
+                                    + "should have a property map, but actually: %s", name, entry.getValue()));
+                }
+                Map<String, String> propMap = (Map<String, String>) value;
+                String versionRequirements = "";
+                String dependencyType = "";
+                for (Map.Entry<String, String> e : propMap.entrySet()) {
+                    String k = e.getKey();
+                    switch (k.toLowerCase()) {
+                        case DEPENDENCY_VERSION_REQUIREMENTS_KEY:
+                            versionRequirements = e.getValue();
+                            break;
+                        case DEPENDENCY_TYPE_KEY:
+                            dependencyType = e.getValue();
+                            break;
+                        default:
+                            throw new IOException(String.format("Illegal dependency syntax in package recipe. "
+                                            + "Dependency %s has unknown keyword: %s", name, k));
+                    }
+                }
+
+                if (dependencyType.isEmpty()) {
+                    dependencyPropertiesMap.put(name, new RecipeDependencyProperties(versionRequirements));
+                    continue;
+                }
+                dependencyPropertiesMap.put(name, new RecipeDependencyProperties(versionRequirements, dependencyType));
+            }
+            return dependencyPropertiesMap;
         }
     }
 }

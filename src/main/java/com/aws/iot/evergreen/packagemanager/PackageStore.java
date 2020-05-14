@@ -26,7 +26,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -146,7 +148,10 @@ public class PackageStore {
      * @throws PackagingException if fails to find or parse the recipe
      */
     PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
-        return new PackageMetadata(pkgId, getPackageRecipe(pkgId).getDependencies());
+        Map<String, String> dependencyMetadata = new HashMap<>();
+        getPackageRecipe(pkgId).getDependencies().forEach((name, prop) ->
+                dependencyMetadata.put(name, prop.getVersionRequirements()));
+        return new PackageMetadata(pkgId, dependencyMetadata);
     }
 
     /**
