@@ -34,7 +34,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 
 public class DependencyResolverBenchmark {
@@ -47,8 +47,8 @@ public class DependencyResolverBenchmark {
     public abstract static class DRIntegration {
         private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1", Arrays.asList("boto3", "awscli"),
                 Arrays.asList(
-                        new DeploymentPackageConfiguration("boto3", "1.9.128", "", new HashSet<>(), new ArrayList<>()),
-                        new DeploymentPackageConfiguration("awscli", "1.16.144", "", new HashSet<>(),
+                        new DeploymentPackageConfiguration("boto3", "1.9.128", "", new HashMap<>(), new ArrayList<>()),
+                        new DeploymentPackageConfiguration("awscli", "1.16.144", "", new HashMap<>(),
                                 new ArrayList<>())), "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
 
         private DependencyResolver resolver;
@@ -64,7 +64,7 @@ public class DependencyResolverBenchmark {
             // pre-load contents to package store
             Path localStoreContentPath = Paths.get(System.getProperty("user.dir"))
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
-          
+
             // pre-load contents to package store
             copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
 

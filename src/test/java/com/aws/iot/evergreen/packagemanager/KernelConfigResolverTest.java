@@ -28,7 +28,6 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,10 +88,10 @@ class KernelConfigResolverTest {
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptyMap(),
                         Arrays.asList(dependencyPackageIdentifier));
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, "2.3", ">2.0", Collections.emptySet(),
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, "2.3", ">2.0", Collections.emptyMap(),
                         Collections.emptyList());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(
@@ -103,7 +102,8 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(mainService.getDependencies())
+                .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
 
         // WHEN
@@ -129,17 +129,17 @@ class KernelConfigResolverTest {
     }
 
     @Test
-    void GIVEN_deployment_for_existing_package_WHEN_config_resolution_requested_THEN_update_service()
-            throws Exception {
+    void GIVEN_deployment_for_existing_package_WHEN_config_resolution_requested_THEN_update_service() throws Exception {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
                 new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
-        PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
+        PackageRecipe rootPackageRecipe =
+                getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptyMap(),
                         Collections.emptyList());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
@@ -148,7 +148,8 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(mainService.getDependencies())
+                .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
 
         // WHEN
@@ -179,9 +180,9 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", new HashSet<>(
-                        Arrays.asList(new PackageParameter("PackageA_Param_1", "PackageA_Param_1_value", "STRING"))),
-                        Collections.emptyList());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", new HashMap<String, Object>() {{
+                    put("PackageA_Param_1", "PackageA_Param_1_value");
+                }}, Collections.emptyList());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
@@ -239,7 +240,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptyMap(),
                         Collections.emptyList());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
@@ -248,7 +249,8 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(mainService.getDependencies())
+                .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
         when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_1"))
@@ -295,7 +297,7 @@ class KernelConfigResolverTest {
         }}, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptyMap(),
                         Collections.emptyList());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
@@ -384,13 +386,12 @@ class KernelConfigResolverTest {
         return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
     }
 
-    private Object getValueForCustomConfigKey(String key, String serviceName,
-                                                           Map<Object, Object> config) {
+    private Object getValueForCustomConfigKey(String key, String serviceName, Map<Object, Object> config) {
         Map<Object, Object> serviceConfig = getServiceConfig(serviceName, config);
         return ((Map<Object, Object>) serviceConfig.get(EvergreenService.CUSTOM_CONFIG_NAMESPACE)).get(key);
     }
 
-    private  String getServiceEnvVar(String varName, String serviceName, Map<Object, Object> config) {
+    private String getServiceEnvVar(String varName, String serviceName, Map<Object, Object> config) {
         Map<Object, Object> serviceConfig = getServiceConfig(serviceName, config);
         return ((Map<String, String>) serviceConfig.get(EvergreenService.SETENV_CONFIG_NAMESPACE)).get(varName);
     }

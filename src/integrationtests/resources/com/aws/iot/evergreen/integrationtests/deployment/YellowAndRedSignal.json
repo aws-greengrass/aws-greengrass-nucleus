@@ -11,13 +11,9 @@
     {
       "Name": "YellowSignal",
       "ResolvedVersion": "1.0.0",
-      "Parameters": [
-        {
-          "type": "STRING",
-          "name": "message",
-          "value": "This is not a test"
-        }
-      ]
+      "Configuration": {
+        "message": "This is not a test"
+      }
     }
   ],
   "Timestamp": 1592574829000,

@@ -6,6 +6,10 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @JsonSerialize
@@ -45,6 +49,29 @@ public class PackageParameter {
         this.type = type;
         // TODO: Validate type and initialize corresponding type here?
         this.value = value;
+    }
+
+    /**
+     * Get a set of parameters from a map of ParameterName -> ParameterValue.
+     *
+     * @param configuration map of parameters
+     * @return set of parameters
+     */
+    public static Set<PackageParameter> fromMap(Map<String, Object> configuration) {
+        HashSet<PackageParameter> set = new HashSet<>();
+        for (Map.Entry<String, Object> parameter : configuration.entrySet()) {
+            Object value = parameter.getValue();
+            if (value instanceof String) {
+                set.add(new PackageParameter(parameter.getKey(), (String) parameter.getValue(), ParameterType.STRING));
+            } else if (value instanceof Boolean) {
+                set.add(new PackageParameter(parameter.getKey(), ((Boolean) parameter.getValue()).toString(),
+                        ParameterType.STRING));
+            } else if (value instanceof Number) {
+                set.add(new PackageParameter(parameter.getKey(), String.valueOf(parameter.getValue()),
+                        ParameterType.NUMBER));
+            }
+        }
+        return set;
     }
 
     public enum ParameterType {
