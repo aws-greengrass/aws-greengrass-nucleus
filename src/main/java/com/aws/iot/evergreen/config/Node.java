@@ -93,7 +93,7 @@ public abstract class Node {
      * @param s a watcher to be added
      * @return true if this is a new watcher; false if its a duplicate
      */
-    protected boolean listen(Watcher s) {
+    protected boolean addWatcher(Watcher s) {
         if (s != null) {
             if (watchers == null) {
                 watchers = new CopyOnWriteArraySet<>();
@@ -108,7 +108,7 @@ public abstract class Node {
      *
      * @param s subscriber to remove
      */
-    public void remove(Subscriber s) {
+    public void remove(Watcher s) {
         if (watchers != null) {
             watchers.remove(s);
         }

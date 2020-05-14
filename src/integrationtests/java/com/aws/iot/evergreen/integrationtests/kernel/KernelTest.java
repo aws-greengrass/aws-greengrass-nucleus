@@ -9,6 +9,8 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -302,7 +304,9 @@ class KernelTest extends BaseITCase {
         }
     }
 
-    private static class ExpectedStateTransition {
+    @ToString
+    @EqualsAndHashCode
+    public static class ExpectedStateTransition {
         final String serviceName;
         final State was;
         final State current;

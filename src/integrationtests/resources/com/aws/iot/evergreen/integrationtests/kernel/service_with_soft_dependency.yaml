@@ -1,0 +1,17 @@
+---
+services:
+  SoftDependency:
+    lifecycle:
+      run:
+        script: while true; do sleep 1000; done
+  CustomerApp:
+    dependencies:
+    - SoftDependency:SOFT
+    lifecycle:
+      run:
+        script: while true; do sleep 1000; done
+      shutdown:
+        script: sleep 5
+  main:
+    dependencies:
+    - CustomerApp:HARD

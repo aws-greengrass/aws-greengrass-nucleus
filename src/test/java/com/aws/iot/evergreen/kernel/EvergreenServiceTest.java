@@ -15,9 +15,10 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static com.aws.iot.evergreen.kernel.Lifecycle.STATE_TOPIC_NAME;
+
 @ExtendWith(MockitoExtension.class)
 public class EvergreenServiceTest extends EGServiceTestUtil {
-    private static final String STATE_TOPIC_NAME = "_State";
 
     private EvergreenService evergreenService;
 
@@ -45,7 +46,7 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         // verify stateTopic
         Mockito.verify(stateTopic).withParentNeedsToKnow(false);
         Mockito.verify(stateTopic).withValue(State.NEW);
-        Mockito.verify(stateTopic).validate(validatorArgumentCaptor.capture());
+        Mockito.verify(stateTopic).addValidator(validatorArgumentCaptor.capture());
         Mockito.verifyNoMoreInteractions(stateTopic);
 
         // verify validator

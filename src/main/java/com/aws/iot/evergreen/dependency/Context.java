@@ -4,9 +4,7 @@
 package com.aws.iot.evergreen.dependency;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -293,21 +291,17 @@ public class Context implements Closeable {
         return ret.get();
     }
 
-    public void queuePublish(Topic t) {
-        runOnPublishQueue(() -> t.fire(WhatHappened.changed));
-    }
-
     private boolean onPublishThread() {
         return Thread.currentThread() == publishThread;
     }
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
-    public @interface StartWhen {
+    public @interface ServiceDependencyType {
         /**
          * What state to start the service.
          */
-        State value();
+        DependencyType value();
     }
 
     public class Value<T> implements Provider<T> {
@@ -512,12 +506,12 @@ public class Context implements Closeable {
                                             .putAndInjectFields((EvergreenService) v);
                                 }
                             }
-                            StartWhen startWhen = f.getAnnotation(StartWhen.class);
+                            ServiceDependencyType dependencyType = f.getAnnotation(ServiceDependencyType.class);
                             f.setAccessible(true);
                             f.set(object, v);
                             if (asService != null && v instanceof EvergreenService) {
                                 asService.addOrUpdateDependency((EvergreenService) v,
-                                        startWhen == null ? State.RUNNING : startWhen.value(), true);
+                                        dependencyType == null ? DependencyType.HARD : dependencyType.value(), true);
                             }
                             logger.atTrace("class-inject-complete").kv(classKeyword, f.getName()).log();
                         } catch (Throwable ex) {

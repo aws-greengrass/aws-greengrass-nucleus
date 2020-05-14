@@ -21,7 +21,7 @@ import java.nio.file.StandardOpenOption;
 import static com.aws.iot.evergreen.util.Utils.appendLong;
 import static com.aws.iot.evergreen.util.Utils.flush;
 
-public class ConfigurationWriter implements Closeable, Subscriber {
+public class ConfigurationWriter implements Closeable, ChildChanged {
     private final Writer out;
     private final Configuration conf;
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
@@ -33,7 +33,7 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     ConfigurationWriter(Configuration c, Writer o) {
         out = o;
         conf = c;
-        conf.getRoot().listen(this);
+        conf.getRoot().addWatcher(this);
     }
 
     ConfigurationWriter(Configuration c, Path p) throws IOException {
@@ -93,17 +93,18 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     }
 
     @Override
-    public synchronized void published(WhatHappened what, Topic n) {
-        if (what == WhatHappened.childChanged) {
+    public synchronized void childChanged(WhatHappened what, Node n) {
+        if (what == WhatHappened.childChanged && n instanceof Topic) {
+            Topic t = (Topic) n;
             try {
                 if (n.getName().startsWith("_")) {
                     return;  // Don't log entries whose name starts in '_'
                 }
-                appendLong(n.getModtime(), out);
+                appendLong(t.getModtime(), out);
                 out.append(',');
                 n.appendNameTo(out);
                 out.append(',');
-                Coerce.appendParseableString(n.getOnce(), out);
+                Coerce.appendParseableString(t.getOnce(), out);
                 out.append('\n');
             } catch (IOException ex) {
                 logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
@@ -116,6 +117,6 @@ public class ConfigurationWriter implements Closeable, Subscriber {
     }
 
     public void writeAll() { //TODO double check this
-        conf.deepForEachTopic(n -> published(WhatHappened.childChanged, n));
+        conf.deepForEachTopic(n -> childChanged(WhatHappened.childChanged, n));
     }
 }

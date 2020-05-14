@@ -261,6 +261,14 @@ public final class Exec implements Closeable {
         return cd(homedir);
     }
 
+    /**
+     * Get the working directory which is configured for the Exec.
+     * @return current working directory.
+     */
+    public File cwd() {
+        return dir;
+    }
+
     public Exec withExec(String... c) {
         cmds = c;
         return this;

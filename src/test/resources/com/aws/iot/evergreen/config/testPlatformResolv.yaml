@@ -9,7 +9,7 @@ services:
   influxdb:
     dependencies:
       macos:
-        - homebrew:AwaitingStartup
+        - homebrew
 
     lifecycle:
       install:

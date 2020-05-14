@@ -4,8 +4,10 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.Utils;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 
@@ -14,7 +16,7 @@ import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {
 
-    Exec setup(String note, String command, EvergreenService onBehalfOf);
+    Exec setup(String note, String command, EvergreenService onBehalfOf) throws IOException;
 
     boolean successful(Exec e, String note, IntConsumer background, EvergreenService onBehalfOf)
             throws InterruptedException;
@@ -26,8 +28,10 @@ public interface ShellRunner {
         Kernel config;
 
         @Override
-        public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) {
+        public synchronized Exec setup(String note, String command, EvergreenService onBehalfOf) throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
+                Path cwd = config.getWorkPath().resolve(onBehalfOf.getName());
+                Utils.createPaths(cwd);
                 return new Exec()
                         .withShell(command)
                         .withOut(s -> {
@@ -43,7 +47,7 @@ public interface ShellRunner {
                         .setenv("SVCUID",
                                 String.valueOf(onBehalfOf.getServiceConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))
-                        .cd(config.getWorkPath().toFile());
+                        .cd(cwd.toFile().getAbsoluteFile());
             }
             return null;
         }

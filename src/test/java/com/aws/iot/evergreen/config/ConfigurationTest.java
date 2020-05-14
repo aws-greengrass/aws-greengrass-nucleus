@@ -42,7 +42,7 @@ public class ConfigurationTest {
 
     //    @Test
     public void T1() {
-        config.lookup("v").validate((n, o) -> {
+        config.lookup("v").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
             }
@@ -58,7 +58,7 @@ public class ConfigurationTest {
 
     //    @Test
     public void T2() {
-        config.lookup("x", "y").validate((n, o) -> {
+        config.lookup("x", "y").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
             }
@@ -74,7 +74,7 @@ public class ConfigurationTest {
 
     //    @Test
     public void T3() {
-        config.lookup("x", "z").validate((n, o) -> {
+        config.lookup("x", "z").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
             }
@@ -122,7 +122,7 @@ public class ConfigurationTest {
             //            platforms.forEachTopicSet(n -> System.out.println(n.name));
 
             Topic testValue = config.lookup("number");
-            testValue.validate((nv, ov) -> {
+            testValue.addValidator((nv, ov) -> {
                 int v = toInt(nv);
                 if (v < 0) {
                     v = 0;

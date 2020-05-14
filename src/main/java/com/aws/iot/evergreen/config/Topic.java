@@ -39,7 +39,7 @@ public class Topic extends Node {
      * @return this topic
      */
     public Topic subscribe(Subscriber s) {
-        if (listen(s)) {
+        if (addWatcher(s)) {
             // invoke the new subscriber right away
             s.published(WhatHappened.initialized, this);
         }
@@ -52,8 +52,8 @@ public class Topic extends Node {
      * @param validator validator
      * @return this
      */
-    public Topic validate(Validator validator) {
-        if (listen(validator) && value != null) {
+    public Topic addValidator(Validator validator) {
+        if (addWatcher(validator) && value != null) {
             value = validator.validate(value, null);
         }
         return this;
@@ -71,15 +71,11 @@ public class Topic extends Node {
         return value;
     }
 
-    public void appendValueTo(Appendable a) throws IOException {
-        a.append(String.valueOf(value));
-    }
-
     @Override
     public void appendTo(Appendable a) throws IOException {
         appendNameTo(a);
         a.append(':');
-        appendValueTo(a);
+        a.append(String.valueOf(value));
     }
 
     public Topic withValue(Object nv) {
@@ -118,7 +114,7 @@ public class Topic extends Node {
         }
         value = validated;
         modtime = proposedModtime;
-        context.queuePublish(this);
+        context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
         return this;
     }
 
