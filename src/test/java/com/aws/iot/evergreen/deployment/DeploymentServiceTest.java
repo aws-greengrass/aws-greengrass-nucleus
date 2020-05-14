@@ -13,7 +13,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -400,7 +400,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 cdl.countDown();
             }
         };
-        Log4jLogEventBuilder.addGlobalListener(listener);
+        Slf4jLogAdapter.addGlobalListener(listener);
 
         deploymentServiceThread = new Thread(() -> {
             try {
@@ -411,7 +411,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         deploymentServiceThread.start();
 
         boolean running = cdl.await(1, TimeUnit.SECONDS);
-        Log4jLogEventBuilder.removeGlobalListener(listener);
+        Slf4jLogAdapter.removeGlobalListener(listener);
         assertTrue(running, "Deployment service must be running");
     }
 }

@@ -7,7 +7,7 @@ package com.aws.iot.evergreen.testcommons.testutilities;
 
 import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.util.Utils;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.extension.AfterEachCallback;
@@ -55,7 +55,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
 
     @Override
     public void beforeEach(ExtensionContext context) throws Exception {
-        Log4jLogEventBuilder.addGlobalListener(getListener(context));
+        Slf4jLogAdapter.addGlobalListener(getListener(context));
 
         // Default ignores:
 
@@ -81,7 +81,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     @Override
     @SneakyThrows
     public void afterEach(ExtensionContext context) throws Exception {
-        Log4jLogEventBuilder.removeGlobalListener(getListener(context));
+        Slf4jLogAdapter.removeGlobalListener(getListener(context));
 
         List<Throwable> exceptions = getExceptions(context);
         try {

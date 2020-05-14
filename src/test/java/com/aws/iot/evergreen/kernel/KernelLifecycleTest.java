@@ -8,14 +8,14 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
@@ -244,9 +244,9 @@ class KernelLifecycleTest {
         ignoreExceptionUltimateCauseWithMessage(context, "Service5");
         ignoreExceptionUltimateCauseWithMessage(context, "Service1");
 
-        Log4jLogEventBuilder.addGlobalListener(listener.getRight());
+        Slf4jLogAdapter.addGlobalListener(listener.getRight());
         kernelLifecycle.shutdown(5);
-        Log4jLogEventBuilder.removeGlobalListener(listener.getRight());
+        Slf4jLogAdapter.removeGlobalListener(listener.getRight());
         assertTrue(seenErrors.await(1, TimeUnit.SECONDS));
         listener.getLeft().get(1, TimeUnit.SECONDS);
 
