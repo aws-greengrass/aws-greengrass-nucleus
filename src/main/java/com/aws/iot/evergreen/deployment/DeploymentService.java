@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableException;
-import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.exceptions.InvalidRequestException;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
@@ -82,21 +81,23 @@ public class DeploymentService extends EvergreenService {
     private DeploymentConfigMerger deploymentConfigMerger;
     @Inject
     private IotJobsHelper iotJobsHelper;
+    @Inject
+    private LocalDeploymentListener localDeploymentListener;
 
     @Getter
     private Future<DeploymentResult> currentProcessStatus = null;
 
     // This is very likely not thread safe. If the Deployment Service is split into multiple threads in a re-design
     // as mentioned in some other comments, this will need an update as well
-    private String currentJobId = null;
+    private String currentDeploymentId = null;
+    private Deployment.DeploymentType currentDeploymentType = null;
+
     private final AtomicInteger currentJobAttemptCount = new AtomicInteger(0);
     private DeploymentTask currentDeploymentTask = null;
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
-    // If a device is unable to connect to AWS Iot upon starting due to network availability this flag will be set
-    // which will indicate the device to retry connecting to AWS Iot cloud after polling frequency
-    private final AtomicBoolean retryConnectingToAWSIot = new AtomicBoolean(false);
+
     @Setter
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
     private LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue<>();
@@ -135,17 +136,19 @@ public class DeploymentService extends EvergreenService {
     /**
      * Constructor for unit testing.
      *
-     * @param topics                 The configuration coming from  kernel
-     * @param executorService        Executor service coming from kernel
-     * @param dependencyResolver     {@link DependencyResolver}
-     * @param packageManager         {@link PackageManager}
-     * @param kernelConfigResolver   {@link KernelConfigResolver}
-     * @param deploymentConfigMerger {@link DeploymentConfigMerger}
-     * @param iotJobsHelper          {@link IotJobsHelper}
+     * @param topics                    The configuration coming from  kernel
+     * @param executorService           Executor service coming from kernel
+     * @param dependencyResolver        {@link DependencyResolver}
+     * @param packageManager            {@link PackageManager}
+     * @param kernelConfigResolver      {@link KernelConfigResolver}
+     * @param deploymentConfigMerger    {@link DeploymentConfigMerger}
+     * @param iotJobsHelper             {@link IotJobsHelper}
+     * @param localDeploymentListener   {@link LocalDeploymentListener}
      */
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
-                      DeploymentConfigMerger deploymentConfigMerger, IotJobsHelper iotJobsHelper) {
+                      DeploymentConfigMerger deploymentConfigMerger, IotJobsHelper iotJobsHelper,
+                      LocalDeploymentListener localDeploymentListener) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -153,6 +156,7 @@ public class DeploymentService extends EvergreenService {
         this.kernelConfigResolver = kernelConfigResolver;
         this.deploymentConfigMerger = deploymentConfigMerger;
         this.iotJobsHelper = iotJobsHelper;
+        this.localDeploymentListener = localDeploymentListener;
     }
 
 
@@ -165,7 +169,8 @@ public class DeploymentService extends EvergreenService {
         // Will revisit the DI to make this better
         iotJobsHelper.setDeploymentsQueue(deploymentsQueue);
         iotJobsHelper.setCallbacks(callbacks);
-        connectToAWSIot();
+        localDeploymentListener.setDeploymentsQueue(deploymentsQueue);
+
         reportState(State.RUNNING);
         logger.info("Running deployment service");
 
@@ -178,12 +183,13 @@ public class DeploymentService extends EvergreenService {
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
             Deployment deployment = deploymentsQueue.poll();
             if (deployment != null) {
-                if (currentJobId != null) {
-                    if (deployment.getId().equals(currentJobId)) {
+                if (currentDeploymentId != null) {
+                    if (deployment.getId().equals(currentDeploymentId)
+                            && deployment.getDeploymentType().equals(currentDeploymentType)) {
                         //Duplicate message and already processing this deployment so nothing is needed
                         continue;
                     } else {
-                        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Canceling the job");
+                        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).log("Canceling the job");
                         //Assuming cancel will either cancel the current job or wait till it finishes
                         cancelCurrentDeployment();
                     }
@@ -191,51 +197,17 @@ public class DeploymentService extends EvergreenService {
                 createNewDeployment(deployment);
             }
             Thread.sleep(pollingFrequency);
-
-            if (retryConnectingToAWSIot.get()) {
-                connectToAWSIot();
-            }
         }
     }
 
     @Override
     public void shutdown() throws InterruptedException {
         receivedShutdown.set(true);
-        if (iotJobsHelper != null) {
-            try {
-                iotJobsHelper.closeConnection();
-            } catch (ExecutionException e) {
-                logger.atError().log("Error while closing IoT client", e);
-            }
-        }
-    }
-
-    private void connectToAWSIot() throws InterruptedException {
-
-        retryConnectingToAWSIot.set(false);
-        try {
-            //TODO: Separate out making MQTT connection and IotJobs helper when MQTT proxy is used.
-            iotJobsHelper.connect();
-        } catch (DeviceConfigurationException e) {
-            //Since there is no device configuration, device should still be able to perform local deploymentsQueue
-            logger.atWarn().setCause(e).log("Device not configured to communicate with AWS Iot Cloud"
-                    + "Device will now operate in offline mode");
-        } catch (ConnectionUnavailableException e) {
-            //TODO: Add retry logic to connect again when connection availalble
-            logger.atWarn().setCause(e).log("Fail to connect to IoT cloud due to connectivity issue, will retry later. "
-                    + "Device will now operate in offline mode");
-            retryConnectingToAWSIot.set(true);
-        } catch (AWSIotException e) {
-            //This is a non transient exception and might require customer's attention
-            logger.atError().setCause(e).log("Caught an exception from AWS Iot cloud");
-            //TODO: Revisit if we should error the service in this case
-        }
-
     }
 
     @SuppressWarnings("PMD.NullAssignment")
     private void finishCurrentDeployment() throws InterruptedException {
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentJobId).log("Current deployment finished");
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).log("Current deployment finished");
         try {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
@@ -246,24 +218,27 @@ public class DeploymentService extends EvergreenService {
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("detailed-deployment-status", deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
-                    storeDeploymentStatusInConfig(currentJobId, JobStatus.SUCCEEDED, statusDetails);
+                    storeDeploymentStatusInConfig(currentDeploymentId, currentDeploymentType,
+                            JobStatus.SUCCEEDED, statusDetails);
                 } else {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
                     }
-                    storeDeploymentStatusInConfig(currentJobId, JobStatus.FAILED, statusDetails);
+                    storeDeploymentStatusInConfig(currentDeploymentId, currentDeploymentType,
+                            JobStatus.FAILED, statusDetails);
                 }
             }
             currentJobAttemptCount.set(0);
         } catch (ExecutionException e) {
-            logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentJobId).setCause(e)
+            logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).setCause(e)
                     .log("Caught exception while getting the status of the Job");
             Throwable t = e.getCause();
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", t.getMessage());
             if (t instanceof NonRetryableDeploymentTaskFailureException
                     || currentJobAttemptCount.get() >= DEPLOYMENT_MAX_ATTEMPTS) {
-                storeDeploymentStatusInConfig(currentJobId, JobStatus.FAILED, statusDetails);
+                storeDeploymentStatusInConfig(currentDeploymentId, currentDeploymentType,
+                        JobStatus.FAILED, statusDetails);
                 currentJobAttemptCount.set(0);
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
@@ -275,7 +250,7 @@ public class DeploymentService extends EvergreenService {
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
         currentProcessStatus = null;
-        currentJobId = null;
+        currentDeploymentId = null;
         updateStatusOfPersistedDeployments();
     }
 
@@ -286,14 +261,16 @@ public class DeploymentService extends EvergreenService {
         if (currentProcessStatus != null) {
             currentProcessStatus.cancel(true);
             currentProcessStatus = null;
-            currentJobId = null;
+            currentDeploymentId = null;
         }
     }
+
 
     private void createNewDeployment(Deployment deployment) {
         logger.atInfo().kv("DeploymentId", deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
+
         DeploymentDocument deploymentDocument;
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
@@ -305,20 +282,47 @@ public class DeploymentService extends EvergreenService {
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
-            storeDeploymentStatusInConfig(deployment.getId(), JobStatus.FAILED, statusDetails);
+            storeDeploymentStatusInConfig(deployment.getId(), deployment.getDeploymentType(),
+                    JobStatus.FAILED, statusDetails);
             return;
         }
+        switch (deployment.getDeploymentType()) {
+            case IOT_JOBS:
+                newIotJobsDeployment(deploymentDocument, deployment);
+                break;
+            case LOCAL:
+                newLocalDeployment(deploymentDocument);
+                break;
+                default:
+
+        }
+
+        currentDeploymentId = deployment.getId();
+        currentDeploymentType = deployment.getDeploymentType();
+    }
+
+    private void newLocalDeployment(DeploymentDocument deploymentDocument) {
+
+        currentDeploymentTask =
+                new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
+                logger, deploymentDocument);
+        currentProcessStatus = executorService.submit(currentDeploymentTask);
+    }
+
+    private void newIotJobsDeployment(DeploymentDocument deploymentDocument, Deployment deployment) {
+
         currentDeploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
                         logger, deploymentDocument);
-        storeDeploymentStatusInConfig(deployment.getId(), JobStatus.IN_PROGRESS, new HashMap<>());
+        storeDeploymentStatusInConfig(deployment.getId(), deployment.getDeploymentType(),
+                JobStatus.IN_PROGRESS, new HashMap<>());
         updateStatusOfPersistedDeployments();
         currentProcessStatus = executorService.submit(currentDeploymentTask);
-        currentJobId = deployment.getId();
 
-        // createNewDeployment will only be called at first attempt
+        // newIotJobsDeployment will only be called at first attempt
         currentJobAttemptCount.set(1);
     }
+
 
     private void subscribeToIotJobTopics() {
         try {
@@ -409,7 +413,12 @@ public class DeploymentService extends EvergreenService {
         }
     }
 
-    private void storeDeploymentStatusInConfig(String jobId, JobStatus status, Map<String, String> statusDetails) {
+    private void storeDeploymentStatusInConfig(String jobId, Deployment.DeploymentType deploymentType,
+                                               JobStatus status, Map<String, String> statusDetails) {
+        // no need to persist status for local deployment
+        if (deploymentType.equals(Deployment.DeploymentType.LOCAL)) {
+            return;
+        }
         //While this method is being run, another thread could be running the updateStatusOfPersistedDeployments
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (this.config.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS)) {

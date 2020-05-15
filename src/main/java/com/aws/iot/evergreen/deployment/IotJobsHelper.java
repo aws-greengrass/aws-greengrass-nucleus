@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableException;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
@@ -13,6 +14,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -43,15 +45,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
 @NoArgsConstructor
-public class IotJobsHelper {
+public class IotJobsHelper implements InjectionActions {
 
     protected static final String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC =
             "$aws/things/{thingName}/jobs/{jobId}/update/accepted";
@@ -60,6 +64,7 @@ public class IotJobsHelper {
 
     private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
     private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
+    private static final int INITIAL_CONNECT_RETRY_FREQUENCY = (int) Duration.ofSeconds(30).toMillis();
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = (long) Duration.ofMinutes(5).getSeconds();
@@ -87,11 +92,16 @@ public class IotJobsHelper {
     @Inject
     private IotJobsClientFactory iotJobsClientFactory;
 
+    @Inject
+    private ExecutorService executorService;
+
     @Setter
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     @Setter
     private MqttClientConnectionEvents callbacks;
+
+    private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
 
     private String thingName;
     private IotJobsClient iotJobsClient;
@@ -158,6 +168,8 @@ public class IotJobsHelper {
         }
     };
 
+
+
     /**
      * Constructor.
      * @param deploymentsQueue The queue to which the received deployments will be pushed
@@ -184,6 +196,55 @@ public class IotJobsHelper {
         this.deploymentsQueue = deploymentsQueue;
         this.callbacks = callbacks;
         this.thingName = deviceConfigurationHelper.getDeviceConfiguration().getThingName();
+    }
+
+    @Override
+    @SuppressFBWarnings
+    public void postInject() {
+        executorService.submit(() -> {
+            try {
+                connectToAWSIot();
+            } catch (InterruptedException e) {
+               //TODO: re-evaluate the retry strategy,
+               // re-connection attempts are made only for ConnectionUnavailableException
+               logger.error("Failed to connect to IoT cloud");
+            }
+        });
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                closeConnection();
+            } catch (ExecutionException | InterruptedException e) {
+                logger.atError().log("Error while closing IoT client", e);
+            }
+        }));
+    }
+
+    private void connectToAWSIot() throws InterruptedException {
+        // If a device is unable to connect to AWS Iot upon starting due to network availability,
+        // the device will retry connecting to AWS Iot cloud. Retry frequency used is the same as frequency
+        // used by deployment service to poll for new deployments.
+        boolean shouldRetry = true;
+        while (shouldRetry && !receivedShutdown.get()) {
+            shouldRetry = false;
+            try {
+                //TODO: Separate out making MQTT connection and IotJobs helper when MQTT proxy is used.
+                connect();
+            } catch (DeviceConfigurationException e) {
+                //Since there is no device configuration, device should still be able to perform local deploymentsQueue
+                logger.atWarn().setCause(e).log("Device not configured to communicate with AWS Iot Cloud"
+                        + "Device will now operate in offline mode");
+            } catch (ConnectionUnavailableException e) {
+                logger.atWarn().setCause(e).log("Fail to connect to IoT cloud due to connectivity issue,"
+                        + " will retry later. Device will now operate in offline mode");
+                shouldRetry = true;
+                Thread.sleep(INITIAL_CONNECT_RETRY_FREQUENCY);
+            } catch (AWSIotException e) {
+                //This is a non transient exception and might require customer's attention
+                logger.atError().setCause(e).log("Caught an exception from AWS Iot cloud");
+                //TODO: Revisit if we should error the service in this case
+            }
+        }
     }
 
     public static class AWSIotMqttConnectionFactory {
@@ -265,6 +326,7 @@ public class IotJobsHelper {
      * @throws InterruptedException if the thread gets interrupted
      */
     public void closeConnection() throws ExecutionException, InterruptedException {
+        receivedShutdown.set(true);
         if (connection != null && !connection.isNull()) {
             logger.atInfo().log("Closing connection to Iot cloud");
             connection.disconnect().get();
@@ -339,6 +401,10 @@ public class IotJobsHelper {
         iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
         logger.atDebug().log("Requesting the next deployment");
     }
+
+
+
+
 
     /**
      * Subscribe to the mqtt topics needed for getting Iot Jobs notifications.

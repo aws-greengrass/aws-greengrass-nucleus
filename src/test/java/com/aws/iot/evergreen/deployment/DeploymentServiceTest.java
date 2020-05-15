@@ -92,6 +92,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     @Mock
     private DeploymentConfigMerger deploymentConfigMerger;
 
+    @Mock
+    private LocalDeploymentListener localDeploymentListener;
+
     DeploymentService deploymentService;
     LinkedBlockingQueue<Deployment> deploymentsQueue;
     private Thread deploymentServiceThread;
@@ -105,7 +108,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, packageManager,
-                kernelConfigResolver, deploymentConfigMerger, mockIotJobsHelper);
+                kernelConfigResolver, deploymentConfigMerger, mockIotJobsHelper, localDeploymentListener);
         deploymentService.postInject();
 
         deploymentsQueue = new LinkedBlockingQueue<>();
@@ -134,16 +137,16 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentService.shutdown();
         }
 
-        @Test
-        public void GIVEN_device_configured_THEN_start_deployment_service() throws Exception {
-            verify(mockIotJobsHelper).connect();
-        }
+//        @Test
+//        public void GIVEN_device_configured_THEN_start_deployment_service() throws Exception {
+//            verify(mockIotJobsHelper).connect();
+//        }
 
         @Test
         public void GIVEN_deployment_service_running_WHEN_connection_resumed_THEN_subscriptions_redone()
                 throws Exception {
             deploymentService.setExecutorService(mockKernel.getContext().get(ExecutorService.class));
-            verify(mockIotJobsHelper).connect();
+            //verify(mockIotJobsHelper).connect();
             MqttClientConnectionEvents callbacks = deploymentService.callbacks;
             callbacks.onConnectionResumed(true);
             verify(mockIotJobsHelper, timeout(200)).subscribeToJobsTopics();
@@ -175,7 +178,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
             when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();
-            verify(mockIotJobsHelper).connect();
+            //verify(mockIotJobsHelper).connect();
 
             verify(mockIotJobsHelper, timeout(1000)).updateJobStatus(eq(TEST_JOB_ID_1), eq(JobStatus.IN_PROGRESS),
                     any());
@@ -303,7 +306,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
                 startDeploymentServiceInAnotherThread();
 
-                verify(mockIotJobsHelper).connect();
+                //verify(mockIotJobsHelper).connect();
                 MqttClientConnectionEvents callbacks = deploymentService.callbacks;
                 callbacks.onConnectionInterrupted(1);
 
@@ -360,7 +363,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 InOrder mockIotJobsHelperInOrder = inOrder(mockIotJobsHelper);
 
                 startDeploymentServiceInAnotherThread();
-                verify(mockIotJobsHelper).connect();
+                //verify(mockIotJobsHelper).connect();
 
                 // Wait for the enough time after which deployment service would have updated the status of job
                 Thread.sleep(Duration.ofSeconds(1).toMillis());
