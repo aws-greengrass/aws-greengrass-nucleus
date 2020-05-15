@@ -11,4 +11,5 @@ Lifecycle:
     echo "CustomerApp succeeds."
     exit 0
 Dependencies:
-  Mosquitto: 1.0.0
+  Mosquitto:
+    VersionRequirements: 1.0.0

@@ -5,7 +5,11 @@ Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.12.128'
 Dependencies:
-  docutils: '>=0.10.0'
-  jmespath: '>=0.7.1 <1.0.0'
-  python-dateutil: '>=2.1.0 <3.0.0'
-  urllib3: '>=1.20.0 <1.25.0'
+  docutils:
+    VersionRequirements: '>=0.10.0'
+  jmespath:
+    VersionRequirements: '>=0.7.1 <1.0.0'
+  python-dateutil:
+    VersionRequirements: '>=2.1.0 <3.0.0'
+  urllib3:
+    VersionRequirements: '>=1.20.0 <1.25.0'

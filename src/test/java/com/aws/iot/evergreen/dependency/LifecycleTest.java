@@ -109,7 +109,6 @@ public class LifecycleTest {
 
     public static class C2 extends EvergreenService {
         final String id = "c2/" + ++seq;
-        //        @Inject @StartWhen(NEW) c1 parent;
         public boolean shutdownCalled;
         public boolean startupCalled;
         @Inject

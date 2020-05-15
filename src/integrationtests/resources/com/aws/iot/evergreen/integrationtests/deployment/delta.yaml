@@ -14,7 +14,7 @@ services:
         date; sleep 5; echo Now we\'re in phase 3
         done
     dependencies:
-      - ticktock:INSTALLED
+      - ticktock
       - frodo
     setenv:
       JUSTME: fancy a spot of coffee?

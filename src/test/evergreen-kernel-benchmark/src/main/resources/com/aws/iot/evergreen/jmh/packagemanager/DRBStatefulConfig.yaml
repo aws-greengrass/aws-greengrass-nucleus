@@ -4,7 +4,7 @@ services:
       run:
         sleep 100
     dependencies:
-      - s3transfer:INSTALLED
+      - s3transfer
   s3transfer:
     version: '0.2.1'
     lifecycle:

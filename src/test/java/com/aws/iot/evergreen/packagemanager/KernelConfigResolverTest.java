@@ -5,15 +5,17 @@ package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
+import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,7 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -79,7 +82,8 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier, dependencyPackageIdentifier);
 
         PackageRecipe rootPackageRecipe =
-                getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.singletonMap(TEST_INPUT_PACKAGE_B, "2.3"),
+                getPackage(TEST_INPUT_PACKAGE_A, "1.2",
+                        Collections.singletonMap(TEST_INPUT_PACKAGE_B, new RecipeDependencyProperties("2.3")),
                         Collections.emptyMap());
         PackageRecipe dependencyPackageRecipe =
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap());
@@ -99,7 +103,7 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
 
         // WHEN
@@ -118,7 +122,7 @@ class KernelConfigResolverTest {
         assertThat("Main service must depend on new service",
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
-                dependencyListContains("main", "IpcService", servicesConfig));
+                dependencyListContains("main", "IpcService" + ":" + DependencyType.HARD, servicesConfig));
         assertThat("New service must depend on dependency service",
                 dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
@@ -144,7 +148,7 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
 
         // WHEN
@@ -244,7 +248,7 @@ class KernelConfigResolverTest {
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, State.RUNNING));
+        when(mainService.getDependencies()).thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
         when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_1"))
@@ -275,12 +279,52 @@ class KernelConfigResolverTest {
         assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
+    }
 
+    @Test
+    void GIVEN_deployment_with_artifact_WHEN_config_resolution_requested_THEN_artifact_path_should_be_interpolated()
+            throws Exception {
+        // GIVEN
+        PackageIdentifier rootPackageIdentifier =
+                new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
+
+        PackageRecipe rootPackageRecipe = new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootPackageIdentifier.getVersion(), "", "", Collections.emptySet(), new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", ">1.0", Collections.emptySet(),
+                        Collections.emptyList());
+        DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
+                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
+
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveArtifactDirectoryPath(rootPackageIdentifier))
+                .thenReturn(Paths.get("/packages/artifacts"));
+        when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
+        Map<Object, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{{artifacts:path}} should be replace by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar /packages/artifacts/test.jar -x arg"));
     }
 
     // utilities for mocking input
-    private PackageRecipe getPackage(String packageName, String packageVersion, Map<String, String> dependencies,
-                                     Map<String, String> packageParamsWithDefaultsRaw) {
+    private PackageRecipe getPackage(String packageName, String packageVersion,
+                                     Map<String, RecipeDependencyProperties> dependencies,
+                                     Map<String, String> packageParamsWithDefaultsRaw) throws PackageLoadingException {
 
         Set<PackageParameter> parameters = packageParamsWithDefaultsRaw.entrySet().stream()
                 .map(entry -> new PackageParameter(entry.getKey(), entry.getValue(), "STRING"))
@@ -336,7 +380,7 @@ class KernelConfigResolverTest {
 
     private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
         Iterable<String> dependencyList =
-                (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_CONFIG_KEY);
+                (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
         return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
     }
 

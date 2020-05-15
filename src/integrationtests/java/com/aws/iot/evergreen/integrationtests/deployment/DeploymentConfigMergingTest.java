@@ -47,8 +47,8 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_T
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.SERVICE_DEPENDENCIES_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -185,7 +185,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, serviceList);
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
@@ -247,14 +247,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, serviceList);
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "sleep 60");
                     }});
-                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("new_service2"));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2", new HashMap<Object, Object>() {{
@@ -283,14 +283,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("new_service"));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service"));
                 }});
 
                 put("new_service", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "sleep 60");
                     }});
-                    put(SERVICE_DEPENDENCIES_CONFIG_KEY, Arrays.asList("new_service2"));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2", new HashMap<Object, Object>() {{
@@ -389,10 +389,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
         //removing all services in the current kernel config except sleeperB and main
         servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName) && !"main".equals(serviceName));
         List<String> dependencies =
-                new ArrayList<>((List<String>) servicesConfig.get("main").get(SERVICE_DEPENDENCIES_CONFIG_KEY));
+                new ArrayList<>((List<String>) servicesConfig.get("main").get(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC));
         //removing main's dependency on sleeperA, Now sleeperA is an unused dependency
         dependencies.removeIf(s -> s.contains("sleeperA"));
-        servicesConfig.get("main").put(SERVICE_DEPENDENCIES_CONFIG_KEY, dependencies);
+        servicesConfig.get("main").put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencies);
         // updating service B's run
         ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
                 .put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "while true; do\n echo sleeperB_running; sleep 10\n done");
