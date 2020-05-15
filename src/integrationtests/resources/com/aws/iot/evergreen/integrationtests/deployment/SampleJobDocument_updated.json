@@ -12,13 +12,9 @@
           "Name": "Mosquitto"
         }
       ],
-      "Parameters": [
-        {
-          "type": "STRING",
-          "name": "sampleText",
-          "value": "This is a new value"
-        }
-      ]
+      "Configuration": {
+        "sampleText": "This is a new value"
+      }
     }
   ],
   "Timestamp": 1592574829000,

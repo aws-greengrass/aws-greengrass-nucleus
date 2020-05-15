@@ -235,10 +235,8 @@ public class KernelConfigResolver {
         Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
                 getMatchingPackageConfigFromDeployment(document, packageRecipe.getPackageName(),
                         packageRecipe.getVersion().toString());
-        if (packageConfigInDeployment.isPresent()) {
-            return packageConfigInDeployment.get().getParameters();
-        }
-        return Collections.emptySet();
+        return packageConfigInDeployment.map(deploymentPackageConfiguration -> PackageParameter
+                .fromMap(deploymentPackageConfiguration.getConfiguration())).orElse(Collections.emptySet());
     }
 
     /*

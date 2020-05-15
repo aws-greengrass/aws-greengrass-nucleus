@@ -14,7 +14,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -163,7 +163,7 @@ public class MqttReconnectTest {
             }
         };
         try {
-            Log4jLogEventBuilder.addGlobalListener(logListener);
+            Slf4jLogAdapter.addGlobalListener(logListener);
             networkUtils.disconnectMqtt();
 
             // Wait for the deployment to finish offline
@@ -171,7 +171,7 @@ public class MqttReconnectTest {
             assertTrue(connectionInterrupted.await(1, TimeUnit.MINUTES));
         } finally {
             networkUtils.recoverMqtt();
-            Log4jLogEventBuilder.removeGlobalListener(logListener);
+            Slf4jLogAdapter.removeGlobalListener(logListener);
         }
 
         // Wait for DNS Cache to expire

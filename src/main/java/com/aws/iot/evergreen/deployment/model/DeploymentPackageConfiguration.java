@@ -4,16 +4,15 @@
 package com.aws.iot.evergreen.deployment.model;
 
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Class to represent a single package along with its dependencies
@@ -35,8 +34,8 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("VersionConstraint")
     private String versionConstraint;
 
-    @JsonProperty("Parameters")
-    private Set<PackageParameter> parameters = new HashSet<>();
+    @JsonProperty("Configuration")
+    private Map<String, Object> configuration = new HashMap<>();
 
     @Deprecated
     @JsonProperty("Dependencies")
