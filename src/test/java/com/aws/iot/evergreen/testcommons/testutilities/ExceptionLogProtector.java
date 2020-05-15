@@ -65,8 +65,8 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
                 ".listen");
 
         // Ignore error from MQTT not being configured
-        ignoreExceptionWithMessage(context, "[thingName cannot be empty, certificateFilePath cannot be empty, "
-                + "privateKeyPath cannot be empty, rootCAPath cannot be empty, clientEndpoint cannot be empty]");
+        ignoreExceptionWithMessageSubstring(context, "[thingName cannot be empty, certificateFilePath cannot be empty, "
+                + "privateKeyPath cannot be empty, rootCAPath cannot be empty, clientEndpoint cannot be empty");
         // Ignore error from MQTT during shutdown
         ignoreExceptionUltimateCauseWithMessage(context, "Mqtt operation interrupted by connection shutdown");
     }

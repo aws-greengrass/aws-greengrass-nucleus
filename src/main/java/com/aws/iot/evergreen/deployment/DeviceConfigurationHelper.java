@@ -24,6 +24,7 @@ public class DeviceConfigurationHelper {
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
+    public static final String DEVICE_PARAM_IOT_CERT_ENDPOINT = "iotCertEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
@@ -36,25 +37,30 @@ public class DeviceConfigurationHelper {
 
     /**
      * Retrieves the device configuration information from kernel config to communicate with Iot Cloud.
+     *
      * @return {@link DeviceConfiguration}
      * @throws DeviceConfigurationException when configuration is not available for the device.
      */
     public DeviceConfiguration getDeviceConfiguration() throws DeviceConfigurationException {
         String thingName = getStringParameterFromConfig(DEVICE_PARAM_THING_NAME);
-        String certificateFilePath = kernelCommandLine.deTilde(
-                getStringParameterFromConfig(DEVICE_PARAM_CERTIFICATE_FILE_PATH));
+        String certificateFilePath =
+                kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_CERTIFICATE_FILE_PATH));
         String privateKeyPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
         String rootCAPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
         String mqttClientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
-        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint);
-        return new DeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint);
+        String iotCertEndpoint = getStringParameterFromConfig(DEVICE_PARAM_IOT_CERT_ENDPOINT);
+        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint,
+                iotCertEndpoint);
+        return new DeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint,
+                iotCertEndpoint);
     }
 
     private String getStringParameterFromConfig(String parameterName) {
         String paramValue = "";
         //TODO: Update when device provisioning is implemented
-        Topic childTopic = kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
-                DeploymentService.DEPLOYMENT_SERVICE_TOPICS).findLeafChild(parameterName);
+        Topic childTopic = kernel.getConfig()
+                .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, DeploymentService.DEPLOYMENT_SERVICE_TOPICS)
+                .findLeafChild(parameterName);
         if (childTopic != null && childTopic.getOnce() != null) {
             paramValue = childTopic.getOnce().toString();
         }
@@ -62,7 +68,7 @@ public class DeviceConfigurationHelper {
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
-                                             String rootCAPath, String clientEndpoint)
+                                             String rootCAPath, String clientEndpoint, String iotCertEndpoint)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
@@ -79,6 +85,9 @@ public class DeviceConfigurationHelper {
         }
         if (Utils.isEmpty(clientEndpoint)) {
             errors.add("clientEndpoint cannot be empty");
+        }
+        if (Utils.isEmpty(iotCertEndpoint)) {
+            errors.add("iotCertEndpoint cannot be empty");
         }
         if (!errors.isEmpty()) {
             throw new DeviceConfigurationException(errors.toString());
