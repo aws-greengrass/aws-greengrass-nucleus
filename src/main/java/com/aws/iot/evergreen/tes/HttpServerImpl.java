@@ -17,20 +17,10 @@ public class HttpServerImpl implements Server {
     private final HttpServer httpImpl;
 
     @Inject
-    private HttpHandler credentialRequestHandler;
+    private final HttpHandler credentialRequestHandler;
 
     /**
      * Constructor.
-     * @param port Http server port
-     * @throws IOException When server creation fails
-     */
-    HttpServerImpl(int port) throws IOException {
-        // TODO: validate port
-        httpImpl = HttpServer.create(new InetSocketAddress(port), 0);
-    }
-
-    /**
-     * Constructor for Unit testing.
      * @param port Http server port
      * @param credentialRequestHandler request handler for server requests
      * @throws IOException When server creation fails

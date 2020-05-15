@@ -7,9 +7,6 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.DeviceConfigurationHelper;
-import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
-import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Coerce;
 
@@ -26,13 +23,10 @@ public class TokenExchangeService extends EvergreenService {
     //TODO: this is used by GG daemon, revisit for backward compatibility
     private static final int DEFAULT_PORT = 8000;
     private int port;
-    private String iotEndpoint;
     private HttpServerImpl server;
-    @Inject
-    private DeviceConfigurationHelper deviceConfigurationHelper;
 
     @Inject
-    private IotConnectionManagerFactory iotConnectionManagerFactory;
+    private IotConnectionManager iotConnectionManager;
 
     /**
      * Constructor.
@@ -45,24 +39,17 @@ public class TokenExchangeService extends EvergreenService {
                 .dflt(DEFAULT_PORT)
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
-
-        topics.lookup("iotEndpoint")
-                .subscribe((why, newv) ->
-                        iotEndpoint = Coerce.toString(newv));
     }
 
     /**
      * Contructor for unit testing.
      * @param topics the configuration coming from kernel
-     * @param deviceConfigurationHelper {@link DeviceConfigurationHelper}
-     * @param iotConnectionManagerFactory {@link IotConnectionManagerFactory}
+     * @param iotConnectionManager {@link IotConnectionManager}
      */
     public TokenExchangeService(Topics topics,
-                                DeviceConfigurationHelper deviceConfigurationHelper,
-                                IotConnectionManagerFactory iotConnectionManagerFactory) {
+                                IotConnectionManager iotConnectionManager) {
         super(topics);
-        this.deviceConfigurationHelper = deviceConfigurationHelper;
-        this.iotConnectionManagerFactory = iotConnectionManagerFactory;
+        this.iotConnectionManager = iotConnectionManager;
     }
 
     @Override
@@ -71,14 +58,12 @@ public class TokenExchangeService extends EvergreenService {
         // TODO: Support tes restart with change in configuration like port, endpoint.
         logger.atInfo().addKeyValue("port", port).log("Starting Token Server at port {}", port);
         try {
-            IotConnectionManager connManager = iotConnectionManagerFactory.getIotConnectionManager(iotEndpoint,
-                    deviceConfigurationHelper.getDeviceConfiguration());
             IotCloudHelper cloudHelper = new IotCloudHelper();
-            server = new HttpServerImpl(port, new CredentialRequestHandler(cloudHelper, connManager));
+            server = new HttpServerImpl(port, new CredentialRequestHandler(cloudHelper, iotConnectionManager));
             server.start();
             setEnvVariablesForDependencies();
             reportState(State.RUNNING);
-        } catch (IOException | DeviceConfigurationException e) {
+        } catch (IOException e) {
             logger.atError().setCause(e).log();
             reportState(State.ERRORED);
         }
@@ -91,14 +76,6 @@ public class TokenExchangeService extends EvergreenService {
             server.stop();
         }
         logger.atInfo().log("Stopped Server at port {}", port);
-    }
-
-    public static class IotConnectionManagerFactory {
-        public IotConnectionManager getIotConnectionManager(final String iotEndpoint,
-                                                            final DeviceConfiguration deviceConfiguration)
-                throws DeviceConfigurationException {
-            return new IotConnectionManager(iotEndpoint, deviceConfiguration);
-        }
     }
 
     private void setEnvVariablesForDependencies() {

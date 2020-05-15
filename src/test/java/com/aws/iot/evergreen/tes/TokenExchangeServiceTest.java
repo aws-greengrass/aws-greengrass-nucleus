@@ -23,7 +23,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     DeviceConfigurationHelper mockDeviceHelper;
 
     @Mock
-    TokenExchangeService.IotConnectionManagerFactory connectionManagerFactory;
+    IotConnectionManager mockIotConnectionManager;
 
     @BeforeEach
     public void setup() {
@@ -41,7 +41,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
         when(config.getRoot()).thenReturn(mockConfig);
         when(mockConfig.lookup(anyString(), anyString())).thenReturn(mockTopic);
 
-        TokenExchangeService tes = new TokenExchangeService(config, mockDeviceHelper, connectionManagerFactory);
+        TokenExchangeService tes = new TokenExchangeService(config, mockIotConnectionManager);
         tes.startup();
         Thread.sleep(5000L);
         tes.shutdown();

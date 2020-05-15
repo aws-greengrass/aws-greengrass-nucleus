@@ -32,9 +32,9 @@ public class CredentialRequestHandler implements HttpHandler {
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
-        final String credentials = getCredentials();
-        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, credentials.length());
-        exchange.getResponseBody().write(credentials.getBytes(StandardCharsets.UTF_8));
+        final byte[] credentials = getCredentials();
+        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, credentials.length);
+        exchange.getResponseBody().write(credentials);
         exchange.close();
     }
 
@@ -42,7 +42,7 @@ public class CredentialRequestHandler implements HttpHandler {
      * API for kernel to directly fetch credentials from TES instead of using HTTP server.
      * @return AWS credentials from cloud.
      */
-    public String getCredentials() {
+    public byte[] getCredentials() {
         String credentials = "--alive--";
         // TODO: Add cache
         try {
@@ -52,6 +52,6 @@ public class CredentialRequestHandler implements HttpHandler {
         } catch (AWSIotException e) {
             // TODO: Generate 4xx, 5xx responses for all error scnearios
         }
-        return credentials;
+        return credentials.getBytes(StandardCharsets.UTF_8);
     }
 }

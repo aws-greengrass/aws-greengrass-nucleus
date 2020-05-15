@@ -51,7 +51,7 @@ public class CredentialRequestHandlerTest {
     public void GIVEN_credential_handler_WHEN_called_get_credentials_THEN_returns_success() throws Exception {
         when(mockCloudHelper.sendHttpRequest(any(), any(), any())).thenReturn(RESPONSE_STR);
         CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager);
-        final String creds = handler.getCredentials();
+        final String creds = new String(handler.getCredentials());
         assertThat(RESPONSE_STR, is(creds));
     }
 }
