@@ -18,7 +18,7 @@ import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -44,11 +44,11 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_SAFE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -464,7 +464,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         };
 
         try {
-            Log4jLogEventBuilder.addGlobalListener(listener);
+            Slf4jLogAdapter.addGlobalListener(listener);
             assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
                     "Merge should not happen within 2 seconds");
             assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
@@ -474,7 +474,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
             assertTrue(sawUpdatesCompleted.get(), "Service should have been called when the update was done");
         } finally {
-            Log4jLogEventBuilder.removeGlobalListener(listener);
+            Slf4jLogAdapter.removeGlobalListener(listener);
         }
     }
 

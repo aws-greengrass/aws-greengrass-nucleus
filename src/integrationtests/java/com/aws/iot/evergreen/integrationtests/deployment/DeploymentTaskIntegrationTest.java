@@ -16,8 +16,8 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -151,7 +151,7 @@ class DeploymentTaskIntegrationTest {
                 }
             }
         };
-        Log4jLogEventBuilder.addGlobalListener(listener);
+        Slf4jLogAdapter.addGlobalListener(listener);
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
                 System.currentTimeMillis());
@@ -162,7 +162,7 @@ class DeploymentTaskIntegrationTest {
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
         assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
                 Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
-        Log4jLogEventBuilder.removeGlobalListener(listener);
+        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     @Test
@@ -179,7 +179,7 @@ class DeploymentTaskIntegrationTest {
                 countDownLatch.countDown();
             }
         };
-        Log4jLogEventBuilder.addGlobalListener(listener);
+        Slf4jLogAdapter.addGlobalListener(listener);
 
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
@@ -187,7 +187,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(30, TimeUnit.SECONDS);
         countDownLatch.await(60, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
-        Log4jLogEventBuilder.removeGlobalListener(listener);
+        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     /**

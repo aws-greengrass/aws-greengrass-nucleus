@@ -6,7 +6,6 @@
 package com.aws.iot.evergreen.testcommons.testutilities;
 
 import com.aws.iot.evergreen.util.Exec;
-import org.apache.logging.log4j.util.Strings;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -32,8 +31,8 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
         List<String> childPids = getChildPids();
         if (!childPids.isEmpty()) {
             System.err.println(
-                    "Child PID not cleaned after test case " + context.getDisplayName() + ". Child PIDs: " + Strings
-                            .join(childPids, ','));
+                    "Child PID not cleaned after test case " + context.getDisplayName() + ". Child PIDs: " + String
+                            .join(", ", childPids));
         }
     }
 

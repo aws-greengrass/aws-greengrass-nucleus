@@ -8,7 +8,7 @@ import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.logging.impl.Log4jLogEventBuilder;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.junit.jupiter.api.AfterAll;
@@ -77,7 +77,7 @@ class KernelTest extends BaseITCase {
 
         // add log listener to verify stdout pattern
         Consumer<EvergreenStructuredLogMessage> logListener = getLogListener();
-        Log4jLogEventBuilder.addGlobalListener(logListener);
+        Slf4jLogAdapter.addGlobalListener(logListener);
 
         // launch kernel
         kernel = new Kernel();
@@ -94,7 +94,7 @@ class KernelTest extends BaseITCase {
         System.out.println("Group 1 passed");
 
         // clean up
-        Log4jLogEventBuilder.removeGlobalListener(logListener);
+        Slf4jLogAdapter.removeGlobalListener(logListener);
 
         kernel.shutdown();
     }
