@@ -1,0 +1,11 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: DependencyUnknownKeyword
+Description: Test recipe for Evergreen packages
+Publisher: Me
+Version: '1.0.0'
+Dependencies:
+  Log:
+    unknown: any
+  Cool-Database:
+    DependencyType: hARD

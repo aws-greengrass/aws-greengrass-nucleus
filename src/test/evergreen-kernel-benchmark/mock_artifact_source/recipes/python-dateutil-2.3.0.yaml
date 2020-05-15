@@ -5,4 +5,5 @@ Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '2.3.0'
 Dependencies:
-  six: ''
+  six:
+    VersionRequirements: ''

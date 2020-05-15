@@ -11,14 +11,15 @@ import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 public final class PlatformResolver {
-    private static final Set<String> SUPPORTED_PLATFORMS = initializeSupportedPlatforms();
-    public static final Map<String, Integer> RANKS = initializeRanks();
+    private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
+    public static final Map<String, Integer> RANKS = Collections.unmodifiableMap(initializeRanks());
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
 
     private static Set<String> initializeSupportedPlatforms() {

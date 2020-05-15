@@ -27,7 +27,10 @@ Artifacts:
   - %s/MonitoringService-1.0.0/monitor_artifact_100.txt
 Dependencies:
   all:
-    Log: '2.0'
-    Cool-Database: '1.0'
+    Log:
+      VersionRequirements: '2.0'
+    Cool-Database:
+      VersionRequirements: '1.0'
   macos:
-    mac-log: '1.0'
+    mac-log:
+      VersionRequirements: '1.0'
