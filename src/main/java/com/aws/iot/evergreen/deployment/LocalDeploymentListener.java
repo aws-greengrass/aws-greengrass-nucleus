@@ -4,9 +4,10 @@ import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.util.concurrent.LinkedBlockingQueue;
+import javax.inject.Inject;
+import javax.inject.Named;
 
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
 
@@ -16,10 +17,13 @@ public class LocalDeploymentListener {
     public static final String LOCAL_DEPLOYMENT_ID_PREFIX = "Local-";
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     private static Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
-    @Setter
+
+    @Inject
+    @Named("deploymentsQueue")
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
-    //TODO: LocalDeploymentListener should register with IPC to submitLocalDeployment
+    //TODO: LocalDeploymentListener should register with IPC to expose submitLocalDeployment
+    //TODO: the interface is not finalized yet, this is more an example.
     /** schedules a deployment with deployment service.
      * @param deploymentDocument document configuration
      * @return true if deployment was scheduled

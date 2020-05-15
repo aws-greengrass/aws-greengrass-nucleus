@@ -46,11 +46,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.iot.evergreen.deployment.DeploymentService.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.iot.evergreen.deployment.DeploymentService.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
-import static com.aws.iot.evergreen.deployment.DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS;
-import static com.aws.iot.evergreen.deployment.DeploymentService.UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG;
-import static com.aws.iot.evergreen.deployment.DeploymentService.UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
+import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG;
+import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;

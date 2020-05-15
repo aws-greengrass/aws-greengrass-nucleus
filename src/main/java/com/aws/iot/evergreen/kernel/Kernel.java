@@ -9,6 +9,8 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.IotJobsHelper;
+import com.aws.iot.evergreen.deployment.LocalDeploymentListener;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
