@@ -62,12 +62,12 @@ public class PackageParameter {
         for (Map.Entry<String, Object> parameter : configuration.entrySet()) {
             Object value = parameter.getValue();
             if (value instanceof String) {
-                set.add(new PackageParameter(parameter.getKey(), (String) parameter.getValue(), ParameterType.STRING));
+                set.add(new PackageParameter(parameter.getKey(), (String) value, ParameterType.STRING));
             } else if (value instanceof Boolean) {
-                set.add(new PackageParameter(parameter.getKey(), ((Boolean) parameter.getValue()).toString(),
-                        ParameterType.STRING));
+                set.add(new PackageParameter(parameter.getKey(), ((Boolean) value).toString(),
+                        ParameterType.BOOLEAN));
             } else if (value instanceof Number) {
-                set.add(new PackageParameter(parameter.getKey(), String.valueOf(parameter.getValue()),
+                set.add(new PackageParameter(parameter.getKey(), String.valueOf(value),
                         ParameterType.NUMBER));
             }
         }
