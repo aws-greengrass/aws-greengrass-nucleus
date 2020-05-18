@@ -5,6 +5,8 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -100,6 +102,11 @@ public class KernelCommandLine {
 
         kernel.getConfig().lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
+
+        // Always initialize default credential provider, can be overridden before launch if needed
+        // TODO: This should be replaced by a Token Exchange Service credential provider
+        AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
+        kernel.getContext().put("greengrassServiceCredentialProvider", credentialsProvider);
     }
 
     private void initPaths(String rootAbsolutePath) {

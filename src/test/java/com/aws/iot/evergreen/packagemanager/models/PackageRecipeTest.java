@@ -61,7 +61,7 @@ public class PackageRecipeTest {
         assertThat(testPkg.getLifecycle(), IsMapContaining.hasKey("run"));
 
         // TODO: Check for providers
-        assertThat(testPkg.getArtifacts(), IsCollectionWithSize.hasSize(1));
+        assertThat(testPkg.getArtifacts().get("all"), IsCollectionWithSize.hasSize(1));
 
         Map<String, RecipeDependencyProperties> dependencies = testPkg.getDependencies();
         assertThat(dependencies.size(), is(1));

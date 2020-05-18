@@ -1,22 +1,31 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.greengrasspackagemanagement.AWSGreengrassPackageManagement;
-import com.amazonaws.services.greengrasspackagemanagement.model.GetPackageRequest;
-import com.amazonaws.services.greengrasspackagemanagement.model.GetPackageResult;
-import com.amazonaws.services.greengrasspackagemanagement.model.RecipeFormatType;
+import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
+import com.amazonaws.services.greengrasscomponentmanagement.model.ComponentSelectedMetadata;
+import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentRequest;
+import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentResult;
+import com.amazonaws.services.greengrasscomponentmanagement.model.ListComponentsRequest;
+import com.amazonaws.services.greengrasscomponentmanagement.model.ListComponentsResult;
+import com.amazonaws.services.greengrasscomponentmanagement.model.RecipeFormatType;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
+import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
+import com.vdurmont.semver4j.Requirement;
+import com.vdurmont.semver4j.Semver;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 public class GreengrassPackageServiceHelper {
@@ -29,22 +38,40 @@ public class GreengrassPackageServiceHelper {
     // Service logger instance
     protected final Logger logger = LogManager.getLogger(GreengrassPackageServiceHelper.class);
 
-    private final AWSGreengrassPackageManagement evgPmsClient;
+    private final AWSGreengrassComponentManagement evgPmsClient;
 
     @Inject
     public GreengrassPackageServiceHelper(GreengrassPackageServiceClientFactory clientFactory) {
-        this.evgPmsClient = clientFactory.getPmsClient();
+        this.evgPmsClient = clientFactory.getCmsClient();
+    }
+
+    List<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement) {
+        ListComponentsRequest listComponentsRequest =
+                new ListComponentsRequest().withComponentName(packageName)
+                                           .withComponentVersionConstraint(versionRequirement.toString());
+        ListComponentsResult listComponentsResult = evgPmsClient.listComponents(listComponentsRequest);
+        List<ComponentSelectedMetadata> componentSelectedMetadataList = listComponentsResult.getComponents();
+        return componentSelectedMetadataList.stream().map(componentMetadata -> {
+            PackageIdentifier packageIdentifier
+                    = new PackageIdentifier(componentMetadata.getComponentName(),
+                                            new Semver(componentMetadata.getComponentVersion()),
+                                            componentMetadata.getComponentARN());
+            // Dependencies map is unused as of now, there's no point in requesting dependencies for
+            // ALL package versions at this step, will be filled in later by package manager
+            return new PackageMetadata(packageIdentifier, Collections.emptyMap());
+        }).collect(Collectors.toList());
     }
 
     PackageRecipe downloadPackageRecipe(PackageIdentifier packageIdentifier)
             throws PackageDownloadException, PackageLoadingException {
-        GetPackageRequest getPackageRequest =
-                new GetPackageRequest().withPackageARN(packageIdentifier.getArn())
-                                       .withType(RecipeFormatType.YAML);
+        GetComponentRequest getComponentRequest =
+                new GetComponentRequest().withComponentName(packageIdentifier.getName())
+                                         .withComponentVersion(packageIdentifier.getVersion().toString())
+                                         .withType(RecipeFormatType.YAML);
 
-        GetPackageResult getPackageResult;
+        GetComponentResult getPackageResult;
         try {
-            getPackageResult = evgPmsClient.getPackage(getPackageRequest);
+            getPackageResult = evgPmsClient.getComponent(getComponentRequest);
         } catch (AmazonClientException e) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT,

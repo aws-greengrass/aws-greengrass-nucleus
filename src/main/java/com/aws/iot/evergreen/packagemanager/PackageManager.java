@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -24,15 +25,15 @@ import com.vdurmont.semver4j.Semver;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 public class PackageManager implements InjectionActions {
@@ -107,7 +108,8 @@ public class PackageManager implements InjectionActions {
 
         }
 
-        // TODO 4. list available packages from cloud when cloud SDK is ready.
+        packageMetadataList.addAll(greengrassPackageServiceHelper.listAvailablePackageMetadata(packageName,
+                                                                                               versionRequirement));
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", packageMetadataList)
@@ -136,15 +138,13 @@ public class PackageManager implements InjectionActions {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
-            List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
-                try {
-                    return new URI(artifactStr);
-                } catch (URISyntaxException e) {
-                    String message = String.format("artifact URI %s is invalid", artifactStr);
-                    logger.atError().setCause(e).log(message);
-                    throw new RuntimeException(message, e);
-                }
-            }).collect(Collectors.toList());
+
+            final Set<String> resolvedPlatforms = PlatformResolver.RANKS.get().keySet();
+            List<URI> artifactURIList = new java.util.ArrayList<>();
+            for (String platform : resolvedPlatforms) {
+                artifactURIList.addAll(pkg.getArtifacts().getOrDefault(platform, Collections.emptyList()));
+            }
+
             downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
             logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
                     .log();

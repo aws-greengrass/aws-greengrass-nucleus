@@ -290,7 +290,7 @@ class KernelConfigResolverTest {
         PackageRecipe rootPackageRecipe = new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
                 rootPackageIdentifier.getVersion(), "", "", Collections.emptySet(), new HashMap<String, Object>() {{
             put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
-        }}, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+        }}, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap());
@@ -329,7 +329,7 @@ class KernelConfigResolverTest {
 
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
-                parameters, getSimplePackageLifecycle(packageName), Collections.emptyList(), dependencies,
+                parameters, getSimplePackageLifecycle(packageName), Collections.emptyMap(), dependencies,
                 getSimpleCustomConfigString(packageName), getSimpleEnvVariables(packageName));
     }
 
