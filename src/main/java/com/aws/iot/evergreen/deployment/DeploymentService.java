@@ -150,7 +150,7 @@ public class DeploymentService extends EvergreenService {
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
             //One thread cannot wait on both. If we want to make this completely event driven then we need to put
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
-            Deployment deployment = deploymentsQueue.poll();
+            Deployment deployment = deploymentsQueue.peek();
             if (deployment != null) {
                 if (currentDeploymentId != null) {
                     if (deployment.getId().equals(currentDeploymentId)
@@ -163,6 +163,7 @@ public class DeploymentService extends EvergreenService {
                         cancelCurrentDeployment();
                     }
                 }
+                deploymentsQueue.remove();
                 createNewDeployment(deployment);
             }
             Thread.sleep(pollingFrequency);
@@ -187,13 +188,13 @@ public class DeploymentService extends EvergreenService {
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("detailed-deployment-status", deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
-                    deploymentStatusKeeper.persistAndUpdateDeploymentStatus(currentDeploymentId, currentDeploymentType,
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
                             JobStatus.SUCCEEDED, statusDetails);
                 } else {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
                     }
-                    deploymentStatusKeeper.persistAndUpdateDeploymentStatus(currentDeploymentId, currentDeploymentType,
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
                             JobStatus.FAILED, statusDetails);
                 }
             }
@@ -206,7 +207,7 @@ public class DeploymentService extends EvergreenService {
             statusDetails.put("error", t.getMessage());
             if (t instanceof NonRetryableDeploymentTaskFailureException
                     || currentJobAttemptCount.get() >= DEPLOYMENT_MAX_ATTEMPTS) {
-                deploymentStatusKeeper.persistAndUpdateDeploymentStatus(currentDeploymentId, currentDeploymentType,
+                deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
                         JobStatus.FAILED, statusDetails);
                 currentJobAttemptCount.set(0);
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
@@ -250,14 +251,14 @@ public class DeploymentService extends EvergreenService {
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
-            deploymentStatusKeeper.persistAndUpdateDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
+            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                     JobStatus.FAILED, statusDetails);
             return;
         }
         currentDeploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
                         logger, deploymentDocument);
-        deploymentStatusKeeper.persistAndUpdateDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
         currentProcessStatus = executorService.submit(currentDeploymentTask);
 

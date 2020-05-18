@@ -16,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
@@ -85,6 +86,7 @@ public class IotJobsHelper implements InjectionActions {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
+    private static final String STATUS_LOG_KEY_NAME = "Status";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
@@ -161,7 +163,7 @@ public class IotJobsHelper implements InjectionActions {
         unprocessedJobs.decrementAndGet();
         JobExecutionData jobExecutionData = response.execution;
 
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv("Status", jobExecutionData.status)
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv(STATUS_LOG_KEY_NAME, jobExecutionData.status)
                 .log("Received Iot job description", jobExecutionData.jobId, jobExecutionData.status);
 
         String documentString;
@@ -179,7 +181,7 @@ public class IotJobsHelper implements InjectionActions {
         }
     };
 
-    @Setter
+    @Getter
     private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
@@ -193,25 +195,15 @@ public class IotJobsHelper implements InjectionActions {
 
         @Override
         @SuppressWarnings("PMD.UselessParentheses")
+        @SuppressFBWarnings
         public void onConnectionResumed(boolean sessionPresent) {
             logger.atInfo().kv("sessionPresent", (sessionPresent ? "true" : "false")).log("Connection resumed");
             executorService.submit(() -> {
                 subscribeToJobsTopics();
-                deploymentStatusKeeper.updateStatusOfPersistedDeployments(DeploymentType.IOT_JOBS);
+                deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
             });
         }
     };
-
-    /**
-     * Constructor.
-     * @param deploymentsQueue The queue to which the received deployments will be pushed
-     * @param callback The callback invoked upon mqtt connection events
-     */
-    public IotJobsHelper(LinkedBlockingQueue<Deployment> deploymentsQueue,
-                         MqttClientConnectionEvents callback) {
-        this.callbacks = callback;
-        this.deploymentsQueue = deploymentsQueue;
-    }
 
     /**
      * Constructor for unit testing.
@@ -221,13 +213,15 @@ public class IotJobsHelper implements InjectionActions {
                   AWSIotMqttConnectionFactory awsIotMqttConnectionFactory,
                   IotJobsClientFactory iotJobsClientFactory,
                   LinkedBlockingQueue<Deployment> deploymentsQueue,
-                  MqttClientConnectionEvents callbacks) throws DeviceConfigurationException {
+                  DeploymentStatusKeeper deploymentStatusKeeper,
+                  ExecutorService executorService) throws DeviceConfigurationException {
         this.deviceConfigurationHelper = deviceConfigurationHelper;
         this.awsIotMqttConnectionFactory = awsIotMqttConnectionFactory;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentsQueue = deploymentsQueue;
-        this.callbacks = callbacks;
         this.thingName = deviceConfigurationHelper.getDeviceConfiguration().getThingName();
+        this.deploymentStatusKeeper = deploymentStatusKeeper;
+        this.executorService = executorService;
     }
 
     @Override
@@ -373,7 +367,7 @@ public class IotJobsHelper implements InjectionActions {
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
         String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status).kv("StatusDetails",
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status).kv("StatusDetails",
                 deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS).toString())
                 .log("Updating status of persisted deployment");
         try {
@@ -396,7 +390,7 @@ public class IotJobsHelper implements InjectionActions {
             //assuming this is due to network issue
             logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
         } catch (InterruptedException e) {
-            logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status)
+            logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                     .log("Got interrupted while updating the job status");
         }
         return false;
@@ -422,7 +416,7 @@ public class IotJobsHelper implements InjectionActions {
         CompletableFuture<Void> gotResponse = new CompletableFuture<>();
         iotJobsClient.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status)
+                    logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                             .log("Job status updated accepted");
                     String acceptTopicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);
@@ -432,7 +426,7 @@ public class IotJobsHelper implements InjectionActions {
 
         iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("Status", status)
+                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                             .log("Job status updated rejected");
                     String rejectTopicForJobId = UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);

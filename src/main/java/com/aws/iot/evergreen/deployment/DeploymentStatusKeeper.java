@@ -38,7 +38,7 @@ public class DeploymentStatusKeeper {
 
     private Topics processedDeployments;
 
-    private Map<DeploymentType, Function<Map<String, Object>, Boolean>> deploymentStatusConsumer
+    private final Map<DeploymentType, Function<Map<String, Object>, Boolean>> deploymentStatusConsumer
             = new ConcurrentHashMap<>();
 
     /**
@@ -59,15 +59,15 @@ public class DeploymentStatusKeeper {
      * @param status status of deployment.
      * @param statusDetails other details of deployment status.
      */
-    public void persistAndUpdateDeploymentStatus(String jobId, DeploymentType deploymentType,
-                                                 JobStatus status, Map<String, String> statusDetails) {
+    public void persistAndPublishDeploymentStatus(String jobId, DeploymentType deploymentType,
+                                                  JobStatus status, Map<String, String> statusDetails) {
         // no need to persist status for local deployment
         if (deploymentType.equals(DeploymentType.LOCAL)) {
             return;
         }
 
         Topics processedDeployments = getProcessedDeployments();
-        //While this method is being run, another thread could be running the updateStatusOfPersistedDeployments
+        //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (processedDeployments) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("JobStatus", status).log("Storing job status");
@@ -92,7 +92,7 @@ public class DeploymentStatusKeeper {
      * all deployments the device performed when offline
      * @param type deployment type
      */
-    public void updateStatusOfPersistedDeployments(DeploymentType type) {
+    public void publishPersistedStatusUpdates(DeploymentType type) {
         Topics processedDeployments = getProcessedDeployments();
         //TODO: better sync approach.
         synchronized (processedDeployments) {
@@ -133,7 +133,7 @@ public class DeploymentStatusKeeper {
         }
     }
 
-    private Topics getProcessedDeployments() {
+    protected Topics getProcessedDeployments() {
         if (processedDeployments == null) {
             processedDeployments = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
         }
