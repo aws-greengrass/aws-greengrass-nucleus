@@ -451,6 +451,12 @@
                                         <exclude>META-INF/*.RSA</exclude>
                                     </excludes>
                                 </filter>
+                                <filter>
+                                    <artifact>ch.qos.logback:logback-classic:jar:*</artifact>
+                                    <excludes>
+                                        <exclude>org/slf4j/impl/StaticLoggerBinder.class</exclude>
+                                    </excludes>
+                                </filter>
                             </filters>
                         </configuration>
                     </execution>

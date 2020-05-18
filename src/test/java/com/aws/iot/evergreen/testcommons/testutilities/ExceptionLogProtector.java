@@ -53,24 +53,6 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         return (List<Throwable>) store.getOrComputeIfAbsent("exceptions", (k) -> new CopyOnWriteArrayList());
     }
 
-    @Override
-    public void beforeEach(ExtensionContext context) throws Exception {
-        Slf4jLogAdapter.addGlobalListener(getListener(context));
-
-        // Default ignores:
-
-        // Ignore IPCService being interrupted while starting which can happen if we call shutdown() too quickly
-        // after launch()
-        ignoreExceptionWithStackTraceContaining(context, InterruptedException.class, IPCService.class.getName() +
-                ".listen");
-
-        // Ignore error from MQTT not being configured
-        ignoreExceptionWithMessage(context, "[thingName cannot be empty, certificateFilePath cannot be empty, "
-                + "privateKeyPath cannot be empty, rootCAPath cannot be empty, clientEndpoint cannot be empty]");
-        // Ignore error from MQTT during shutdown
-        ignoreExceptionUltimateCauseWithMessage(context, "Mqtt operation interrupted by connection shutdown");
-    }
-
     private static Consumer<EvergreenStructuredLogMessage> getListener(ExtensionContext context) {
         ExtensionContext.Store store = context.getStore(getNs(context));
         return (Consumer<EvergreenStructuredLogMessage>) store.getOrComputeIfAbsent("listener",
@@ -78,34 +60,9 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
                         .accept(context, m));
     }
 
-    @Override
-    @SneakyThrows
-    public void afterEach(ExtensionContext context) throws Exception {
-        Slf4jLogAdapter.removeGlobalListener(getListener(context));
-
-        List<Throwable> exceptions = getExceptions(context);
-        try {
-            if (!exceptions.isEmpty()) {
-                System.err.println((exceptions.size() == 1 ? "1" : "Multiple")
-                        + " non-ignored exceptions occurred during test run. Failing test");
-                for (Throwable ex : exceptions) {
-                    ex.printStackTrace(System.err);
-                }
-                // Throw one exception to cause the test to fail
-                throw exceptions.get(0);
-            }
-        } finally {
-            // clear exceptions and predicates so that we start clean on the next run
-            // do this in the finally so that it happens after we have thrown/printed the exceptions
-            exceptions.clear();
-            getThrowablePredicates(context).clear();
-        }
-    }
-
     private static ExtensionContext.Namespace getNs(ExtensionContext context) {
         return ExtensionContext.Namespace.create(context.getUniqueId());
     }
-
 
     public static void ignoreExceptionWithMessage(ExtensionContext context, String message) {
         getThrowablePredicates(context).add((t) -> Objects.equals(t.getMessage(), message));
@@ -149,6 +106,48 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
             }
             return false;
         });
+    }
+
+    @Override
+    public void beforeEach(ExtensionContext context) throws Exception {
+        Slf4jLogAdapter.addGlobalListener(getListener(context));
+
+        // Default ignores:
+
+        // Ignore IPCService being interrupted while starting which can happen if we call shutdown() too quickly
+        // after launch()
+        ignoreExceptionWithStackTraceContaining(context, InterruptedException.class,
+                IPCService.class.getName() + ".listen");
+
+        // Ignore error from MQTT not being configured
+        ignoreExceptionWithMessageSubstring(context, "[thingName cannot be empty,"
+                + " certificateFilePath cannot be empty, privateKeyPath cannot be empty, rootCaPath cannot be empty,");
+        // Ignore error from MQTT during shutdown
+        ignoreExceptionUltimateCauseWithMessage(context, "Mqtt operation interrupted by connection shutdown");
+    }
+
+    @Override
+    @SneakyThrows
+    public void afterEach(ExtensionContext context) throws Exception {
+        Slf4jLogAdapter.removeGlobalListener(getListener(context));
+
+        List<Throwable> exceptions = getExceptions(context);
+        try {
+            if (!exceptions.isEmpty()) {
+                System.err.println((exceptions.size() == 1 ? "1" : "Multiple")
+                        + " non-ignored exceptions occurred during test run. Failing test");
+                for (Throwable ex : exceptions) {
+                    ex.printStackTrace(System.err);
+                }
+                // Throw one exception to cause the test to fail
+                throw exceptions.get(0);
+            }
+        } finally {
+            // clear exceptions and predicates so that we start clean on the next run
+            // do this in the finally so that it happens after we have thrown/printed the exceptions
+            exceptions.clear();
+            getThrowablePredicates(context).clear();
+        }
     }
 
     @Override

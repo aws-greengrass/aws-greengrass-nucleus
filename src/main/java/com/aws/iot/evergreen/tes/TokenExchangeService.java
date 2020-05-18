@@ -12,10 +12,8 @@ import com.aws.iot.evergreen.util.Coerce;
 
 import java.io.IOException;
 import javax.inject.Inject;
-import javax.inject.Singleton;
 
-@ImplementsService(name = "TokenExchangeService", autostart = false)
-@Singleton
+@ImplementsService(name = "TokenExchangeService")
 public class TokenExchangeService extends EvergreenService {
     private static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     // TODO: change when auth is supported
@@ -25,30 +23,23 @@ public class TokenExchangeService extends EvergreenService {
     private int port;
     private HttpServerImpl server;
 
-    @Inject
-    private IotConnectionManager iotConnectionManager;
+    private final IotConnectionManager iotConnectionManager;
 
     /**
      * Constructor.
      * @param topics the configuration coming from kernel
+     * @param iotConnectionManager {@link IotConnectionManager}
      */
-    public TokenExchangeService(Topics topics) {
+    @Inject
+    public TokenExchangeService(Topics topics,
+                                IotConnectionManager iotConnectionManager) {
         super(topics);
         // TODO: Add support for other params like role Aliases
         topics.lookup("port")
                 .dflt(DEFAULT_PORT)
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
-    }
 
-    /**
-     * Contructor for unit testing.
-     * @param topics the configuration coming from kernel
-     * @param iotConnectionManager {@link IotConnectionManager}
-     */
-    public TokenExchangeService(Topics topics,
-                                IotConnectionManager iotConnectionManager) {
-        super(topics);
         this.iotConnectionManager = iotConnectionManager;
     }
 
