@@ -57,7 +57,7 @@ public class IotJobsHelperTest {
     private static final String TEST_CERT_PATH = "TestCertPath";
     private static final String TEST_PRIVATE_KEY_PATH = "TestPrivateKeyPath";
     private static final String TEST_ROOT_CA_PATH = "TestRootCaPath";
-    private static final String TEST_MQTT_CLIENT_ENDPOINT = "TestMqttClientEndpoint";
+    private static final String TEST_MQTT_CLIENT_ENDPOINT = "TestiotDataEndpoint";
     private static final String TEST_IOT_CRED_ENDPOINT = "TestIoTCredEndpoint";
 
     @Mock

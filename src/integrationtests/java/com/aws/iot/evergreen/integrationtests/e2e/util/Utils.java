@@ -66,7 +66,7 @@ import java.util.function.Predicate;
 
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_IOT_CRED_ENDPOINT;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
@@ -317,7 +317,7 @@ public class Utils {
 
         Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT).withValue(thing.endpoint);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_IOT_DATA_ENDPOINT).withValue(thing.dataEndpoint);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privKeyFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).withValue(certFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(caFilePath);
@@ -332,7 +332,7 @@ public class Utils {
         public String certificateId;
         public String certificatePem;
         public KeyPair keyPair;
-        public String endpoint;
+        public String dataEndpoint;
         public String credEndpoint;
     }
 }

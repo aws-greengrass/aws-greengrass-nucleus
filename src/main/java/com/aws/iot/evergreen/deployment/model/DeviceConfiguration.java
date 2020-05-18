@@ -17,6 +17,6 @@ public class DeviceConfiguration {
     private String certificateFilePath;
     private String privateKeyFilePath;
     private String rootCAFilePath;
-    private String mqttClientEndpoint;
+    private String iotDataEndpoint;
     private String iotCredentialEndpoint;
 }

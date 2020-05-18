@@ -204,7 +204,7 @@ public class IotJobsHelper {
                                  deviceConfiguration.getPrivateKeyFilePath())) {
                 builder.withCertificateAuthorityFromPath(null, deviceConfiguration.getRootCAFilePath())
                         //TODO: With MQTT proxy this will change
-                        .withEndpoint(deviceConfiguration.getMqttClientEndpoint())
+                        .withEndpoint(deviceConfiguration.getIotDataEndpoint())
                         .withClientId(UUID.randomUUID().toString()).withCleanSession(true)
                         .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks)
                         .withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT).withPingTimeoutMs(MQTT_PING_TIMEOUT);
@@ -239,7 +239,7 @@ public class IotJobsHelper {
                     .kv("RootCAFilepath", deviceConfiguration.getRootCAFilePath())
                     .kv("PrivateKeyFilepath", deviceConfiguration.getPrivateKeyFilePath())
                     .kv("DeviceCertificateFilepath", deviceConfiguration.getCertificateFilePath())
-                    .kv("MqttEndpoint", deviceConfiguration.getMqttClientEndpoint())
+                    .kv("IoTDataEndpoint", deviceConfiguration.getIotDataEndpoint())
                     .log("Connecting to AWS Iot");
             connection.connect().get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException e) {

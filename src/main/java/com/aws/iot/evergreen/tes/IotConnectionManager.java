@@ -39,7 +39,7 @@ public class IotConnectionManager implements Closeable {
     /**
      * Constructor.
      *
-     * @param deviceConfiguration Device configuration for getting cert and keys for mTLS
+     * @param helper Device configuration helper for getting cert and keys for mTLS
      * @throws DeviceConfigurationException When unable to initialize this manager.
      */
     @Inject

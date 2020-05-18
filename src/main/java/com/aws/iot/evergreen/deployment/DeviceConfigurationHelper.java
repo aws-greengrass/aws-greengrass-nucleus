@@ -23,11 +23,12 @@ import javax.inject.Inject;
 public class DeviceConfigurationHelper {
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
-    public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
+    public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
     public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
+    private static final String CANNOT_BE_EMPTY = " cannot be empty";
 
     @Inject
     private Kernel kernel;
@@ -47,11 +48,11 @@ public class DeviceConfigurationHelper {
                 kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_CERTIFICATE_FILE_PATH));
         String privateKeyPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
         String rootCAPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
-        String mqttClientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
+        String iotDataEndpoint = getStringParameterFromConfig(DEVICE_PARAM_IOT_DATA_ENDPOINT);
         String iotCredEndpoint = getStringParameterFromConfig(DEVICE_PARAM_IOT_CRED_ENDPOINT);
-        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint,
+        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
                 iotCredEndpoint);
-        return new DeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint,
+        return new DeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
                 iotCredEndpoint);
     }
 
@@ -68,26 +69,26 @@ public class DeviceConfigurationHelper {
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
-                                             String rootCAPath, String clientEndpoint, String iotCredEndpoint)
+                                             String rootCAPath, String iotDataEndpoint, String iotCredEndpoint)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
-            errors.add("thingName cannot be empty");
+            errors.add(DEVICE_PARAM_THING_NAME + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(certificateFilePath)) {
-            errors.add("certificateFilePath cannot be empty");
+            errors.add(DEVICE_PARAM_CERTIFICATE_FILE_PATH + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(privateKeyPath)) {
-            errors.add("privateKeyPath cannot be empty");
+            errors.add(DEVICE_PARAM_PRIVATE_KEY_PATH + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(rootCAPath)) {
-            errors.add("rootCAPath cannot be empty");
+            errors.add(DEVICE_PARAM_ROOT_CA_PATH + CANNOT_BE_EMPTY);
         }
-        if (Utils.isEmpty(clientEndpoint)) {
-            errors.add("clientEndpoint cannot be empty");
+        if (Utils.isEmpty(iotDataEndpoint)) {
+            errors.add(DEVICE_PARAM_IOT_DATA_ENDPOINT + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(iotCredEndpoint)) {
-            errors.add("iotCredEndpoint cannot be empty");
+            errors.add(DEVICE_PARAM_IOT_CRED_ENDPOINT + CANNOT_BE_EMPTY);
         }
         if (!errors.isEmpty()) {
             throw new DeviceConfigurationException(errors.toString());
