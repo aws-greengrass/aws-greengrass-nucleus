@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.deployment.DeviceConfigurationHelper;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
@@ -24,6 +25,7 @@ import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import javax.inject.Inject;
 
 public class IotConnectionManager implements Closeable {
     // TODO: Move Iot related classes to a central location
@@ -31,24 +33,23 @@ public class IotConnectionManager implements Closeable {
     // TODO: ALPN support
     private static final int IOT_PORT = 8443;
     // Max wait time for device to establish mTLS connection with IOT core
-    private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = (long) Duration.ofMinutes(1).getSeconds();
-    private final String iotEndpoint;
+    private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = Duration.ofMinutes(1).getSeconds();
     private final HttpClientConnectionManager connManager;
 
     /**
      * Constructor.
-     * @param iotEndpoint Iot cloud credentials endpoint for managing connections to.
-     * @param deviceConfiguration Device configuration for getting cert and keys for mTLS
+     *
+     * @param helper Device configuration helper for getting cert and keys for mTLS
      * @throws DeviceConfigurationException When unable to initialize this manager.
      */
-    IotConnectionManager(final String iotEndpoint, final DeviceConfiguration deviceConfiguration)
-        throws DeviceConfigurationException {
-        this.iotEndpoint = iotEndpoint;
-        this.connManager = initConnectionManager(deviceConfiguration);
+    @Inject
+    IotConnectionManager(final DeviceConfigurationHelper helper) throws DeviceConfigurationException {
+        this.connManager = initConnectionManager(helper);
     }
 
-    private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration)
+    private HttpClientConnectionManager initConnectionManager(DeviceConfigurationHelper helper)
             throws DeviceConfigurationException {
+        DeviceConfiguration deviceConfiguration = helper.getDeviceConfiguration();
         final String certPath = deviceConfiguration.getCertificateFilePath();
         final String keyPath = deviceConfiguration.getPrivateKeyFilePath();
         final String caPath = deviceConfiguration.getRootCAFilePath();
@@ -58,18 +59,16 @@ public class IotConnectionManager implements Closeable {
              TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
             // TODO: Proxy support, ALPN support. Reuse connections across kernel
             tlsCtxOptions.overrideDefaultTrustStoreFromPath(null, caPath);
-            return HttpClientConnectionManager.create(
-                    new HttpClientConnectionManagerOptions()
-                            .withClientBootstrap(clientBootstrap)
-                            .withSocketOptions(new SocketOptions())
-                            .withTlsContext(new TlsContext(tlsCtxOptions))
-                            .withPort(IOT_PORT)
-                            .withUri(URI.create(iotEndpoint)));
+            return HttpClientConnectionManager
+                    .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
+                            .withSocketOptions(new SocketOptions()).withTlsContext(new TlsContext(tlsCtxOptions))
+                            .withPort(IOT_PORT).withUri(URI.create(deviceConfiguration.getIotCredentialEndpoint())));
         }
     }
 
     /**
      * Get a connection object for sending requests.
+     *
      * @return {@link HttpClientConnection}
      * @throws AWSIotException when getting a connection from underlying manager fails.
      */
@@ -77,13 +76,14 @@ public class IotConnectionManager implements Closeable {
         try {
             return connManager.acquireConnection().get(TIMEOUT_FOR_CONNECTION_SETUP_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            LOGGER.error("Getting connection failed for endpoint {} with error {} ", iotEndpoint, e);
+            LOGGER.error("Getting connection failed for endpoint {} with error {} ", connManager.getUri(), e);
             throw new AWSIotException(e);
         }
     }
 
     /**
      * Get the host string underlying connection manager.
+     *
      * @return Host string to be used in HTTP Host headers
      */
     public String getHost() {
