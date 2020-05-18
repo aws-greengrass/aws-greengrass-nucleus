@@ -24,7 +24,7 @@ public class DeviceConfigurationHelper {
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_MQTT_CLIENT_ENDPOINT = "mqttClientEndpoint";
-    public static final String DEVICE_PARAM_IOT_CERT_ENDPOINT = "iotCertEndpoint";
+    public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
@@ -48,11 +48,11 @@ public class DeviceConfigurationHelper {
         String privateKeyPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_PRIVATE_KEY_PATH));
         String rootCAPath = kernelCommandLine.deTilde(getStringParameterFromConfig(DEVICE_PARAM_ROOT_CA_PATH));
         String mqttClientEndpoint = getStringParameterFromConfig(DEVICE_PARAM_MQTT_CLIENT_ENDPOINT);
-        String iotCertEndpoint = getStringParameterFromConfig(DEVICE_PARAM_IOT_CERT_ENDPOINT);
+        String iotCredEndpoint = getStringParameterFromConfig(DEVICE_PARAM_IOT_CRED_ENDPOINT);
         validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint,
-                iotCertEndpoint);
+                iotCredEndpoint);
         return new DeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, mqttClientEndpoint,
-                iotCertEndpoint);
+                iotCredEndpoint);
     }
 
     private String getStringParameterFromConfig(String parameterName) {
@@ -68,7 +68,7 @@ public class DeviceConfigurationHelper {
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
-                                             String rootCAPath, String clientEndpoint, String iotCertEndpoint)
+                                             String rootCAPath, String clientEndpoint, String iotCredEndpoint)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
@@ -86,8 +86,8 @@ public class DeviceConfigurationHelper {
         if (Utils.isEmpty(clientEndpoint)) {
             errors.add("clientEndpoint cannot be empty");
         }
-        if (Utils.isEmpty(iotCertEndpoint)) {
-            errors.add("iotCertEndpoint cannot be empty");
+        if (Utils.isEmpty(iotCredEndpoint)) {
+            errors.add("iotCredEndpoint cannot be empty");
         }
         if (!errors.isEmpty()) {
             throw new DeviceConfigurationException(errors.toString());

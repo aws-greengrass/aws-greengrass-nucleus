@@ -80,7 +80,7 @@ class MultipleDeploymentsTest {
 
         // Cleanup all IoT thing resources we created
         Utils.cleanThing(thing);
-        createdIotJobs.forEach(jobId -> Utils.cleanJob(jobId));
+        createdIotJobs.forEach(Utils::cleanJob);
         createdIotJobs.clear();
         Utils.cleanThingGroup(thingGroupResp.thingGroupName());
     }

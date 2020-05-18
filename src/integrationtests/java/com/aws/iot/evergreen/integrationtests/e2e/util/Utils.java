@@ -65,6 +65,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_IOT_CRED_ENDPOINT;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_MQTT_CLIENT_ENDPOINT;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
@@ -72,15 +73,14 @@ import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 
 public class Utils {
-    public static IotClient iotClient = IotClient.builder().build();
-
     private static final String FULL_ACCESS_POLICY_NAME = "E2ETestFullAccess";
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final int DEFAULT_RETRIES = 5;
     private static final int DEFAULT_INITIAL_BACKOFF_MS = 100;
-    private static final Set<Class<? extends Throwable>> retryableIoTExceptions = new HashSet<>(Arrays.asList(
-            ThrottlingException.class, InternalException.class, InternalFailureException.class,
-            LimitExceededException.class));
+    private static final Set<Class<? extends Throwable>> retryableIoTExceptions = new HashSet<>(
+            Arrays.asList(ThrottlingException.class, InternalException.class, InternalFailureException.class,
+                    LimitExceededException.class));
+    public static IotClient iotClient = IotClient.builder().build();
 
     private Utils() {
     }
@@ -132,7 +132,8 @@ public class Utils {
                                                           Duration timeout, Predicate<JobExecutionStatus> condition)
             throws TimeoutException {
         Instant start = Instant.now();
-        Set<Class<? extends Throwable>> retryableExceptions = new HashSet<>(Arrays.asList(ResourceNotFoundException.class));
+        Set<Class<? extends Throwable>> retryableExceptions =
+                new HashSet<>(Arrays.asList(ResourceNotFoundException.class));
         retryableExceptions.addAll(retryableIoTExceptions);
 
         while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
@@ -157,12 +158,10 @@ public class Utils {
 
     public static CreateThingGroupResponse createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
         String thingGroupName = "e2etestgroup-" + UUID.randomUUID().toString();
-        CreateThingGroupResponse response = client.createThingGroup(CreateThingGroupRequest.builder()
-                .thingGroupName(thingGroupName)
-                .build());
+        CreateThingGroupResponse response =
+                client.createThingGroup(CreateThingGroupRequest.builder().thingGroupName(thingGroupName).build());
 
-        client.addThingToThingGroup(AddThingToThingGroupRequest.builder()
-                .thingArn(thingInfo.thingArn)
+        client.addThingToThingGroup(AddThingToThingGroupRequest.builder().thingArn(thingInfo.thingArn)
                 .thingGroupArn(response.thingGroupArn()).build());
 
         return response;
@@ -196,24 +195,27 @@ public class Utils {
 
         // Create the thing and attach the cert to it
         String thingName = "e2etest-" + UUID.randomUUID().toString();
-        String thingArn =
-                retryIot(() -> client.createThing(CreateThingRequest.builder().thingName(thingName).build()))
-                        .thingArn();
+        String thingArn = retryIot(() -> client.createThing(CreateThingRequest.builder().thingName(thingName).build()))
+                .thingArn();
         retryIot(() -> client.attachThingPrincipal(
                 AttachThingPrincipalRequest.builder().thingName(thingName).principal(keyResponse.certificateArn())
                         .build()));
 
         return new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
-                keyResponse.certificatePem(), keyResponse.keyPair(), retryIot(() -> client
-                .describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build()))
+                keyResponse.certificatePem(), keyResponse.keyPair(), retryIot(
+                () -> client.describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build()))
+                .endpointAddress(), retryIot(() -> client
+                .describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:CredentialProvider").build()))
                 .endpointAddress());
     }
 
-    public static void cleanThingGroup(String thingGroupName) { cleanThingGroup(iotClient, thingGroupName); }
+    public static void cleanThingGroup(String thingGroupName) {
+        cleanThingGroup(iotClient, thingGroupName);
+    }
 
     public static void cleanThingGroup(IotClient client, String thingGroupName) {
-        retryIot(() -> client.deleteThingGroup(DeleteThingGroupRequest.builder()
-                .thingGroupName(thingGroupName).build()));
+        retryIot(() -> client
+                .deleteThingGroup(DeleteThingGroupRequest.builder().thingGroupName(thingGroupName).build()));
     }
 
     public static void cleanThing(ThingInfo thing) {
@@ -257,17 +259,6 @@ public class Utils {
              FileOutputStream fileOutputStream = new FileOutputStream(f)) {
             fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
         }
-    }
-
-    @AllArgsConstructor
-    public static class ThingInfo {
-        public String thingArn;
-        public String thingName;
-        public String certificateArn;
-        public String certificateId;
-        public String certificatePem;
-        public KeyPair keyPair;
-        public String endpoint;
     }
 
     public static <T, E extends IotException> T retryIot(CrashableSupplier<T, E> func) {
@@ -330,5 +321,18 @@ public class Utils {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privKeyFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).withValue(certFilePath);
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(caFilePath);
+        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_IOT_CRED_ENDPOINT).withValue(thing.credEndpoint);
+    }
+
+    @AllArgsConstructor
+    public static class ThingInfo {
+        public String thingArn;
+        public String thingName;
+        public String certificateArn;
+        public String certificateId;
+        public String certificatePem;
+        public KeyPair keyPair;
+        public String endpoint;
+        public String credEndpoint;
     }
 }

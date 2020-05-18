@@ -58,7 +58,7 @@ public class IotJobsHelperTest {
     private static final String TEST_PRIVATE_KEY_PATH = "TestPrivateKeyPath";
     private static final String TEST_ROOT_CA_PATH = "TestRootCaPath";
     private static final String TEST_MQTT_CLIENT_ENDPOINT = "TestMqttClientEndpoint";
-    private static final String TEST_IOT_CERT_ENDPOINT = "TestIoTCertEndpoint";
+    private static final String TEST_IOT_CRED_ENDPOINT = "TestIoTCredEndpoint";
 
     @Mock
     private IotJobsClient mockIotJobsClient;
@@ -353,6 +353,6 @@ public class IotJobsHelperTest {
 
     private DeviceConfiguration getDeviceConfiguration() {
         return new DeviceConfiguration(TEST_THING_NAME, TEST_CERT_PATH,
-                TEST_PRIVATE_KEY_PATH, TEST_ROOT_CA_PATH, TEST_MQTT_CLIENT_ENDPOINT, TEST_IOT_CERT_ENDPOINT);
+                TEST_PRIVATE_KEY_PATH, TEST_ROOT_CA_PATH, TEST_MQTT_CLIENT_ENDPOINT, TEST_IOT_CRED_ENDPOINT);
     }
 }
