@@ -21,6 +21,7 @@ public class TokenExchangeService extends EvergreenService {
     //TODO: this is used by GG daemon, revisit for backward compatibility
     private static final int DEFAULT_PORT = 8000;
     private int port;
+    private String iotRoleAlias;
     private HttpServerImpl server;
 
     private final IotConnectionManager iotConnectionManager;
@@ -40,17 +41,22 @@ public class TokenExchangeService extends EvergreenService {
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
 
+        topics.lookup("iotRoleAlias")
+                .subscribe((why, newv) ->
+                        iotRoleAlias = Coerce.toString(newv));
+
         this.iotConnectionManager = iotConnectionManager;
     }
 
     @Override
     @SuppressWarnings("PMD.CloseResource")
     public void startup() {
-        // TODO: Support tes restart with change in configuration like port, endpoint.
+        // TODO: Support tes restart with change in configuration like port, roleAlias.
         logger.atInfo().addKeyValue("port", port).log("Starting Token Server at port {}", port);
         try {
             IotCloudHelper cloudHelper = new IotCloudHelper();
-            server = new HttpServerImpl(port, new CredentialRequestHandler(cloudHelper, iotConnectionManager));
+            server = new HttpServerImpl(port,
+                    new CredentialRequestHandler(iotRoleAlias, cloudHelper, iotConnectionManager));
             server.start();
             setEnvVariablesForDependencies();
             reportState(State.RUNNING);

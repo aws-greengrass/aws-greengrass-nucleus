@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 public class IotCloudHelperTest {
     private static final String CLOUD_RESPONSE = "HELLO WORLD";
     private static final String HOST = "localhost";
+    private static final String IOT_CREDENTIALS_PATH = "MOCK_PATH/get.json";
 
     @Mock
     IotConnectionManager mockConnectionManager;
@@ -49,7 +50,7 @@ public class IotCloudHelperTest {
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
         final String creds = cloudHelper.sendHttpRequest(mockConnectionManager,
-                CredentialRequestHandler.IOT_CREDENTIALS_PATH,
+                IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB);
         assertEquals(CLOUD_RESPONSE, creds);
     }
