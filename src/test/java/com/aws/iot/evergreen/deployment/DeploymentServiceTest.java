@@ -100,28 +100,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         mockKernel.shutdown();
     }
 
-    private void startDeploymentServiceInAnotherThread() throws InterruptedException {
-        CountDownLatch cdl = new CountDownLatch(1);
-        Consumer<EvergreenStructuredLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().equals("Running deployment service")) {
-                cdl.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(listener);
-
-        deploymentServiceThread = new Thread(() -> {
-            try {
-                deploymentService.startup();
-            } catch (InterruptedException ignore) {
-            }
-        });
-        deploymentServiceThread.start();
-
-        boolean running = cdl.await(1, TimeUnit.SECONDS);
-        Slf4jLogAdapter.removeGlobalListener(listener);
-        assertTrue(running, "Deployment service must be running");
-    }
-
     @Nested
     class DeploymentInProgress {
         CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
