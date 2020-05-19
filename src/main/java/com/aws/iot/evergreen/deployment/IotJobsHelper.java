@@ -237,6 +237,7 @@ public class IotJobsHelper implements InjectionActions {
             }
         });
 
+        //TODO: remove closing mqtt connection logic from iot jobs handler when MQTT proxy is implemented.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 closeConnection();

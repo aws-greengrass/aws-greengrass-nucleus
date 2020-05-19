@@ -133,7 +133,7 @@ public class DeploymentStatusKeeper {
         }
     }
 
-    protected Function<Map<String, Object>, Boolean> getConsumerForDeploymentType(DeploymentType type){
+    protected Function<Map<String, Object>, Boolean> getConsumerForDeploymentType(DeploymentType type) {
         return deploymentStatusConsumer.computeIfAbsent(type, deploymentType -> {
             logger.atDebug().log("Consumer not found, Dropping status update for type" + deploymentType);
             return (status) -> true;
