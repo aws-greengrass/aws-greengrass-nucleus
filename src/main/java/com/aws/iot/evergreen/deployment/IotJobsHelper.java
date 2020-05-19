@@ -271,7 +271,7 @@ public class IotJobsHelper implements InjectionActions {
                 connect();
             } catch (DeviceConfigurationException e) {
                 //Since there is no device configuration, device should still be able to perform local deploymentsQueue
-                logger.atWarn().setCause(e).log("Device not configured to communicate with AWS Iot Cloud"
+                logger.atWarn().setCause(e).log("Device not configured to communicate with AWS Iot Cloud "
                         + "Device will now operate in offline mode");
             } catch (ConnectionUnavailableException e) {
                 logger.atWarn().setCause(e).log("Fail to connect to IoT cloud due to connectivity issue,"
