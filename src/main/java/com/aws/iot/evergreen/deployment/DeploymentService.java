@@ -224,8 +224,10 @@ public class DeploymentService extends EvergreenService {
         }
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
+        //TODO: find a better way to track the current deployment details.
         currentProcessStatus = null;
         currentDeploymentId = null;
+        currentDeploymentType = null;
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -236,6 +238,7 @@ public class DeploymentService extends EvergreenService {
             currentProcessStatus.cancel(true);
             currentProcessStatus = null;
             currentDeploymentId = null;
+            currentDeploymentType = null;
         }
     }
 
@@ -269,7 +272,6 @@ public class DeploymentService extends EvergreenService {
 
         // newIotJobsDeployment will only be called at first attempt
         currentJobAttemptCount.set(1);
-
         currentDeploymentId = deployment.getId();
         currentDeploymentType = deployment.getDeploymentType();
     }

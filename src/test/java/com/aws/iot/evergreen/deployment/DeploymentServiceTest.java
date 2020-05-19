@@ -52,8 +52,6 @@ import static org.mockito.Mockito.when;
 public class DeploymentServiceTest extends EGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
-    //private static final String TEST_JOB_ID_2 = "TEST_JOB_2";
-    //private static final String CONNECTION_ERROR = "Connection error";
     private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
 
     @Spy
