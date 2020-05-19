@@ -28,6 +28,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
@@ -43,13 +44,9 @@ import static com.aws.iot.evergreen.util.Utils.nullEmpty;
  */
 @SuppressFBWarnings(value = "SC_START_IN_CTOR", justification = "Starting thread in constructor is what we want")
 public class Context implements Closeable {
-    private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(Context.class);
     private static final String classKeyword = "class";
-    // magical
-    private boolean shuttingDown = false;
-    // global state change notification
-    private CopyOnWriteArrayList<GlobalStateChangeListener> listeners;
+    private final ConcurrentHashMap<Object, Value> parts = new ConcurrentHashMap<>();
     private final BlockingDeque<Runnable> serialized = new LinkedBlockingDeque<>();
     private final Thread publishThread = new Thread() {
         {
@@ -74,6 +71,10 @@ public class Context implements Closeable {
             }
         }
     };
+    // magical
+    private boolean shuttingDown = false;
+    // global state change notification
+    private CopyOnWriteArrayList<GlobalStateChangeListener> listeners;
 
     public Context() {
         parts.put(Context.class, new Value(Context.class, this));
@@ -210,6 +211,10 @@ public class Context implements Closeable {
                     ((Closeable) object).close();
                     logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(object)).log();
                 }
+                if (object instanceof ExecutorService) {
+                    logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(object))
+                            .kv("executorInterruptedRunnables", ((ExecutorService) object).shutdownNow()).log();
+                }
             } catch (IOException t) {
                 logger.atError("context-shutdown-error", t).kv(classKeyword, Coerce.toString(object)).log();
             }
@@ -326,8 +331,8 @@ public class Context implements Closeable {
 
 
         /**
-         * Put a new object instance and inject fields with pre and post actions, if the new object is not equal
-         * to current one.
+         * Put a new object instance and inject fields with pre and post actions, if the new object is not equal to
+         * current one.
          *
          * @param newObject the new object instance
          * @return new object with fields injected
@@ -434,8 +439,8 @@ public class Context implements Closeable {
         }
 
         /**
-         * Computes and return T if object instance is null.
-         * TODO revisit to see if there is a better way because the mapping function usage is weird.
+         * Computes and return T if object instance is null. TODO revisit to see if there is a better way because the
+         * mapping function usage is weird.
          *
          * @param mappingFunction maps from Value to T
          * @param <E>             CheckedException
