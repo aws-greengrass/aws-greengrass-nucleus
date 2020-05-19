@@ -341,20 +341,32 @@ public class Lifecycle {
                     }
 
                     canFinish = true;
-                    logger.atInfo("service-set-state").kv(NEW_STATE_METRIC_NAME, newState).log();
-                    // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
-                    // are consistent across different services.
-                    synchronized (State.class) {
-                        prevState = current;
-                        stateTopic.withValue(newState);
-                        evergreenService.getContext().globalNotifyStateChanged(evergreenService, current, newState);
-                    }
+                    setState(current, newState);
+                    prevState = current;
                 }
                 if (asyncFinishAction.get().test(stateEvent)) {
                     canFinish = true;
                 }
             }
             asyncFinishAction.set((stateEvent) -> true);
+        }
+    }
+
+    /**
+     * !!WARNING!!
+     * This method is package-private for unit testing purposes, but it must NEVER be called
+     * from anything but the lifecycle thread in this class.
+     *
+     * @param current current state to transition out of
+     * @param newState new state to transition into
+     */
+    void setState(State current, State newState) {
+        logger.atInfo("service-set-state").kv(NEW_STATE_METRIC_NAME, newState).log();
+        // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
+        // are consistent across different services.
+        synchronized (State.class) {
+            stateTopic.withValue(newState);
+            evergreenService.getContext().globalNotifyStateChanged(evergreenService, current, newState);
         }
     }
 

@@ -70,7 +70,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         conf.getRoot().remove(this);
         if (out instanceof Commitable) {
             ((Commitable) out).commit();

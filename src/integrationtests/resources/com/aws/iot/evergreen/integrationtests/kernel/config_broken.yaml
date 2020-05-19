@@ -16,7 +16,7 @@ services:
   runErrorRetry:
     lifecycle:
       run: |-
-        sleep 0.5 # Sleep just a little so that it is marked as running and allows main to startup before this fails
+        sleep 1 # Sleep just a little so that it is marked as running and allows main to startup before this fails
         echo "RUN_BROKEN"
         exit 1
 
