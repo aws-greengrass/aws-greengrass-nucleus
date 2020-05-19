@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.LocalDeploymentListener;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +32,11 @@ public class LocalDeploymentListenerTest {
         Path localStoreContentPath = Paths.get(LocalDeploymentListenerTest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+    }
+
+    @AfterAll
+    static void tearDown() {
+        kernel.shutdown();
     }
 
     @Test

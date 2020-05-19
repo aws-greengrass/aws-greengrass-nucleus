@@ -4,10 +4,12 @@ import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,13 +31,19 @@ public class DeploymentStatusKeeperTest {
     private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
     private DeploymentStatusKeeper deploymentStatusKeeper;
     private Topics processedDeployments;
+    private Context context;
 
     @BeforeEach
     public void setup() {
-        Configuration config = new Configuration(new Context());
+        context = new Context();
         deploymentStatusKeeper = new DeploymentStatusKeeper();
-        deploymentStatusKeeper.setConfig(config);
+        deploymentStatusKeeper.setConfig(new Configuration(new Context()));
         processedDeployments = deploymentStatusKeeper.getProcessedDeployments();
+    }
+
+    @AfterEach
+    void afterEach() throws IOException {
+        context.close();
     }
 
     @Test
