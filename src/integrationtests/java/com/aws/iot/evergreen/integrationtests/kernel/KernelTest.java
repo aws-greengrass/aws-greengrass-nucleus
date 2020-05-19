@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -51,16 +53,16 @@ class KernelTest extends BaseITCase {
         }
     }
 
-    @AfterEach
-    void afterEach() {
-        kernel.shutdown();
-    }
-
     @AfterAll
     static void afterAll() {
         for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
             pattern.reset();
         }
+    }
+
+    @AfterEach
+    void afterEach() {
+        kernel.shutdown();
     }
 
     @Test
@@ -246,7 +248,9 @@ class KernelTest extends BaseITCase {
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
         kernel = new Kernel();
+        List<ExpectedStateTransition> actualTransitions = new LinkedList<>();
         kernel.getContext().addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+            actualTransitions.add(new ExpectedStateTransition(service.getName(), oldState, newState));
             if (expectedStateTransitionList.isEmpty()) {
                 return;
             }
@@ -255,8 +259,9 @@ class KernelTest extends BaseITCase {
 
             if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
                     .equals(expected.current)) {
-                System.out.println(String.format("Just saw state event for service %s: %s => %s", expected.serviceName,
-                        expected.was, expected.current));
+                LogManager.getLogger(getClass())
+                        .info("Just saw state event for service {}: {} => {}", expected.serviceName, expected.was,
+                                expected.current);
 
                 expectedStateTransitionList.pollFirst();
 
@@ -268,7 +273,7 @@ class KernelTest extends BaseITCase {
 
         kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
         kernel.launch();
-        assertionLatch.await(15, TimeUnit.SECONDS);
+        assertionLatch.await(30, TimeUnit.SECONDS);
 
         kernel.shutdown();
 
@@ -276,6 +281,8 @@ class KernelTest extends BaseITCase {
             expectedStateTransitionList.forEach(e -> System.err.println(
                     String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was, e.current)));
 
+            System.err.println("\n\nDid see: ");
+            actualTransitions.forEach(System.err::println);
             fail("Didn't see all expected state transitions");
         }
     }
