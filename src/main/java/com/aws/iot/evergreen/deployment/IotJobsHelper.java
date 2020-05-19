@@ -115,6 +115,7 @@ public class IotJobsHelper implements InjectionActions {
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
+    private final AtomicBoolean postInjectInProgress = new AtomicBoolean(false);
 
     private String thingName;
     private IotJobsClient iotJobsClient;
@@ -227,6 +228,15 @@ public class IotJobsHelper implements InjectionActions {
     @Override
     @SuppressFBWarnings
     public void postInject() {
+
+        //TODO: once connectToAWSIot and closeConnection is removed from post inject
+        // this check should be removed
+        if (postInjectInProgress.get()) {
+            return;
+        }
+        postInjectInProgress.set(true);
+
+        //TODO: remove establishing mqtt connection logic when when MQTT proxy is implemented.
         executorService.submit(() -> {
             try {
                 connectToAWSIot();
