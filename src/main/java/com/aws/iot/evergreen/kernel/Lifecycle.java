@@ -391,7 +391,7 @@ public class Lifecycle {
         }
 
         long currentStateGeneration = stateGeneration.incrementAndGet();
-        setBackingTask(() -> {
+        replaceBackingTask(() -> {
             if (!State.NEW.equals(getState()) || getStateGeneration().get() != currentStateGeneration) {
                 // Bail out if we're not in the expected state
                 return;
@@ -434,7 +434,7 @@ public class Lifecycle {
             return;
         }
 
-        setBackingTask(() -> {
+        replaceBackingTask(() -> {
             try {
                 logger.atInfo("service-awaiting-start").log("waiting for dependencies to start");
                 evergreenService.waitForDependencyReady();
@@ -459,7 +459,7 @@ public class Lifecycle {
 
         if (desiredState.get().equals(State.RUNNING)) {
             // if there is already a startup() task running, do nothing.
-            Future currentTask = backingTask.get();
+            Future<?> currentTask = backingTask.get();
             if (currentTask != null && !currentTask.isDone()) {
                 return;
             }
@@ -479,7 +479,7 @@ public class Lifecycle {
                 evergreenService.serviceErrored("startup timeout");
             }, timeout, TimeUnit.SECONDS);
 
-        setBackingTask(() -> {
+        replaceBackingTask(() -> {
             try {
                 if (!evergreenService.dependencyReady()) {
                     internalReportState(State.INSTALLED);
@@ -629,8 +629,8 @@ public class Lifecycle {
     }
 
     @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
-    private synchronized void setBackingTask(Runnable r, String action) {
-        Future bt = backingTask.get();
+    private synchronized Future<?> replaceBackingTask(Runnable r, String action) {
+        Future<?> bt = backingTask.get();
         String btName = backingTaskName;
 
         if (bt != null && !bt.isDone()) {
@@ -644,10 +644,11 @@ public class Lifecycle {
             logger.debug("Scheduling backingTask {}", backingTaskName);
             backingTask.set(evergreenService.getContext().get(ExecutorService.class).submit(r));
         }
+        return bt;
     }
 
-    private void stopBackingTask() {
-        setBackingTask(null, null);
+    private Future<?> stopBackingTask() {
+        return replaceBackingTask(null, null);
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")

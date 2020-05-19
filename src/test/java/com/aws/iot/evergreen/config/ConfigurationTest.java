@@ -9,6 +9,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -33,7 +34,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 @ExtendWith(EGExtension.class)
 public class ConfigurationTest {
-    Configuration config = new Configuration(new Context());
+
+    private Configuration config;
+
+    @BeforeEach()
+    void beforeEach() {
+        config = new Configuration(new Context());
+    }
 
     @AfterEach
     void afterEach() throws IOException {

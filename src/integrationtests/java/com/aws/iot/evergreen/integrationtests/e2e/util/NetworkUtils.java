@@ -22,9 +22,9 @@ public abstract class NetworkUtils {
 
     private static Platform initialize() {
         Platform platform = Platform.UNKNOWN;
-        if (PlatformResolver.RANKS.containsKey("linux")) {
+        if (PlatformResolver.RANKS.get().containsKey("linux")) {
             platform = Platform.LINUX;
-        } else if (PlatformResolver.RANKS.containsKey("macos")) {
+        } else if (PlatformResolver.RANKS.get().containsKey("macos")) {
             platform = Platform.MACOS;
         }
         return platform;
