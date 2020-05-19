@@ -210,10 +210,6 @@ public class KernelLifecycle {
             logger.atInfo().log("Waiting for executors to shutdown");
             executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
             scheduledExecutorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
-            // Shutdown executors by interrupting running threads
-            executorService.shutdownNow();
-            scheduledExecutorService.shutdownNow();
-            //TODO: this needs to be changed once state machine thread is using the shared executor
             logger.atInfo("executor-service-shutdown-complete").log();
             logger.atInfo("context-shutdown-initiated").log();
             kernel.getContext().close();
