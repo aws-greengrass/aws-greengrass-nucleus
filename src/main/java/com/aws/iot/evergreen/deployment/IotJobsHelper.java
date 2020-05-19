@@ -195,10 +195,9 @@ public class IotJobsHelper implements InjectionActions {
         }
 
         @Override
-        @SuppressWarnings("PMD.UselessParentheses")
         @SuppressFBWarnings
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.atInfo().kv("sessionPresent", (sessionPresent ? "true" : "false")).log("Connection resumed");
+            logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
             executorService.submit(() -> {
                 subscribeToJobsTopics();
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
