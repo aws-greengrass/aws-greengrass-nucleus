@@ -152,10 +152,15 @@ public class DeploymentService extends EvergreenService {
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
             Deployment deployment = deploymentsQueue.peek();
             if (deployment != null) {
-                if (currentDeploymentId != null) {
+                if (currentDeploymentType != null && !deployment.getDeploymentType().equals(currentDeploymentType)) {
+                    // deployment from another source, wait till the current deployment finish
+                    continue;
+                }
+                if (currentDeploymentId != null && currentDeploymentType != null) {
                     if (deployment.getId().equals(currentDeploymentId)
                             && deployment.getDeploymentType().equals(currentDeploymentType)) {
                         //Duplicate message and already processing this deployment so nothing is needed
+                        deploymentsQueue.remove();
                         continue;
                     } else {
                         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).log("Canceling the job");

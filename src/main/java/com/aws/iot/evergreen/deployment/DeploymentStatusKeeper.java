@@ -142,7 +142,8 @@ public class DeploymentStatusKeeper {
 
     protected Topics getProcessedDeployments() {
         if (processedDeployments == null) {
-            processedDeployments = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
+            processedDeployments = config.lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                    DEPLOYMENT_SERVICE_TOPICS, PROCESSED_DEPLOYMENTS_TOPICS);
         }
         return processedDeployments;
     }
