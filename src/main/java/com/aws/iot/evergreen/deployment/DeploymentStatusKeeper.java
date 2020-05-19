@@ -70,7 +70,7 @@ public class DeploymentStatusKeeper {
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (processedDeployments) {
-            logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("JobStatus", status).log("Storing job status");
+            logger.atDebug().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("JobStatus", status).log("Storing job status");
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, jobId);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, status);
@@ -80,7 +80,7 @@ public class DeploymentStatusKeeper {
             Topic thisJob = processedDeployments.createLeafChild(String.valueOf(System.currentTimeMillis()));
             thisJob.withValue(deploymentDetails);
 
-            if (deploymentStatusConsumer.get(deploymentType).apply(deploymentDetails)) {
+            if (getConsumerForDeploymentType(deploymentType).apply(deploymentDetails)) {
                 processedDeployments.remove(thisJob);
             }
         }
@@ -126,11 +126,18 @@ public class DeploymentStatusKeeper {
                 DeploymentType deploymentType = (DeploymentType)
                         deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE);
 
-                if (deploymentStatusConsumer.get(deploymentType).apply(deploymentDetails)) {
+                if (getConsumerForDeploymentType(deploymentType).apply(deploymentDetails)) {
                     processedDeployments.remove(topic);
                 }
             }
         }
+    }
+
+    protected Function<Map<String, Object>, Boolean> getConsumerForDeploymentType(DeploymentType type){
+        return deploymentStatusConsumer.computeIfAbsent(type, deploymentType -> {
+            logger.atDebug().log("Consumer not found, Dropping status update for type" + deploymentType);
+            return (status) -> true;
+        });
     }
 
     protected Topics getProcessedDeployments() {
