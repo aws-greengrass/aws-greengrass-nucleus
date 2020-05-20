@@ -10,12 +10,15 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -77,6 +80,25 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertTrue(ServicesAErroredLatch.await(5, TimeUnit.SECONDS));
         assertTrue(ServicesBErroredLatch.await(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_service_shutdown_with_timeout_WHEN_timeout_expires_THEN_service_still_closes()
+            throws InterruptedException, ServiceLoadException, TimeoutException, ExecutionException {
+        kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("service_shutdown_timesout.yaml").toString());
+        kernel.launch();
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        // service sleeps for 120 seconds during shutdown and timeout is 1 second, service should transition to errored
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if ("main".equals(service.getName()) && State.RUNNING.equals(newState)) {
+                mainRunning.countDown();
+            }
+        });
+
+        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        kernel.locate("main").close()
+                .get(20, TimeUnit.SECONDS);
     }
 
     @Test

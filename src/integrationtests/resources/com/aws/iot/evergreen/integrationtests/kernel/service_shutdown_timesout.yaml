@@ -1,0 +1,9 @@
+---
+services:
+  main:
+    lifecycle:
+      run: echo RUN
+      shutdown:
+        script: sleep 120
+        timeout: 1
+
