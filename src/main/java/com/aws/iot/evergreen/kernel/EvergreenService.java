@@ -129,7 +129,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      *
      * @param newState reported state from the service which should eventually be set as the service's actual state
      */
-    public synchronized void reportState(State newState) {
+    public void reportState(State newState) {
         lifecycle.reportState(newState);
     }
 

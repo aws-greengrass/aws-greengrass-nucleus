@@ -34,6 +34,11 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
+    public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
+    public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
+    public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
+    public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
+    public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
@@ -41,11 +46,6 @@ public class GenericExternalService extends EvergreenService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
-    public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
-    public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
-    public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
-    public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
-    public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
     private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
     private final List<Exec> safeUpdateProcesses = new CopyOnWriteArrayList<>();
 
@@ -124,7 +124,8 @@ public class GenericExternalService extends EvergreenService {
 
         if (result.getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in startup");
-        } else if (result.getLeft() == RunStatus.NothingDone) {
+        } else if (result.getLeft() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
+                && State.STARTING.equals(getState())) {
             handleRunScript();
         }
     }

@@ -229,7 +229,7 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        Mockito.verify(lifecycle, timeout(1000)).reportState(eq(State.RUNNING));
+        Mockito.verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING));
 
         // WHEN
         lifecycle.requestStop();

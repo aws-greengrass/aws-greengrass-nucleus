@@ -44,7 +44,7 @@ import javax.annotation.Nullable;
  */
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public final class Exec implements Closeable {
-    private static final Logger logger = LogManager.getLogger(Exec.class);
+    private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
     private static final Consumer<CharSequence> NOP = s -> {
@@ -83,7 +83,7 @@ public final class Exec implements Closeable {
             // Ensure some level of sanity
             ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
         } catch (Throwable ex) {
-            logger.atError().log("Error while initializing PATH", ex);
+            staticLogger.atError().log("Error while initializing PATH", ex);
         }
         computePathString();
     }
@@ -101,6 +101,7 @@ public final class Exec implements Closeable {
     private Copier stdoutc;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     AtomicInteger numberOfCopiers;
+    private Logger logger = staticLogger;
 
     public static void setDefaultEnv(String key, CharSequence value) {
         defaultEnvironment = setenv(defaultEnvironment, key, value, false);
@@ -126,6 +127,11 @@ public final class Exec implements Closeable {
 
     public Exec setenv(String key, CharSequence value) {
         environment = setenv(environment, key, value, environment == defaultEnvironment);
+        return this;
+    }
+
+    public Exec logger(Logger logger) {
+        this.logger = logger;
         return this;
     }
 
@@ -308,6 +314,12 @@ public final class Exec implements Closeable {
 
     @SuppressWarnings("PMD.AvoidRethrowingException")
     private void exec() throws InterruptedException, IOException {
+        // Don't run anything if the current thread is currently interrupted
+        if (Thread.currentThread().isInterrupted()) {
+            logger.atWarn().kv("command", this)
+                    .log("Refusing to execute because the active thread is interrupted");
+            throw new InterruptedException();
+        }
         process = Runtime.getRuntime().exec(cmds, environment, dir);
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
@@ -455,8 +467,7 @@ public final class Exec implements Closeable {
             }
             if (whenDone != null && numberOfCopiers.decrementAndGet() <= 0) {
                 try {
-                    // TODO: configurable timeout?
-                    process.waitFor(10, TimeUnit.SECONDS); // be graceful
+                    process.waitFor();
                     setClosed();
                 } catch (InterruptedException ignore) {
                     // Ignore as this thread is done running anyway and will exit
