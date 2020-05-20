@@ -13,10 +13,11 @@ import com.aws.iot.evergreen.util.Coerce;
 import java.io.IOException;
 import javax.inject.Inject;
 
-@ImplementsService(name = "TokenExchangeService")
+@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
 public class TokenExchangeService extends EvergreenService {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String PORT_TOPIC = "port";
+    public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "TokenExchangeService";
     private static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     // TODO: change when auth is supported
     private static final String TES_AUTH_ENV_VARIABLE_NAME = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
