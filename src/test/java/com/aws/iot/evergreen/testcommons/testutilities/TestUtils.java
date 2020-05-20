@@ -4,8 +4,13 @@
 package com.aws.iot.evergreen.testcommons.testutilities;
 
 import com.aws.iot.evergreen.util.Pair;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -62,5 +67,40 @@ public final class TestUtils {
                 f.completeExceptionally(ex);
             }
         });
+    }
+
+    public static ExecutorService synchronousExecutorService() {
+        return new AbstractExecutorService() {
+
+            @Override
+            public void shutdown() {
+            }
+
+            @NotNull
+            @Override
+            public List<Runnable> shutdownNow() {
+                return null;
+            }
+
+            @Override
+            public boolean isShutdown() {
+                return false;
+            }
+
+            @Override
+            public boolean isTerminated() {
+                return false;
+            }
+
+            @Override
+            public boolean awaitTermination(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
+                return false;
+            }
+
+            @Override
+            public void execute(@NotNull Runnable command) {
+                command.run();
+            }
+        };
     }
 }
