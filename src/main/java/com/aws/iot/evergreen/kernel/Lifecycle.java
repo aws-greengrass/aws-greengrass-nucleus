@@ -129,7 +129,7 @@ public class Lifecycle {
         this.logger = logger;
     }
 
-    void reportState(State newState) {
+    synchronized void reportState(State newState) {
         State lastState = lastReportedState.get();
         if (lastState == null) {
             lastState = getState();

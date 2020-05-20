@@ -328,11 +328,6 @@ public class GenericExternalService extends EvergreenService {
     @SuppressWarnings("PMD.CloseResource")
     protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList)
             throws InterruptedException {
-        // Don't run anything if the current thread is currently interrupted
-        if (Thread.currentThread().isInterrupted()) {
-            throw new InterruptedException();
-        }
-
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec;
         try {
