@@ -547,7 +547,7 @@ public class Lifecycle {
             evergreenService.serviceErrored(ee);
         } catch (TimeoutException te) {
             shutdownFuture.cancel(true);
-            evergreenService.serviceErrored("Timeout shutdown");
+            evergreenService.serviceErrored("Timeout in shutdown");
         } finally {
             stopBackingTask();
         }
