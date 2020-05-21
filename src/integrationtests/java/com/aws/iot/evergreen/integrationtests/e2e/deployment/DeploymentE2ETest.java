@@ -40,7 +40,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateTestConfigurationArn;
+import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateMockConfigurationArn;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -98,7 +98,7 @@ class DeploymentE2ETest {
         // Create Job Doc
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -135,7 +135,7 @@ class DeploymentE2ETest {
         // First Deployment to have some services running in Kernel which can be removed later
         String document1 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -149,7 +149,7 @@ class DeploymentE2ETest {
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -184,7 +184,7 @@ class DeploymentE2ETest {
         // New deployment contains dependency conflicts
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -219,7 +219,7 @@ class DeploymentE2ETest {
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -246,7 +246,7 @@ class DeploymentE2ETest {
         // Create another job with a fix to the faulty service (CustomerApp-0.9.1).
         String document2 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -280,7 +280,7 @@ class DeploymentE2ETest {
         // Deploy some services that can be used for verification later
         String document1 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -294,9 +294,9 @@ class DeploymentE2ETest {
         // Create a Job Doc with a faulty service (CustomerApp-0.9.0) requesting rollback on failure
         String document2 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
                         .packages(new HashMap<String, PackageInfo>() {{
                             put("RedSignal", new PackageInfo(true, "1.0.0", null));
                             put("YellowSignal", new PackageInfo(true, "1.0.0", null));

@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
-import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateTestConfigurationArn;
+import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateMockConfigurationArn;
 
 public class DeploymentJobHelper {
     public String jobId;
@@ -31,7 +31,7 @@ public class DeploymentJobHelper {
     public String createIoTJobDocument() throws JsonProcessingException {
         return new ObjectMapper().writeValueAsString(
                 FleetConfiguration.builder()
-                        .configurationArn(generateTestConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn())
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(Collections.singletonMap(targetPkgName, new PackageInfo(true, "1.0.0", null)))

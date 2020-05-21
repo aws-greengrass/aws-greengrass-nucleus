@@ -325,7 +325,7 @@ public class Utils {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_IOT_CRED_ENDPOINT).withValue(thing.credEndpoint);
     }
 
-    public static String generateTestConfigurationArn() {
+    public static String generateMockConfigurationArn() {
         return Arn.builder().withPartition("aws").withAccountId("1234567890").withRegion("test-region").withService(
                 "gg").withResource("configuration:test/mock:1").build().toString();
     }
