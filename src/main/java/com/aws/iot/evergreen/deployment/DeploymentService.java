@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailur
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
@@ -252,7 +253,7 @@ public class DeploymentService extends EvergreenService {
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Recevied deployment document in queue");
-            deploymentDocument = parseAndValidateJobDocument(deployment.getDeploymentDocument());
+            deploymentDocument = parseAndValidateJobDocument(deployment);
         } catch (InvalidRequestException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
@@ -276,15 +277,28 @@ public class DeploymentService extends EvergreenService {
         currentDeploymentType = deployment.getDeploymentType();
     }
 
-    private DeploymentDocument parseAndValidateJobDocument(String jobDocumentString) throws InvalidRequestException {
+    private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
+        String jobDocumentString = deployment.getDeploymentDocument();
         if (Utils.isEmpty(jobDocumentString)) {
             throw new InvalidRequestException("Job document cannot be empty");
         }
+        DeploymentDocument document = null;
         try {
-            return OBJECT_MAPPER.readValue(jobDocumentString, DeploymentDocument.class);
-        } catch (JsonProcessingException e) {
+            switch (deployment.getDeploymentType()) {
+                case LOCAL:
+                    document = OBJECT_MAPPER.readValue(jobDocumentString, DeploymentDocument.class);
+                    break;
+                case IOT_JOBS:
+                    FleetConfiguration config = OBJECT_MAPPER.readValue(jobDocumentString, FleetConfiguration.class);
+                    document = new DeploymentDocument(config);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
+            }
+        } catch (JsonProcessingException | IllegalArgumentException e) {
             throw new InvalidRequestException("Unable to parse the job document", e);
         }
+        return document;
     }
 
     void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
