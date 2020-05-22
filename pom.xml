@@ -92,13 +92,24 @@
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
-        service SDK is updated
+        service SDK is updated. Remove both the sdk-core and jcl-over-slf4j.
         -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>jcl-over-slf4j</artifactId>
+            <version>1.7.6</version>
+        </dependency>
         <dependency>
             <artifactId>aws-java-sdk-core</artifactId>
             <groupId>com.amazonaws</groupId>
             <optional>false</optional>
             <version>1.11.766</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
