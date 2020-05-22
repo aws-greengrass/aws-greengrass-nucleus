@@ -98,7 +98,7 @@ class DeploymentE2ETest {
         // Create Job Doc
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("add/svc:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -135,7 +135,7 @@ class DeploymentE2ETest {
         // First Deployment to have some services running in Kernel which can be removed later
         String document1 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("remove/svc:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -149,7 +149,7 @@ class DeploymentE2ETest {
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("remove/svc:2"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -184,7 +184,7 @@ class DeploymentE2ETest {
         // New deployment contains dependency conflicts
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("fail/conflict:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -219,7 +219,7 @@ class DeploymentE2ETest {
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("fail/broken:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -246,7 +246,7 @@ class DeploymentE2ETest {
         // Create another job with a fix to the faulty service (CustomerApp-0.9.1).
         String document2 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("fail/broken:2"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -280,7 +280,7 @@ class DeploymentE2ETest {
         // Deploy some services that can be used for verification later
         String document1 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("fail/rollback:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .packages(new HashMap<String, PackageInfo>() {{
@@ -294,7 +294,7 @@ class DeploymentE2ETest {
         // Create a Job Doc with a faulty service (CustomerApp-0.9.0) requesting rollback on failure
         String document2 = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("fail/rollback:2"))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
                         .packages(new HashMap<String, PackageInfo>() {{

@@ -325,9 +325,15 @@ public class Utils {
         deploymentServiceTopics.createLeafChild(DEVICE_PARAM_IOT_CRED_ENDPOINT).withValue(thing.credEndpoint);
     }
 
-    public static String generateMockConfigurationArn() {
+    /**
+     * Mock configuration ARN which should only be used in E2E tests not using Fleet Configuration Service.
+     *
+     * @param resourceIdVersion Configuration resource ID and version, in format "thing/thing-name:1"
+     * @return String formatted ARN
+     */
+    public static String generateMockConfigurationArn(String resourceIdVersion) {
         return Arn.builder().withPartition("aws").withAccountId("1234567890").withRegion("test-region").withService(
-                "gg").withResource("configuration:test/mock:1").build().toString();
+                "gg").withResource(String.format("configuration:%s", resourceIdVersion)).build().toString();
     }
 
     @AllArgsConstructor

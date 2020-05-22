@@ -142,7 +142,7 @@ public class MqttReconnectTest {
         // Create Job Doc
         String document = new ObjectMapper()
                 .writeValueAsString(FleetConfiguration.builder()
-                        .configurationArn(generateMockConfigurationArn())
+                        .configurationArn(generateMockConfigurationArn("mqtt/reconnect:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .packages(new HashMap<String, PackageInfo>() {{
                             put("CustomerApp", new PackageInfo(true, "1.0.0", null));
