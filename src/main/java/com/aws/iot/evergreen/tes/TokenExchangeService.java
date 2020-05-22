@@ -15,6 +15,8 @@ import javax.inject.Inject;
 
 @ImplementsService(name = "TokenExchangeService")
 public class TokenExchangeService extends EvergreenService {
+    public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
+    public static final String PORT_TOPIC = "port";
     private static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     // TODO: change when auth is supported
     private static final String TES_AUTH_ENV_VARIABLE_NAME = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
@@ -36,12 +38,12 @@ public class TokenExchangeService extends EvergreenService {
                                 IotConnectionManager iotConnectionManager) {
         super(topics);
         // TODO: Add support for other params like role Aliases
-        topics.lookup("port")
+        topics.lookup(PORT_TOPIC)
                 .dflt(DEFAULT_PORT)
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
 
-        topics.lookup("iotRoleAlias")
+        topics.lookup(IOT_ROLE_ALIAS_TOPIC)
                 .subscribe((why, newv) ->
                         iotRoleAlias = Coerce.toString(newv));
 
