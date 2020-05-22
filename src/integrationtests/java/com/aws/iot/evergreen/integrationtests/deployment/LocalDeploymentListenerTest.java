@@ -12,9 +12,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class LocalDeploymentListenerTest {
@@ -42,16 +44,20 @@ public class LocalDeploymentListenerTest {
     @Test
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel() throws Exception {
         String deploymentDocument = new String(Files.readAllBytes(
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI())));
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI())));
         assertTrue(localDeploymentListener.submitLocalDeployment(deploymentDocument));
 
-        CountDownLatch customerAppRunningLatch = new CountDownLatch(1);
+        CountDownLatch yellowAppRunningLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if ("CustomerApp".equals(service.getName()) && newState.equals(State.RUNNING)) {
-                customerAppRunningLatch.countDown();
+            if ("YellowSignal".equals(service.getName()) && newState.equals(State.RUNNING)) {
+                yellowAppRunningLatch.countDown();
             }
         });
-        assertTrue(customerAppRunningLatch.await(50, TimeUnit.SECONDS));
+        assertTrue(yellowAppRunningLatch.await(50, TimeUnit.SECONDS));
+        Map<String, String> rootPackageNameAndVersion = localDeploymentListener.getRootPackageNameAndVersion();
+        assertEquals(2, rootPackageNameAndVersion.size());
+        assertEquals("1.0.0", rootPackageNameAndVersion.get("YellowSignal"));
+        assertEquals("1.0.0", rootPackageNameAndVersion.get("RedSignal"));
     }
 
 }
