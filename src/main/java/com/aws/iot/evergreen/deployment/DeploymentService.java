@@ -355,9 +355,7 @@ public class DeploymentService extends EvergreenService {
         });
 
 
-        long deploymentTimestamp = System.currentTimeMillis();
-
-        return DeploymentDocument.builder().timestamp(deploymentTimestamp).deploymentId("Local-" + deploymentTimestamp)
+        return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp()).deploymentId(localOverrideRequest.getRequestId())
                 .rootPackages(rootPackages).deploymentPackageConfigurationList(packageConfigurations).build();
     }
 

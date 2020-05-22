@@ -18,6 +18,9 @@ import java.util.Map;
 @AllArgsConstructor
 @Getter
 public class LocalOverrideRequest {
+    String requestId;   // UUID
+    long requestTimestamp;
+
     Map<String, String> componentsToMerge;  // name to version
     List<String> componentsToRemove; // remove just need name
     String recipeDir;
