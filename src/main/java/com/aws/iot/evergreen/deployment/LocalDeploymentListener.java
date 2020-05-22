@@ -23,14 +23,15 @@ public class LocalDeploymentListener {
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     //TODO: LocalDeploymentListener should register with IPC to expose submitLocalDeployment
-    //TODO: the interface is not finalized yet, this is more an example.
-    /** schedules a deployment with deployment service.
-     * @param deploymentDocument document configuration
+    /**
+     * schedules a deployment with deployment service.
+     * @param localOverrideRequestStr serialized localOverrideRequestStr
      * @return true if deployment was scheduled
      */
-    public boolean submitLocalDeployment(String deploymentDocument) {
+    public boolean submitLocalDeployment(String localOverrideRequestStr) {
         String localDeploymentIdentifier = LOCAL_DEPLOYMENT_ID_PREFIX + System.currentTimeMillis();
-        Deployment deployment = new Deployment(deploymentDocument, DeploymentType.LOCAL, localDeploymentIdentifier);
+
+        Deployment deployment = new Deployment(localOverrideRequestStr, DeploymentType.LOCAL, localDeploymentIdentifier);
         if (deploymentsQueue != null && deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, localDeploymentIdentifier)
                     .log("Added local deployment to the queue");

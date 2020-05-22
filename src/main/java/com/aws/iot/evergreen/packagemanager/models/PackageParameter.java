@@ -59,16 +59,16 @@ public class PackageParameter {
      */
     public static Set<PackageParameter> fromMap(Map<String, Object> configuration) {
         HashSet<PackageParameter> set = new HashSet<>();
-        for (Map.Entry<String, Object> parameter : configuration.entrySet()) {
-            Object value = parameter.getValue();
-            if (value instanceof String) {
-                set.add(new PackageParameter(parameter.getKey(), (String) value, ParameterType.STRING));
-            } else if (value instanceof Boolean) {
-                set.add(new PackageParameter(parameter.getKey(), ((Boolean) value).toString(),
-                        ParameterType.BOOLEAN));
-            } else if (value instanceof Number) {
-                set.add(new PackageParameter(parameter.getKey(), String.valueOf(value),
-                        ParameterType.NUMBER));
+        if (configuration != null) {
+            for (Map.Entry<String, Object> parameter : configuration.entrySet()) {
+                Object value = parameter.getValue();
+                if (value instanceof String) {
+                    set.add(new PackageParameter(parameter.getKey(), (String) value, ParameterType.STRING));
+                } else if (value instanceof Boolean) {
+                    set.add(new PackageParameter(parameter.getKey(), ((Boolean) value).toString(), ParameterType.BOOLEAN));
+                } else if (value instanceof Number) {
+                    set.add(new PackageParameter(parameter.getKey(), String.valueOf(value), ParameterType.NUMBER));
+                }
             }
         }
         return set;

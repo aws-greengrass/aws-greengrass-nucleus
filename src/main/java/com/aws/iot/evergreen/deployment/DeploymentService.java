@@ -13,9 +13,12 @@ import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFai
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
+import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -28,14 +31,18 @@ import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -44,12 +51,12 @@ public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     // TODO: These should probably become configurable parameters eventually
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
+    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(1).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
@@ -70,6 +77,9 @@ public class DeploymentService extends EvergreenService {
 
     @Inject
     private Context context;
+
+    @Inject
+    private Kernel kernel;
 
     @Getter
     private Future<DeploymentResult> currentProcessStatus = null;
@@ -104,12 +114,12 @@ public class DeploymentService extends EvergreenService {
     /**
      * Constructor for unit testing.
      *
-     * @param topics                    The configuration coming from  kernel
-     * @param executorService           Executor service coming from kernel
-     * @param dependencyResolver        {@link DependencyResolver}
-     * @param packageManager            {@link PackageManager}
-     * @param kernelConfigResolver      {@link KernelConfigResolver}
-     * @param deploymentConfigMerger    {@link DeploymentConfigMerger}
+     * @param topics                 The configuration coming from  kernel
+     * @param executorService        Executor service coming from kernel
+     * @param dependencyResolver     {@link DependencyResolver}
+     * @param packageManager         {@link PackageManager}
+     * @param kernelConfigResolver   {@link KernelConfigResolver}
+     * @param deploymentConfigMerger {@link DeploymentConfigMerger}
      */
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
@@ -158,8 +168,8 @@ public class DeploymentService extends EvergreenService {
                     continue;
                 }
                 if (currentDeploymentId != null && currentDeploymentType != null) {
-                    if (deployment.getId().equals(currentDeploymentId)
-                            && deployment.getDeploymentType().equals(currentDeploymentType)) {
+                    if (deployment.getId().equals(currentDeploymentId) && deployment.getDeploymentType()
+                            .equals(currentDeploymentType)) {
                         //Duplicate message and already processing this deployment so nothing is needed
                         deploymentsQueue.remove();
                         continue;
@@ -213,8 +223,9 @@ public class DeploymentService extends EvergreenService {
             statusDetails.put("error", t.getMessage());
             if (t instanceof NonRetryableDeploymentTaskFailureException
                     || currentJobAttemptCount.get() >= DEPLOYMENT_MAX_ATTEMPTS) {
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
-                        JobStatus.FAILED, statusDetails);
+                deploymentStatusKeeper
+                        .persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType, JobStatus.FAILED,
+                                statusDetails);
                 currentJobAttemptCount.set(0);
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
@@ -282,11 +293,14 @@ public class DeploymentService extends EvergreenService {
         if (Utils.isEmpty(jobDocumentString)) {
             throw new InvalidRequestException("Job document cannot be empty");
         }
-        DeploymentDocument document = null;
+        DeploymentDocument document;
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    document = OBJECT_MAPPER.readValue(jobDocumentString, DeploymentDocument.class);
+                    LocalOverrideRequest localOverrideRequest =
+                            OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
+
+                    document = convertLocalOverrideRequestToDeployDoc(localOverrideRequest);
                     break;
                 case IOT_JOBS:
                     FleetConfiguration config = OBJECT_MAPPER.readValue(jobDocumentString, FleetConfiguration.class);
@@ -299,6 +313,52 @@ public class DeploymentService extends EvergreenService {
             throw new InvalidRequestException("Unable to parse the job document", e);
         }
         return document;
+    }
+
+    private DeploymentDocument convertLocalOverrideRequestToDeployDoc(LocalOverrideRequest localOverrideRequest) {
+
+        // TODO DeploymentId
+        Map<String, String> rootComponents = kernel.getRootPackageNameAndVersion();
+
+        // remove
+        List<String> componentsToRemove = localOverrideRequest.getComponentsToRemove();
+        if (componentsToRemove != null && !componentsToRemove.isEmpty()) {
+            componentsToRemove.forEach((rootComponents::remove));
+        }
+
+        // add or update
+        Map<String, String> componentsToMerge = localOverrideRequest.getComponentsToMerge();
+
+        if (componentsToMerge != null && !componentsToMerge.isEmpty()) {
+            componentsToMerge.forEach((name, version) -> rootComponents.merge(name, version, (k, v) -> version));
+        }
+
+        List<String> rootPackages = new ArrayList<>(rootComponents.keySet());
+
+
+        List<DeploymentPackageConfiguration> packageConfigurations =
+                localOverrideRequest.getComponentNameToConfig().entrySet().stream()
+                        .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), "*", entry.getValue()))
+                        .collect(Collectors.toList());
+
+        // apply root
+        rootComponents.forEach((rootComponentName, version) -> {
+            Optional<DeploymentPackageConfiguration> optionalConfiguration = packageConfigurations.stream()
+                    .filter(packageConfiguration -> packageConfiguration.getPackageName().equals(rootComponentName))
+                    .findAny();
+
+            if (optionalConfiguration.isPresent()) {
+                optionalConfiguration.get().setResolvedVersion(version);
+            } else {
+                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, version, null));
+            }
+        });
+
+
+        long deploymentTimestamp = System.currentTimeMillis();
+
+        return DeploymentDocument.builder().timestamp(deploymentTimestamp).deploymentId("Local-" + deploymentTimestamp)
+                .rootPackages(rootPackages).deploymentPackageConfigurationList(packageConfigurations).build();
     }
 
     void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
