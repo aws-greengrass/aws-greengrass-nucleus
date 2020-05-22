@@ -92,7 +92,8 @@ class MultipleDeploymentsTest {
     @Test
     void GIVEN_online_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order() throws Exception {
         List<DeploymentJobHelper> helpers = Arrays
-                .asList(new DeploymentJobHelper("GreenSignal"), new DeploymentJobHelper("SomeService"), new DeploymentJobHelper("CustomerApp"));
+                .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
+                        new DeploymentJobHelper(3, "CustomerApp"));
 
         kernel.launch();
 
@@ -127,7 +128,8 @@ class MultipleDeploymentsTest {
     @Test
     void GIVEN_offline_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order_eventually() throws Exception {
         List<DeploymentJobHelper> helpers = Arrays
-                .asList(new DeploymentJobHelper("GreenSignal"), new DeploymentJobHelper("SomeService"), new DeploymentJobHelper("CustomerApp"));
+                .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
+                        new DeploymentJobHelper(3, "CustomerApp"));
 
         // Create multiple jobs
         String[] targets = {thingGroupResp.thingGroupArn()};

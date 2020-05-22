@@ -105,7 +105,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @BeforeEach
         public void setup() throws Exception {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
-            deploymentsQueue.put(new Deployment("{\"DeploymentId\":\"testId\"}",
+            deploymentsQueue.put(new Deployment("{\"configurationArn\":\"testArn\"}",
                     Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
         }
 

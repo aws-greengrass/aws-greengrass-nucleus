@@ -5,21 +5,26 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
+import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
+import com.aws.iot.evergreen.deployment.model.PackageInfo;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
+import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateMockConfigurationArn;
+
 public class DeploymentJobHelper {
+    public int index;
     public String jobId;
     public CountDownLatch jobCompleted;
     public String targetPkgName;
 
-    public DeploymentJobHelper(String pkgName) {
+    public DeploymentJobHelper(int index, String pkgName) {
+        this.index = index;
         jobId = UUID.randomUUID().toString();
         jobCompleted = new CountDownLatch(1);
         targetPkgName = pkgName;
@@ -27,9 +32,12 @@ public class DeploymentJobHelper {
 
     public String createIoTJobDocument() throws JsonProcessingException {
         return new ObjectMapper().writeValueAsString(
-                DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList(targetPkgName))
-                        .deploymentPackageConfigurationList(Arrays.asList(
-                                new DeploymentPackageConfiguration(targetPkgName, "1.0.0", null, null, null))).build());
+                FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn(String.format("job/helper:%s", index)))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(Collections.singletonMap(targetPkgName, new PackageInfo(true, "1.0.0", null)))
+                        .build()
+        );
     }
 }
