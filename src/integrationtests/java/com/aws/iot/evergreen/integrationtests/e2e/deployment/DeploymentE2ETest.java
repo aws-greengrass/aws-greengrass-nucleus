@@ -6,10 +6,10 @@
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
+import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
+import com.aws.iot.evergreen.deployment.model.PackageInfo;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -35,13 +35,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateMockConfigurationArn;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -98,12 +97,13 @@ class DeploymentE2ETest {
 
         // Create Job Doc
         String document = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Collections.singletonList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Collections
-                                .singletonList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("add/svc:1"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("CustomerApp", new PackageInfo(true, "1.0.0", null));
+                        }}).build());
 
         // Create job targeting our DUT
         String[] targets = {thingGroupResp.thingGroupArn()};
@@ -134,24 +134,27 @@ class DeploymentE2ETest {
 
         // First Deployment to have some services running in Kernel which can be removed later
         String document1 = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Arrays.asList("CustomerApp", "SomeService"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null), new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("remove/svc:1"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("CustomerApp", new PackageInfo(true, "1.0.0", null));
+                            put("SomeService", new PackageInfo(true, "1.0.0", null));
+                        }}).build());
         String jobId1 = Utils.createJob(document1, targets);
         createdIotJobs.add(jobId1);
         Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
 
         // Second deployment to remove some services deployed previously
         String document2 = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Collections.singletonList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Collections
-                                .singletonList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("remove/svc:2"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("CustomerApp", new PackageInfo(true, "1.0.0", null));
+                        }}).build());
         String jobId2 = Utils.createJob(document2, targets);
         createdIotJobs.add(jobId2);
         Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));
@@ -180,12 +183,14 @@ class DeploymentE2ETest {
 
         // New deployment contains dependency conflicts
         String document = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Arrays.asList("SomeService", "SomeOldService"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null), new DeploymentPackageConfiguration("SomeOldService", "0.9.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("fail/conflict:1"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("SomeService", new PackageInfo(true, "1.0.0", null));
+                            put("SomeOldService", new PackageInfo(true, "0.9.0", null));
+                        }}).build());
         String jobId = Utils.createJob(document, targets);
         createdIotJobs.add(jobId);
         Utils.waitForJobToComplete(jobId, Duration.ofMinutes(5));
@@ -213,11 +218,13 @@ class DeploymentE2ETest {
 
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
         String document = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("CustomerApp", "0.9.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("fail/broken:1"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("CustomerApp", new PackageInfo(true, "0.9.0", null));
+                        }}).build());
 
         // Create job targeting our DUT.
         String[] targets = {thingGroupResp.thingGroupArn()};
@@ -238,11 +245,13 @@ class DeploymentE2ETest {
 
         // Create another job with a fix to the faulty service (CustomerApp-0.9.1).
         String document2 = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("CustomerApp", "0.9.1", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("fail/broken:2"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("CustomerApp", new PackageInfo(true, "0.9.1", null));
+                        }}).build());
 
         String jobId2 = Utils.createJob(document2, targets);
         createdIotJobs.add(jobId2);
@@ -270,24 +279,29 @@ class DeploymentE2ETest {
 
         // Deploy some services that can be used for verification later
         String document1 = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Arrays.asList("RedSignal", "YellowSignal"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("RedSignal", "1.0.0", null, null, null), new DeploymentPackageConfiguration("YellowSignal", "1.0.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("fail/rollback:1"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("RedSignal", new PackageInfo(true, "1.0.0", null));
+                            put("YellowSignal", new PackageInfo(true, "1.0.0", null));
+                        }}).build());
         String jobId1 = Utils.createJob(document1, targets);
         createdIotJobs.add(jobId1);
         Utils.waitForJobToComplete(jobId1, Duration.ofMinutes(5));
 
         // Create a Job Doc with a faulty service (CustomerApp-0.9.0) requesting rollback on failure
         String document2 = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString())
-                        .rootPackages(Arrays.asList("RedSignal", "YellowSignal", "CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("RedSignal", "1.0.0", null, null, null), new DeploymentPackageConfiguration("YellowSignal", "1.0.0", null, null, null), new DeploymentPackageConfiguration("CustomerApp", "0.9.0", null, null, null)))
-                        .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK).build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("fail/rollback:2"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("RedSignal", new PackageInfo(true, "1.0.0", null));
+                            put("YellowSignal", new PackageInfo(true, "1.0.0", null));
+                            put("CustomerApp", new PackageInfo(true, "0.9.0", null));
+                        }}).build());
         String jobId2 = Utils.createJob(document2, targets);
         createdIotJobs.add(jobId2);
         Utils.waitForJobToComplete(jobId2, Duration.ofMinutes(5));

@@ -112,6 +112,7 @@ public class DeploymentCloudServiceIntegTest {
         createdIotJobIdList.clear();
     }
 
+    // TODO: Integrate with Fleet Configuration Service
 //    @Test
     void GIVEN_blank_kernel_WHEN_create_deployment_on_thing_group_THEN_new_services_deployed_and_job_is_successful() throws Exception {
         kernel = new Kernel()
@@ -131,7 +132,7 @@ public class DeploymentCloudServiceIntegTest {
         DeploymentDocument document = DeploymentDocument.builder().timestamp(System.currentTimeMillis())
                 .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp", "SomeService"))
                 .deploymentPackageConfigurationList(Arrays
-                        .asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null), new DeploymentPackageConfiguration("SomeService", "1.0.0", null, null, null)))
+                        .asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null), new DeploymentPackageConfiguration("SomeService", "1.0.0", null)))
                 .build();
 
         String jobId1 = sendCreateDeploymentRequest(thingGroupResp.thingGroupArn(), document);

@@ -25,6 +25,7 @@ import lombok.Getter;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -157,8 +158,7 @@ public class DeploymentConfigMerger {
             // The lambda is set up to ignore anything that is a child of DEPLOYMENT_SAFE_NAMESPACE_TOPIC
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
-            ConfigurationReader.mergeTlogIntoConfig(kernel.getConfig(),
-                    kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)), true,
+            ConfigurationReader.mergeTlogIntoConfig(kernel.getConfig(), getSnapshotFilePath(deploymentId), true,
                     s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
@@ -248,9 +248,7 @@ public class DeploymentConfigMerger {
      */
     private void takeSnapshotForRollback(String deploymentId) throws IOException {
         // record kernel snapshot
-        kernel.writeEffectiveConfigAsTransactionLog(
-                kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)));
-
+        kernel.writeEffectiveConfigAsTransactionLog(getSnapshotFilePath(deploymentId));
     }
 
     /*
@@ -258,11 +256,22 @@ public class DeploymentConfigMerger {
      */
     private void cleanUpSnapshot(String deploymentId) {
         try {
-            Files.delete(kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId)));
+            Files.delete(getSnapshotFilePath(deploymentId));
         } catch (IOException e) {
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
                     .log("Error cleaning up kernel snapshot");
         }
+    }
+
+    /**
+     * Resolve snapshot file path.
+     *
+     * @param deploymentId Deployment Identifier
+     * @return Path to snapshot file
+     */
+    private Path getSnapshotFilePath(String deploymentId) {
+        return kernel.getConfigPath().resolve(String.format(ROLLBACK_SNAPSHOT_PATH_FORMAT,
+                deploymentId.replace(':', '.').replace('/', '+')));
     }
 
     /*

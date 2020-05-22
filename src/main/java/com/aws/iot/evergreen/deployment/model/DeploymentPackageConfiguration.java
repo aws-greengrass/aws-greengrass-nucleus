@@ -3,15 +3,14 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
-import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,23 +21,16 @@ import java.util.Map;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
+@EqualsAndHashCode
 public class DeploymentPackageConfiguration {
 
     @JsonProperty("Name")
     private String packageName;
 
+    // TODO: change to versionRequirements which can be a pinned version or a version range
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
 
-    @Deprecated
-    @JsonProperty("VersionConstraint")
-    private String versionConstraint;
-
     @JsonProperty("Configuration")
     private Map<String, Object> configuration = new HashMap<>();
-
-    @Deprecated
-    @JsonProperty("Dependencies")
-    private List<PackageIdentifier> listOfDependencies;
-
 }
