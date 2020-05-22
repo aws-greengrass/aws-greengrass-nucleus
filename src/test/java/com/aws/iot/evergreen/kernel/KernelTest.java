@@ -12,26 +12,32 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.internal.util.collections.Sets;
 
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -238,6 +244,33 @@ class KernelTest {
     void GIVEN_kernel_WHEN_locate_finds_no_definition_in_config_THEN_throws_ServiceLoadException() {
         ServiceLoadException ex = assertThrows(ServiceLoadException.class, () -> kernel.locate("5"));
         assertEquals("No matching definition in system model for: 5", ex.getMessage());
+    }
+
+    @Test
+    void GIVEN_kernel_with_services_WHEN_get_root_package_with_version_THEN_kernel_returns_info() {
+
+        EvergreenService service1 = new EvergreenService(kernel.getConfig()
+                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service2 = new EvergreenService(kernel.getConfig()
+                .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        service1.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.0.0"));
+        service2.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.1.0"));
+
+        EvergreenService mockMain = mock(EvergreenService.class);
+        Map<EvergreenService, DependencyType> mainsDependency = new HashMap<>();
+        mainsDependency.put(service1, null);
+        mainsDependency.put(service2, null);
+        when(mockMain.getDependencies()).thenReturn(mainsDependency);
+
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        when(kernelLifecycle.getMain()).thenReturn(mockMain);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        Map<String, String> rootPackageNameAndVersion = kernel.getRootPackageNameAndVersion();
+        assertEquals(2, rootPackageNameAndVersion.size());
+        assertEquals("1.0.0", rootPackageNameAndVersion.get("service1"));
+        assertEquals("1.1.0", rootPackageNameAndVersion.get("service2"));
+
     }
 
     static class TestClass extends EvergreenService {
