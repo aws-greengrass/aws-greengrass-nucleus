@@ -27,11 +27,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
@@ -73,13 +72,13 @@ public class PackageManager implements InjectionActions {
     }
 
     /**
-     * List the package metadata for available package versions that satisfy the requirement.
-     * It is ordered by the active version first if found, followed by available versions locally.
+     * List the package metadata for available package versions that satisfy the requirement. It is ordered by the
+     * active version first if found, followed by available versions locally.
      *
      * @param packageName        the package name
      * @param versionRequirement the version requirement for this package
      * @return an iterator of PackageMetadata, with the active version first if found, followed by available versions
-     *     locally.
+     *         locally.
      * @throws PackagingException if fails when trying to list available package metadata
      */
     Iterator<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
@@ -108,8 +107,8 @@ public class PackageManager implements InjectionActions {
 
         }
 
-        packageMetadataList.addAll(greengrassPackageServiceHelper.listAvailablePackageMetadata(packageName,
-                                                                                               versionRequirement));
+        packageMetadataList
+                .addAll(greengrassPackageServiceHelper.listAvailablePackageMetadata(packageName, versionRequirement));
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", packageMetadataList)
@@ -118,8 +117,8 @@ public class PackageManager implements InjectionActions {
     }
 
     /**
-     * Make sure all the specified packages exist in the package cache. Download them from remote repository if
-     * they don't exist.
+     * Make sure all the specified packages exist in the package cache. Download them from remote repository if they
+     * don't exist.
      *
      * @param pkgIds a list of packages.
      * @return a future to notify once this is finished.
@@ -139,17 +138,11 @@ public class PackageManager implements InjectionActions {
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
 
-            final Set<String> resolvedPlatforms = PlatformResolver.RANKS.get().keySet();
-            List<URI> artifactURIList = new java.util.ArrayList<>();
-            for (String platform : resolvedPlatforms) {
-                artifactURIList.addAll(pkg.getArtifacts().getOrDefault(platform, Collections.emptyList()));
-            }
-
-            downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
-            logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
-                    .log();
+            downloadArtifactsIfNecessary(packageIdentifier,
+                    (List<URI>) PlatformResolver.resolvePlatform((Map) pkg.getArtifacts()));
+            logger.atInfo("prepare-package-finished").kv("packageIdentifier", packageIdentifier).log();
         } catch (PackageLoadingException | PackageDownloadException e) {
-            logger.atError().setCause(e).log(String.format("Failed to prepare package %s", packageIdentifier));
+            logger.atError().log("Failed to prepare package {}", packageIdentifier, e);
             throw e;
         }
     }
@@ -160,7 +153,7 @@ public class PackageManager implements InjectionActions {
         try {
             packageOptional = packageStore.findPackageRecipe(packageIdentifier);
         } catch (PackageLoadingException e) {
-            logger.atWarn().log(String.format("Failed to load package recipe for %s", packageIdentifier), e);
+            logger.atWarn().log("Failed to load package recipe for {}", packageIdentifier, e);
         }
         if (packageOptional.isPresent()) {
             return packageOptional.get();
@@ -255,7 +248,7 @@ public class PackageManager implements InjectionActions {
      * @param packageName the package name
      * @param requirement the version requirement
      * @return Optional of the package metadata for the package; empty if this package doesn't have active version or
-     *     the active version doesn't satisfy the requirement.
+     *         the active version doesn't satisfy the requirement.
      * @throws PackagingException if fails to find the target recipe or parse the recipe
      */
     private Optional<PackageMetadata> findActiveAndSatisfiedPackageMetadata(String packageName, Requirement requirement)

@@ -5,6 +5,9 @@
 
 package com.aws.iot.evergreen.integrationtests.packagemanager;
 
+import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
+import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentRequest;
+import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -14,29 +17,24 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.io.FileMatchers.anExistingDirectory;
+import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PackageManagerIntegrationTest {
 
     // Based on PackageManager.java
@@ -110,16 +108,18 @@ class PackageManagerIntegrationTest {
 
     @AfterAll
     static void tearDown() {
-        kernel.shutdown();
-        DeleteComponentRequest deleteComponentRequest
-                = new DeleteComponentRequest().withComponentName("KernelIntegTest")
-                                              .withComponentVersion("1.0.0");
-        DeleteComponentResult result = cmsClient.deleteComponent(deleteComponentRequest);
-        assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+        try {
+            kernel.shutdown();
+        } finally {
+            DeleteComponentRequest deleteComponentRequest
+                    = new DeleteComponentRequest().withComponentName("KernelIntegTest")
+                    .withComponentVersion("1.0.0");
+            DeleteComponentResult result = cmsClient.deleteComponent(deleteComponentRequest);
+            assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+        }
     }
 
     @Test
-    @Order(1)
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
             throws Exception {
         PackageIdentifier pkgIdt
@@ -127,18 +127,15 @@ class PackageManagerIntegrationTest {
         List<PackageIdentifier> pkgList = new ArrayList<>();
         pkgList.add(pkgIdt);
         Future<Void> testFuture = packageManager.preparePackages(pkgList);
-        testFuture.get();//10, TimeUnit.SECONDS);
+        testFuture.get(10, TimeUnit.SECONDS);
 
-        assertTrue(Files.exists(packageStorePath));
-        assertTrue(Files.exists(packageStorePath.resolve(RECIPE_DIRECTORY)));
-        assertTrue(Files.exists(packageStorePath.resolve(ARTIFACT_DIRECTORY)));
+        assertThat(packageStorePath.toFile(), anExistingDirectory());
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
+        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-        assertTrue(Files.exists(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml")));
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml").toFile(), anExistingFile());
 
-        assertTrue(Files.exists(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest")));
-        assertTrue(Files.exists(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")));
-
-        assertTrue(Files.exists(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")
-                                                .resolve("kernel_integ_test_artifact.txt")));
+        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")
+                                                .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
     }
 }
