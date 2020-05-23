@@ -71,6 +71,7 @@ public class IotJobsHelper implements InjectionActions {
             "$aws/things/{thingName}/jobs/{jobId}/update/rejected";
     public static final String UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG = "Timed out while updating the job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
+    public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
 
     private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
     private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
@@ -86,7 +87,7 @@ public class IotJobsHelper implements InjectionActions {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
-    private static final String STATUS_LOG_KEY_NAME = "Status";
+    public static final String STATUS_LOG_KEY_NAME = "Status";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
@@ -388,12 +389,13 @@ public class IotJobsHelper implements InjectionActions {
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {
                 //caused due to connectivity issue
-                logger.atWarn().setCause(e).log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
+                logger.atWarn().setCause(e).kv(STATUS_LOG_KEY_NAME, status)
+                        .log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                 return false;
             }
             //This happens when job status update gets rejected from the Iot Cloud
             //Want to remove this job from the list and continue updating others
-            logger.atError().kv("Status", status).kv(JOB_ID_LOG_KEY_NAME, jobId).setCause(e)
+            logger.atError().kv(STATUS_LOG_KEY_NAME, status).kv(JOB_ID_LOG_KEY_NAME, jobId).setCause(e)
                     .log("Job status update rejected");
             return true;
         } catch (TimeoutException e) {
@@ -427,7 +429,7 @@ public class IotJobsHelper implements InjectionActions {
         iotJobsClient.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
                     logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
-                            .log("Job status updated accepted");
+                            .log(UPDATE_DEPLOYMENT_STATUS_ACCEPTED);
                     String acceptTopicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
                             .replace("{jobId}", jobId);
                     connection.unsubscribe(acceptTopicForJobId);

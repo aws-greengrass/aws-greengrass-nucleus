@@ -66,10 +66,9 @@ public class DeploymentStatusKeeper {
             return;
         }
 
-        Topics processedDeployments = getProcessedDeployments();
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
-        synchronized (processedDeployments) {
+        synchronized (deploymentType) {
             logger.atDebug().kv(JOB_ID_LOG_KEY_NAME, jobId).kv("JobStatus", status).log("Storing job status");
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, jobId);
@@ -77,13 +76,12 @@ public class DeploymentStatusKeeper {
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS, statusDetails);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE, deploymentType);
             //Each status update is uniquely stored
+            Topics processedDeployments = getProcessedDeployments();
             Topic thisJob = processedDeployments.createLeafChild(String.valueOf(System.currentTimeMillis()));
             thisJob.withValue(deploymentDetails);
-
-            if (getConsumerForDeploymentType(deploymentType).apply(deploymentDetails)) {
-                processedDeployments.remove(thisJob);
-            }
         }
+
+        publishPersistedStatusUpdates(deploymentType);
     }
 
     /**
@@ -93,9 +91,8 @@ public class DeploymentStatusKeeper {
      * @param type deployment type
      */
     public void publishPersistedStatusUpdates(DeploymentType type) {
-        Topics processedDeployments = getProcessedDeployments();
-        //TODO: better sync approach.
-        synchronized (processedDeployments) {
+        synchronized (type) {
+            Topics processedDeployments = getProcessedDeployments();
             ArrayList<Topic> deployments = new ArrayList<>();
             processedDeployments.forEach(topic -> {
 
@@ -126,9 +123,12 @@ public class DeploymentStatusKeeper {
                 DeploymentType deploymentType = (DeploymentType)
                         deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE);
 
-                if (getConsumerForDeploymentType(deploymentType).apply(deploymentDetails)) {
-                    processedDeployments.remove(topic);
+                if (!getConsumerForDeploymentType(deploymentType).apply(deploymentDetails)) {
+                    // If one deployment update fails, exit the loop to ensure the update order.
+                    logger.atDebug().log("Unable to update status of persisted deployments. Retry later");
+                    break;
                 }
+                processedDeployments.remove(topic);
             }
         }
     }
@@ -141,6 +141,11 @@ public class DeploymentStatusKeeper {
         });
     }
 
+    /**
+     * Get a reference to persisted deployment states Topics. Not thread-safe.
+     *
+     * @return Topics of persisted deployment states
+     */
     protected Topics getProcessedDeployments() {
         if (processedDeployments == null) {
             processedDeployments = config.lookupTopics(SERVICES_NAMESPACE_TOPIC,

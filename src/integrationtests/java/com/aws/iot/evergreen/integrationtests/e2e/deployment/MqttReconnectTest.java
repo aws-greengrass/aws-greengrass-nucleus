@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
@@ -145,7 +144,7 @@ public class MqttReconnectTest {
                         .configurationArn(generateMockConfigurationArn("mqtt/reconnect:1"))
                         .creationTimestamp(System.currentTimeMillis())
                         .packages(new HashMap<String, PackageInfo>() {{
-                            put("CustomerApp", new PackageInfo(true, "1.0.0", null));
+                            put("SlowToDeployApp", new PackageInfo(true, "1.0.0", null));
                         }}).build());
 
         // Create job targeting our DUT
@@ -157,9 +156,8 @@ public class MqttReconnectTest {
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();
-            if (UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG.equals(message) && m.getCause()
-                    .getCause() instanceof MqttException || UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG
-                    .equals(message) && m.getCause().getCause() instanceof TimeoutException) {
+            if (UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG.equals(message) && m.getCause().getCause() instanceof MqttException
+                    || UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG.equals(message)) {
                 connectionInterrupted.countDown();
             }
         };
