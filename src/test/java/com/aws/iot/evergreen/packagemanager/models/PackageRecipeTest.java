@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
-import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsCollectionWithSize;
@@ -14,13 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static com.aws.iot.evergreen.config.PlatformResolver.RANKS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
@@ -29,27 +28,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @ExtendWith(EGExtension.class)
 public class PackageRecipeTest {
     private static Map<String, Integer> backupRanks;
-    private static Field ranksField;
+    private static AtomicReference<Map<String, Integer>> ranksField;
 
     @BeforeAll
-    static void beforeAll() throws Exception {
-        ranksField = PlatformResolver.class.getDeclaredField("RANKS");
-        ranksField.setAccessible(true);
-
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(ranksField, ranksField.getModifiers() & ~Modifier.FINAL);
-
-        backupRanks = (Map<String, Integer>) ranksField.get(null);
-        ranksField.set(null, new HashMap<String, Integer>() {{
+    static void beforeAll() {
+        ranksField = RANKS;
+        backupRanks = ranksField.get();
+        ranksField.set(new HashMap<String, Integer>() {{
             put("macos", 99);
             put("linux", 1);
         }});
     }
 
     @AfterAll
-    static void afterAll() throws Exception {
-        ranksField.set(null, backupRanks);
+    static void afterAll() {
+        ranksField.set(backupRanks);
     }
 
     @Test
@@ -158,7 +151,8 @@ public class PackageRecipeTest {
     }
 
     @Test
-    void GIVEN_invalid_dependency_not_a_map_WHEN_try_create_package_recipe_THEN_throws_exception() throws IOException, URISyntaxException {
+    void GIVEN_invalid_dependency_not_a_map_WHEN_try_create_package_recipe_THEN_throws_exception()
+            throws IOException, URISyntaxException {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_NOT_MAP_PACKAGE_NAME, "1.0.0");
         assertThrows(IOException.class, () -> TestHelper.getPackageObject(recipeContents),
@@ -166,9 +160,10 @@ public class PackageRecipeTest {
     }
 
     @Test
-    void GIVEN_invalid_dependency_missing_version_requirements_WHEN_try_create_package_recipe_THEN_throws_exception() throws IOException, URISyntaxException {
-        String recipeContents =
-                TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME, "1.0.0");
+    void GIVEN_invalid_dependency_missing_version_requirements_WHEN_try_create_package_recipe_THEN_throws_exception()
+            throws IOException, URISyntaxException {
+        String recipeContents = TestHelper
+                .getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME, "1.0.0");
         assertThrows(IOException.class, () -> TestHelper.getPackageObject(recipeContents),
                 "Expected PackageLoadingException but didn't throw");
     }

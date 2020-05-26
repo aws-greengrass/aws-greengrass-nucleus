@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +15,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
-import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 
@@ -88,7 +89,7 @@ public class IotJobsHelperTest {
     LinkedBlockingQueue<Deployment> mockDeploymentsQueue;
 
     @Mock
-    MqttClientConnectionEvents mockCallbacks;
+    DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Captor
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorCaptor;
@@ -102,6 +103,7 @@ public class IotJobsHelperTest {
     @Captor
     ArgumentCaptor<Consumer<JobExecutionsChangedEvent>> eventChangeResponseCaptor;
 
+    private final ExecutorService executorService = TestUtils.synchronousExecutorService();
 
     private IotJobsHelper iotJobsHelper;
 
@@ -109,13 +111,11 @@ public class IotJobsHelperTest {
     public void setup() throws Exception {
         when(deviceConfigurationHelper.getDeviceConfiguration()).thenReturn(getDeviceConfiguration());
         iotJobsHelper = new IotJobsHelper(deviceConfigurationHelper, awsIotMqttConnectionFactory,
-                mockIotJobsClientFactory, mockDeploymentsQueue, mockCallbacks);
+                mockIotJobsClientFactory, mockDeploymentsQueue, deploymentStatusKeeper, executorService);
         when(awsIotMqttConnectionFactory.getAwsIotMqttConnection(any(), any())).thenReturn(mockMqttClientConnection);
         when(mockIotJobsClientFactory.getIotJobsClient(eq(mockMqttClientConnection))).thenReturn(mockIotJobsClient);
-        CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
-        completableFuture.complete(Boolean.TRUE);
-        CompletableFuture<Integer> integercompletableFuture = new CompletableFuture<>();
-        integercompletableFuture.complete(1);
+        CompletableFuture<Boolean> completableFuture = CompletableFuture.completedFuture(Boolean.TRUE);
+        CompletableFuture<Integer> integercompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any(), any(), any()))
                 .thenReturn(integercompletableFuture);
         when(mockIotJobsClient.SubscribeToDescribeJobExecutionAccepted(any(), any(), any()))
@@ -128,7 +128,7 @@ public class IotJobsHelperTest {
 
     @Test
     public void GIVEN_device_configured_WHEN_connecting_to_iot_cloud_THEN_connection_successful() throws Exception {
-        verify(awsIotMqttConnectionFactory).getAwsIotMqttConnection(eq(getDeviceConfiguration()), eq(mockCallbacks));
+        verify(awsIotMqttConnectionFactory).getAwsIotMqttConnection(eq(getDeviceConfiguration()), eq(iotJobsHelper.getCallbacks()));
         verify(mockMqttClientConnection).connect();
         verify(mockIotJobsClient).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
@@ -349,6 +349,14 @@ public class IotJobsHelperTest {
         assertEquals(JobStatus.IN_PROGRESS, publishRequest.status);
         assertEquals(statusDetails, publishRequest.statusDetails);
         assertEquals(TEST_THING_NAME, publishRequest.thingName);
+    }
+
+    @Test
+    public void WHEN_mqttConnection_resumes_THEN_jobsclient_resubscribes_and_call_publish_persisted_deployment_status() {
+        verify(mockIotJobsClient, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
+        iotJobsHelper.getCallbacks().onConnectionResumed(false);
+        verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
+        verify(deploymentStatusKeeper).publishPersistedStatusUpdates(eq(IOT_JOBS));
     }
 
     private DeviceConfiguration getDeviceConfiguration() {

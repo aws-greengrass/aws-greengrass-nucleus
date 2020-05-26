@@ -38,9 +38,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.iot.evergreen.deployment.DeploymentService.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.iot.evergreen.deployment.DeploymentService.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
-import static com.aws.iot.evergreen.deployment.DeploymentService.PROCESSED_DEPLOYMENTS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -92,7 +92,8 @@ class MultipleDeploymentsTest {
     @Test
     void GIVEN_online_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order() throws Exception {
         List<DeploymentJobHelper> helpers = Arrays
-                .asList(new DeploymentJobHelper("GreenSignal"), new DeploymentJobHelper("SomeService"), new DeploymentJobHelper("CustomerApp"));
+                .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
+                        new DeploymentJobHelper(3, "CustomerApp"));
 
         kernel.launch();
 
@@ -127,7 +128,8 @@ class MultipleDeploymentsTest {
     @Test
     void GIVEN_offline_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order_eventually() throws Exception {
         List<DeploymentJobHelper> helpers = Arrays
-                .asList(new DeploymentJobHelper("GreenSignal"), new DeploymentJobHelper("SomeService"), new DeploymentJobHelper("CustomerApp"));
+                .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
+                        new DeploymentJobHelper(3, "CustomerApp"));
 
         // Create multiple jobs
         String[] targets = {thingGroupResp.thingGroupArn()};
@@ -156,9 +158,8 @@ class MultipleDeploymentsTest {
     }
 
     private void subscribeToLocalDeploymentStatus(Kernel kernel, List<DeploymentJobHelper> helpers) {
-        Topics deploymentServiceTopics = kernel.getConfig()
-                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
-        Topics processedDeployments = deploymentServiceTopics.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
+        Topics processedDeployments = kernel.getConfig()
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
             if (!(newValue instanceof Topic)) {
                 return;

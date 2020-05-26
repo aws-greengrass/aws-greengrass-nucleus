@@ -17,6 +17,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.iot.evergreen.util.Utils.appendLong;
 import static com.aws.iot.evergreen.util.Utils.flush;
@@ -26,6 +27,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private final Configuration conf;
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private static final Logger logger = LogManager.getLogger(ConfigurationWriter.class);
 
@@ -70,7 +72,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        closed.set(true);
         conf.getRoot().remove(this);
         if (out instanceof Commitable) {
             ((Commitable) out).commit();
@@ -94,6 +97,9 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
 
     @Override
     public synchronized void childChanged(WhatHappened what, Node n) {
+        if (closed.get()) {
+            return;
+        }
         if (what == WhatHappened.childChanged && n instanceof Topic) {
             Topic t = (Topic) n;
             try {

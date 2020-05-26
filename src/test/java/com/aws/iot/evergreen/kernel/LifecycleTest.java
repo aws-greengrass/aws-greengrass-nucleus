@@ -4,15 +4,14 @@ import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.dependency.DependencyType;
+import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import lombok.Setter;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,16 +36,18 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 
 @ExtendWith(MockitoExtension.class)
 public class LifecycleTest {
@@ -70,11 +71,6 @@ public class LifecycleTest {
     private Context context;
     private Topics config;
     private Lifecycle lifecycle;
-
-    @BeforeAll
-    static void setupProperty() {
-        System.setProperty("log.store", "CONSOLE");
-    }
 
     @BeforeEach
     void setupContext() {
@@ -103,10 +99,12 @@ public class LifecycleTest {
     }
 
     @AfterEach
-    void stop() {
+    void stop() throws IOException {
         if (lifecycle != null) {
             lifecycle.setClosed(true);
+            lifecycle.requestStop();
         }
+        context.close();
     }
 
     @Test
@@ -117,8 +115,8 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        Mockito.verify(evergreenService, Mockito.timeout(100)).install();
-        Mockito.verify(evergreenService, Mockito.timeout(100)).startup();
+        Mockito.verify(evergreenService, timeout(1000)).install();
+        Mockito.verify(evergreenService, timeout(1000)).startup();
         assertEquals(State.STARTING, lifecycle.getState());
     }
 
@@ -128,12 +126,12 @@ public class LifecycleTest {
         lifecycle = new Lifecycle(evergreenService, logger);
         initLifecycleState(lifecycle, State.NEW);
 
-        AtomicBoolean installInterrupted = new AtomicBoolean(false);
+        CountDownLatch installInterrupted = new CountDownLatch(1);
         Mockito.doAnswer((mock) -> {
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
-                installInterrupted.set(true);
+                installInterrupted.countDown();
             }
             return null;
         }).when(evergreenService).install();
@@ -156,7 +154,7 @@ public class LifecycleTest {
 
         // THEN
         assertTrue(errorHandled);
-        assertThat(installInterrupted::get, eventuallyEval(is(true)));
+        assertThat(installInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
     }
 
     @Test
@@ -165,12 +163,12 @@ public class LifecycleTest {
         lifecycle = new Lifecycle(evergreenService, logger);
         initLifecycleState(lifecycle, State.INSTALLED);
 
-        AtomicBoolean startupInterrupted = new AtomicBoolean(false);
+        CountDownLatch startupInterrupted = new CountDownLatch(1);
         Mockito.doAnswer((mock) -> {
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
-                startupInterrupted.set(true);
+                startupInterrupted.countDown();
             }
             return null;
         }).when(evergreenService).startup();
@@ -201,22 +199,22 @@ public class LifecycleTest {
 
         // THEN
         assertTrue(shutdownCalled);
-        assertThat(startupInterrupted::get, eventuallyEval(is(true)));
+        assertThat(startupInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
     }
 
     @Test
     public void GIVEN_state_running_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = spy(new Lifecycle(evergreenService, logger));
         initLifecycleState(lifecycle, State.INSTALLED);
 
-        AtomicBoolean startupInterrupted = new AtomicBoolean(false);
+        CountDownLatch startupInterrupted = new CountDownLatch(1);
         Mockito.doAnswer((mock) -> {
             lifecycle.reportState(State.RUNNING);
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
-                startupInterrupted.set(true);
+                startupInterrupted.countDown();
             }
             return null;
         }).when(evergreenService).startup();
@@ -231,33 +229,33 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING));
 
         // WHEN
         lifecycle.requestStop();
-        shutdownCalledLatch.await(1, TimeUnit.SECONDS);
+        assertTrue(shutdownCalledLatch.await(1, TimeUnit.SECONDS));
 
         // THEN
         Mockito.verify(evergreenService).startup();
         Mockito.verify(evergreenService).shutdown();
-        assertThat(startupInterrupted::get, eventuallyEval(is(true)));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(startupInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
+        Mockito.verify(lifecycle, timeout(1000)).setState(any(), eq(State.FINISHED));
     }
 
     @Test
     public void GIVEN_state_install_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = spy(new Lifecycle(evergreenService, logger));
         initLifecycleState(lifecycle, State.INSTALLED);
 
-        AtomicBoolean startupInterrupted = new AtomicBoolean(false);
+        CountDownLatch startupInterrupted = new CountDownLatch(1);
         Mockito.doAnswer((mock) -> {
             // not report RUNNING here
             lifecycle.requestStop();
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
-                startupInterrupted.set(true);
+                startupInterrupted.countDown();
             }
             return null;
         }).when(evergreenService).startup();
@@ -277,8 +275,8 @@ public class LifecycleTest {
         Mockito.verify(evergreenService).startup();
         Mockito.verify(evergreenService).shutdown();
 
-        assertThat(startupInterrupted::get, eventuallyEval(is(true)));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(startupInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
+        Mockito.verify(lifecycle, timeout(1000)).setState(any(), eq(State.FINISHED));
     }
 
     @Test
@@ -332,7 +330,7 @@ public class LifecycleTest {
 
     @Test
     void GIVEN_state_running_WHEN_errored_3_times_THEN_broken() throws InterruptedException {
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = spy(new Lifecycle(evergreenService, logger));
         initLifecycleState(lifecycle, State.NEW);
 
         CountDownLatch reachedRunning1 = new CountDownLatch(1);
@@ -355,21 +353,21 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000).times(2)).setState(any(), eq(State.RUNNING));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000).times(3)).setState(any(), eq(State.RUNNING));
 
         // Report 3rd error
         lifecycle.reportState(State.ERRORED);
-        assertThat(lifecycle::getState, eventuallyEval(is(State.BROKEN)));
+        Mockito.verify(lifecycle, timeout(10000)).setState(any(), eq(State.BROKEN));
     }
 
     @Test
@@ -377,7 +375,7 @@ public class LifecycleTest {
         Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
         context.put(Clock.class, clock);
 
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = spy(new Lifecycle(evergreenService, logger));
         initLifecycleState(lifecycle, State.NEW);
 
         CountDownLatch reachedRunning1 = new CountDownLatch(1);
@@ -405,27 +403,27 @@ public class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000).times(2)).setState(any(), eq(State.RUNNING));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000).times(3)).setState(any(), eq(State.RUNNING));
 
         // Report 3rd error, but after a while
         clock = Clock.offset(clock, Duration.ofHours(1).plusMillis(1));
         context.put(Clock.class, clock);
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning4.await(5, TimeUnit.SECONDS));
-        assertThat(lifecycle::getState, eventuallyEval(is(State.RUNNING)));
+        Mockito.verify(lifecycle, timeout(1000).times(4)).setState(any(), eq(State.RUNNING));
     }
 
-    private class MinPriorityThreadFactory implements ThreadFactory {
+    private static class MinPriorityThreadFactory implements ThreadFactory {
         @Override
         public Thread newThread(Runnable r) {
             Thread t = new Thread(r);

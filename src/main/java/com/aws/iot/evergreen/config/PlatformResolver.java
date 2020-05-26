@@ -16,10 +16,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class PlatformResolver {
     private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
-    public static final Map<String, Integer> RANKS = Collections.unmodifiableMap(initializeRanks());
+    public static final AtomicReference<Map<String, Integer>> RANKS =
+            new AtomicReference<>(Collections.unmodifiableMap(initializeRanks()));
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
 
     private static Set<String> initializeSupportedPlatforms() {
@@ -88,7 +90,7 @@ public final class PlatformResolver {
     }
 
     public static Object resolvePlatform(Map<Object, Object> input) {
-        return resolvePlatform(RANKS, input);
+        return resolvePlatform(RANKS.get(), input);
     }
 
     private static Object resolvePlatform(Map<String, Integer> ranks, Map<Object, Object> input) {
