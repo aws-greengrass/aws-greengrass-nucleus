@@ -1,0 +1,9 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: SlowToDeployApp
+Description: An app that takes some time to install so as to slow down deployments
+Publisher: Me
+Version: '1.0.0'
+Lifecycle:
+  install:
+    sleep 5
