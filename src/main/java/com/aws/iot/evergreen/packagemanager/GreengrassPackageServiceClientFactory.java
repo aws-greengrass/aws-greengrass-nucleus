@@ -6,8 +6,10 @@ package com.aws.iot.evergreen.packagemanager;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.greengrasspackagemanagement.AWSGreengrassPackageManagement;
 import com.amazonaws.services.greengrasspackagemanagement.AWSGreengrassPackageManagementClientBuilder;
+import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
 import lombok.Getter;
 
@@ -25,30 +27,31 @@ public class GreengrassPackageServiceClientFactory {
      * Constructor with custom endpoint/region configuration.
      *
      * @param greengrassServiceEndpoint String containing service endpoint
-     * @param greengrassServiceRegion String containing service region
+     * @param deviceConfiguration Device configuration
      */
     @Inject
     public GreengrassPackageServiceClientFactory(
             @Named("greengrassServiceEndpoint") String greengrassServiceEndpoint,
-            @Named("greengrassServiceRegion") String greengrassServiceRegion) {
+            DeviceConfiguration deviceConfiguration) {
 
-        if (Utils.isEmpty(greengrassServiceEndpoint) || Utils.isEmpty(greengrassServiceRegion)) {
+        String region = Coerce.toString(deviceConfiguration.getAWSRegion());
+        if (Utils.isEmpty(greengrassServiceEndpoint)) {
             // Initialize default client, client builder determines endpoint configuration
             // Will try to use default credential provider and environment region configuration
             logger.atInfo("initialize-pms-client")
                   .addKeyValue("service-endpoint", "default")
-                  .addKeyValue("service-region", "default")
+                  .addKeyValue("service-region", region)
                   .log();
-            this.pmsClient = AWSGreengrassPackageManagementClientBuilder.defaultClient();
+            this.pmsClient = AWSGreengrassPackageManagementClientBuilder.standard().withRegion(region).build();
         } else {
             AWSGreengrassPackageManagementClientBuilder clientBuilder
                     = AWSGreengrassPackageManagementClientBuilder.standard();
             logger.atInfo("initialize-pms-client")
                   .addKeyValue("service-endpoint", greengrassServiceEndpoint)
-                  .addKeyValue("service-region", greengrassServiceRegion)
+                  .addKeyValue("service-region", region)
                   .log();
             clientBuilder.withEndpointConfiguration(
-                    new AwsClientBuilder.EndpointConfiguration(greengrassServiceEndpoint, greengrassServiceRegion));
+                    new AwsClientBuilder.EndpointConfiguration(greengrassServiceEndpoint, region));
             this.pmsClient = clientBuilder.build();
         }
         // TODO: Might need to retrieve AWS credentials from custom credential provider

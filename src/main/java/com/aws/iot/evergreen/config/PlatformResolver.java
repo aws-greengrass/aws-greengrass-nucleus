@@ -6,12 +6,11 @@ import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -20,14 +19,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class PlatformResolver {
     private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
+    private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
     public static final AtomicReference<Map<String, Integer>> RANKS =
             new AtomicReference<>(Collections.unmodifiableMap(initializeRanks()));
-    private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
+
+    private PlatformResolver() {
+    }
 
     private static Set<String> initializeSupportedPlatforms() {
-        Set<String> platforms = new HashSet();
-        platforms.addAll(Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora",
-                "ubuntu", "macos", "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
+        Set<String> platforms = new HashSet<>();
+        platforms.addAll(Arrays
+                .asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora", "ubuntu", "macos",
+                        "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
         return platforms;
     }
 
@@ -81,12 +84,17 @@ public final class PlatformResolver {
         } catch (InterruptedException | IOException e) {
             logger.atError().log("Error while running uname -a");
         }
-        try {
-            ranks.put(InetAddress.getLocalHost().getHostName(), 99);
-        } catch (UnknownHostException ex) {
-            logger.atError().log("Error getting hostname", ex);
-        }
         return ranks;
+    }
+
+    /**
+     * Get the most specific platform string for the current system.
+     *
+     * @return platform
+     */
+    public static String getPlatform() {
+        return RANKS.get().entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue)).map(Map.Entry::getKey)
+                .orElse("all");
     }
 
     public static Object resolvePlatform(Map<Object, Object> input) {
@@ -138,8 +146,5 @@ public final class PlatformResolver {
         }
         return bestRankNode;
         */
-    }
-
-    private PlatformResolver() {
     }
 }
