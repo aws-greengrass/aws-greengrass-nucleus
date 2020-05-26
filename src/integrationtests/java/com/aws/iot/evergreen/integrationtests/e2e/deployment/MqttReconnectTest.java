@@ -7,8 +7,8 @@ package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
+import com.aws.iot.evergreen.deployment.model.PackageInfo;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
@@ -34,7 +34,6 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -51,6 +50,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG;
 import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG;
+import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateMockConfigurationArn;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -141,11 +141,12 @@ public class MqttReconnectTest {
 
         // Create Job Doc
         String document = new ObjectMapper()
-                .writeValueAsString(DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                        .deploymentId(UUID.randomUUID().toString()).rootPackages(Arrays.asList("CustomerApp"))
-                        .deploymentPackageConfigurationList(Arrays
-                                .asList(new DeploymentPackageConfiguration("CustomerApp", "1.0.0", null, null, null)))
-                        .build());
+                .writeValueAsString(FleetConfiguration.builder()
+                        .configurationArn(generateMockConfigurationArn("mqtt/reconnect:1"))
+                        .creationTimestamp(System.currentTimeMillis())
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("CustomerApp", new PackageInfo(true, "1.0.0", null));
+                        }}).build());
 
         // Create job targeting our DUT
         String[] targets = {thingGroupResp.thingGroupArn()};
