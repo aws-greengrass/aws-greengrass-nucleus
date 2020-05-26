@@ -9,9 +9,9 @@ import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableExceptio
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
-import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,6 +55,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -93,10 +94,10 @@ public class IotJobsHelper implements InjectionActions {
     // with, and keep retrying the request until we get a non-empty response.
     private static final AtomicInteger unprocessedJobs = new AtomicInteger(0);
 
-    private static Logger logger = LogManager.getLogger(IotJobsHelper.class);
+    private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
     @Inject
-    private DeviceConfigurationHelper deviceConfigurationHelper;
+    private DeviceConfiguration deviceConfiguration;
 
     @Inject
     private AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
@@ -118,7 +119,6 @@ public class IotJobsHelper implements InjectionActions {
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
     private final AtomicBoolean postInjectInProgress = new AtomicBoolean(false);
 
-    private String thingName;
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
 
@@ -210,17 +210,16 @@ public class IotJobsHelper implements InjectionActions {
      * Constructor for unit testing.
      *
      */
-    IotJobsHelper(DeviceConfigurationHelper deviceConfigurationHelper,
+    IotJobsHelper(DeviceConfiguration deviceConfiguration,
                   AWSIotMqttConnectionFactory awsIotMqttConnectionFactory,
                   IotJobsClientFactory iotJobsClientFactory,
                   LinkedBlockingQueue<Deployment> deploymentsQueue,
                   DeploymentStatusKeeper deploymentStatusKeeper,
-                  ExecutorService executorService) throws DeviceConfigurationException {
-        this.deviceConfigurationHelper = deviceConfigurationHelper;
+                  ExecutorService executorService) {
+        this.deviceConfiguration = deviceConfiguration;
         this.awsIotMqttConnectionFactory = awsIotMqttConnectionFactory;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentsQueue = deploymentsQueue;
-        this.thingName = deviceConfigurationHelper.getDeviceConfiguration().getThingName();
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.executorService = executorService;
     }
@@ -301,11 +300,11 @@ public class IotJobsHelper implements InjectionActions {
                  HostResolver resolver = new HostResolver(eventLoopGroup);
                  ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
                  AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
-                         .newMtlsBuilderFromPath(deviceConfiguration.getCertificateFilePath(),
-                                 deviceConfiguration.getPrivateKeyFilePath())) {
-                builder.withCertificateAuthorityFromPath(null, deviceConfiguration.getRootCAFilePath())
+                         .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
+                                 Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))) {
+                builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                         //TODO: With MQTT proxy this will change
-                        .withEndpoint(deviceConfiguration.getIotDataEndpoint())
+                        .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                         .withClientId(UUID.randomUUID().toString()).withCleanSession(true)
                         .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks)
                         .withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT).withPingTimeoutMs(MQTT_PING_TIMEOUT);
@@ -332,7 +331,7 @@ public class IotJobsHelper implements InjectionActions {
     public void connect()
             throws InterruptedException, DeviceConfigurationException, AWSIotException, ConnectionUnavailableException {
 
-        DeviceConfiguration deviceConfiguration = deviceConfigurationHelper.getDeviceConfiguration();
+        DeviceConfiguration deviceConfiguration = this.deviceConfiguration;
         connection = awsIotMqttConnectionFactory.getAwsIotMqttConnection(deviceConfiguration, this.callbacks);
         try {
             //TODO: Add retry for Throttling, Limit exceed exception
@@ -352,8 +351,7 @@ public class IotJobsHelper implements InjectionActions {
             throw new AWSIotException(e);
         }
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
-        this.thingName = deviceConfiguration.getThingName();
-        logger.dfltKv("ThingName", thingName);
+        logger.dfltKv("ThingName", (Supplier<String>) () -> Coerce.toString(deviceConfiguration.getThingName()));
         subscribeToJobsTopics();
         logger.atInfo().log("Connection established to Iot cloud");
     }
@@ -423,6 +421,7 @@ public class IotJobsHelper implements InjectionActions {
     public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
             throws ExecutionException, InterruptedException, TimeoutException {
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
+        String thingName = Coerce.toString(deviceConfiguration.getThingName());
         subscriptionRequest.thingName = thingName;
         subscriptionRequest.jobId = jobId;
         CompletableFuture<Void> gotResponse = new CompletableFuture<>();
@@ -466,7 +465,7 @@ public class IotJobsHelper implements InjectionActions {
      */
     public void requestNextPendingJobDocument() {
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
-        describeJobExecutionRequest.thingName = thingName;
+        describeJobExecutionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
         describeJobExecutionRequest.jobId = "$next";
         describeJobExecutionRequest.includeJobDocument = true;
         //This method is specifically called from an async event notification handler. Async handler cannot block on
@@ -533,7 +532,7 @@ public class IotJobsHelper implements InjectionActions {
         logger.atInfo().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
-        describeJobExecutionSubscriptionRequest.thingName = thingName;
+        describeJobExecutionSubscriptionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
         describeJobExecutionSubscriptionRequest.jobId = "$next";
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
@@ -557,7 +556,7 @@ public class IotJobsHelper implements InjectionActions {
             throws ExecutionException, InterruptedException, TimeoutException {
         logger.atInfo().log("Subscribing to deployment job event notifications.");
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
-        request.thingName = thingName;
+        request.thingName = Coerce.toString(deviceConfiguration.getThingName());
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);

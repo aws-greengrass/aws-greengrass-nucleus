@@ -124,6 +124,11 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
                 + " certificateFilePath cannot be empty, privateKeyPath cannot be empty, rootCaPath cannot be empty,");
         // Ignore error from MQTT during shutdown
         ignoreExceptionUltimateCauseWithMessage(context, "Mqtt operation interrupted by connection shutdown");
+
+        // Ignore exceptions trying to determine AWS region/credentials
+        ignoreExceptionWithMessage(context, "Unable to load region information from any provider in the chain");
+        ignoreExceptionWithMessageSubstring(context, "Failed to connect to service endpoint:");
+        ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
     }
 
     @Override

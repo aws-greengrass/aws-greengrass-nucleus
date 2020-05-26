@@ -3,12 +3,12 @@
 
 package com.aws.iot.evergreen.tes;
 
-import com.aws.iot.evergreen.deployment.DeviceConfigurationHelper;
+import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
-import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import software.amazon.awssdk.crt.http.HttpClientConnection;
 import software.amazon.awssdk.crt.http.HttpClientConnectionManager;
 import software.amazon.awssdk.crt.http.HttpClientConnectionManagerOptions;
@@ -39,20 +39,19 @@ public class IotConnectionManager implements Closeable {
     /**
      * Constructor.
      *
-     * @param helper Device configuration helper for getting cert and keys for mTLS
+     * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
      * @throws DeviceConfigurationException When unable to initialize this manager.
      */
     @Inject
-    IotConnectionManager(final DeviceConfigurationHelper helper) throws DeviceConfigurationException {
-        this.connManager = initConnectionManager(helper);
+    IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+        this.connManager = initConnectionManager(deviceConfiguration);
     }
 
-    private HttpClientConnectionManager initConnectionManager(DeviceConfigurationHelper helper)
+    private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration)
             throws DeviceConfigurationException {
-        DeviceConfiguration deviceConfiguration = helper.getDeviceConfiguration();
-        final String certPath = deviceConfiguration.getCertificateFilePath();
-        final String keyPath = deviceConfiguration.getPrivateKeyFilePath();
-        final String caPath = deviceConfiguration.getRootCAFilePath();
+        final String certPath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
+        final String keyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
+        final String caPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
              HostResolver resolver = new HostResolver(eventLoopGroup);
              ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
@@ -62,7 +61,8 @@ public class IotConnectionManager implements Closeable {
             return HttpClientConnectionManager
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
                             .withSocketOptions(new SocketOptions()).withTlsContext(new TlsContext(tlsCtxOptions))
-                            .withPort(IOT_PORT).withUri(URI.create(deviceConfiguration.getIotCredentialEndpoint())));
+                            .withPort(IOT_PORT)
+                            .withUri(URI.create(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))));
         }
     }
 
