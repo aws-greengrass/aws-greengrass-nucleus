@@ -6,7 +6,7 @@
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
 import com.amazonaws.arn.Arn;
-import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.aws.iot.evergreen.util.CrashableSupplier;
@@ -64,14 +64,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
-
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_IOT_CRED_ENDPOINT;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_IOT_DATA_ENDPOINT;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.iot.evergreen.deployment.DeviceConfigurationHelper.DEVICE_PARAM_THING_NAME;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 
 public class Utils {
     private static final String FULL_ACCESS_POLICY_NAME = "E2ETestFullAccess";
@@ -316,13 +308,13 @@ public class Utils {
             cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
         }
 
-        Topics deploymentServiceTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService");
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_THING_NAME).withValue(thing.thingName);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_IOT_DATA_ENDPOINT).withValue(thing.dataEndpoint);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_PRIVATE_KEY_PATH).withValue(privKeyFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_CERTIFICATE_FILE_PATH).withValue(certFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_ROOT_CA_PATH).withValue(caFilePath);
-        deploymentServiceTopics.createLeafChild(DEVICE_PARAM_IOT_CRED_ENDPOINT).withValue(thing.credEndpoint);
+        DeviceConfiguration config = kernel.getContext().get(DeviceConfiguration.class);
+        config.getThingName().withValue(thing.thingName);
+        config.getIotDataEndpoint().withValue(thing.dataEndpoint);
+        config.getPrivateKeyFilePath().withValue(privKeyFilePath);
+        config.getCertificateFilePath().withValue(certFilePath);
+        config.getRootCAFilePath().withValue(caFilePath);
+        config.getIotCredentialEndpoint().withValue(thing.credEndpoint);
     }
 
     /**

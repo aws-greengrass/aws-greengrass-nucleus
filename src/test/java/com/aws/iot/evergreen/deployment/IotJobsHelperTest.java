@@ -3,8 +3,8 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.model.Deployment;
-import com.aws.iot.evergreen.deployment.model.DeviceConfiguration;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,11 +55,6 @@ public class IotJobsHelperTest {
     private static final String TEST_THING_NAME = "TEST_THING";
     private static final String TEST_JOB_ID = "TestJobId";
     private static final String REJECTION_MESSAGE = "Job update rejected";
-    private static final String TEST_CERT_PATH = "TestCertPath";
-    private static final String TEST_PRIVATE_KEY_PATH = "TestPrivateKeyPath";
-    private static final String TEST_ROOT_CA_PATH = "TestRootCaPath";
-    private static final String TEST_MQTT_CLIENT_ENDPOINT = "TestiotDataEndpoint";
-    private static final String TEST_IOT_CRED_ENDPOINT = "TestIoTCredEndpoint";
 
     @Mock
     private IotJobsClient mockIotJobsClient;
@@ -77,7 +72,7 @@ public class IotJobsHelperTest {
     Consumer<RejectedError> rejectedErrorConsumer;
 
     @Mock
-    DeviceConfigurationHelper deviceConfigurationHelper;
+    DeviceConfiguration deviceConfiguration;
 
     @Mock
     IotJobsHelper.AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
@@ -109,9 +104,11 @@ public class IotJobsHelperTest {
 
     @BeforeEach
     public void setup() throws Exception {
-        when(deviceConfigurationHelper.getDeviceConfiguration()).thenReturn(getDeviceConfiguration());
-        iotJobsHelper = new IotJobsHelper(deviceConfigurationHelper, awsIotMqttConnectionFactory,
+        iotJobsHelper = new IotJobsHelper(deviceConfiguration, awsIotMqttConnectionFactory,
                 mockIotJobsClientFactory, mockDeploymentsQueue, deploymentStatusKeeper, executorService);
+        Topic mockThingNameTopic = mock(Topic.class);
+        when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
+        when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
         when(awsIotMqttConnectionFactory.getAwsIotMqttConnection(any(), any())).thenReturn(mockMqttClientConnection);
         when(mockIotJobsClientFactory.getIotJobsClient(eq(mockMqttClientConnection))).thenReturn(mockIotJobsClient);
         CompletableFuture<Boolean> completableFuture = CompletableFuture.completedFuture(Boolean.TRUE);
@@ -128,7 +125,7 @@ public class IotJobsHelperTest {
 
     @Test
     public void GIVEN_device_configured_WHEN_connecting_to_iot_cloud_THEN_connection_successful() throws Exception {
-        verify(awsIotMqttConnectionFactory).getAwsIotMqttConnection(eq(getDeviceConfiguration()), eq(iotJobsHelper.getCallbacks()));
+        verify(awsIotMqttConnectionFactory).getAwsIotMqttConnection(any(), eq(iotJobsHelper.getCallbacks()));
         verify(mockMqttClientConnection).connect();
         verify(mockIotJobsClient).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
@@ -357,10 +354,5 @@ public class IotJobsHelperTest {
         iotJobsHelper.getCallbacks().onConnectionResumed(false);
         verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(deploymentStatusKeeper).publishPersistedStatusUpdates(eq(IOT_JOBS));
-    }
-
-    private DeviceConfiguration getDeviceConfiguration() {
-        return new DeviceConfiguration(TEST_THING_NAME, TEST_CERT_PATH,
-                TEST_PRIVATE_KEY_PATH, TEST_ROOT_CA_PATH, TEST_MQTT_CLIENT_ENDPOINT, TEST_IOT_CRED_ENDPOINT);
     }
 }
