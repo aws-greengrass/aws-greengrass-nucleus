@@ -95,11 +95,6 @@
             <artifactId>greengrasscomponentmanagement</artifactId>
             <version>1.11.1-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>com.amazonaws.services</groupId>
-            <artifactId>greengrasscomponentmanagement</artifactId>
-            <version>1.11.1-SNAPSHOT</version>
-        </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
         service SDK is updated. Remove both the sdk-core and jcl-over-slf4j.

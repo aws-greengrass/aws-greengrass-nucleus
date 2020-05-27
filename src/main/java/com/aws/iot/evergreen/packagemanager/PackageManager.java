@@ -107,8 +107,14 @@ public class PackageManager implements InjectionActions {
 
         }
 
-        packageMetadataList
-                .addAll(greengrassPackageServiceHelper.listAvailablePackageMetadata(packageName, versionRequirement));
+        try {
+            packageMetadataList.addAll(
+                    greengrassPackageServiceHelper.listAvailablePackageMetadata(packageName, versionRequirement));
+        } catch (PackageDownloadException e) {
+            logger.atInfo("list-package-versions")
+                  .addKeyValue(PACKAGE_NAME_KEY, packageName)
+                  .log("Unable to find any valid versions in Component Management Service");
+        }
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", packageMetadataList)
@@ -137,9 +143,11 @@ public class PackageManager implements InjectionActions {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
-
-            downloadArtifactsIfNecessary(packageIdentifier,
-                    (List<URI>) PlatformResolver.resolvePlatform((Map) pkg.getArtifacts()));
+            Map artifacts = pkg.getArtifacts();
+            if (!artifacts.isEmpty()) {
+                downloadArtifactsIfNecessary(packageIdentifier,
+                                             (List<URI>) PlatformResolver.resolvePlatform(artifacts));
+            }
             logger.atInfo("prepare-package-finished").kv("packageIdentifier", packageIdentifier).log();
         } catch (PackageLoadingException | PackageDownloadException e) {
             logger.atError().log("Failed to prepare package {}", packageIdentifier, e);
@@ -157,11 +165,10 @@ public class PackageManager implements InjectionActions {
         }
         if (packageOptional.isPresent()) {
             return packageOptional.get();
-        } else {
-            PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-            packageStore.savePackageRecipe(packageRecipe);
-            return packageRecipe;
         }
+        PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
+        packageStore.savePackageRecipe(packageRecipe);
+        return packageRecipe;
     }
 
     void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<URI> artifactList)

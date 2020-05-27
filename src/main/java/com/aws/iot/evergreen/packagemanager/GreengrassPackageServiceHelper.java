@@ -44,22 +44,33 @@ public class GreengrassPackageServiceHelper {
         this.evgPmsClient = clientFactory.getCmsClient();
     }
 
-    List<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement) {
+    List<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
+            throws PackageDownloadException {
         FindComponentVersionsByPlatformRequest findComponentRequest =
                 new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
                         .withVersionConstraint(versionRequirement.toString())
                         .withPlatform(PlatformResolver.getPlatform());
-        FindComponentVersionsByPlatformResult findComponentResult =
-                evgPmsClient.findComponentVersionsByPlatform(findComponentRequest);
-        List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
 
-        return componentSelectedMetadataList.stream().map(componentMetadata -> {
-            PackageIdentifier packageIdentifier = new PackageIdentifier(componentMetadata.getComponentName(),
-                    new Semver(componentMetadata.getComponentVersion()), componentMetadata.getComponentARN());
-            return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
-                    Collectors.toMap(ComponentNameVersion::getComponentName,
-                            ComponentNameVersion::getComponentVersionConstraint)));
-        }).collect(Collectors.toList());
+        try {
+            FindComponentVersionsByPlatformResult findComponentResult =
+                    evgPmsClient.findComponentVersionsByPlatform(findComponentRequest);
+
+            List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
+
+            return componentSelectedMetadataList.stream().map(componentMetadata -> {
+                PackageIdentifier packageIdentifier
+                        = new PackageIdentifier(componentMetadata.getComponentName(),
+                                                new Semver(componentMetadata.getComponentVersion()),
+                                                componentMetadata.getComponentARN());
+                return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
+                        Collectors.toMap(ComponentNameVersion::getComponentName,
+                                         ComponentNameVersion::getComponentVersionConstraint)));
+            }).collect(Collectors.toList());
+        } catch (AmazonClientException e) {
+            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
+            throw new PackageDownloadException("No valid versions were found for this package based on "
+                                                       + "provided requirement", e);
+        }
     }
 
     PackageRecipe downloadPackageRecipe(PackageIdentifier packageIdentifier)
@@ -75,8 +86,6 @@ public class GreengrassPackageServiceHelper {
         } catch (AmazonClientException e) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, packageIdentifier.getArn());
-            logger.atError("download-package-from-greengrass-repo", e)
-                    .addKeyValue("packageIdentifier", packageIdentifier).addKeyValue("errorMessage", errorMsg).log();
             throw new PackageDownloadException(errorMsg, e);
         }
 
@@ -85,8 +94,6 @@ public class GreengrassPackageServiceHelper {
             return RECIPE_SERIALIZER.readValue(new ByteBufferBackedInputStream(recipeBuf), PackageRecipe.class);
         } catch (IOException e) {
             String errorMsg = String.format(PACKAGE_RECIPE_PARSING_EXCEPTION_FMT, packageIdentifier.getArn());
-            logger.atError("download-package-from-greengrass-repo", e)
-                    .addKeyValue("packageIdentifier", packageIdentifier).addKeyValue("errorMessage", errorMsg).log();
             throw new PackageLoadingException(errorMsg, e);
         }
     }

@@ -29,11 +29,11 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT
             = "Failed to download artifact %s for package %s-%s, http response from server was %d";
 
-    private final AWSGreengrassComponentManagement evgPmsClient;
+    private final AWSGreengrassComponentManagement evgCmsClient;
 
     @Inject
     public GreengrassRepositoryDownloader(GreengrassPackageServiceClientFactory clientFactory) {
-        this.evgPmsClient = clientFactory.getCmsClient();
+        this.evgCmsClient = clientFactory.getCmsClient();
     }
 
     @Override
@@ -83,7 +83,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
         // exception for the redirect. This response code needs a revisit from the service side either to change the
         // response code or to gracefully respond instead of throwing exception
         try {
-            getComponentArtifactResult = evgPmsClient.getComponentArtifact(getComponentArtifactRequest);
+            getComponentArtifactResult = evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
         } catch (AmazonServiceException ase) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
             // Ideally service side response is fixed and this can be merged with the Client Exception handling

@@ -49,6 +49,8 @@ public class PackageRecipe {
 
     private final Set<PackageParameter> packageParameters;
 
+    private final List<String> platforms;
+
     private final Map<String, Object> lifecycle;
 
     // TODO: Migrate to artifact objects, this is only a list of URLs at the moment
@@ -69,6 +71,7 @@ public class PackageRecipe {
      * @param description           Description metadata
      * @param publisher             Name of the publisher
      * @param packageParameters     Parameters included in the recipe
+     * @param platforms             Platforms supported by the recipe
      * @param lifecycle             Lifecycle definitions
      * @param artifacts             Artifact definitions
      * @param dependencies          List of dependencies
@@ -82,6 +85,7 @@ public class PackageRecipe {
                          @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
                          @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
                          @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
+                         @JsonProperty("Platforms") List<String> platforms,
                          @JsonProperty("Lifecycle") @JsonDeserialize(
                                  using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
                          @JsonProperty("Artifacts") Map<String, List<URI>> artifacts,
@@ -100,6 +104,7 @@ public class PackageRecipe {
         this.version = new Semver(version.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
+        this.platforms = platforms;
         this.packageParameters = packageParameters == null ? Collections.emptySet() : packageParameters;
         this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
         this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;

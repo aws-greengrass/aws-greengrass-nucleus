@@ -3,28 +3,37 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.integrationtests.packagemanager;
+package com.aws.iot.evergreen.integrationtests.e2e.packagemanager;
 
 import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
 import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentRequest;
 import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
+import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
+import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -35,13 +44,15 @@ import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(EGExtension.class)
-class PackageManagerIntegrationTest {
+@Tag("E2E")
+class PackageManagerE2ETest extends BaseE2ETestCase {
 
     // Based on PackageManager.java
     private static final String RECIPE_DIRECTORY = "recipes";
     private static final String ARTIFACT_DIRECTORY = "artifacts";
 
     private static PackageManager packageManager;
+    private static DependencyResolver dependencyResolver;
     private static Path packageStorePath;
     private static AWSGreengrassComponentManagement cmsClient;
 
@@ -50,14 +61,13 @@ class PackageManagerIntegrationTest {
     @TempDir
     static Path rootDir;
 
-    @BeforeAll
-    static void setupKernel() throws IOException, URISyntaxException {
+    @BeforeEach
+    void setupKernel() throws IOException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", PackageManagerIntegrationTest.class.getResource("onlyMain.yaml").toString());
-        kernel.getContext().put("greengrassServiceEndpoint",
-                                "https://3w5ajog718.execute-api.us-east-1.amazonaws.com/Beta/");
-        kernel.getContext().put("greengrassServiceRegion", "us-east-1");
+        kernel.parseArgs("-i", PackageManagerE2ETest.class.getResource("onlyMain.yaml").toString());
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
+        deviceProvisioningHelper.updateKernelConfigWithCMSConfiguration(kernel, BETA_REGION.toString());
 
         // The integration test will pick up credentials from the default provider chain
         // In automated testing, the device environment should ideally have credentials for all tests
@@ -66,8 +76,13 @@ class PackageManagerIntegrationTest {
 
         kernel.launch();
 
+        Path localStoreContentPath = Paths.get(PackageManagerE2ETest.class.getResource("local_store_content").getPath());
+        // pre-load contents to package store
+        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+
         // get required instances from context
         packageManager = kernel.getContext().get(PackageManager.class);
+        dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         packageStorePath = kernel.getPackageStorePath();
 
         cmsClient = kernel.getContext().get(GreengrassPackageServiceClientFactory.class).getCmsClient();
@@ -77,7 +92,7 @@ class PackageManagerIntegrationTest {
         // statements. The delete code is already included in @AfterAll tagged function below
         /*
         Path testPackagePath =
-                Paths.get(PackageManagerIntegrationTest.class.getResource("test_packages").toURI())
+                Paths.get(PackageManagerE2ETest.class.getResource("test_packages").toURI())
                      .resolve("KernelIntegTest-1.0.0");
 
         Path testRecipePath = testPackagePath.resolve("recipe.yaml");
@@ -106,8 +121,8 @@ class PackageManagerIntegrationTest {
         */
     }
 
-    @AfterAll
-    static void tearDown() {
+    @AfterEach
+    void tearDown() {
         try {
             kernel.shutdown();
         } finally {
@@ -120,7 +135,8 @@ class PackageManagerIntegrationTest {
     }
 
     @Test
-    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
+    @Order(1)
+    void GIVEN_package_identifier_WHEN_request_package_from_cms_service_THEN_package_downloaded_with_artifacts()
             throws Exception {
         PackageIdentifier pkgIdt
                 = new PackageIdentifier("KernelIntegTest", new Semver("1.0.0", SemverType.NPM));
@@ -137,5 +153,37 @@ class PackageManagerIntegrationTest {
 
         assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")
                                                 .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
+    }
+
+    @Test
+    @Order(2)
+    void GIVEN_package_identifier_WHEN_resolve_dependencies_and_prepare_THEN_package_and_dependencies_downloaded_with_artifacts()
+            throws Exception {
+        List<String> rootPackageList = new ArrayList<>();
+        rootPackageList.add("KernelIntegTest");
+        List<DeploymentPackageConfiguration> configList = new ArrayList<>();
+        configList.add(new DeploymentPackageConfiguration("KernelIntegTest", "1.0.0",
+                                                          Collections.emptyMap()));
+        DeploymentDocument testDeploymentDocument
+                = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
+                                    .deploymentPackageConfigurationList(configList)
+                                    .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                                    .groupName("test").build();
+        List<PackageIdentifier> resolutionResult
+                = dependencyResolver.resolveDependencies(testDeploymentDocument, rootPackageList);
+        Future<Void> testFuture = packageManager.preparePackages(resolutionResult);
+        testFuture.get(10, TimeUnit.SECONDS);
+
+        assertThat(packageStorePath.toFile(), anExistingDirectory());
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
+        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
+
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml").toFile(), anExistingFile());
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTestDependency-1.0.0.yaml").toFile(),
+                   anExistingFile());
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("Log-2.0.0.yaml").toFile(), anExistingFile());
+
+        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")
+                                   .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
     }
 }

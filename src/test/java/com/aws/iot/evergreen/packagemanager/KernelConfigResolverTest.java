@@ -288,7 +288,8 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         PackageRecipe rootPackageRecipe = new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
-                rootPackageIdentifier.getVersion(), "", "", Collections.emptySet(), new HashMap<String, Object>() {{
+                rootPackageIdentifier.getVersion(), "", "",
+                Collections.emptySet(), Collections.emptyList(), new HashMap<String, Object>() {{
             put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
         }}, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
@@ -329,8 +330,8 @@ class KernelConfigResolverTest {
 
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
-                parameters, getSimplePackageLifecycle(packageName), Collections.emptyMap(), dependencies,
-                getSimpleCustomConfigString(packageName), getSimpleEnvVariables(packageName));
+                parameters, Collections.emptyList(), getSimplePackageLifecycle(packageName), Collections.emptyMap(),
+                dependencies, getSimpleCustomConfigString(packageName), getSimpleEnvVariables(packageName));
     }
 
     private Map<String, String> getSimpleParameterMap(String packageName) {
