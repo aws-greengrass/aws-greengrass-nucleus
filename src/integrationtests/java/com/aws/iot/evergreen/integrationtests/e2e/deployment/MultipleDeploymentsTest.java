@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
-class MultipleDeploymentsTest  extends BaseE2ETestCase {
+class MultipleDeploymentsTest extends BaseE2ETestCase {
     private Kernel kernel;
 
     @BeforeEach
