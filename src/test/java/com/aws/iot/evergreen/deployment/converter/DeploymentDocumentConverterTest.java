@@ -8,7 +8,6 @@ package com.aws.iot.evergreen.deployment.converter;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
-import org.hamcrest.core.IsNull;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -70,8 +69,6 @@ class DeploymentDocumentConverterTest {
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
-
-        System.out.println(deploymentDocument);
 
         assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
         assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));

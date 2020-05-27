@@ -17,7 +17,6 @@ import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
 @NoArgsConstructor
 public class LocalDeploymentListener {
 
-    public static final String LOCAL_DEPLOYMENT_ID_PREFIX = "Local-";
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     private static Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
 
@@ -26,29 +25,35 @@ public class LocalDeploymentListener {
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     //TODO: LocalDeploymentListener should register with IPC to expose submitLocalDeployment
+
     /**
      * schedules a deployment with deployment service.
+     *
      * @param localOverrideRequestStr serialized localOverrideRequestStr
      * @return true if deployment was scheduled
      */
     public boolean submitLocalDeployment(String localOverrideRequestStr) {
 
-        LocalOverrideRequest request = null;
+        LocalOverrideRequest request;
 
-        // TODO request validation and reject handling
         try {
             request = new ObjectMapper().readValue(localOverrideRequestStr, LocalOverrideRequest.class);
         } catch (JsonProcessingException e) {
-            e.printStackTrace();
+            logger.atError().setCause(e).kv("localOverrideRequestStr", localOverrideRequestStr)
+                    .log("Failed to parse local override request.");
+            return false;
         }
 
         Deployment deployment = new Deployment(localOverrideRequestStr, DeploymentType.LOCAL, request.getRequestId());
         if (deploymentsQueue != null && deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, request.getRequestId())
-                    .log("Added local deployment to the queue");
+                    .log("Submitted local deployment request.");
             return true;
+        } else {
+            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, request.getRequestId())
+                    .log("Failed to submit local deployment request because deployment queue is full.");
+            return false;
         }
-        return false;
     }
 
 }

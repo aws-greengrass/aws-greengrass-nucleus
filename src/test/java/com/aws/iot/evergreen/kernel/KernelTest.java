@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.internal.util.collections.Sets;
 
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -37,7 +36,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,16 +46,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(EGExtension.class)
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
-            "---\n"
-            + "services:\n"
-            + "  service1:\n"
-            + "    dependencies: []\n"
-            + "    lifecycle:\n"
-            + "      run:\n"
-            + "        script: \"test script\"\n"
-            + "  main:\n"
-            + "    dependencies:\n"
-            + "    - \"service1\"\n";
+            "---\n" + "services:\n" + "  service1:\n" + "    dependencies: []\n" + "    lifecycle:\n" + "      run:\n"
+                    + "        script: \"test script\"\n" + "  main:\n" + "    dependencies:\n"
+                    + "    - \"service1\"\n";
 
     @TempDir
     protected Path tempRootDir;
@@ -80,19 +71,16 @@ class KernelTest {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
-        EvergreenService mockMain =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        EvergreenService mockMain = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
         mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
-        EvergreenService service1 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service1 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         service1.postInject();
-        EvergreenService service2 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        EvergreenService service2 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
         service2.postInject();
 
         List<EvergreenService> od = new ArrayList<>(kernel.orderedDependencies());
@@ -138,15 +126,13 @@ class KernelTest {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
-        EvergreenService mockMain =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        EvergreenService mockMain = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
         mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
-        EvergreenService service1 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service1 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         service1.postInject();
 
         // Introduce a dependency cycle
@@ -159,29 +145,25 @@ class KernelTest {
     }
 
     @Test
-    void GIVEN_kernel_with_services_WHEN_writeConfig_THEN_service_config_written_to_file()
-            throws Exception {
+    void GIVEN_kernel_with_services_WHEN_writeConfig_THEN_service_config_written_to_file() throws Exception {
         kernel.parseArgs();
 
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
-        EvergreenService mockMain =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        EvergreenService mockMain = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
         mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
-        EvergreenService service1 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service1 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         service1.postInject();
 
         // Add dependency on service1 to main
         mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
         ((List<String>) kernel.findServiceTopic("main").findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).getOnce())
                 .add("service1");
-        kernel.findServiceTopic("service1")
-                .lookup(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run", "script")
+        kernel.findServiceTopic("service1").lookup(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run", "script")
                 .withValue("test script");
 
         StringWriter writer = new StringWriter();
@@ -195,8 +177,7 @@ class KernelTest {
     }
 
     @Test
-    void GIVEN_kernel_WHEN_locate_finds_definition_in_config_THEN_create_GenericExternalService()
-            throws Exception {
+    void GIVEN_kernel_WHEN_locate_finds_definition_in_config_THEN_create_GenericExternalService() throws Exception {
         Configuration config = kernel.getConfig();
         config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "1",
                 EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
@@ -218,8 +199,7 @@ class KernelTest {
         }
 
         Configuration config = kernel.getConfig();
-        config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "1", "class")
-                .withValue(TestClass.class.getName());
+        config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "1", "class").withValue(TestClass.class.getName());
 
         EvergreenService main = kernel.locate("1");
         assertEquals("tester", main.getName());
@@ -230,11 +210,10 @@ class KernelTest {
 
     @Test
     void GIVEN_kernel_WHEN_locate_finds_classname_but_not_class_THEN_throws_ServiceLoadException() {
-        String badClassName = TestClass.class.getName()+"lkajsdklajglsdj";
+        String badClassName = TestClass.class.getName() + "lkajsdklajglsdj";
 
         Configuration config = kernel.getConfig();
-        config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "2", "class")
-                .withValue(badClassName);
+        config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, "2", "class").withValue(badClassName);
 
         ServiceLoadException ex = assertThrows(ServiceLoadException.class, () -> kernel.locate("2"));
         assertEquals("Can't load service class from " + badClassName, ex.getMessage());
@@ -249,10 +228,10 @@ class KernelTest {
     @Test
     void GIVEN_kernel_with_services_WHEN_get_root_package_with_version_THEN_kernel_returns_info() {
 
-        EvergreenService service1 = new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
-        EvergreenService service2 = new EvergreenService(kernel.getConfig()
-                .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        EvergreenService service1 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service2 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
         service1.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.0.0"));
         service2.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.1.0"));
 
