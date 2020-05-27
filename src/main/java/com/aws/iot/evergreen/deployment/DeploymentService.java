@@ -8,12 +8,12 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter;
 import com.aws.iot.evergreen.deployment.exceptions.InvalidRequestException;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
@@ -31,18 +31,14 @@ import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -300,7 +296,10 @@ public class DeploymentService extends EvergreenService {
                     LocalOverrideRequest localOverrideRequest =
                             OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
 
-                    document = convertLocalOverrideRequestToDeployDoc(localOverrideRequest);
+                    Map<String, String> rootComponents = kernel.getRootPackageNameAndVersion();
+
+                    document = DeploymentDocumentConverter
+                            .convertFromLocalOverrideRequestAndRoot(localOverrideRequest, rootComponents);
                     break;
                 case IOT_JOBS:
                     FleetConfiguration config = OBJECT_MAPPER.readValue(jobDocumentString, FleetConfiguration.class);
@@ -315,49 +314,6 @@ public class DeploymentService extends EvergreenService {
         return document;
     }
 
-    private DeploymentDocument convertLocalOverrideRequestToDeployDoc(LocalOverrideRequest localOverrideRequest) {
-
-        // TODO DeploymentId
-        Map<String, String> rootComponents = kernel.getRootPackageNameAndVersion();
-
-        // remove
-        List<String> componentsToRemove = localOverrideRequest.getComponentsToRemove();
-        if (componentsToRemove != null && !componentsToRemove.isEmpty()) {
-            componentsToRemove.forEach((rootComponents::remove));
-        }
-
-        // add or update
-        Map<String, String> componentsToMerge = localOverrideRequest.getComponentsToMerge();
-
-        if (componentsToMerge != null && !componentsToMerge.isEmpty()) {
-            componentsToMerge.forEach((name, version) -> rootComponents.merge(name, version, (k, v) -> version));
-        }
-
-        List<String> rootPackages = new ArrayList<>(rootComponents.keySet());
-
-
-        List<DeploymentPackageConfiguration> packageConfigurations =
-                localOverrideRequest.getComponentNameToConfig().entrySet().stream()
-                        .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), "*", entry.getValue()))
-                        .collect(Collectors.toList());
-
-        // apply root
-        rootComponents.forEach((rootComponentName, version) -> {
-            Optional<DeploymentPackageConfiguration> optionalConfiguration = packageConfigurations.stream()
-                    .filter(packageConfiguration -> packageConfiguration.getPackageName().equals(rootComponentName))
-                    .findAny();
-
-            if (optionalConfiguration.isPresent()) {
-                optionalConfiguration.get().setResolvedVersion(version);
-            } else {
-                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, version, null));
-            }
-        });
-
-
-        return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp()).deploymentId(localOverrideRequest.getRequestId())
-                .rootPackages(rootPackages).deploymentPackageConfigurationList(packageConfigurations).build();
-    }
 
     void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
         this.deploymentsQueue = deploymentsQueue;

@@ -9,7 +9,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Value;
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +16,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
+@Builder
 public class LocalOverrideRequest {
     String requestId;   // UUID
     long requestTimestamp;
