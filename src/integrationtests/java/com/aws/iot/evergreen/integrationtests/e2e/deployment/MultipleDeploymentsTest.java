@@ -13,7 +13,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.DeploymentJobHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
-import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
+import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.AfterEach;
@@ -50,7 +50,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     void beforeEach() throws IOException {
         kernel = new Kernel().parseArgs("-i", MultipleDeploymentsTest.class.getResource("blank_config.yaml")
                 .toString(), "-r", tempRootDir.toAbsolutePath().toString());
-        updateKernelConfigWithIotConfiguration(kernel);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
 
         Path localStoreContentPath = Paths
                 .get(MultipleDeploymentsTest.class.getResource("local_store_content").getPath());
@@ -87,9 +87,9 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
         for (DeploymentJobHelper helper : helpers) {
             // Note: Directly creating IoT jobs here so that we have definitive job IDs to make assertions on job
             // execution.
-            Utils.createJobWithId(iotClient, helper.createIoTJobDocument(), helper.jobId, targets);
+            IotJobsUtils.createJobWithId(iotClient, helper.createIoTJobDocument(), helper.jobId, targets);
             createdIotJobIds.add(helper.jobId);
-            Utils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.thingName,
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
             logger.atWarn().kv("jobId", helper.jobId).log("Created IoT Job");
         }
@@ -97,7 +97,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
-            Utils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.thingName,
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         }
     }
@@ -124,7 +124,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
             PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
             helper.jobId = publishResult.getJobId();
 
-            Utils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.thingName,
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
             logger.atWarn().kv("jobId", helper.jobId).log("Created IoT Job");
         }
@@ -137,7 +137,8 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
-            Utils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.thingName,
+
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         }
     }

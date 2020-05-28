@@ -95,6 +95,11 @@
             <artifactId>greengrasspackagemanagement</artifactId>
             <version>1.11.1-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>com.amazonaws.services</groupId>
+            <artifactId>greengrasscomponentmanagement</artifactId>
+            <version>1.11.1-SNAPSHOT</version>
+        </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
         service SDK is updated. Remove both the sdk-core and jcl-over-slf4j.
@@ -142,12 +147,15 @@
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>iot</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sts</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>iam</artifactId>
         </dependency>
         <dependency>
             <groupId>org.zeroturnaround</groupId>
@@ -449,7 +457,7 @@
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.aws.iot.evergreen.kernel.KernelCommandLine</mainClass>
+                                    <mainClass>com.aws.iot.evergreen.easysetup.EvergreenSetup</mainClass>
                                 </transformer>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
