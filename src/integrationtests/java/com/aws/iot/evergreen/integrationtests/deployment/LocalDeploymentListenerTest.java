@@ -17,7 +17,10 @@ import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ComponentInfo;
+import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ListComponentsResult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class LocalDeploymentListenerTest {
@@ -49,6 +52,7 @@ public class LocalDeploymentListenerTest {
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel() throws Exception {
         String deploymentDocument = new String(Files.readAllBytes(
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI())));
+
         assertTrue(localDeploymentListener.submitLocalDeployment(deploymentDocument));
 
         CountDownLatch customerAppRunningLatch = new CountDownLatch(1);
@@ -59,15 +63,21 @@ public class LocalDeploymentListenerTest {
         });
         assertTrue(customerAppRunningLatch.await(50, TimeUnit.SECONDS));
 
-        LocalDeploymentListener.ListComponentsResult listComponentsResult = OBJECT_MAPPER.readValue(
-                localDeploymentListener.listComponents(), LocalDeploymentListener.ListComponentsResult.class);
+        ListComponentsResult listComponentsResult = OBJECT_MAPPER.readValue(
+                localDeploymentListener.listComponents(), ListComponentsResult.class);
 
         assertEquals(1, listComponentsResult.getRootPackages().size());
-        assertEquals(3, listComponentsResult.getComponentsInfo().size());
-        LocalDeploymentListener.ComponentInfo customerApp = listComponentsResult.getComponentsInfo().get(2);
+        ComponentInfo customerApp = listComponentsResult.getComponentsInfo().stream()
+                .filter(c -> c.getPackageName().equals("CustomerApp")).findAny().get();
         assertEquals("CustomerApp", customerApp.getPackageName());
         assertEquals("1.0.0", customerApp.getVersion());
         assertEquals("This is a new value", customerApp.getRuntimeParameters().get("sampleText"));
-    }
 
+        ComponentInfo mosquittoApp = listComponentsResult.getComponentsInfo().stream()
+                .filter(c -> c.getPackageName().equals("Mosquitto")).findAny().get();
+        assertNotNull(mosquittoApp);
+        ComponentInfo greenSignalApp = listComponentsResult.getComponentsInfo().stream()
+                .filter(c -> c.getPackageName().equals("GreenSignal")).findAny().get();
+        assertNotNull(greenSignalApp);
+    }
 }

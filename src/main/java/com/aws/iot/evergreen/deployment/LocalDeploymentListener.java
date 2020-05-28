@@ -77,7 +77,6 @@ public class LocalDeploymentListener {
                     .map(EvergreenService::getName).collect(Collectors.toList());
 
             List<ComponentInfo> componentInfo = kernel.orderedDependencies().stream()
-                    .filter(service -> service instanceof GenericExternalService)
                     .filter(service -> !service.getName().equals(kernel.getMain().getName()))
                     .map(service -> {
                         Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
