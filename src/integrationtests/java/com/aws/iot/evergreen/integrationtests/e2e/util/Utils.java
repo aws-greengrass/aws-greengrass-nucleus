@@ -6,9 +6,6 @@
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
 import com.amazonaws.arn.Arn;
-import com.aws.iot.evergreen.deployment.DeviceConfiguration;
-import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.util.CommitableFile;
 import com.aws.iot.evergreen.util.CrashableSupplier;
 import lombok.AllArgsConstructor;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -53,8 +50,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -73,29 +68,18 @@ public class Utils {
     private static final Set<Class<? extends Throwable>> retryableIoTExceptions = new HashSet<>(
             Arrays.asList(ThrottlingException.class, InternalException.class, InternalFailureException.class,
                     LimitExceededException.class));
-    public static IotClient iotClient = IotClient.builder().build();
 
     private Utils() {
     }
 
-    public static String createJob(String document, String... targets) {
-        String jobId = UUID.randomUUID().toString();
-        createJobWithId(iotClient, document, jobId, targets);
-        return jobId;
-    }
-
-    public static void createJobWithId(String document, String jobId, String... targets) {
-        createJobWithId(iotClient, document, jobId, targets);
-    }
-
-    public static void createJobWithId(IotClient client, String document, String jobId, String... targets) {
+    public static void createJobWithId(IotClient iotClient, String document, String jobId, String... targets) {
         retryIot(() -> iotClient.createJob(
                 CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
                         .document(document).description("E2E Test: " + new Date())
                         .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build()));
     }
 
-    public static void waitForJobToComplete(String jobId, Duration timeout) throws TimeoutException {
+    public static void waitForJobToComplete(IotClient iotClient, String jobId, Duration timeout) throws TimeoutException {
         Instant start = Instant.now();
 
         while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
@@ -113,12 +97,6 @@ public class Utils {
             }
         }
         throw new TimeoutException();
-    }
-
-    public static void waitForJobExecutionStatusToSatisfy(String jobId, String thingName, Duration timeout,
-                                                          Predicate<JobExecutionStatus> condition)
-            throws TimeoutException {
-        waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingName, timeout, condition);
     }
 
     public static void waitForJobExecutionStatusToSatisfy(IotClient client, String jobId, String thingName,
@@ -145,10 +123,6 @@ public class Utils {
         throw new TimeoutException();
     }
 
-    public static CreateThingGroupResponse createThingGroupAndAddThing(ThingInfo thingInfo) {
-        return createThingGroupAndAddThing(iotClient, thingInfo);
-    }
-
     public static CreateThingGroupResponse createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
         String thingGroupName = "e2etestgroup-" + UUID.randomUUID().toString();
         CreateThingGroupResponse response =
@@ -158,10 +132,6 @@ public class Utils {
                 .thingGroupArn(response.thingGroupArn()).build());
 
         return response;
-    }
-
-    public static ThingInfo createThing() {
-        return createThing(iotClient);
     }
 
     public static ThingInfo createThing(IotClient client) {
@@ -202,17 +172,9 @@ public class Utils {
                 .endpointAddress());
     }
 
-    public static void cleanThingGroup(String thingGroupName) {
-        cleanThingGroup(iotClient, thingGroupName);
-    }
-
     public static void cleanThingGroup(IotClient client, String thingGroupName) {
         retryIot(() -> client
                 .deleteThingGroup(DeleteThingGroupRequest.builder().thingGroupName(thingGroupName).build()));
-    }
-
-    public static void cleanThing(ThingInfo thing) {
-        cleanThing(iotClient, thing);
     }
 
     public static void cleanThing(IotClient client, ThingInfo thing) {
@@ -224,10 +186,6 @@ public class Utils {
                 .newStatus(CertificateStatus.INACTIVE).build()));
         retryIot(() -> client.deleteCertificate(
                 DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build()));
-    }
-
-    public static void cleanJob(String jobId) {
-        cleanJob(iotClient, jobId);
     }
 
     public static void cleanJob(IotClient client, String jobId) {
@@ -291,30 +249,6 @@ public class Utils {
             }
         }
         throw lastException;
-    }
-
-    // Update the kernel config with iot thing info, in specific CA, private Key and cert path.
-    public static void updateKernelConfigWithIotConfiguration(Kernel kernel, Utils.ThingInfo thing) throws IOException {
-        Path rootDir = kernel.getRootPath();
-        String caFilePath = rootDir.resolve("rootCA.pem").toString();
-        String privKeyFilePath = rootDir.resolve("privKey.key").toString();
-        String certFilePath = rootDir.resolve("thingCert.crt").toString();
-
-        Utils.downloadRootCAToFile(new File(caFilePath));
-        try (CommitableFile cf = CommitableFile.of(new File(privKeyFilePath).toPath(), true)) {
-            cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
-        }
-        try (CommitableFile cf = CommitableFile.of(new File(certFilePath).toPath(), true)) {
-            cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
-        }
-
-        DeviceConfiguration config = kernel.getContext().get(DeviceConfiguration.class);
-        config.getThingName().withValue(thing.thingName);
-        config.getIotDataEndpoint().withValue(thing.dataEndpoint);
-        config.getPrivateKeyFilePath().withValue(privKeyFilePath);
-        config.getCertificateFilePath().withValue(certFilePath);
-        config.getRootCAFilePath().withValue(caFilePath);
-        config.getIotCredentialEndpoint().withValue(thing.credEndpoint);
     }
 
     /**
