@@ -12,22 +12,17 @@ import com.amazonaws.services.greengrassfleetconfiguration.model.PublishConfigur
 import com.amazonaws.services.greengrassfleetconfiguration.model.PublishConfigurationResult;
 import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfigurationRequest;
 import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfigurationResult;
-import com.aws.iot.evergreen.deployment.DeviceConfiguration;
-import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
-import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
+import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.util.CommitableFile;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
@@ -46,9 +41,10 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected final Logger logger = LogManager.getLogger(this.getClass());
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
-    protected Utils.ThingInfo thingInfo;
+    protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
     protected CreateThingGroupResponse thingGroupResp;
+    protected DeviceProvisioningHelper deviceProvisioningHelper = new DeviceProvisioningHelper(BETA_REGION.toString());
 
     @TempDir
     protected Path tempRootDir;
@@ -58,8 +54,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     // TODO: add CMS client
 
     protected BaseE2ETestCase() {
-        thingInfo = Utils.createThing(iotClient);
-        thingGroupResp = Utils.createThingGroupAndAddThing(iotClient, thingInfo);
+        thingInfo = deviceProvisioningHelper.createThingForE2ETests();
+        thingGroupResp = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
         thingGroupName = thingGroupResp.thingGroupName();
     }
 
@@ -91,35 +87,10 @@ public class BaseE2ETestCase implements AutoCloseable {
         return publishResult;
     }
 
-    // Update the kernel config with iot thing info, in specific CA, private Key and cert path.
-    protected void updateKernelConfigWithIotConfiguration(Kernel kernel) throws IOException {
-        Path rootDir = kernel.getRootPath();
-        String caFilePath = rootDir.resolve("rootCA.pem").toString();
-        String privKeyFilePath = rootDir.resolve("privKey.key").toString();
-        String certFilePath = rootDir.resolve("thingCert.crt").toString();
-
-        Utils.downloadRootCAToFile(new File(caFilePath));
-        try (CommitableFile cf = CommitableFile.of(new File(privKeyFilePath).toPath(), true)) {
-            cf.write(thingInfo.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
-        }
-        try (CommitableFile cf = CommitableFile.of(new File(certFilePath).toPath(), true)) {
-            cf.write(thingInfo.certificatePem.getBytes(StandardCharsets.UTF_8));
-        }
-
-        DeviceConfiguration config = kernel.getContext().get(DeviceConfiguration.class);
-        config.getThingName().withValue(thingInfo.thingName);
-        config.getIotDataEndpoint().withValue(thingInfo.dataEndpoint);
-        config.getPrivateKeyFilePath().withValue(privKeyFilePath);
-        config.getCertificateFilePath().withValue(certFilePath);
-        config.getRootCAFilePath().withValue(caFilePath);
-        config.getIotCredentialEndpoint().withValue(thingInfo.credEndpoint);
-        config.getAWSRegion().withValue(BETA_REGION);
-    }
-
     protected void cleanup() {
-        Utils.cleanThing(iotClient, thingInfo);
-        Utils.cleanThingGroup(iotClient, thingGroupName);
-        createdIotJobIds.forEach(jobId -> Utils.cleanJob(iotClient, jobId));
+        deviceProvisioningHelper.cleanThing(iotClient, thingInfo);
+        IotJobsUtils.cleanThingGroup(iotClient, thingGroupName);
+        createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
         createdIotJobIds.clear();
     }
 
