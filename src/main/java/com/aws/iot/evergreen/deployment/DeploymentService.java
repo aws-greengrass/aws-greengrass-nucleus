@@ -296,7 +296,7 @@ public class DeploymentService extends EvergreenService {
                     LocalOverrideRequest localOverrideRequest =
                             OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
 
-                    Map<String, String> rootComponents = kernel.getRootPackageNameAndVersion();
+                    Map<String, String> rootComponents = kernel.getRunningCustomRootComponents();
 
                     document = DeploymentDocumentConverter
                             .convertFromLocalOverrideRequestAndRoot(localOverrideRequest, rootComponents);

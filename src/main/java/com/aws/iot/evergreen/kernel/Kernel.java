@@ -324,17 +324,20 @@ public class Kernel {
 
 
     /**
-     * Fetch root packages and thier version from the kernel.
+     * Get running custom root components, excluding the kernel's built-in services.
      *
-     * @return returns packageName, version as a map
+     * @return returns name and version as a map
      */
-    public Map<String, String> getRootPackageNameAndVersion() {
+    public Map<String, String> getRunningCustomRootComponents() {
 
         Map<String, String> rootPackageNameAndVersionMap = new HashMap<>();
+
         for (EvergreenService service : getMain().getDependencies().keySet()) {
             Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
+
             if (version == null) {
-                // version is not currently available for services that ship with the kernel
+                // If version is null, means it is a Kernel built-in service
+                // TODO Ideally we want to have some better indicators for built-in service
                 continue;
             }
             rootPackageNameAndVersionMap.put(service.getName(), ((Semver) version.getOnce()).getValue());

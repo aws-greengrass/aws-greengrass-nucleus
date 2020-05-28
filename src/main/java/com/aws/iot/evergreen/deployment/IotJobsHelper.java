@@ -178,6 +178,10 @@ public class IotJobsHelper implements InjectionActions {
         }
         Deployment deployment =
                 new Deployment(documentString, DeploymentType.IOT_JOBS, jobExecutionData.jobId);
+
+        // TODO The deduping here doesn't working when the deployment polling frequency increased
+        // because the old job could already completed and removed from the queue when the duplicated job comes.
+        // One possible fix is to double check the job execution status is "Queued" before adding to the queue.
         if (!deploymentsQueue.contains(deployment) && deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
         }
@@ -407,7 +411,7 @@ public class IotJobsHelper implements InjectionActions {
     }
 
     /**
-     * Subscribes to the topic which recevies confirmation message of Job update for a given JobId.
+     * Subscribes to the topic which receives confirmation message of Job update for a given JobId.
      * Updates the status of an Iot Job with given JobId to a given status.
      *
      * @param jobId            The jobId to be updated

@@ -39,13 +39,13 @@ public final class DeploymentDocumentConverter {
 
         // remove
         List<String> componentsToRemove = localOverrideRequest.getComponentsToRemove();
-        if (componentsToRemove != null && !componentsToRemove.isEmpty()) {
+        if (componentsToRemove != null) {
             componentsToRemove.forEach(newRootComponents::remove);
         }
 
         // add or update
         Map<String, String> componentsToMerge = localOverrideRequest.getComponentsToMerge();
-        if (componentsToMerge != null && !componentsToMerge.isEmpty()) {
+        if (componentsToMerge != null) {
             componentsToMerge.forEach(newRootComponents::put);
         }
 
