@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -88,13 +89,14 @@ public class LocalDeploymentListener {
                         }
                         if (parameters != null) {
                             componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream().collect(
-                                    Collectors.toMap(e -> e.getKey(), e -> (String) ((Topic) e.getValue()).getOnce())));
+                                    Collectors.toMap(e -> e.getKey(), e -> Coerce.toString(e.getValue()))));
 
                         }
                         return componentInfoBuilder.build();
                     }).collect(Collectors.toList());
 
-            return OBJECT_MAPPER.writeValueAsString(new ListComponentsResult(rootComponenetNames, componentInfo));
+            return OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(new ListComponentsResult(rootComponenetNames, componentInfo));
         } catch (JsonProcessingException e) {
             //TODO: during IPC integration, change this to report internal error
             throw new DeviceConfigurationException("Unable to list components", e);
