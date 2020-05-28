@@ -16,8 +16,6 @@ import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
@@ -91,19 +89,6 @@ public class DeviceProvisioningHelper {
         this.iamClient = IamSdkClientFactory.getIamClient();
         this.cmsClient = AWSGreengrassComponentManagementClientBuilder.standard().withEndpointConfiguration(
                 new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, awsRegion)).build();
-    }
-
-    /**
-     * Constructor for a desired region and credentials.
-     *
-     * @param awsRegion           aws region
-     * @param credentialsProvider credentials provider
-     */
-    public DeviceProvisioningHelper(Region awsRegion, AwsCredentialsProvider credentialsProvider) {
-        this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, credentialsProvider);
-        this.iamClient = IamSdkClientFactory.getIamClient();
-        this.cmsClient = AWSGreengrassComponentManagementClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, awsRegion.toString())).build();
     }
 
     /**
@@ -212,9 +197,11 @@ public class DeviceProvisioningHelper {
      *
      * @param kernel Kernel instance
      * @param thing  thing info
+     * @param awsRegion aws region
      * @throws IOException Exception while reading root CA from file
      */
-    public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing) throws IOException {
+    public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion)
+            throws IOException {
         Path rootDir = kernel.getRootPath();
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
@@ -235,6 +222,7 @@ public class DeviceProvisioningHelper {
         config.getCertificateFilePath().withValue(certFilePath);
         config.getRootCAFilePath().withValue(caFilePath);
         config.getIotCredentialEndpoint().withValue(thing.credEndpoint);
+        config.getAWSRegion().withValue(awsRegion);
     }
 
     /**

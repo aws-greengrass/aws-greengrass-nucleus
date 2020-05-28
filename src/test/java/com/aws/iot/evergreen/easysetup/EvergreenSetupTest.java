@@ -37,7 +37,7 @@ public class EvergreenSetupTest {
                         "--install-cli", "y", "--aws-region", "us-east-1"});
         evergreenSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithTesRoleInfo(any(), any());
         verify(deviceProvisioningHelper, times(1)).setUpEmptyPackagesForFirstPartyServices();
@@ -53,7 +53,7 @@ public class EvergreenSetupTest {
                         "-t", "y", "-ic", "y", "-ar", "us-east-1"});
         evergreenSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithTesRoleInfo(any(), any());
         verify(deviceProvisioningHelper, times(1)).setUpEmptyPackagesForFirstPartyServices();
@@ -77,7 +77,7 @@ public class EvergreenSetupTest {
                         "--install-cli", "y", "--aws-region", "us-east-1"});
         evergreenSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).updateKernelConfigWithTesRoleInfo(any(), any());
         verify(deviceProvisioningHelper, times(1)).setUpEmptyPackagesForFirstPartyServices();

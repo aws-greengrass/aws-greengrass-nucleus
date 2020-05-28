@@ -60,7 +60,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         kernel = new Kernel()
                 .parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString(), "-r", tempRootDir
                         .toAbsolutePath().toString());
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
         kernel.launch();
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());

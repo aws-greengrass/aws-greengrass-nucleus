@@ -70,7 +70,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         kernel = new Kernel()
                 .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
                         .toAbsolutePath().toString());
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store

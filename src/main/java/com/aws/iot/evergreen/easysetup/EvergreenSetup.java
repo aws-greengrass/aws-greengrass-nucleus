@@ -217,7 +217,7 @@ public class EvergreenSetup {
     void provision(Kernel kernel) throws IOException {
         ThingInfo thingInfo =
                 deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
 
         if (setupTes) {
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());

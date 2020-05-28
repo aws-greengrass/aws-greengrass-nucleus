@@ -61,6 +61,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class DeviceProvisioningHelperTest {
+    private static final String TEST_REGION = "us-east-1";
+
     @TempDir
     Path tempRootDir;
     @Mock
@@ -162,7 +164,7 @@ public class DeviceProvisioningHelperTest {
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
                 new DeviceProvisioningHelper.ThingInfo("thingarn", "thingname", "certarn", "certid", "certpem",
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
-                        "credEndpoint"));
+                        "credEndpoint"), TEST_REGION);
         assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
     }
 
@@ -208,11 +210,11 @@ public class DeviceProvisioningHelperTest {
 
     @Test
     public void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration() {
-        assertNotNull(IotSdkClientFactory.getIotClient("us-east-1"));
+        assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION));
 
         assertNotNull(IotSdkClientFactory.getIotClient(Region.US_EAST_1,
                 StaticCredentialsProvider.create(AwsSessionCredentials.create("Test", "Test", "Test"))));
 
-        assertNotNull(IotSdkClientFactory.getIotClient("us-east-1", Collections.singleton(Exception.class)));
+        assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, Collections.singleton(Exception.class)));
     }
 }

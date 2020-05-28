@@ -35,7 +35,6 @@ import java.util.function.Predicate;
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo;
 
 public final class IotJobsUtils {
-    private static IotClient iotClient = IotSdkClientFactory.getIotClient("us-east-1");
 
     private IotJobsUtils() {
     }
@@ -69,10 +68,6 @@ public final class IotJobsUtils {
             }
         }
         throw new TimeoutException();
-    }
-
-    public static CreateThingGroupResponse createThingGroupAndAddThing(ThingInfo thingInfo) {
-        return createThingGroupAndAddThing(iotClient, thingInfo);
     }
 
     public static CreateThingGroupResponse createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
