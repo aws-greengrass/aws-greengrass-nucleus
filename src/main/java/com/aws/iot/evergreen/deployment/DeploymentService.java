@@ -52,7 +52,11 @@ public class DeploymentService extends EvergreenService {
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     // TODO: These should probably become configurable parameters eventually
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(10).toMillis();
+    // TODO: Deployment polling wait time can't be simply reduced now because it may result doing duplicate deployment.
+    // When the wait time is reduced, the old job could already completed and removed from the queue when
+    // the duplicated job comes. It can only be reduced after the IoTJobHelper::describeJobExecutionResponseConsumer
+    // can dedupe properly.
+    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
