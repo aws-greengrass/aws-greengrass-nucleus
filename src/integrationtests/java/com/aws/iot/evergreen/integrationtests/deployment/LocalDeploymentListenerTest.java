@@ -4,6 +4,8 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.LocalDeploymentListener;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -15,10 +17,17 @@ import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ComponentInfo;
+import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ListComponentsResult;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class LocalDeploymentListenerTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static Kernel kernel;
     private static LocalDeploymentListener localDeploymentListener;
 
@@ -42,7 +51,8 @@ public class LocalDeploymentListenerTest {
     @Test
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel() throws Exception {
         String deploymentDocument = new String(Files.readAllBytes(
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI())));
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI())));
+
         assertTrue(localDeploymentListener.submitLocalDeployment(deploymentDocument));
 
         CountDownLatch customerAppRunningLatch = new CountDownLatch(1);
@@ -52,6 +62,22 @@ public class LocalDeploymentListenerTest {
             }
         });
         assertTrue(customerAppRunningLatch.await(50, TimeUnit.SECONDS));
-    }
 
+        ListComponentsResult listComponentsResult = OBJECT_MAPPER.readValue(
+                localDeploymentListener.listComponents(), ListComponentsResult.class);
+
+        assertEquals(1, listComponentsResult.getRootPackages().size());
+        ComponentInfo customerApp = listComponentsResult.getComponentsInfo().stream()
+                .filter(c -> c.getPackageName().equals("CustomerApp")).findAny().get();
+        assertEquals("CustomerApp", customerApp.getPackageName());
+        assertEquals("1.0.0", customerApp.getVersion());
+        assertEquals("This is a new value", customerApp.getRuntimeParameters().get("sampleText"));
+
+        ComponentInfo mosquittoApp = listComponentsResult.getComponentsInfo().stream()
+                .filter(c -> c.getPackageName().equals("Mosquitto")).findAny().get();
+        assertNotNull(mosquittoApp);
+        ComponentInfo greenSignalApp = listComponentsResult.getComponentsInfo().stream()
+                .filter(c -> c.getPackageName().equals("GreenSignal")).findAny().get();
+        assertNotNull(greenSignalApp);
+    }
 }
