@@ -128,7 +128,6 @@ public class LocalDeploymentListener {
         @JsonProperty("Name")
         private String packageName;
 
-        // TODO: change to versionRequirements which can be a pinned version or a version range
         @JsonProperty("Version")
         private String version;
 
