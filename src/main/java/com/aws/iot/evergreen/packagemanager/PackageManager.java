@@ -230,7 +230,7 @@ public class PackageManager implements InjectionActions {
                     .log("Didn't find a active service for this package running in the kernel.");
             return Optional.empty();
         }
-        return Optional.of(getPackageVersionFromService(service));
+        return Optional.ofNullable(getPackageVersionFromService(service));
     }
 
     /**
@@ -241,7 +241,11 @@ public class PackageManager implements InjectionActions {
      */
     Semver getPackageVersionFromService(final EvergreenService service) {
         Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
-        //TODO handle null case
+
+        if (versionTopic == null) {
+            return null;
+        }
+
         return new Semver(Coerce.toString(versionTopic));
     }
 
