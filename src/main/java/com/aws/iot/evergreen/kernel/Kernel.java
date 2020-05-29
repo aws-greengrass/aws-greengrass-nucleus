@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
 import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
@@ -17,6 +18,7 @@ import com.aws.iot.evergreen.util.CommitableWriter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -44,6 +46,7 @@ import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
  * Evergreen-kernel.
@@ -246,7 +249,7 @@ public class Kernel {
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
      */
-    @SuppressWarnings({"UseSpecificCatch","PMD.AvoidCatchingThrowable"})
+    @SuppressWarnings({"UseSpecificCatch", "PMD.AvoidCatchingThrowable"})
     public EvergreenService locate(String name) throws ServiceLoadException {
         return context.getValue(EvergreenService.class, name).computeObjectIfEmpty(v -> {
             Topics serviceRootTopics = findServiceTopic(name);
@@ -295,8 +298,8 @@ public class Kernel {
                         context.put(ret.getClass(), v);
                     }
 
-                    logger.atInfo("evergreen-service-loaded")
-                            .kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
+                    logger.atInfo("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName())
+                            .log();
                     return ret;
                 } catch (Throwable ex) {
                     throw new ServiceLoadException("Can't create Evergreen Service instance " + clazz.getSimpleName(),
@@ -311,8 +314,7 @@ public class Kernel {
             // if not found, initialize GenericExternalService
             try {
                 ret = new GenericExternalService(serviceRootTopics);
-                logger.atInfo("generic-service-loaded")
-                        .kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
+                logger.atInfo("generic-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName()).log();
             } catch (Throwable ex) {
                 throw new ServiceLoadException("Can't create generic service instance " + name, ex);
             }
@@ -320,11 +322,34 @@ public class Kernel {
         });
     }
 
+
+    /**
+     * Get running custom root components, excluding the kernel's built-in services.
+     *
+     * @return returns name and version as a map
+     */
+    public Map<String, String> getRunningCustomRootComponents() {
+
+        Map<String, String> rootPackageNameAndVersionMap = new HashMap<>();
+
+        for (EvergreenService service : getMain().getDependencies().keySet()) {
+            Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
+
+            if (version == null) {
+                // If version is null, means it is a Kernel built-in service
+                // TODO Ideally we want to have some better indicators for built-in service
+                continue;
+            }
+            rootPackageNameAndVersionMap.put(service.getName(), ((Semver) version.getOnce()).getValue());
+        }
+        return rootPackageNameAndVersionMap;
+    }
+
     public Kernel parseArgs(String... args) {
         kernelCommandLine.parseArgs(args);
         return this;
     }
-    
+
     /*
      * I added this method because it's really handy for any external service that's
      * accessing files.  But it's just a trampoline method, which is like a chalkboard
