@@ -1,0 +1,16 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: MyObjectDetectionApp
+Description: A docker app for object detection
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+- name: sampleText
+  value: This is a test
+  type: STRING
+Lifecycle:
+  run:
+    script: |-
+      echo "MyObjectDetectionApp"
+      exit 0
+

@@ -1,0 +1,27 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: MyDemoApp
+Description: A demo app
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+- name: sampleText
+  value: This is a test
+  type: STRING
+Lifecycle:
+  install:
+    script: |-
+      # pip install greengrasssdk # need to run as root
+  checkIfSafeToUpdate:
+    recheckPeriod: 5
+    script: |-
+      exit 0
+  run:
+    script: |-
+      python3 {{artifacts:path}}/myDemoApp.py
+
+Dependencies:
+  all:
+    MyObjectDetectionApp:
+      VersionRequirements: '1.0.0'
+      DependencyType: SOFT
