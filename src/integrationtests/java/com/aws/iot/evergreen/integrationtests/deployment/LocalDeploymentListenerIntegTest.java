@@ -71,7 +71,7 @@ class LocalDeploymentListenerIntegTest {
                 .filter(c -> c.getPackageName().equals("CustomerApp")).findAny().get();
         assertEquals("CustomerApp", customerApp.getPackageName());
         assertEquals("1.0.0", customerApp.getVersion());
-        assertEquals("This is a new value", customerApp.getRuntimeParameters().get("sampleText"));
+        assertEquals("This is a test", customerApp.getRuntimeParameters().get("sampleText"));
 
         ComponentInfo mosquittoApp = listComponentsResult.getComponentsInfo().stream()
                 .filter(c -> c.getPackageName().equals("Mosquitto")).findAny().get();
