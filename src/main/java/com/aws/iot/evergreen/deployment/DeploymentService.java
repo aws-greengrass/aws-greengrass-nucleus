@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter;
 import com.aws.iot.evergreen.deployment.exceptions.InvalidRequestException;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
@@ -15,7 +16,9 @@ import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
+import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -44,11 +47,15 @@ public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     // TODO: These should probably become configurable parameters eventually
+    // TODO: Deployment polling wait time can't be simply reduced now because it may result doing duplicate deployment.
+    // When the wait time is reduced, the old job could already completed and removed from the queue when
+    // the duplicated job comes. It can only be reduced after the IoTJobHelper::describeJobExecutionResponseConsumer
+    // can dedupe properly.
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
@@ -70,6 +77,9 @@ public class DeploymentService extends EvergreenService {
 
     @Inject
     private Context context;
+
+    @Inject
+    private Kernel kernel;
 
     @Getter
     private Future<DeploymentResult> currentProcessStatus = null;
@@ -104,12 +114,12 @@ public class DeploymentService extends EvergreenService {
     /**
      * Constructor for unit testing.
      *
-     * @param topics                    The configuration coming from  kernel
-     * @param executorService           Executor service coming from kernel
-     * @param dependencyResolver        {@link DependencyResolver}
-     * @param packageManager            {@link PackageManager}
-     * @param kernelConfigResolver      {@link KernelConfigResolver}
-     * @param deploymentConfigMerger    {@link DeploymentConfigMerger}
+     * @param topics                 The configuration coming from  kernel
+     * @param executorService        Executor service coming from kernel
+     * @param dependencyResolver     {@link DependencyResolver}
+     * @param packageManager         {@link PackageManager}
+     * @param kernelConfigResolver   {@link KernelConfigResolver}
+     * @param deploymentConfigMerger {@link DeploymentConfigMerger}
      */
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
@@ -158,8 +168,8 @@ public class DeploymentService extends EvergreenService {
                     continue;
                 }
                 if (currentDeploymentId != null && currentDeploymentType != null) {
-                    if (deployment.getId().equals(currentDeploymentId)
-                            && deployment.getDeploymentType().equals(currentDeploymentType)) {
+                    if (deployment.getId().equals(currentDeploymentId) && deployment.getDeploymentType()
+                            .equals(currentDeploymentType)) {
                         //Duplicate message and already processing this deployment so nothing is needed
                         deploymentsQueue.remove();
                         continue;
@@ -213,8 +223,9 @@ public class DeploymentService extends EvergreenService {
             statusDetails.put("error", t.getMessage());
             if (t instanceof NonRetryableDeploymentTaskFailureException
                     || currentJobAttemptCount.get() >= DEPLOYMENT_MAX_ATTEMPTS) {
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
-                        JobStatus.FAILED, statusDetails);
+                deploymentStatusKeeper
+                        .persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType, JobStatus.FAILED,
+                                statusDetails);
                 currentJobAttemptCount.set(0);
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
@@ -282,11 +293,17 @@ public class DeploymentService extends EvergreenService {
         if (Utils.isEmpty(jobDocumentString)) {
             throw new InvalidRequestException("Job document cannot be empty");
         }
-        DeploymentDocument document = null;
+        DeploymentDocument document;
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    document = OBJECT_MAPPER.readValue(jobDocumentString, DeploymentDocument.class);
+                    LocalOverrideRequest localOverrideRequest =
+                            OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
+
+                    Map<String, String> rootComponents = kernel.getRunningCustomRootComponents();
+
+                    document = DeploymentDocumentConverter
+                            .convertFromLocalOverrideRequestAndRoot(localOverrideRequest, rootComponents);
                     break;
                 case IOT_JOBS:
                     FleetConfiguration config = OBJECT_MAPPER.readValue(jobDocumentString, FleetConfiguration.class);
@@ -300,6 +317,7 @@ public class DeploymentService extends EvergreenService {
         }
         return document;
     }
+
 
     void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
         this.deploymentsQueue = deploymentsQueue;
