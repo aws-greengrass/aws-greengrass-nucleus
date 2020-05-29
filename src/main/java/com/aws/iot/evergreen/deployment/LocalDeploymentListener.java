@@ -4,6 +4,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -34,11 +35,10 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @NoArgsConstructor
 public class LocalDeploymentListener {
 
-    public static final String LOCAL_DEPLOYMENT_ID_PREFIX = "Local-";
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
 
     @Inject
@@ -49,24 +49,40 @@ public class LocalDeploymentListener {
     private Kernel kernel;
 
     //TODO: LocalDeploymentListener should register with IPC to expose submitLocalDeployment
-    //TODO: the interface is not finalized yet, this is more an example.
-    /** schedules a deployment with deployment service.
-     * @param deploymentDocument document configuration
+
+    /**
+     * schedules a deployment with deployment service.
+     *
+     * @param localOverrideRequestStr serialized localOverrideRequestStr
      * @return true if deployment was scheduled
      */
-    public boolean submitLocalDeployment(String deploymentDocument) {
-        String localDeploymentIdentifier = LOCAL_DEPLOYMENT_ID_PREFIX + System.currentTimeMillis();
-        Deployment deployment = new Deployment(deploymentDocument, DeploymentType.LOCAL, localDeploymentIdentifier);
-        if (deploymentsQueue != null && deploymentsQueue.offer(deployment)) {
-            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, localDeploymentIdentifier)
-                    .log("Added local deployment to the queue");
-            return true;
+    public boolean submitLocalDeployment(String localOverrideRequestStr) {
+
+        LocalOverrideRequest request;
+
+        try {
+            request = new ObjectMapper().readValue(localOverrideRequestStr, LocalOverrideRequest.class);
+        } catch (JsonProcessingException e) {
+            logger.atError().setCause(e).kv("localOverrideRequestStr", localOverrideRequestStr)
+                    .log("Failed to parse local override request.");
+            return false;
         }
-        return false;
+
+        Deployment deployment = new Deployment(localOverrideRequestStr, DeploymentType.LOCAL, request.getRequestId());
+        if (deploymentsQueue != null && deploymentsQueue.offer(deployment)) {
+            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, request.getRequestId())
+                    .log("Submitted local deployment request.");
+            return true;
+        } else {
+            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, request.getRequestId())
+                    .log("Failed to submit local deployment request because deployment queue is full.");
+            return false;
+        }
     }
 
     /**
      * Retrieves root level components names, component information and runtime parameters.
+     *
      * @return serialized ListComponentsResult
      * @throws DeviceConfigurationException failure to serialize ListComponentsResult
      */
@@ -77,18 +93,17 @@ public class LocalDeploymentListener {
                     .map(EvergreenService::getName).collect(Collectors.toList());
 
             List<ComponentInfo> componentInfo = kernel.orderedDependencies().stream()
-                    .filter(service -> !service.getName().equals(kernel.getMain().getName()))
-                    .map(service -> {
+                    .filter(service -> !service.getName().equals(kernel.getMain().getName())).map(service -> {
                         Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
                         Topics parameters = service.getConfig().findTopics(PARAMETERS_CONFIG_KEY);
-                        ComponentInfo.ComponentInfoBuilder componentInfoBuilder = ComponentInfo.builder()
-                                .packageName(service.getName());
+                        ComponentInfo.ComponentInfoBuilder componentInfoBuilder =
+                                ComponentInfo.builder().packageName(service.getName());
                         if (version != null) {
                             componentInfoBuilder.version(((Semver) version.getOnce()).getValue());
                         }
                         if (parameters != null) {
-                            componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream().collect(
-                                    Collectors.toMap(e -> e.getKey(), e -> Coerce.toString(e.getValue()))));
+                            componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream()
+                                    .collect(Collectors.toMap(e -> e.getKey(), e -> Coerce.toString(e.getValue()))));
 
                         }
                         return componentInfoBuilder.build();
@@ -103,6 +118,7 @@ public class LocalDeploymentListener {
     }
 
     //TODO: move this data object to appropriate place during IPC integration.
+
     /**
      * Data object used to transfer currently running.
      */

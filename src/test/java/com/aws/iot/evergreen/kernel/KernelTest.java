@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,9 +25,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
@@ -74,19 +78,16 @@ class KernelTest {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
-        EvergreenService mockMain =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        EvergreenService mockMain = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
         mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
 
-        EvergreenService service1 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service1 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         service1.postInject();
-        EvergreenService service2 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        EvergreenService service2 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
         service2.postInject();
 
         List<EvergreenService> od = new ArrayList<>(kernel.orderedDependencies());
@@ -160,22 +161,19 @@ class KernelTest {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
-        EvergreenService mockMain =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
+        EvergreenService mockMain = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "main"));
         mockMain.postInject();
         when(kernelLifecycle.getMain()).thenReturn(mockMain);
-        EvergreenService service1 =
-                new EvergreenService(kernel.getConfig()
-                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service1 = new EvergreenService(
+                kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         service1.postInject();
 
         // Add dependency on service1 to main
         mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
         ((List<String>) kernel.findServiceTopic("main").findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).getOnce())
                 .add("service1");
-        kernel.findServiceTopic("service1")
-                .lookup(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run", "script")
+        kernel.findServiceTopic("service1").lookup(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run", "script")
                 .withValue("test script");
 
         StringWriter writer = new StringWriter();
@@ -238,6 +236,33 @@ class KernelTest {
     void GIVEN_kernel_WHEN_locate_finds_no_definition_in_config_THEN_throws_ServiceLoadException() {
         ServiceLoadException ex = assertThrows(ServiceLoadException.class, () -> kernel.locate("5"));
         assertEquals("No matching definition in system model for: 5", ex.getMessage());
+    }
+
+    @Test
+    void GIVEN_kernel_with_services_WHEN_get_root_package_with_version_THEN_kernel_returns_info() {
+
+        EvergreenService service1 = new EvergreenService(kernel.getConfig()
+                        .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
+        EvergreenService service2 = new EvergreenService(kernel.getConfig()
+                .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
+        service1.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.0.0"));
+        service2.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.1.0"));
+
+        EvergreenService mockMain = mock(EvergreenService.class);
+        Map<EvergreenService, DependencyType> mainsDependency = new HashMap<>();
+        mainsDependency.put(service1, null);
+        mainsDependency.put(service2, null);
+        when(mockMain.getDependencies()).thenReturn(mainsDependency);
+
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        when(kernelLifecycle.getMain()).thenReturn(mockMain);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        Map<String, String> rootPackageNameAndVersion = kernel.getRunningCustomRootComponents();
+        assertEquals(2, rootPackageNameAndVersion.size());
+        assertEquals("1.0.0", rootPackageNameAndVersion.get("service1"));
+        assertEquals("1.1.0", rootPackageNameAndVersion.get("service2"));
+
     }
 
     static class TestClass extends EvergreenService {

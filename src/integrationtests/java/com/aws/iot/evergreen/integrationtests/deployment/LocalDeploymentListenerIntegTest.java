@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class LocalDeploymentListenerTest {
+class LocalDeploymentListenerIntegTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -38,7 +38,8 @@ public class LocalDeploymentListenerTest {
         kernel.launch();
         localDeploymentListener = kernel.getContext().get(LocalDeploymentListener.class);
 
-        Path localStoreContentPath = Paths.get(LocalDeploymentListenerTest.class.getResource("local_store_content").getPath());
+        Path localStoreContentPath = Paths.get(
+                LocalDeploymentListenerIntegTest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }
@@ -50,10 +51,9 @@ public class LocalDeploymentListenerTest {
 
     @Test
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel() throws Exception {
-        String deploymentDocument = new String(Files.readAllBytes(
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI())));
-
-        assertTrue(localDeploymentListener.submitLocalDeployment(deploymentDocument));
+        String localOverrideRequestStr = new String(Files.readAllBytes(
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("Local_override_request.json").toURI())));
+        assertTrue(localDeploymentListener.submitLocalDeployment(localOverrideRequestStr));
 
         CountDownLatch customerAppRunningLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -71,7 +71,7 @@ public class LocalDeploymentListenerTest {
                 .filter(c -> c.getPackageName().equals("CustomerApp")).findAny().get();
         assertEquals("CustomerApp", customerApp.getPackageName());
         assertEquals("1.0.0", customerApp.getVersion());
-        assertEquals("This is a new value", customerApp.getRuntimeParameters().get("sampleText"));
+        assertEquals("This is a test", customerApp.getRuntimeParameters().get("sampleText"));
 
         ComponentInfo mosquittoApp = listComponentsResult.getComponentsInfo().stream()
                 .filter(c -> c.getPackageName().equals("Mosquitto")).findAny().get();

@@ -21,6 +21,6 @@ public class Deployment {
     //TODO: Add interface to pass a method for status update
 
     public enum DeploymentType {
-        IOT_JOBS, LOCAL;
+        IOT_JOBS, LOCAL
     }
 }
