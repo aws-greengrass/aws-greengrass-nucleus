@@ -16,7 +16,8 @@ Lifecycle:
       skipif: onpath git
       script: brew install git
 Artifacts:
-  - %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
+  all:
+    - %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
 Dependencies:
   Log:
     VersionRequirements: '2.0'

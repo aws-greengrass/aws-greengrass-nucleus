@@ -50,7 +50,9 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     void beforeEach() throws IOException {
         kernel = new Kernel().parseArgs("-i", MultipleDeploymentsTest.class.getResource("blank_config.yaml")
                 .toString(), "-r", tempRootDir.toAbsolutePath().toString());
+
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
+        deviceProvisioningHelper.updateKernelConfigWithCMSConfiguration(kernel, BETA_REGION.toString());
 
         Path localStoreContentPath = Paths
                 .get(MultipleDeploymentsTest.class.getResource("local_store_content").getPath());

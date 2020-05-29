@@ -323,6 +323,21 @@ public class DeviceProvisioningHelper {
         }
     }
 
+    /**
+     * Update the kernel config with iot thing info, in specific CA, private Key and cert path.
+     *
+     * @param kernel Kernel object to update
+     * @param awsRegion Target AWS Region
+     */
+    public void updateKernelConfigWithCMSConfiguration(Kernel kernel, String awsRegion) {
+        // Endpoint for Beta CMS in us-east-1
+        // TODO: Once service is available in multiple regions, this should not be a static config and
+        // use the region value to determine endpoint
+        kernel.getContext().put("greengrassServiceEndpoint", GREENGRASS_SERVICE_ENDPOINT);
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        deviceConfiguration.getAWSRegion().withValue(awsRegion);
+    }
+
     @AllArgsConstructor
     @Getter
     public static class ThingInfo {
