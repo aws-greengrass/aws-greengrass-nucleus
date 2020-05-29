@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: MyObjectDetectionApp
+PackageName: MyObjectClassificationModel
 Description: A docker app for object detection
 Publisher: Me
 Version: '1.0.0'
@@ -11,6 +11,6 @@ Parameters:
 Lifecycle:
   run:
     script: |-
-      echo "MyObjectDetectionApp"
+      echo "running MyObjectClassificationModel"
       exit 0
 
