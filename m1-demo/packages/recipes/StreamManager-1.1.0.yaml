@@ -1,0 +1,17 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: StreamManager
+Description: Stream Manager
+Publisher: Amazon
+Version: '1.1.0'
+Dependencies:
+  TokenExchangeService:
+    VersionRequirements: "*"
+Lifecycle:
+  run: |-
+    java -cp {{artifacts:path}}/AWSGreengrassGreenlake-1.0-super.jar com.amazonaws.iot.greengrass.streammanager.StreamManagerService
+EnvironmentVariables:
+    STREAM_MANAGER_AUTHENTICATE_CLIENT: "false"
+    STREAM_MANAGER_STORE_ROOT_DIR: "/tmp"
+#Artifacts:
+#  - greengrass:/StreamManager-1.1.0/AWSGreengrassGreenlake-1.0-super.jar
