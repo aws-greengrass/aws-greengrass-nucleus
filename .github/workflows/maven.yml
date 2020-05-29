@@ -104,4 +104,4 @@ jobs:
         with:
           java-version: 1.8
       - name: Publish with Maven
-        run: mvn -ntp --settings settings.xml deploy -DskipTests -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
+        run: mvn -ntp -X --settings settings.xml deploy -DskipTests -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
