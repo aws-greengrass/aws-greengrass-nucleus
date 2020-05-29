@@ -13,7 +13,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
-import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
+import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -60,7 +60,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         kernel = new Kernel()
                 .parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString(), "-r", tempRootDir
                         .toAbsolutePath().toString());
-        updateKernelConfigWithIotConfiguration(kernel);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
         kernel.launch();
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
@@ -88,7 +88,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Second deployment to remove some services deployed previously
@@ -99,7 +99,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
@@ -124,12 +124,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
 
         String jobId = publishResult.getJobId();
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult.getJobId(), thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.FAILED));
 
         // Make sure IoT Job was marked as failed and provided correct reason
         String deploymentError = iotClient.describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId)
-                .thingName(thingInfo.thingName).build()).execution().statusDetails().detailsMap().get("error");
+                .thingName(thingInfo.getThingName()).build()).execution().statusDetails().detailsMap().get("error");
         assertThat(deploymentError, StringContains.containsString(
                 "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages:"));
         assertThat(deploymentError, StringContains.containsString("SomeService-v1.0.0=1.0.0"));
@@ -151,7 +151,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
         // Wait for deployment job to fail after three retries of starting CustomerApp
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.FAILED));
         // CustomerApp should be in BROKEN state
         assertEquals(State.BROKEN, kernel.locate("CustomerApp").getState());
@@ -164,7 +164,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         // Ensure that main is FINISHED and CustomerApp is RUNNING.
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -186,7 +186,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .addPackagesEntry("YellowSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Create a Job Doc with a faulty service (CustomerApp-0.9.0) requesting rollback on failure
@@ -200,7 +200,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
         String jobId2 = publishResult2.getJobId();
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId2, thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, jobId2, thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.FAILED));
 
         // Main should be INSTALLED state and CustomerApp should be stopped and removed
@@ -213,7 +213,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // IoT Job should have failed with correct message.
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE.name(), iotClient
-                .describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thingInfo.thingName)
+                .describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thingInfo.getThingName())
                         .build()).execution().statusDetails().detailsMap().get("detailed-deployment-status"));
     }
 }

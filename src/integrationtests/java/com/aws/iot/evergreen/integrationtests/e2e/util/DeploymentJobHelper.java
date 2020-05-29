@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
-import static com.aws.iot.evergreen.integrationtests.e2e.util.Utils.generateMockConfigurationArn;
+import static com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils.generateMockConfigurationArn;
 
 public class DeploymentJobHelper {
     public int index;

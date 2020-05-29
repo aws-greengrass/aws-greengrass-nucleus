@@ -13,8 +13,8 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
+import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
-import com.aws.iot.evergreen.integrationtests.e2e.util.Utils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
@@ -70,7 +70,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         kernel = new Kernel()
                 .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
                         .toAbsolutePath().toString());
-        updateKernelConfigWithIotConfiguration(kernel);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
@@ -154,7 +154,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         Thread.sleep(DNS_CACHE_TTL.plus(Duration.ofSeconds(1)).toMillis());
 
         // Wait for the IoT job to be updated and marked as successful
-        Utils.waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.thingName,
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(),
                 Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
     }
 }

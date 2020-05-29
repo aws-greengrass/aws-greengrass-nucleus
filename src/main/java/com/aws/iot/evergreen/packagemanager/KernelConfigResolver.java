@@ -35,7 +35,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESP
 public class KernelConfigResolver {
 
     public static final String VERSION_CONFIG_KEY = "version";
-    protected static final String PARAMETERS_CONFIG_KEY = "parameters";
+    public static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
     private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
     // Map from Namespace -> Key -> Function which returns the replacement value
