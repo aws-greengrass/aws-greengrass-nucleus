@@ -25,8 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.greengrasspackagemanagement.AWSGreengrassPackageManagement;
-import com.amazonaws.services.greengrasspackagemanagement.model.GetArtifactRequest;
+import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
+import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentArtifactRequest;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -44,7 +44,7 @@ class GreengrassRepositoryDownloaderTest {
     private HttpURLConnection connection;
 
     @Mock
-    private AWSGreengrassPackageManagement client;
+    private AWSGreengrassComponentManagement client;
 
     @Mock
     private GreengrassPackageServiceClientFactory clientFactory;
@@ -52,11 +52,11 @@ class GreengrassRepositoryDownloaderTest {
     private GreengrassRepositoryDownloader downloader;
 
     @Captor
-    ArgumentCaptor<GetArtifactRequest> getArtifactRequestArgumentCaptor;
+    ArgumentCaptor<GetComponentArtifactRequest> getComponentArtifactRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
-        when(clientFactory.getPmsClient()).thenReturn(client);
+        when(clientFactory.getCmsClient()).thenReturn(client);
         this.downloader = spy(new GreengrassRepositoryDownloader(clientFactory));
     }
 
@@ -67,7 +67,7 @@ class GreengrassRepositoryDownloaderTest {
         headers.put("Location", "https://www.amazon.com/artifact.txt");
         ase.setStatusCode(HttpStatus.SC_MOVED_TEMPORARILY);
         ase.setHttpHeaders(headers);
-        when(client.getArtifact(getArtifactRequestArgumentCaptor.capture())).thenThrow(ase);
+        when(client.getComponentArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenThrow(ase);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
@@ -81,8 +81,9 @@ class GreengrassRepositoryDownloaderTest {
         Files.createDirectories(saveToPath);
         downloader.downloadToPath(pkgId, new URI("greengrass:artifactName"), saveToPath);
 
-        GetArtifactRequest generatedRequest = getArtifactRequestArgumentCaptor.getValue();
-        assertEquals("CoolServiceARN", generatedRequest.getPackageARN());
+        GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
+        assertEquals("CoolService", generatedRequest.getComponentName());
+        assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
@@ -99,7 +100,7 @@ class GreengrassRepositoryDownloaderTest {
         headers.put("Location", "https://www.amazon.com/artifact.txt");
         ase.setStatusCode(HttpStatus.SC_MOVED_TEMPORARILY);
         ase.setHttpHeaders(headers);
-        when(client.getArtifact(any())).thenThrow(ase);
+        when(client.getComponentArtifact(any())).thenThrow(ase);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);

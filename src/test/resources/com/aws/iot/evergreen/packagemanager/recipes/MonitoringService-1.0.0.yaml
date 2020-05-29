@@ -23,7 +23,8 @@ Lifecycle:
       script: brew install git
     run: git status
 Artifacts:
-  - greengrass:/MonitoringService-1.0.0/monitor_artifact_100.txt
+  all:
+    - greengrass:/MonitoringService-1.0.0/monitor_artifact_100.txt
 Dependencies:
   all:
     Log:
