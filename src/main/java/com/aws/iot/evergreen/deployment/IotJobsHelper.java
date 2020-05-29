@@ -181,7 +181,10 @@ public class IotJobsHelper implements InjectionActions {
 
         // TODO The deduping here doesn't working when the deployment polling frequency increased
         // because the old job could already completed and removed from the queue when the duplicated job comes.
-        // One possible fix is to double check the job execution status is "Queued" before adding to the queue.
+        // One possible approach is that Jobs helper keeps record of last jobId and queuedAt timestamp for the last job.
+        // When a job message comes we see if the timestamp of the message is greater than the last processed one,
+        // if so the message should be put in queue. If timestamp is same then we compare the jobId and ignore if
+        // jobId is same (already processed). If timestamp is old then we ignore the message.
         if (!deploymentsQueue.contains(deployment) && deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
         }
