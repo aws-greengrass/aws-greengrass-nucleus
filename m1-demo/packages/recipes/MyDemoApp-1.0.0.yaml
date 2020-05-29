@@ -8,6 +8,7 @@ Parameters:
 - name: sampleText
   value: This is a test
   type: STRING
+
 Lifecycle:
   install:
     script: |-
@@ -22,6 +23,6 @@ Lifecycle:
 
 Dependencies:
   all:
-    MyObjectDetectionApp:
+    MyObjectClassificationModel:
       VersionRequirements: '1.0.0'
       DependencyType: SOFT
