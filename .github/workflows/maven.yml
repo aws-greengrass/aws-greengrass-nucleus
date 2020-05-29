@@ -103,5 +103,12 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+        # explicitly setting aws creds to prevent aws-maven plugin from picking up wrong creds
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
+          aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
+          aws-region: us-west-2
       - name: Publish with Maven
-        run: mvn -ntp --settings settings.xml deploy -DskipTests -Daccess-key-id=${{ secrets.evergreen_dev_snapshot_access_key_id }} -Daccess-key-secret=${{ secrets.evergreen_dev_snapshot_access_key_secret }} -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
+        run: mvn -ntp --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
