@@ -14,9 +14,12 @@ import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.ShellRunner;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.util.Exec;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
@@ -39,6 +42,7 @@ import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventually
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(EGExtension.class)
@@ -54,6 +58,52 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         }
         // Cleanup all IoT thing resources we created
         cleanup();
+    }
+
+
+    //@Test
+    // TODO: to run on local devbox, update the localStoreContentPath
+    public void testDemoDisruptionOk() throws Exception {
+        kernel = new Kernel()
+                .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
+                        .toAbsolutePath().toString());
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
+        kernel.launch();
+
+        Path localStoreContentPath = Paths.get("/Users/shirlez/ggv2Ws/aws-greengrass-kernel/m1-demo/packages/");
+        // pre-load contents to package store
+        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+
+        // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
+        // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
+        // creating new IoT job here.
+        Thread.sleep(10_000);
+
+
+        // First Deployment to have some services running in Kernel which can be removed later
+        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("MyDemoApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        Thread.sleep(10_000);
+
+        GenericExternalService myDemoApp = (GenericExternalService) kernel.locate("MyDemoApp");
+        assertNotEquals(0, myDemoApp.whenIsDisruptionOK());
+
+        final ShellRunner shellRunner = kernel.getContext().get(ShellRunner.class);
+        Exec exec = shellRunner.setup("set safeToUpdate",
+                    "curl -X POST -H \"safeToUpdate: true\" localhost:8080/safeToUpdate", myDemoApp);
+
+        shellRunner.successful(exec, "get safeToUpdate", null, myDemoApp);
+
+        assertEquals(0, myDemoApp.whenIsDisruptionOK());
     }
 
     private void launchKernel(String configFile) throws IOException, InterruptedException {
