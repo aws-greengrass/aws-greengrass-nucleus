@@ -16,7 +16,14 @@ Lifecycle:
   checkIfSafeToUpdate:
     recheckPeriod: 5
     script: |-
-      exit 0
+      SAFE_TO_UPDATE=$(curl localhost:8080/safeToUpdate)
+      if [ "$SAFE_TO_UPDATE" = "true" ]; then
+          echo "Safe to update"
+          exit 0
+      else
+          echo "Not safe to update " + $SAFE_TO_UPDATE
+          exit 1
+      fi
   run:
     script: |-
       python3 {{artifacts:path}}/myDemoApp.py
