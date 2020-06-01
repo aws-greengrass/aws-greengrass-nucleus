@@ -16,3 +16,28 @@ Manager component to work:
 
 All these conditions should be fulfilled by the setup script. Ping fufranci@ for an example of how to set this up
 manually.
+
+Example `config.yaml`. Note the settings under `system`. Also note that you must define `iotRoleAlias`.
+```
+---
+services:
+  main:
+    lifecycle:
+      run: |-
+        echo "Hello World"
+  TokenExchangeService:
+    iotRoleAlias: "smeg"
+system:
+  # To config manually, see: https://docs.aws.amazon.com/iot/latest/developerguide/authorizing-direct-aws.html
+  thingName: “smeg_Core”
+  certificateFilePath: "/Users/fufranci/workspaces/evergreen/StreamManagerOnEvergreenDemo/stream_manager/certs/e4974bab6d.cert.pem"
+  privateKeyPath: "/Users/fufranci/workspaces/evergreen/StreamManagerOnEvergreenDemo/stream_manager/certs/e4974bab6d.private.key"
+  rootCaPath: "/Users/fufranci/workspaces/evergreen/StreamManagerOnEvergreenDemo/stream_manager/certs/root.ca.pem"
+  iotDataEndpoint: "fufranci"
+  iotCredEndpoint: "https://c3pysqolcbrvr1.credentials.iot.us-west-2.amazonaws.com"
+  awsRegion: "us-west-2"
+  # mqttClientEndpoint:
+```
+
+To understand how to setup TES manually, including how to find out your `iotCredEndpoint`, please see: 
+https://docs.aws.amazon.com/iot/latest/developerguide/authorizing-direct-aws.html
