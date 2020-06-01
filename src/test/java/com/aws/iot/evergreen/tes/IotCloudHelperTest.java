@@ -13,7 +13,6 @@ import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.crt.http.HttpStreamResponseHandler;
 
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,9 +34,6 @@ public class IotCloudHelperTest {
     @Mock
     HttpStream mockHttpStream;
 
-    @Mock
-    CompletableFuture<HttpStream> mockFuture;
-
     @Test
     public void GIVEN_valid_creds_WHEN_send_request_called_THEN_success() throws Exception {
         when(mockConnectionManager.getConnection()).thenReturn(mockConnection);
@@ -46,7 +42,7 @@ public class IotCloudHelperTest {
             HttpStreamResponseHandler handler = (HttpStreamResponseHandler)invocationArgs.getArguments()[1];
             handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE.getBytes(StandardCharsets.UTF_8));
             handler.onResponseComplete(mockHttpStream, 0);
-            return mockFuture;
+            return mockHttpStream;
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
         final String creds = cloudHelper.sendHttpRequest(mockConnectionManager,
