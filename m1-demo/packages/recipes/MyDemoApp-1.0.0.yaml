@@ -5,14 +5,15 @@ Description: A demo app
 Publisher: Me
 Version: '1.0.0'
 Parameters:
-- name: sampleText
-  value: This is a test
+- name: color
+  value: red
   type: STRING
 
 Lifecycle:
   install:
     script: |-
       # pip install greengrasssdk # need to run as root
+      # TODO: install tenserflow?
   checkIfSafeToUpdate:
     recheckPeriod: 5
     script: |-
@@ -21,15 +22,15 @@ Lifecycle:
           echo "Safe to update"
           exit 0
       else
-          echo "Not safe to update " + $SAFE_TO_UPDATE
+          echo "Not safe to update " $SAFE_TO_UPDATE
           exit 1
       fi
   run:
     script: |-
-      python3 {{artifacts:path}}/myDemoApp.py
+      python3 {{artifacts:path}}/myDemoApp.py --color {{params:color.value}}
 
 Dependencies:
-  all:
-    MyObjectClassificationModel:
-      VersionRequirements: '1.0.0'
-      DependencyType: SOFT
+  # all:
+    # StreamManager:
+      # VersionRequirements: '1.1.0'
+      # DependencyType: SOFT
