@@ -61,7 +61,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     }
 
 
-    //@Test
+    // @Test
     // TODO: to run on local devbox, update the localStoreContentPath
     public void testDemoDisruptionOk() throws Exception {
         kernel = new Kernel()
@@ -86,7 +86,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("MyDemoApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
+                        .withConfiguration("{\"color\":\"yellow\"}"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
@@ -99,7 +99,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         final ShellRunner shellRunner = kernel.getContext().get(ShellRunner.class);
         Exec exec = shellRunner.setup("set safeToUpdate",
-                    "curl -X POST -H \"safeToUpdate: true\" localhost:8080/safeToUpdate", myDemoApp);
+                    "curl -X POST localhost:8080/pause", myDemoApp);
 
         shellRunner.successful(exec, "get safeToUpdate", null, myDemoApp);
 
