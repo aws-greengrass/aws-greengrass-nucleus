@@ -1,0 +1,17 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: MyFarmingApp
+Description: Test recipe for MyFarmingApp
+Publisher: Shrute Farm
+Version: '1.0.0'
+Lifecycle:
+  install:
+    debian:
+      skipif: onpath git
+      script: sudo apt-get install git
+    macos:
+      skipif: onpath git
+      script: brew install git
+Artifacts:
+  all:
+    - greengrass:MyFarmingAppArtifact.zip
