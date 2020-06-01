@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -24,15 +25,14 @@ import com.vdurmont.semver4j.Semver;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 public class PackageManager implements InjectionActions {
@@ -72,13 +72,13 @@ public class PackageManager implements InjectionActions {
     }
 
     /**
-     * List the package metadata for available package versions that satisfy the requirement.
-     * It is ordered by the active version first if found, followed by available versions locally.
+     * List the package metadata for available package versions that satisfy the requirement. It is ordered by the
+     * active version first if found, followed by available versions locally.
      *
      * @param packageName        the package name
      * @param versionRequirement the version requirement for this package
      * @return an iterator of PackageMetadata, with the active version first if found, followed by available versions
-     *     locally.
+     *         locally.
      * @throws PackagingException if fails when trying to list available package metadata
      */
     Iterator<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
@@ -107,7 +107,14 @@ public class PackageManager implements InjectionActions {
 
         }
 
-        // TODO 4. list available packages from cloud when cloud SDK is ready.
+        try {
+            packageMetadataList.addAll(
+                    greengrassPackageServiceHelper.listAvailablePackageMetadata(packageName, versionRequirement));
+        } catch (PackageDownloadException e) {
+            logger.atInfo("list-package-versions")
+                  .addKeyValue(PACKAGE_NAME_KEY, packageName)
+                  .log("Unable to find any valid versions in Component Management Service");
+        }
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", packageMetadataList)
@@ -116,8 +123,8 @@ public class PackageManager implements InjectionActions {
     }
 
     /**
-     * Make sure all the specified packages exist in the package cache. Download them from remote repository if
-     * they don't exist.
+     * Make sure all the specified packages exist in the package cache. Download them from remote repository if they
+     * don't exist.
      *
      * @param pkgIds a list of packages.
      * @return a future to notify once this is finished.
@@ -136,20 +143,14 @@ public class PackageManager implements InjectionActions {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
-            List<URI> artifactURIList = pkg.getArtifacts().stream().map(artifactStr -> {
-                try {
-                    return new URI(artifactStr);
-                } catch (URISyntaxException e) {
-                    String message = String.format("artifact URI %s is invalid", artifactStr);
-                    logger.atError().setCause(e).log(message);
-                    throw new RuntimeException(message, e);
-                }
-            }).collect(Collectors.toList());
-            downloadArtifactsIfNecessary(packageIdentifier, artifactURIList);
-            logger.atInfo().setEventType("prepare-package-finished").addKeyValue("packageIdentifier", packageIdentifier)
-                    .log();
+            Map artifacts = pkg.getArtifacts();
+            if (!artifacts.isEmpty()) {
+                downloadArtifactsIfNecessary(packageIdentifier,
+                                             (List<URI>) PlatformResolver.resolvePlatform(artifacts));
+            }
+            logger.atInfo("prepare-package-finished").kv("packageIdentifier", packageIdentifier).log();
         } catch (PackageLoadingException | PackageDownloadException e) {
-            logger.atError().setCause(e).log(String.format("Failed to prepare package %s", packageIdentifier));
+            logger.atError().log("Failed to prepare package {}", packageIdentifier, e);
             throw e;
         }
     }
@@ -160,15 +161,14 @@ public class PackageManager implements InjectionActions {
         try {
             packageOptional = packageStore.findPackageRecipe(packageIdentifier);
         } catch (PackageLoadingException e) {
-            logger.atWarn().log(String.format("Failed to load package recipe for %s", packageIdentifier), e);
+            logger.atWarn().log("Failed to load package recipe for {}", packageIdentifier, e);
         }
         if (packageOptional.isPresent()) {
             return packageOptional.get();
-        } else {
-            PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-            packageStore.savePackageRecipe(packageRecipe);
-            return packageRecipe;
         }
+        PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
+        packageStore.savePackageRecipe(packageRecipe);
+        return packageRecipe;
     }
 
     void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<URI> artifactList)
@@ -255,7 +255,7 @@ public class PackageManager implements InjectionActions {
      * @param packageName the package name
      * @param requirement the version requirement
      * @return Optional of the package metadata for the package; empty if this package doesn't have active version or
-     *     the active version doesn't satisfy the requirement.
+     *         the active version doesn't satisfy the requirement.
      * @throws PackagingException if fails to find the target recipe or parse the recipe
      */
     private Optional<PackageMetadata> findActiveAndSatisfiedPackageMetadata(String packageName, Requirement requirement)

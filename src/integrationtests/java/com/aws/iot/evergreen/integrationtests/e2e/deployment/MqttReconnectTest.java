@@ -70,7 +70,9 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         kernel = new Kernel()
                 .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
                         .toAbsolutePath().toString());
+
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
+        deviceProvisioningHelper.updateKernelConfigWithCMSConfiguration(kernel, BETA_REGION.toString());
 
         Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
@@ -143,8 +145,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
             networkUtils.disconnectMqtt();
 
             // Wait for the deployment to finish offline
-            assertTrue(jobCompleted.await(2, TimeUnit.MINUTES));
-            assertTrue(connectionInterrupted.await(1, TimeUnit.MINUTES));
+            assertTrue(jobCompleted.await(3, TimeUnit.MINUTES));
+            assertTrue(connectionInterrupted.await(2, TimeUnit.MINUTES));
         } finally {
             networkUtils.recoverMqtt();
             Slf4jLogAdapter.removeGlobalListener(logListener);

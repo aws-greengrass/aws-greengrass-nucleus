@@ -21,15 +21,15 @@ import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 
-import com.amazonaws.services.greengrasspackagemanagement.AWSGreengrassPackageManagement;
-import com.amazonaws.services.greengrasspackagemanagement.model.GetPackageRequest;
-import com.amazonaws.services.greengrasspackagemanagement.model.GetPackageResult;
+import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
+import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentRequest;
+import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentResult;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 class GreengrassPackageServiceHelperTest {
 
     @Mock
-    private AWSGreengrassPackageManagement client;
+    private AWSGreengrassComponentManagement client;
 
     @Mock
     private GreengrassPackageServiceClientFactory clientFactory;
@@ -37,11 +37,11 @@ class GreengrassPackageServiceHelperTest {
     private GreengrassPackageServiceHelper helper;
 
     @Captor
-    private ArgumentCaptor<GetPackageRequest> getPackageRequestArgumentCaptor;
+    private ArgumentCaptor<GetComponentRequest> getComponentRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
-        when(clientFactory.getPmsClient()).thenReturn(client);
+        when(clientFactory.getCmsClient()).thenReturn(client);
         this.helper = spy(new GreengrassPackageServiceHelper(clientFactory));
     }
 
@@ -50,15 +50,15 @@ class GreengrassPackageServiceHelperTest {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         ByteBuffer testRecipeBytes = ByteBuffer.wrap(recipeContents.getBytes());
-        GetPackageResult testResult = new GetPackageResult().withRecipe(testRecipeBytes);
-        doReturn(testResult).when(client).getPackage(getPackageRequestArgumentCaptor.capture());
+        GetComponentResult testResult = new GetComponentResult().withRecipe(testRecipeBytes);
+        doReturn(testResult).when(client).getComponent(getComponentRequestArgumentCaptor.capture());
         PackageRecipe testPackage =
                 helper.downloadPackageRecipe(new PackageIdentifier(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                                    new Semver("1.0.0")));
 
-        GetPackageRequest generatedRequest = getPackageRequestArgumentCaptor.getValue();
-        final String expectedArn = String.format("%s-1.0.0", TestHelper.MONITORING_SERVICE_PACKAGE_NAME);
-        assertEquals(expectedArn, generatedRequest.getPackageARN());
+        GetComponentRequest generatedRequest = getComponentRequestArgumentCaptor.getValue();
+        assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, generatedRequest.getComponentName());
+        assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertEquals("YAML", generatedRequest.getType());
         assertEquals(testPackage.getPackageName(), TestHelper.MONITORING_SERVICE_PACKAGE_NAME);
         assertTrue(testPackage.getVersion().isEqualTo("1.0.0"));

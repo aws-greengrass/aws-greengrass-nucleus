@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.deployment.DeploymentTask;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.regions.Region;
 
 import java.io.File;
 import java.io.IOException;
@@ -76,6 +78,8 @@ class DeploymentTaskIntegrationTest {
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
 
+    protected static final Region BETA_REGION = Region.US_EAST_1;
+
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -108,6 +112,8 @@ class DeploymentTaskIntegrationTest {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
+        DeviceProvisioningHelper deviceProvisioningHelper = new DeviceProvisioningHelper(BETA_REGION.toString());
+        deviceProvisioningHelper.updateKernelConfigWithCMSConfiguration(kernel, BETA_REGION.toString());
         kernel.launch();
         // get required instances from context
         packageManager = kernel.getContext().get(PackageManager.class);

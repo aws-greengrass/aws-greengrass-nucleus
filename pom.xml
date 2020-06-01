@@ -92,11 +92,6 @@
         </dependency>
         <dependency>
             <groupId>com.amazonaws.services</groupId>
-            <artifactId>greengrasspackagemanagement</artifactId>
-            <version>1.11.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws.services</groupId>
             <artifactId>greengrasscomponentmanagement</artifactId>
             <version>1.11.1-SNAPSHOT</version>
         </dependency>

@@ -57,6 +57,32 @@ public class KernelLifecycle {
     public void launch() {
         logger.atInfo().log("root path = {}. config path = {}", kernel.getRootPath(),
                 kernel.getConfigPath());
+        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
+        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
+        try {
+            if (kernelCommandLine.haveRead) {
+                // new config file came in from the outside
+                kernel.writeEffectiveConfig(configurationFile);
+                Files.deleteIfExists(transactionLogPath);
+            } else {
+                // Prefer the tlog because the yaml config file will not be up to date
+                if (Files.exists(transactionLogPath)) {
+                    kernel.getConfig().read(transactionLogPath);
+                }
+                if (Files.exists(configurationFile)) {
+                    kernel.getConfig().read(configurationFile);
+                }
+                if (!Files.exists(transactionLogPath) && !Files.exists(configurationFile)) {
+                    kernel.getConfig()
+                            .lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, kernelCommandLine.mainServiceName);
+                }
+            }
+            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath);
+            tlog.flushImmediately(true);
+        } catch (IOException ioe) {
+            logger.atError().setEventType("system-config-error").setCause(ioe).log();
+            throw new RuntimeException(ioe);
+        }
 
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
@@ -80,29 +106,6 @@ public class KernelLifecycle {
                 logger.atError().log("Unable to add auto-starting dependency {} to main", s, e);
             }
         });
-
-        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
-        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
-        try {
-            if (kernelCommandLine.haveRead) {
-                // new config file came in from the outside
-                kernel.writeEffectiveConfig(configurationFile);
-                Files.deleteIfExists(transactionLogPath);
-            } else {
-                // Prefer the tlog because the yaml config file will not be up to date
-                if (Files.exists(transactionLogPath)) {
-                    kernel.getConfig().read(transactionLogPath);
-                }
-                if (Files.exists(configurationFile)) {
-                    kernel.getConfig().read(configurationFile);
-                }
-            }
-            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath);
-            tlog.flushImmediately(true);
-        } catch (IOException ioe) {
-            logger.atError().setEventType("system-config-error").setCause(ioe).log();
-            throw new RuntimeException(ioe);
-        }
 
         kernel.writeEffectiveConfig();
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
