@@ -23,6 +23,8 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Objects;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -94,6 +96,12 @@ public class KernelCommandLine {
                     logger.atError().setEventType("parse-args-error").setCause(rte).log();
                     throw rte;
             }
+        }
+        // If no config path was given then initialize with default blank config
+        if (!haveRead) {
+            kernel.getConfig()
+                    .lookup(SERVICES_NAMESPACE_TOPIC, mainServiceName, SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run")
+                    .withValue("echo \"Main Running\"");
         }
         if (Utils.isEmpty(rootAbsolutePath)) {
             rootAbsolutePath = "~/.evergreen";  // Default to hidden subdirectory of home.
