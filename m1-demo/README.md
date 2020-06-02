@@ -2,6 +2,11 @@
 Please push all the demo related code/recipe/README to the related folder.             
 
 ## Stream Manager
+
+**Very important!** In order for Stream Manager to integrate with TES and get creds from TES, make sure:
+1. Stream Manager does not inherit any AWS credentials through environment variables
+2. You do not have ~/.aws/credentials 
+
 There is a Stream Manager component defined in the `packages` folder. The component requires the Stream Manager jar.
 Currently, the jar in the `artifacts` folder is a 0 byte placeholder. You can get the actual jar from this link and
 replace the placeholder.
