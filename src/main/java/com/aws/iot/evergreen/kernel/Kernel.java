@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -230,6 +231,8 @@ public class Kernel {
 
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(SERVICES_NAMESPACE_TOPIC, serviceMap);
+        configMap.put(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
+                config.findTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
         try {
             JSON.std.with(new YAMLFactory().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)).write(configMap, w);
         } catch (IOException ex) {

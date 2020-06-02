@@ -14,10 +14,9 @@ Platforms:
 
 Lifecycle:
   install:
-    all:
-      script: |-
-        # pip install greengrasssdk # need to run as root
-        # TODO: install tenserflow?
+    script: |-
+      pip3 install greengrasssdk # need to run as root
+      # TODO: install tenserflow?
   checkIfSafeToUpdate:
     all:
       recheckPeriod: 5
@@ -36,7 +35,7 @@ Lifecycle:
         python3 {{artifacts:path}}/myDemoApp.py --color {{params:color.value}}
 
 Dependencies:
-  # all: # TODO: add dependency of Streammanager
-    # StreamManager:
-      # VersionRequirements: '1.1.0'
-      # DependencyType: SOFT
+  all:
+    StreamManager:
+      VersionRequirements: '1.1.0'
+      DependencyType: SOFT

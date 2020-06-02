@@ -1,4 +1,7 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from streamManagerHelper import StreamUploader
+import json
+import time
 import json
 import threading
 import time
@@ -59,5 +62,25 @@ httpServerThread = threading.Thread(target=server.serve_forever, args=())
 httpServerThread.daemon = True
 httpServerThread.start()
 
+#Wait for SM to start listening. Need to add another mechanism to identify SM start up
+time.sleep(2)
+streamUploader = StreamUploader()
+#Create the stream and the Iot Analytics channel in cloud
+streamUploader.createStreamWithKinesisExport("RpiImageClassificationStream")
+# streamUploader.createStreamWithIotAnalyticsExport("m1demoimagedata")
+
+#Sample measurement. Get this from the camera
+measurement = {
+    "Timestamp": 1590960712514,
+    "Possibility": 0.6875,
+    "DeviceId":"Rpi1"
+}
+data = json.dumps(measurement).encode()
+print("Pushing data to stream")
+
 while True:
+    #Get the data from camera here
+    streamUploader.appendToStream("RpiImageClassificationStream", data)
+    # streamUploader.appendToStream("m1demoimagedata", data)
     time.sleep(10)
+
