@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -72,6 +73,18 @@ class KernelTest extends BaseITCase {
         kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
         ignoreExceptionWithMessage(context, "Cannot load main service");
         assertThrows(RuntimeException.class, () -> kernel.launch());
+    }
+
+    @Test
+    void GIVEN_config_path_not_given_WHEN_kernel_launches_THEN_load_empty_main_service() throws Exception {
+        // launch kernel without config arg
+        kernel = new Kernel();
+        kernel.parseArgs().toString();
+        kernel.launch();
+
+        // verify
+        EvergreenService mainService = kernel.locate("main");
+        assertNotNull(mainService);
     }
 
     @SuppressWarnings("PMD.AssignmentInOperand")
