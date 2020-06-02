@@ -71,7 +71,7 @@ streamUploader.createStreamWithKinesisExport("RpiImageClassificationStream")
 
 #Sample measurement. Get this from the camera
 measurement = {
-    "Timestamp": 1590960712514,
+    "TimeOfCapture": 1590960712514,
     "Possibility": 0.6875,
     "DeviceId":"Rpi1"
 }

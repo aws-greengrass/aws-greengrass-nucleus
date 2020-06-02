@@ -13,5 +13,6 @@ Lifecycle:
 EnvironmentVariables:
     STREAM_MANAGER_AUTHENTICATE_CLIENT: "false"
     STREAM_MANAGER_STORE_ROOT_DIR: "/tmp"
+    AWS_REGION: "us-east-1"
 #Artifacts:
 #  - greengrass:/StreamManager-1.1.0/AWSGreengrassGreenlake-1.0-super.jar
