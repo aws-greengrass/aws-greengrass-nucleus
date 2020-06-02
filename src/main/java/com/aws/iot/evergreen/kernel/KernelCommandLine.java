@@ -69,7 +69,7 @@ public class KernelCommandLine {
 
         while (getArg() != null) {
             switch (arg.toLowerCase()) {
-                case "-config":
+                case "--config":
                 case "-i":
                     try {
                         String configArg = getArg();
@@ -86,7 +86,7 @@ public class KernelCommandLine {
                         throw rte;
                     }
                     break;
-                case "-root":
+                case "--root":
                 case "-r":
                     rootAbsolutePath = getArg();
                     Objects.requireNonNull(rootAbsolutePath, "-r or -root requires an argument");

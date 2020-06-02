@@ -6,6 +6,11 @@ package com.aws.iot.evergreen.util;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import lombok.Getter;
+import org.zeroturnaround.process.PidProcess;
+import org.zeroturnaround.process.Processes;
+import org.zeroturnaround.process.UnixProcess;
+import org.zeroturnaround.process.WindowsProcess;
+import org.zeroturnaround.process.unix.LibC;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -44,9 +49,9 @@ import javax.annotation.Nullable;
  */
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public final class Exec implements Closeable {
-    private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String EvergreenUid = Utils.generateRandomString(16).toUpperCase();
+    private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     private static final Consumer<CharSequence> NOP = s -> {
     };
     private static final File userdir = new File(System.getProperty("user.dir"));
@@ -88,19 +93,19 @@ public final class Exec implements Closeable {
         computePathString();
     }
 
-    private String[] environment = defaultEnvironment;
-    private String[] cmds;
-    private File dir = userdir;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     Process process;
-    private long timeout = -1;
-    private TimeUnit timeunit = TimeUnit.SECONDS;
     IntConsumer whenDone;
     Consumer<CharSequence> stdout = NOP;
     Consumer<CharSequence> stderr = NOP;
+    AtomicInteger numberOfCopiers;
+    private String[] environment = defaultEnvironment;
+    private String[] cmds;
+    private File dir = userdir;
+    private long timeout = -1;
+    private TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    AtomicInteger numberOfCopiers;
     private Logger logger = staticLogger;
 
     public static void setDefaultEnv(String key, CharSequence value) {
@@ -269,6 +274,7 @@ public final class Exec implements Closeable {
 
     /**
      * Get the working directory which is configured for the Exec.
+     *
      * @return current working directory.
      */
     public File cwd() {
@@ -316,8 +322,7 @@ public final class Exec implements Closeable {
     private void exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
-            logger.atWarn().kv("command", this)
-                    .log("Refusing to execute because the active thread is interrupted");
+            logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
         process = Runtime.getRuntime().exec(cmds, environment, dir);
@@ -354,7 +359,7 @@ public final class Exec implements Closeable {
      *
      * @return String of output.
      * @throws InterruptedException if thread is interrupted while executing
-     * @throws IOException if execution of the process fails to start
+     * @throws IOException          if execution of the process fails to start
      */
     public String execAndGetStringOutput() throws InterruptedException, IOException {
         StringBuilder sb = new StringBuilder();
@@ -394,25 +399,66 @@ public final class Exec implements Closeable {
         if (p == null || !p.isAlive()) {
             return;
         }
-        p.destroy();
+
+        PidProcess pp = Processes.newPidProcess(p);
+
+        if (pp instanceof UnixProcess) {
+            pp = new UnixParentProcess(p, pp.getPid());
+        } else if (pp instanceof WindowsProcess) {
+            ((WindowsProcess) pp).setIncludeChildren(true);
+            ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
+        }
 
         try {
+            pp.destroyGracefully();
             // TODO: configurable timeout?
             if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                p.destroyForcibly();
-                if (!p.waitFor(5, TimeUnit.SECONDS)) {
+                pp.destroyForcefully();
+                if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                     throw new IOException("Could not stop " + this);
                 }
             }
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
-            p.destroyForcibly();
+            try {
+                pp.destroyForcefully();
+            } catch (InterruptedException ignore) {
+            }
         }
     }
 
     @Override
     public String toString() {
         return Utils.deepToString(cmds, 90).toString();
+    }
+
+    private static class UnixParentProcess extends PidProcess {
+        public static final int SIGINT = 2;
+        private final Process process;
+
+        public UnixParentProcess(Process process, int pid) {
+            super(pid);
+            this.process = process;
+        }
+
+        @Override
+        public void destroy(boolean forceful) throws IOException, InterruptedException {
+            // Use pkill to kill all subprocesses under the main shell
+            String[] cmd = {"pkill", "-" + (forceful ? LibC.SIGKILL : SIGINT), "-P", Integer.toString(pid)};
+            Runtime.getRuntime().exec(cmd).waitFor();
+
+            // If forcible, then also kill the parent (the shell)
+            if (forceful) {
+                process.destroy();
+                process.waitFor(2, TimeUnit.SECONDS);
+                process.destroyForcibly();
+            }
+        }
+
+        @Override
+        public boolean isAlive() throws IOException, InterruptedException {
+            return process.isAlive();
+        }
     }
 
     /**
