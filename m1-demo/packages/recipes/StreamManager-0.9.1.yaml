@@ -3,7 +3,7 @@ RecipeTemplateVersion: '2020-01-25'
 PackageName: StreamManager
 Description: Stream Manager
 Publisher: Amazon
-Version: '1.1.0'
+Version: '0.9.1'
 Platforms:
   - debian
   - macos
@@ -17,6 +17,6 @@ EnvironmentVariables:
     STREAM_MANAGER_AUTHENTICATE_CLIENT: "false"
     STREAM_MANAGER_STORE_ROOT_DIR: "/tmp"
     AWS_REGION: "us-east-1"
-#Artifacts:
-#  all:
-#    - greengrass:AWSGreengrassGreenlake-1.0-super.jar
+Artifacts:
+  all:
+    - greengrass:AWSGreengrassGreenlake-1.0-super.jar
