@@ -63,6 +63,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     // @Test
     // TODO: to run on local devbox, update the localStoreContentPath
+    @SuppressWarnings({"PMD.JUnit4TestShouldUseTestAnnotation", "PMD.DetachedTestCase", "PMD.CloseResource"})
     public void testDemoDisruptionOk() throws Exception {
         kernel = new Kernel()
                 .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
@@ -104,6 +105,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         shellRunner.successful(exec, "get safeToUpdate", null, myDemoApp);
 
         assertEquals(0, myDemoApp.whenIsDisruptionOK());
+        exec.close();
     }
 
     private void launchKernel(String configFile) throws IOException, InterruptedException {
