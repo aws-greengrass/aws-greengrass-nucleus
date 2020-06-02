@@ -3,7 +3,7 @@ RecipeTemplateVersion: '2020-01-25'
 PackageName: StreamManager
 Description: Stream Manager
 Publisher: Amazon
-Version: '1.1.0'
+Version: '0.9.1'
 Platforms:
   - debian
   - macos
