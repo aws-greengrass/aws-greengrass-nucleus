@@ -169,7 +169,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_tes_role_config_WHEN_role_info_provided_THEN_add_config_to_config_store() throws Exception {
+    public void GIVEN_test_tes_role_config_WHEN_role_info_provided_THEN_add_config_to_config_store() {
         Kernel kernel = new Kernel()
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 

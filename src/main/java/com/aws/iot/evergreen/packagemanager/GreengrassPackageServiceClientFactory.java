@@ -21,6 +21,8 @@ import javax.inject.Named;
 @SuppressWarnings("PMD.ConfusingTernary")
 public class GreengrassPackageServiceClientFactory {
 
+    public static final String CONTEXT_COMPONENT_SERVICE_ENDPOINT = "greengrassServiceEndpoint";
+    public static final String CONTEXT_SERVICE_CRED_PROVIDER = "greengrassServiceCredentialProvider";
     private static final Logger logger = LogManager.getLogger(GreengrassPackageServiceClientFactory.class);
 
     private final AWSGreengrassComponentManagement cmsClient;
@@ -33,9 +35,10 @@ public class GreengrassPackageServiceClientFactory {
      * @param credentialsProvider       AWS Credentials provider for device credentials
      */
     @Inject
-    public GreengrassPackageServiceClientFactory(@Named("greengrassServiceEndpoint") String greengrassServiceEndpoint,
-             DeviceConfiguration deviceConfiguration,
-             @Named("greengrassServiceCredentialProvider") AWSCredentialsProvider credentialsProvider) {
+    public GreengrassPackageServiceClientFactory(
+            @Named(CONTEXT_COMPONENT_SERVICE_ENDPOINT) String greengrassServiceEndpoint,
+            DeviceConfiguration deviceConfiguration,
+            @Named(CONTEXT_SERVICE_CRED_PROVIDER) AWSCredentialsProvider credentialsProvider) {
         AWSGreengrassComponentManagementClientBuilder clientBuilder =
                 AWSGreengrassComponentManagementClientBuilder.standard();
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());

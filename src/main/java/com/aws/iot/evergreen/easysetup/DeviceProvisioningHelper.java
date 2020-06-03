@@ -68,7 +68,7 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
     // TODO : Remove once global components are implemented
-    private static final String GREENGRASS_SERVICE_ENDPOINT =
+    public static final String GREENGRASS_SERVICE_ENDPOINT =
             "https://3w5ajog718.execute-api.us-east-1.amazonaws.com/Beta/";
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
             .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"RecipeTemplateVersion\": \"2020-01-25\",\n"
@@ -322,21 +322,6 @@ public class DeviceProvisioningHelper {
             logger.atInfo().kv("component name", componentName)
                     .log("Component already exists, skipping re-creating " + "component");
         }
-    }
-
-    /**
-     * Update the kernel config with iot thing info, in specific CA, private Key and cert path.
-     *
-     * @param kernel Kernel object to update
-     * @param awsRegion Target AWS Region
-     */
-    public void updateKernelConfigWithCMSConfiguration(Kernel kernel, String awsRegion) {
-        // Endpoint for Beta CMS in us-east-1
-        // TODO: Once service is available in multiple regions, this should not be a static config and
-        // use the region value to determine endpoint
-        kernel.getContext().put("greengrassServiceEndpoint", GREENGRASS_SERVICE_ENDPOINT);
-        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
-        deviceConfiguration.getAWSRegion().withValue(awsRegion);
     }
 
     @AllArgsConstructor
