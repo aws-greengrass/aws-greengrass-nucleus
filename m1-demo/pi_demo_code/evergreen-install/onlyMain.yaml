@@ -1,0 +1,6 @@
+---
+services:
+  main:
+    lifecycle:
+      install:
+        all: echo All installed

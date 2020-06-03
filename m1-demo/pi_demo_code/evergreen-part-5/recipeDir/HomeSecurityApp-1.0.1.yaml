@@ -1,0 +1,24 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: HomeSecurityApp
+Description: Home Security Monitoring
+Publisher: Ethan Huang
+Version: '1.0.0'
+Lifecycle:
+  install:
+    debian: |-
+        pip3 install https://dl.google.com/coral/python/tflite_runtime-2.1.0.post1-cp37-cp37m-linux_armv7l.whl       
+        pip3 install greengrasssdk
+  run:
+    debian: python3 {{artifacts:path}}/detect_picamera.py --color white --model {{artifacts:path}}/detect.tflite --label {{artifacts:path}}/coco_labels.txt
+  shutdown:
+          debian: ps aux | grep 'python3 {{artifacts:path}}/detect_picamera.py' | awk '{print $2}' | xargs kill
+
+  checkIfSafeToUpdate:
+    debian:
+      recheckPeriod: 5
+      script: raspistill -t 1 -o test.img
+Dependencies:
+  debian:
+    StreamManager:
+      VersionRequirements: '1.1.0'  

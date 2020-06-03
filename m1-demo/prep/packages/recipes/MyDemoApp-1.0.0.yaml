@@ -1,0 +1,41 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+PackageName: MyDemoApp
+Description: A demo app
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+- name: color
+  value: red
+  type: STRING
+
+Platforms:
+- all
+
+Lifecycle:
+  install:
+    script: |-
+      pip3 install greengrasssdk # need to run as root
+      # TODO: install tenserflow?
+  checkIfSafeToUpdate:
+    all:
+      recheckPeriod: 5
+      script: |-
+        SAFE_TO_UPDATE=$(curl localhost:8080/safeToUpdate)
+        if [ "$SAFE_TO_UPDATE" = "true" ]; then
+            echo "Safe to update"
+            exit 0
+        else
+            echo "Not safe to update " $SAFE_TO_UPDATE
+            exit 1
+        fi
+  run:
+    all:
+      script: |-
+        python3 {{artifacts:path}}/myDemoApp.py --color {{params:color.value}}
+
+Dependencies:
+  all:
+    StreamManager:
+      VersionRequirements: '1.1.0'
+      DependencyType: SOFT
