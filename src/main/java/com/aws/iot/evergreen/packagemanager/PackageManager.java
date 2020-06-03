@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +92,7 @@ public class PackageManager implements InjectionActions {
 
         // 2. list available packages locally
         List<PackageMetadata> packageMetadataList =
-                packageStore.listAvailablePackageMetadata(packageName, versionRequirement);
+                new ArrayList<>(packageStore.listAvailablePackageMetadata(packageName, versionRequirement));
 
         // 3. If the active satisfied version presents, set it as the head of list.
         if (optionalActivePackageMetadata.isPresent()) {
@@ -113,7 +114,7 @@ public class PackageManager implements InjectionActions {
         } catch (PackageDownloadException e) {
             logger.atInfo("list-package-versions")
                   .addKeyValue(PACKAGE_NAME_KEY, packageName)
-                  .log("Unable to find any valid versions in Component Management Service");
+                  .log("Failed when calling Component Management Service to list available versions");
         }
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
