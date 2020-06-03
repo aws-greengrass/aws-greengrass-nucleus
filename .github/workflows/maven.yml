@@ -112,3 +112,6 @@ jobs:
           aws-region: us-west-2
       - name: Publish with Maven
         run: mvn -ntp --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
+      - run: sudo apt-get install -y awscli
+      - name: Upload to S3
+        run: aws s3 cp target/Evergreen.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
