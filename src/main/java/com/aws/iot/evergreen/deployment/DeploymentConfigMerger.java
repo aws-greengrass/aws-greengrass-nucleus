@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.ConfigurationReader;
+import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -13,7 +14,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -89,7 +89,7 @@ public class DeploymentConfigMerger {
                 } catch (IOException e) {
                     // Failed to record snapshot hence did not execute merge, no rollback needed
                     logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                            .log("Failed to take a " + "snapshot for rollback");
+                            .log("Failed to take a snapshot for rollback");
                     totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
                     return;
                 }
@@ -115,6 +115,8 @@ public class DeploymentConfigMerger {
                                 .log("Applied new service config. Waiting for services to complete update");
 
                         waitForServicesToStart(servicesToTrack, totallyCompleteFuture, mergeTime);
+                        logger.atDebug(MERGE_CONFIG_EVENT_KEY).log("new/updated services are running, will now remove"
+                                + " old services");
                         if (totallyCompleteFuture.isCancelled()) {
                             // TODO : Does this need rolling back to old config?
                             logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
@@ -297,7 +299,6 @@ public class DeploymentConfigMerger {
          */
         public AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
             Set<String> runningUserServices = kernel.orderedDependencies().stream()
-                    .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                     .map(EvergreenService::getName).collect(Collectors.toSet());
 
             this.kernel = kernel;
@@ -307,7 +308,7 @@ public class DeploymentConfigMerger {
                             .collect(Collectors.toSet());
 
             this.servicesToUpdate =
-                    newServiceConfig.keySet().stream().filter(serviceName -> runningUserServices.contains(serviceName))
+                    newServiceConfig.keySet().stream().filter(runningUserServices::contains)
                             .collect(Collectors.toSet());
 
             // TODO: handle removing services that are running within the JVM but defined via config
@@ -361,16 +362,26 @@ public class DeploymentConfigMerger {
          */
         public void removeObsoleteServices() throws InterruptedException, ExecutionException {
             Set<Future<Void>> serviceClosedFutures = new HashSet<>();
-            servicesToRemove.forEach(serviceName -> {
+            servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
                     EvergreenService eg = kernel.locate(serviceName);
+
+                    // If the service is an autostart service, then do not close it and do not
+                    // remove it from the config
+                    ImplementsService serviceAnnotation = eg.getClass().getAnnotation(ImplementsService.class);
+                    if (serviceAnnotation != null && serviceAnnotation.autostart()) {
+                        return false;
+                    }
+
                     serviceClosedFutures.add(eg.close());
                 } catch (ServiceLoadException e) {
                     logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
                             .log("Could not locate EvergreenService to close service");
                     // No need to handle the error when trying to stop a non-existing service.
                 }
-            });
+                return true;
+            }).collect(Collectors.toSet());
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
             // waiting for removed service to close before removing reference and config entry
             for (Future<?> serviceClosedFuture : serviceClosedFutures) {
                 serviceClosedFuture.get();

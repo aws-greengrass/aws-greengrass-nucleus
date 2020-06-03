@@ -4,10 +4,10 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
@@ -186,11 +186,13 @@ public class KernelConfigResolver {
      * Compute the config for main service
      */
     private Map<Object, Object> getMainConfig(List<String> rootPackages) {
-
         Map<Object, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
         kernel.getMain().getDependencies().forEach((evergreenService, dependencyType) -> {
-            if (!(evergreenService instanceof GenericExternalService)) {
+            // Add all autostart dependencies
+            ImplementsService serviceAnnotation = evergreenService.getClass().getAnnotation(ImplementsService.class);
+            if (serviceAnnotation != null && serviceAnnotation.autostart()
+                    || evergreenService.getServiceConfig().find("autostart") != null) {
                 mainDependencies.add(evergreenService.getName() + ":" + dependencyType);
             }
         });
