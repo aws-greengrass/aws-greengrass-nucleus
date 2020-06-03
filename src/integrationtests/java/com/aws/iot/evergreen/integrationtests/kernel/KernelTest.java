@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -227,48 +228,50 @@ class KernelTest extends BaseITCase {
     void GIVEN_expected_state_transitions_WHEN_services_error_out_THEN_all_expectations_should_be_seen()
             throws Exception {
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
-                Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED),
-                        new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.NEW),
-                        new ExpectedStateTransition("installErrorRetry", State.NEW, State.INSTALLED),
+                Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED, 0),
+                        new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.NEW, 0),
+                        new ExpectedStateTransition("installErrorRetry", State.NEW, State.INSTALLED, 0),
 
                         // main service doesn't start until dependency ready
-                        new ExpectedStateTransition("runErrorRetry", State.STARTING, State.RUNNING),
-                        new ExpectedStateTransition("main", State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition("runErrorRetry", State.STARTING, State.RUNNING, 1),
+                        new ExpectedStateTransition("main", State.STARTING, State.RUNNING, 1),
 
                         // runErrorRetry restart on error
-                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED),
-                        new ExpectedStateTransition("runErrorRetry", State.ERRORED, State.STOPPING),
-                        new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.INSTALLED),
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.ERRORED, 1),
+                        new ExpectedStateTransition("runErrorRetry", State.ERRORED, State.STOPPING, 1),
+                        new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.INSTALLED, 1),
 
                         // main service restart on dependency error
-                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.BROKEN),
-                        new ExpectedStateTransition("main", State.RUNNING, State.STOPPING),
-                        new ExpectedStateTransition("main", State.STOPPING, State.INSTALLED)));
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.BROKEN, 2),
+                        new ExpectedStateTransition("main", null, State.FINISHED, 2)));
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
         kernel = new Kernel();
         List<ExpectedStateTransition> actualTransitions = new LinkedList<>();
+        AtomicInteger currentGroup = new AtomicInteger();
         kernel.getContext().addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
-            actualTransitions.add(new ExpectedStateTransition(service.getName(), oldState, newState));
+            actualTransitions.add(new ExpectedStateTransition(service.getName(), oldState, newState, currentGroup.get()));
             if (expectedStateTransitionList.isEmpty()) {
                 return;
             }
 
-            ExpectedStateTransition expected = expectedStateTransitionList.peek();
-
-            if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
-                    .equals(expected.current)) {
+            expectedStateTransitionList.stream().filter(x -> x.group == currentGroup.get() && !x.seen)
+                    .filter(expected -> service.getName().equals(expected.serviceName) && (oldState.equals(expected.was)
+                            || expected.was == null) && newState.equals(expected.current)).forEach(expected -> {
                 LogManager.getLogger(getClass())
                         .info("Just saw state event for service {}: {} => {}", expected.serviceName, expected.was,
                                 expected.current);
-
-                expectedStateTransitionList.pollFirst();
+                expected.seen = true;
 
                 if (expectedStateTransitionList.isEmpty()) {
                     assertionLatch.countDown();
                 }
+            });
+            if (expectedStateTransitionList.stream().noneMatch(x -> x.group == currentGroup.get() && !x.seen)) {
+                currentGroup.getAndIncrement();
             }
+            expectedStateTransitionList.removeIf(x -> x.seen);
         });
 
         kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
@@ -278,7 +281,7 @@ class KernelTest extends BaseITCase {
         kernel.shutdown();
 
         if (!expectedStateTransitionList.isEmpty()) {
-            expectedStateTransitionList.forEach(e -> System.err.println(
+            expectedStateTransitionList.stream().filter(x -> !x.seen).forEach(e -> System.err.println(
                     String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was, e.current)));
 
             System.err.println("\n\nDid see: ");
@@ -317,11 +320,18 @@ class KernelTest extends BaseITCase {
         final String serviceName;
         final State was;
         final State current;
+        final int group;
+        boolean seen;
 
         ExpectedStateTransition(String name, State was, State current) {
+            this(name, was, current, 0);
+        }
+
+        ExpectedStateTransition(String name, State was, State current, int group) {
             this.serviceName = name;
             this.was = was;
             this.current = current;
+            this.group = group;
         }
     }
 }

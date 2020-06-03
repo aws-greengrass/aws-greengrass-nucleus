@@ -156,7 +156,6 @@
             <groupId>org.zeroturnaround</groupId>
             <artifactId>zt-process-killer</artifactId>
             <version>1.10</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.github.grantwest.eventually</groupId>
