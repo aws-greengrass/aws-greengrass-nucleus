@@ -23,6 +23,9 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Objects;
 
+import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
+import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
+import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_SERVICE_CRED_PROVIDER;
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -106,7 +109,11 @@ public class KernelCommandLine {
         // Always initialize default credential provider, can be overridden before launch if needed
         // TODO: This should be replaced by a Token Exchange Service credential provider
         AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
-        kernel.getContext().put("greengrassServiceCredentialProvider", credentialsProvider);
+        kernel.getContext().put(CONTEXT_SERVICE_CRED_PROVIDER, credentialsProvider);
+        // Endpoint for Beta CMS in us-east-1
+        // TODO: Once service is available in multiple regions, this should not be a static config and
+        // use the region value to determine endpoint
+        kernel.getContext().put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, GREENGRASS_SERVICE_ENDPOINT);
     }
 
     private void initPaths(String rootAbsolutePath) {

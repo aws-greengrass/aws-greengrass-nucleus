@@ -52,7 +52,6 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
                 .toString(), "-r", tempRootDir.toAbsolutePath().toString());
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
-        deviceProvisioningHelper.updateKernelConfigWithCMSConfiguration(kernel, BETA_REGION.toString());
 
         Path localStoreContentPath = Paths
                 .get(MultipleDeploymentsTest.class.getResource("local_store_content").getPath());

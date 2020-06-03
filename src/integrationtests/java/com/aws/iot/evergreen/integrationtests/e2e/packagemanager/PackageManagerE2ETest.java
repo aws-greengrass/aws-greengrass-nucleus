@@ -67,7 +67,6 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
         kernel = new Kernel();
         kernel.parseArgs("-i", PackageManagerE2ETest.class.getResource("onlyMain.yaml").toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
-        deviceProvisioningHelper.updateKernelConfigWithCMSConfiguration(kernel, BETA_REGION.toString());
 
         // The integration test will pick up credentials from the default provider chain
         // In automated testing, the device environment should ideally have credentials for all tests
