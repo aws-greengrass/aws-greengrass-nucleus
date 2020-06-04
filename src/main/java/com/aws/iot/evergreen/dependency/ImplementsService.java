@@ -20,4 +20,9 @@ public @interface ImplementsService {
      * True if the service should start immediately when Kernel starts.
      */
     boolean autostart() default false;
+
+    /**
+     * Version of the service. By default it is 0.0.0. Must be in the form of a.b.c.
+     */
+    @Nonnull String version() default "0.0.0";
 }

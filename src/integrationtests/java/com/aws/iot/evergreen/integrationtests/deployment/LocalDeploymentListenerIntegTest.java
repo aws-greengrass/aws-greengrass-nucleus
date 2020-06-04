@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ComponentInfo;
 import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ListComponentsResult;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.IsIterableContaining.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,7 +68,7 @@ class LocalDeploymentListenerIntegTest {
         ListComponentsResult listComponentsResult = OBJECT_MAPPER.readValue(
                 localDeploymentListener.listComponents(), ListComponentsResult.class);
 
-        assertEquals(1, listComponentsResult.getRootPackages().size());
+        assertThat(listComponentsResult.getRootPackages(), hasItem("CustomerApp"));
         ComponentInfo customerApp = listComponentsResult.getComponentsInfo().stream()
                 .filter(c -> c.getPackageName().equals("CustomerApp")).findAny().get();
         assertEquals("CustomerApp", customerApp.getPackageName());

@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -300,6 +301,10 @@ public class Kernel {
                     if (clazz.getAnnotation(Singleton.class) != null) {
                         context.put(ret.getClass(), v);
                     }
+                    if (clazz.getAnnotation(ImplementsService.class) != null) {
+                        Semver version = new Semver(clazz.getAnnotation(ImplementsService.class).version());
+                        topics.createLeafChild(VERSION_CONFIG_KEY).withValue(version);
+                    }
 
                     logger.atInfo("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName())
                             .log();
@@ -337,10 +342,8 @@ public class Kernel {
 
         for (EvergreenService service : getMain().getDependencies().keySet()) {
             Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
-
-            if (version == null) {
-                // If version is null, means it is a Kernel built-in service
-                // TODO Ideally we want to have some better indicators for built-in service
+            // If the service is an autostart service then ignore it.
+            if (service.isAutostart()) {
                 continue;
             }
             rootPackageNameAndVersionMap.put(service.getName(), ((Semver) version.getOnce()).getValue());
