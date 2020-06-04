@@ -19,6 +19,7 @@ import lombok.Getter;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
+import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AttachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.AttachThingPrincipalRequest;
@@ -247,7 +248,7 @@ public class DeviceProvisioningHelper {
             try {
                 GetRoleRequest getRoleRequest = GetRoleRequest.builder().roleName(roleName).build();
                 roleArn = iamClient.getRole(getRoleRequest).role().arn();
-            } catch (ResourceNotFoundException rnfe) {
+            } catch (NoSuchEntityException | ResourceNotFoundException rnfe) {
                 logger.atInfo().log("TES role with the provided name does not exist, creating role");
                 CreateRoleRequest createRoleRequest = CreateRoleRequest.builder().roleName(roleName).description(
                         "Role for Evergreen IoT things to interact with AWS services using token exchange service")

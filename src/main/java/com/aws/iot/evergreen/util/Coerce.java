@@ -57,6 +57,7 @@ public final class Coerce {
                 case "on":
                 case "t":
                 case "y":
+                case "Y":
                     return true;
                 default:
                     return false;
