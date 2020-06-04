@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+import time
 
 # from botocore import client
 from greengrasssdk.stream_manager import StrategyOnFull, Persistence, ExportDefinition, StreamManagerException, \
@@ -10,6 +11,7 @@ from greengrasssdk.stream_manager.streammanagerclient import MessageStreamDefini
 class StreamUploader:
 
     def __init__(self):
+        time.sleep(5)
         self.client = StreamManagerClient()
 
     def createStreamWithKinesisExport(self, streamName):

@@ -170,7 +170,7 @@ public class PackageRecipe {
                     }
                 }
 
-                if (dependencyType.isEmpty()) {
+                if (dependencyType == null || dependencyType.isEmpty()) {
                     dependencyPropertiesMap.put(name, new RecipeDependencyProperties(versionRequirements));
                     continue;
                 }

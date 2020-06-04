@@ -106,8 +106,27 @@ def annotate_objects(annotator, results, labels):
     annotator.text([xmin, ymin],
                    '%s\n%.2f' % (labels[obj['class_id']], obj['score']))
 
+def getDeviceThingName():
+  # Extract serial from cpuinfo file
+  cpuserial = "0000000000000000"
+  try:
+    f = open('/proc/cpuinfo','r')
+    for line in f:
+      if line[0:6]=='Serial':
+        cpuserial = line[10:26]
+    f.close()
+  except:
+    cpuserial = "ERROR000000000"
 
-def push_person_possibility_to_cloud(streamUploader, results, labels):
+  if cpuserial == '100000008793372b':
+    return "EthanTestPi_1"
+  elif cpuserial == '1000000083da38ba':
+    return "EthanTestPi_2"
+  else:
+    return "Unknown_device"
+
+
+def push_person_possibility_to_cloud(streamUploader, results, labels, deviceThingName):
   millis = int(round(time.time() * 1000))
 
   maxScore = 0
@@ -116,22 +135,21 @@ def push_person_possibility_to_cloud(streamUploader, results, labels):
     label = labels[obj['class_id']]
     if (label == 'person'):
       if (obj['score'] > maxScore):
-        maxScore = obj['score'];
+        maxScore = obj['score']
 
   if (maxScore > 0):
-    print("Timestamp: " + str(millis) + ". Possibility: " + str(maxScore))
+    print(f"Detected person appearance with possibility: [{str(maxScore)}] at timestamp: [{str(millis)}]")
 
     # part 3 new change
-  measurement = {
-    "TimeOfCapture": millis,
-    "Possibility": float(maxScore),
-    "DeviceId":"Rpi1"
-  }
-  data = json.dumps(measurement).encode()
-  print("Pushing data to stream manager")
-  streamUploader.appendToStream("m1demoimagedata", data)
-
-
+    measurement = {
+      "TimeOfCapture": millis,
+      "Possibility": float(maxScore),
+      "DeviceId": deviceThingName
+    }
+    data = json.dumps(measurement).encode()
+    print("Pushing it to stream manager")
+    streamUploader.appendToStream("m1demoimagedata", data)
+    streamUploader.appendToStream("RpiImageClassificationStream", data)
 
 def main():
   parser = argparse.ArgumentParser(
@@ -146,15 +164,12 @@ def main():
       required=False,
       type=float,
       default=0.4)
-  parser.add_argument(
-      '--color', help='Color of boxes', required=False)
-  
   args = parser.parse_args()
 
-  # part 3 new change
+  # part 3 & 4
   streamUploader = StreamUploader()
-  # create the stream and the Iot Analytics channel in cloud
   streamUploader.createStreamWithIotAnalyticsExport("m1demoimagedata")
+  streamUploader.createStreamWithKinesisExport("RpiImageClassificationStream")
 
   labels = load_labels(args.labels)
   interpreter = Interpreter(args.model)
@@ -166,13 +181,7 @@ def main():
     camera.start_preview()
     try:
       stream = io.BytesIO()
-      annotator = None;
-      
-      if args.color == 'white':
-        annotator = Annotator(camera, (0xFF, 0xFF, 0xFF, 0xFF))
-      else:
-        annotator = Annotator(camera)
-
+      annotator = Annotator(camera)
       for _ in camera.capture_continuous(
           stream, format='jpeg', use_video_port=True):
         stream.seek(0)
@@ -187,8 +196,8 @@ def main():
         annotator.text([5, 0], '%.1fms' % (elapsed_ms))
         annotator.update()
 
-        # part 3
-        push_person_possibility_to_cloud(streamUploader, results, labels)
+        # part 3 & 4
+        push_person_possibility_to_cloud(streamUploader, results, labels, getDeviceThingName())
 
         stream.seek(0)
         stream.truncate()

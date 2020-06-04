@@ -9,5 +9,3 @@ Lifecycle:
     debian: pip3 install https://dl.google.com/coral/python/tflite_runtime-2.1.0.post1-cp37-cp37m-linux_armv7l.whl       
   run:
     debian: python3 {{artifacts:path}}/detect_picamera.py --model {{artifacts:path}}/detect.tflite --label {{artifacts:path}}/coco_labels.txt
-  shutdown:
-    debian: ps aux | grep 'python3 {{artifacts:path}}/detect_picamera.py' | awk '{print $2}' | xargs kill

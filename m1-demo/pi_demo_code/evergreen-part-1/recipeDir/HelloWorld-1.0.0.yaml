@@ -1,20 +1,19 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
 PackageName: HelloWorld
-Description: Hello World App for Evergreen
-Publisher: Me
 Version: '1.0.0'
+Description: Hello World App for Evergreen
+Publisher: Amazon
 Platforms:
-  - all
   - debian
 Parameters:
   - name: Message
-    value: Default message
+    value: 'World'
     type: STRING
 Lifecycle:
   run:
     debian: |-
       while true; do
-      echo "Hello Evergreen Demo. Your message is: {{params:Message.value}}"; sleep 5
+      python3 {{artifacts:path}}/hello_world.py '{{params:Message.value}}'; sleep 5
       done
 

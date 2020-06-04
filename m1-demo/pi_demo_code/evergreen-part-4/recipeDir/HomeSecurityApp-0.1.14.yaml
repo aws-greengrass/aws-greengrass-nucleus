@@ -1,9 +1,11 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
 PackageName: HomeSecurityApp
-Description: Home Security Monitoring
+Description: Home Security Monitoring. Part 4.
 Publisher: Ethan Huang
-Version: '1.0.0'
+Version: '0.1.14'
+Platforms:
+  - 'debian'
 Lifecycle:
   install:
     debian: |-
@@ -11,14 +13,22 @@ Lifecycle:
         pip3 install greengrasssdk
   run:
     debian: python3 {{artifacts:path}}/detect_picamera.py --model {{artifacts:path}}/detect.tflite --label {{artifacts:path}}/coco_labels.txt
-  shutdown:
-          debian: ps aux | grep 'python3 {{artifacts:path}}/detect_picamera.py' | awk '{print $2}' | xargs kill
 
   checkIfSafeToUpdate:
     debian:
       recheckPeriod: 5
       script: raspistill -t 1 -o test.img
+
 Dependencies:
   debian:
     StreamManager:
-      VersionRequirements: '1.1.0'  
+      VersionRequirements: '0.9.10'
+      DependencyType: Hard
+Artifacts:
+  debian:
+    - "greengrass:annotation.py"
+    - "greengrass:coco_labels.txt"
+    - "greengrass:detect.tflite"
+    - "greengrass:detect_picamera.py"
+    - "greengrass:mobilenet_ssd_v2_coco_quant_postprocess_edgetpu.tflite"
+    - "greengrass:streamManagerHelper.py"
