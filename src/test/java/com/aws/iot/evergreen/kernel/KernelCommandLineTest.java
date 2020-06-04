@@ -47,7 +47,7 @@ class KernelCommandLineTest {
     void GIVEN_missing_parameter_to_argument_WHEN_parseArgs_THEN_throw_RuntimeException() {
         KernelCommandLine kcl = new KernelCommandLine(mock(Kernel.class));
         RuntimeException ex = assertThrows(RuntimeException.class, () -> kcl.parseArgs("-i"));
-        assertThat(ex.getMessage(), is("-i or -config requires an argument"));
+        assertThat(ex.getMessage(), is("-i or --config requires an argument"));
     }
 
     @Test
