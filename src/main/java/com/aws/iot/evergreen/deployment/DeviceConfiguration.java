@@ -46,16 +46,55 @@ public class DeviceConfiguration {
     private final Validator regionValidator;
 
     /**
-     * Constructor.
+     * Constructor used to read device cinfiguration from the config store.
      *
      * @param kernel Kernel to get config from
      */
     @Inject
-    @SuppressWarnings("PMD.NullAssignment")
     public DeviceConfiguration(Kernel kernel) {
         this.kernel = kernel;
-        deTildeValidator = (newV, old) -> kernel.deTilde(Coerce.toString(newV));
-        regionValidator = (newV, old) -> {
+        deTildeValidator = getDeTildeValidator(kernel);
+        regionValidator = getRegionValidator();
+        validate();
+    }
+
+    /**
+     * Constructor to use when setting the device configuration to kernel config.
+     *
+     * @param kernel              kernel to set config for
+     * @param thingName           IoT thing name
+     * @param iotDataEndpoint     IoT data endpoint
+     * @param iotCredEndpoint     IoT cert endpoint
+     * @param privateKeyPath      private key location on device
+     * @param certificateFilePath certificate location on device
+     * @param rootCaFilePath      downloaded RootCA location on device
+     * @param awsRegion           aws region for the device
+     */
+    public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
+                               String privateKeyPath, String certificateFilePath, String rootCaFilePath,
+                               String awsRegion) {
+        this.kernel = kernel;
+        deTildeValidator = getDeTildeValidator(kernel);
+        regionValidator = getRegionValidator();
+
+        getThingName().withValue(thingName);
+        getIotDataEndpoint().withValue(iotDataEndpoint);
+        getIotCredentialEndpoint().withValue(iotCredEndpoint);
+        getPrivateKeyFilePath().withValue(privateKeyPath);
+        getCertificateFilePath().withValue(certificateFilePath);
+        getRootCAFilePath().withValue(rootCaFilePath);
+        getAWSRegion().withValue(awsRegion);
+
+        validate();
+    }
+
+    private Validator getDeTildeValidator(Kernel kernel) {
+        return (newV, old) -> kernel.deTilde(Coerce.toString(newV));
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private Validator getRegionValidator() {
+        return (newV, old) -> {
             // If the region value is empty/null, then try to get the region from the SDK lookup path
             if (!(newV instanceof String) || Utils.isEmpty((String) newV)) {
                 try {
@@ -71,7 +110,6 @@ public class DeviceConfiguration {
             }
             return newV;
         };
-        validate();
     }
 
     public Topic getThingName() {

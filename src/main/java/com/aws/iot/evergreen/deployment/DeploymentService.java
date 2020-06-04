@@ -264,7 +264,7 @@ public class DeploymentService extends EvergreenService {
         DeploymentDocument deploymentDocument;
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
-                    .log("Recevied deployment document in queue");
+                    .log("Received deployment document in queue");
             deploymentDocument = parseAndValidateJobDocument(deployment);
         } catch (InvalidRequestException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, deployment.getId())

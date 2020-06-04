@@ -25,7 +25,7 @@ targets for each of the projects
 
 ## Running the Kernel
 Once built, in order to run the kernel, you can create a run configuration in your IDE or just use the command line.
-What you want is to run `java -jar <kernel-jar-path>.jar -root <config-root-dir-path>`. The config directory
+What you want is to run `java -jar <kernel-jar-path>.jar --root <config-root-dir-path>`. The config directory
 needs to have a `config.yaml` file in it.
 
 ### Config YAML

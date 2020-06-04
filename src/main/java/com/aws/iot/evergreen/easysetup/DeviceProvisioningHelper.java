@@ -64,7 +64,7 @@ public class DeviceProvisioningHelper {
     private static final Logger logger = LogManager.getLogger(EvergreenSetup.class);
 
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
-    private static final String IOT_ROLE_POLICY_NAME = "EvergreenTESCertificatePolicy";
+    private static final String IOT_ROLE_POLICY_NAME_PREFIX = "EvergreenTESCertificatePolicy";
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
     // TODO : Remove once global components are implemented
@@ -128,7 +128,9 @@ public class DeviceProvisioningHelper {
         // Find or create IoT policy
         try {
             client.getPolicy(GetPolicyRequest.builder().policyName(policyName).build());
+            logger.atInfo().kv("policy-name", policyName).log("Found IoT policy, reusing it...");
         } catch (ResourceNotFoundException e) {
+            logger.atInfo().kv("policy-name", policyName).log("Creating new IoT policy...");
             client.createPolicy(CreatePolicyRequest.builder().policyName(policyName).policyDocument(
                     "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
                             + "      \"Effect\": \"Allow\",\n      \"Action\": [\n"
@@ -138,15 +140,19 @@ public class DeviceProvisioningHelper {
         }
 
         // Create cert
+        logger.atInfo().log("Creating keys and certificate...");
         CreateKeysAndCertificateResponse keyResponse =
                 client.createKeysAndCertificate(CreateKeysAndCertificateRequest.builder().setAsActive(true).build());
 
         // Attach policy to cert
+        logger.atInfo().log("Attaching policy to certificate...");
         client.attachPolicy(
                 AttachPolicyRequest.builder().policyName(policyName).target(keyResponse.certificateArn()).build());
 
         // Create the thing and attach the cert to it
+        logger.atInfo().kv("thing-name", thingName).log("Creating IoT thing...");
         String thingArn = client.createThing(CreateThingRequest.builder().thingName(thingName).build()).thingArn();
+        logger.atInfo().log("Attaching certificate to IoT thing...");
         client.attachThingPrincipal(
                 AttachThingPrincipalRequest.builder().thingName(thingName).principal(keyResponse.certificateArn())
                         .build());
@@ -179,6 +185,7 @@ public class DeviceProvisioningHelper {
      * Download root CA to a local file.
      */
     private void downloadRootCAToFile(File f) throws IOException {
+        logger.atInfo().kv("root-ca-location", ROOT_CA_URL).log("Downloading Root CA...");
         downloadFileFromURL(ROOT_CA_URL, f);
     }
 
@@ -216,14 +223,10 @@ public class DeviceProvisioningHelper {
             cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
         }
 
-        DeviceConfiguration config = kernel.getContext().get(DeviceConfiguration.class);
-        config.getThingName().withValue(thing.thingName);
-        config.getIotDataEndpoint().withValue(thing.dataEndpoint);
-        config.getPrivateKeyFilePath().withValue(privKeyFilePath);
-        config.getCertificateFilePath().withValue(certFilePath);
-        config.getRootCAFilePath().withValue(caFilePath);
-        config.getIotCredentialEndpoint().withValue(thing.credEndpoint);
-        config.getAWSRegion().withValue(awsRegion);
+        DeviceConfiguration config =
+                new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
+                        privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion);
+        logger.atInfo().kv("config", config).log("Created device configuration");
     }
 
     /**
@@ -241,7 +244,8 @@ public class DeviceProvisioningHelper {
                     DescribeRoleAliasRequest.builder().roleAlias(roleAliasName).build();
             roleAliasArn = iotClient.describeRoleAlias(describeRoleAliasRequest).roleAliasDescription().roleAliasArn();
         } catch (ResourceNotFoundException ranfe) {
-            logger.atInfo().log("TES role alias with the provided name does not exist, creating new alias");
+            logger.atInfo().kv("role-alias", roleAliasName)
+                    .log("TES role alias with the provided name does not exist, creating new alias...");
 
             // Get IAM role arn in order to attach an alias to it
             String roleArn;
@@ -249,7 +253,8 @@ public class DeviceProvisioningHelper {
                 GetRoleRequest getRoleRequest = GetRoleRequest.builder().roleName(roleName).build();
                 roleArn = iamClient.getRole(getRoleRequest).role().arn();
             } catch (NoSuchEntityException | ResourceNotFoundException rnfe) {
-                logger.atInfo().log("TES role with the provided name does not exist, creating role");
+                logger.atInfo().kv("role-name", roleName)
+                        .log("TES role with the provided name does not exist, creating role...");
                 CreateRoleRequest createRoleRequest = CreateRoleRequest.builder().roleName(roleName).description(
                         "Role for Evergreen IoT things to interact with AWS services using token exchange service")
                         .assumeRolePolicyDocument("{\n  \"Version\": \"2012-10-17\",\n"
@@ -265,19 +270,22 @@ public class DeviceProvisioningHelper {
         }
 
         // Attach policy role alias to cert
+        String iotRolePolicyName = IOT_ROLE_POLICY_NAME_PREFIX + roleAliasName;
         try {
-            iotClient.getPolicy(GetPolicyRequest.builder().policyName(IOT_ROLE_POLICY_NAME).build());
+            iotClient.getPolicy(GetPolicyRequest.builder().policyName(iotRolePolicyName).build());
         } catch (ResourceNotFoundException e) {
-            logger.atInfo().log("IoT role policy with the provided name does not exist, creating policy");
-            CreatePolicyRequest createPolicyRequest = CreatePolicyRequest.builder().policyName(IOT_ROLE_POLICY_NAME)
+            logger.atInfo().kv("role-policy", iotRolePolicyName)
+                    .log("IoT role policy for TES Role alias not exist, creating policy...");
+            CreatePolicyRequest createPolicyRequest = CreatePolicyRequest.builder().policyName(iotRolePolicyName)
                     .policyDocument("{\n\t\"Version\": \"2012-10-17\",\n\t\"Statement\": {\n"
                             + "\t\t\"Effect\": \"Allow\",\n\t\t\"Action\": \"iot:AssumeRoleWithCertificate\",\n"
                             + "\t\t\"Resource\": \"" + roleAliasArn + "\"\n\t}\n}").build();
             iotClient.createPolicy(createPolicyRequest);
         }
 
+        logger.atInfo().log("Attaching TES role policy to IoT thing...");
         AttachPolicyRequest attachPolicyRequest =
-                AttachPolicyRequest.builder().policyName(IOT_ROLE_POLICY_NAME).target(certificateArn)
+                AttachPolicyRequest.builder().policyName(iotRolePolicyName).target(certificateArn)
                         .build();
         iotClient.attachPolicy(attachPolicyRequest);
     }
@@ -308,6 +316,7 @@ public class DeviceProvisioningHelper {
      * Create and commit an empty component.
      */
     private void createEmptyComponent(AWSGreengrassComponentManagement cmsClient, String componentName) {
+        logger.atInfo().kv("component-name", componentName).log("Creating an empty component...");
         ByteBuffer recipe =
                 ByteBuffer.wrap(FIRST_PARTY_COMPONENT_RECIPES.get(componentName).getBytes(StandardCharsets.UTF_8));
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipe);
@@ -319,8 +328,8 @@ public class DeviceProvisioningHelper {
             cmsClient.commitComponent(commitComponentRequest);
         } catch (ResourceAlreadyExistException e) {
             // No need to replace the component if it exists
-            logger.atInfo().kv("component name", componentName)
-                    .log("Component already exists, skipping re-creating " + "component");
+            logger.atInfo().kv("component-name", componentName)
+                    .log("Component already exists, skipping re-creating component");
         }
     }
 

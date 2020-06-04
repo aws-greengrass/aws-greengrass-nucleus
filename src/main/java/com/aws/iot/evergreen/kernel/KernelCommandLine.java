@@ -73,7 +73,7 @@ public class KernelCommandLine {
                 case "-i":
                     try {
                         String configArg = getArg();
-                        Objects.requireNonNull(configArg, "-i or -config requires an argument");
+                        Objects.requireNonNull(configArg, "-i or --config requires an argument");
                         kernel.getConfig().read(deTilde(configArg));
                         haveRead = true;
                     } catch (IOException ex) {
@@ -89,7 +89,7 @@ public class KernelCommandLine {
                 case "--root":
                 case "-r":
                     rootAbsolutePath = getArg();
-                    Objects.requireNonNull(rootAbsolutePath, "-r or -root requires an argument");
+                    Objects.requireNonNull(rootAbsolutePath, "-r or --root requires an argument");
                     break;
                 default:
                     RuntimeException rte =

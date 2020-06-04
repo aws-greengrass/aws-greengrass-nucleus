@@ -6,7 +6,6 @@ import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -85,8 +84,7 @@ public class LocalDeploymentListener {
      */
     public String listComponents() throws DeviceConfigurationException {
         try {
-            List<String> rootComponenetNames = kernel.getMain().getDependencies().keySet().stream()
-                    .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+            List<String> rootComponentNames = kernel.getMain().getDependencies().keySet().stream()
                     .map(EvergreenService::getName).collect(Collectors.toList());
 
             List<ComponentInfo> componentInfo = kernel.orderedDependencies().stream()
@@ -100,14 +98,14 @@ public class LocalDeploymentListener {
                         }
                         if (parameters != null) {
                             componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream()
-                                    .collect(Collectors.toMap(e -> e.getKey(), e -> Coerce.toString(e.getValue()))));
+                                    .collect(Collectors.toMap(Map.Entry::getKey, e -> Coerce.toString(e.getValue()))));
 
                         }
                         return componentInfoBuilder.build();
                     }).collect(Collectors.toList());
 
             return OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(new ListComponentsResult(rootComponenetNames, componentInfo));
+                    .writeValueAsString(new ListComponentsResult(rootComponentNames, componentInfo));
         } catch (JsonProcessingException e) {
             //TODO: during IPC integration, change this to report internal error
             throw new DeviceConfigurationException("Unable to list components", e);
