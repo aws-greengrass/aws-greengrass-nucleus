@@ -6,7 +6,6 @@
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
 import com.amazonaws.arn.Arn;
-import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AddThingToThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CancelJobRequest;
@@ -24,10 +23,7 @@ import software.amazon.awssdk.services.iot.model.TimeoutConfig;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
@@ -49,17 +45,19 @@ public final class IotJobsUtils {
     public static void waitForJobExecutionStatusToSatisfy(IotClient client, String jobId, String thingName,
                                                           Duration timeout, Predicate<JobExecutionStatus> condition)
             throws TimeoutException {
-        Instant start = Instant.now();
-        Set<Class<? extends Exception>> retryableExceptions =
-                new HashSet<>(Arrays.asList(ResourceNotFoundException.class));
+        Instant deadline = Instant.now().plusMillis(timeout.toMillis());
 
-        while (start.plusMillis(timeout.toMillis()).isAfter(Instant.now())) {
-            JobExecutionStatus status = IotSdkClientFactory.getIotClient("us-east-1", retryableExceptions)
-                    .describeJobExecution(
-                            DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingName).build()).execution()
-                    .status();
-            if (condition.test(status)) {
-                return;
+        JobExecutionStatus status = null;
+        ResourceNotFoundException lastException = null;
+        while (deadline.isAfter(Instant.now())) {
+            try {
+                status = client.describeJobExecution(DescribeJobExecutionRequest.builder()
+                        .jobId(jobId).thingName(thingName).build()).execution().status();
+                if (condition.test(status)) {
+                    return;
+                }
+            } catch (ResourceNotFoundException e) {
+                lastException = e;
             }
             // Wait a little bit before checking again
             try {
@@ -67,7 +65,8 @@ public final class IotJobsUtils {
             } catch (InterruptedException ignored) {
             }
         }
-        throw new TimeoutException();
+        throw new TimeoutException(status == null && lastException != null ? lastException.getMessage() :
+                "Job execution status is " + status);
     }
 
     public static CreateThingGroupResponse createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {

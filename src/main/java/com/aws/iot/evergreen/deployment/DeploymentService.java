@@ -47,7 +47,8 @@ public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
 
-    private static final ObjectMapper OBJECT_MAPPER =
+    protected static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
+    protected static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -99,7 +100,7 @@ public class DeploymentService extends EvergreenService {
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
 
     @Inject
-    @Named("deploymentsQueue")
+    @Named(DEPLOYMENTS_QUEUE)
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     /**

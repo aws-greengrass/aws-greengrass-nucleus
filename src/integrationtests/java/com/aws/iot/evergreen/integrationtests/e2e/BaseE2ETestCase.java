@@ -17,6 +17,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.regions.Region;
@@ -49,7 +50,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     @TempDir
     protected Path tempRootDir;
 
-    protected static final IotClient iotClient = IotClient.builder().region(BETA_REGION).build();
+    protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(BETA_REGION.toString());
     private static AWSGreengrassFleetConfiguration fcsClient;
     // TODO: add CMS client
 
