@@ -153,9 +153,12 @@ public class PackageRecipe {
                                     + "should have a property map, but actually: %s", name, entry.getValue()));
                 }
                 Map<String, String> propMap = (Map<String, String>) value;
-                String versionRequirements = "";
+                String versionRequirements = "*";
                 String dependencyType = "";
                 for (Map.Entry<String, String> e : propMap.entrySet()) {
+                    if (e.getValue() == null) {
+                        continue;
+                    }
                     String k = e.getKey();
                     switch (k.toLowerCase()) {
                         case DEPENDENCY_VERSION_REQUIREMENTS_KEY:

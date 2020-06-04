@@ -13,8 +13,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,9 +40,12 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -59,6 +60,8 @@ import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.iot.evergreen.deployment.DeploymentService.OBJECT_MAPPER;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
@@ -79,20 +82,18 @@ public class IotJobsHelper implements InjectionActions {
     private static final int INITIAL_CONNECT_RETRY_FREQUENCY = (int) Duration.ofSeconds(30).toMillis();
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
-    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = (long) Duration.ofMinutes(5).getSeconds();
+    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofMinutes(5).getSeconds();
     //The time it takes for device to publish a message
     //This value needs to be revisited and set to more realistic numbers
-    private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = (long) Duration.ofMinutes(1).getSeconds();
+    private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = Duration.ofMinutes(1).getSeconds();
 
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
     public static final String STATUS_LOG_KEY_NAME = "Status";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
     private static final AtomicInteger unprocessedJobs = new AtomicInteger(0);
+    private static final LatestQueuedJobs latestQueuedJobs = new LatestQueuedJobs();
 
     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
 
@@ -113,7 +114,7 @@ public class IotJobsHelper implements InjectionActions {
 
     @Setter
     @Inject
-    @Named("deploymentsQueue")
+    @Named(DEPLOYMENTS_QUEUE)
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -166,7 +167,12 @@ public class IotJobsHelper implements InjectionActions {
         JobExecutionData jobExecutionData = response.execution;
 
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv(STATUS_LOG_KEY_NAME, jobExecutionData.status)
-                .log("Received Iot job description", jobExecutionData.jobId, jobExecutionData.status);
+                .kv("queueAt", jobExecutionData.queuedAt).log("Received Iot job description");
+        if (!latestQueuedJobs.addIfAbsent(jobExecutionData.queuedAt.toInstant(), jobExecutionData.jobId)) {
+            logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId)
+                    .log("Duplicate or outdated job notification. Ignoring.");
+            return;
+        }
 
         String documentString;
         try {
@@ -179,12 +185,6 @@ public class IotJobsHelper implements InjectionActions {
         Deployment deployment =
                 new Deployment(documentString, DeploymentType.IOT_JOBS, jobExecutionData.jobId);
 
-        // TODO The deduping here doesn't working when the deployment polling frequency increased
-        // because the old job could already completed and removed from the queue when the duplicated job comes.
-        // One possible approach is that Jobs helper keeps record of last jobId and queuedAt timestamp for the last job.
-        // When a job message comes we see if the timestamp of the message is greater than the last processed one,
-        // if so the message should be put in queue. If timestamp is same then we compare the jobId and ignore if
-        // jobId is same (already processed). If timestamp is old then we ignore the message.
         if (!deploymentsQueue.contains(deployment) && deploymentsQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
         }
@@ -568,5 +568,31 @@ public class IotJobsHelper implements InjectionActions {
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
         logger.atInfo().log("Subscribed to deployment job event notifications.");
+    }
+
+    private static class LatestQueuedJobs {
+        private Instant lastQueueAt = Instant.EPOCH;
+        private final Set<String> jobIds = new HashSet<>();
+
+        /**
+         * Track IoT jobs with the latest timestamp.
+         *
+         * @param queueAt QueueAt timestamp in IoT Job Execution Data
+         * @param jobId IoT job ID
+         * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
+         */
+        public synchronized boolean addIfAbsent(Instant queueAt, String jobId) {
+            if (queueAt.isAfter(lastQueueAt)) {
+                lastQueueAt = queueAt;
+                jobIds.clear();
+                jobIds.add(jobId);
+                return true;
+            }
+            if (queueAt.isBefore(lastQueueAt) || jobIds.contains(jobId)) {
+                return false;
+            }
+            jobIds.add(jobId);
+            return true;
+        }
     }
 }
