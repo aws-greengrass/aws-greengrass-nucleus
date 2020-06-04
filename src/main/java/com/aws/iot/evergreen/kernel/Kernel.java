@@ -343,8 +343,7 @@ public class Kernel {
         for (EvergreenService service : getMain().getDependencies().keySet()) {
             Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
             // If the service is an autostart service then ignore it.
-            ImplementsService serviceAnnotation = service.getClass().getAnnotation(ImplementsService.class);
-            if (serviceAnnotation != null && serviceAnnotation.autostart()) {
+            if (service.isAutostart()) {
                 continue;
             }
             rootPackageNameAndVersionMap.put(service.getName(), ((Semver) version.getOnce()).getValue());

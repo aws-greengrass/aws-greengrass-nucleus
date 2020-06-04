@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -190,9 +189,7 @@ public class KernelConfigResolver {
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
         kernel.getMain().getDependencies().forEach((evergreenService, dependencyType) -> {
             // Add all autostart dependencies
-            ImplementsService serviceAnnotation = evergreenService.getClass().getAnnotation(ImplementsService.class);
-            if (serviceAnnotation != null && serviceAnnotation.autostart()
-                    || evergreenService.getServiceConfig().find("autostart") != null) {
+            if (evergreenService.isAutostart()) {
                 mainDependencies.add(evergreenService.getName() + ":" + dependencyType);
             }
         });

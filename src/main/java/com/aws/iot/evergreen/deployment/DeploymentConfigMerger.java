@@ -6,7 +6,6 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.ConfigurationReader;
-import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -368,8 +367,7 @@ public class DeploymentConfigMerger {
 
                     // If the service is an autostart service, then do not close it and do not
                     // remove it from the config
-                    ImplementsService serviceAnnotation = eg.getClass().getAnnotation(ImplementsService.class);
-                    if (serviceAnnotation != null && serviceAnnotation.autostart()) {
+                    if (eg.isAutostart()) {
                         return false;
                     }
 
@@ -378,6 +376,7 @@ public class DeploymentConfigMerger {
                     logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
                             .log("Could not locate EvergreenService to close service");
                     // No need to handle the error when trying to stop a non-existing service.
+                    return false;
                 }
                 return true;
             }).collect(Collectors.toSet());

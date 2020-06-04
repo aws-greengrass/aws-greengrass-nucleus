@@ -40,7 +40,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
@@ -104,8 +103,7 @@ class KernelConfigResolverTest {
         when(mainService.getDependencies())
                 .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
-        when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.find("autostart")).thenReturn(mock(Topic.class));
+        when(alreadyRunningService.isAutostart()).thenReturn(true);
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
@@ -151,8 +149,7 @@ class KernelConfigResolverTest {
         when(mainService.getDependencies())
                 .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
-        when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.find("autostart")).thenReturn(mock(Topic.class));
+        when(alreadyRunningService.isAutostart()).thenReturn(true);
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
@@ -259,7 +256,7 @@ class KernelConfigResolverTest {
         when(alreadyRunningServiceParameterConfig.getOnce()).thenReturn("PackageA_Param_1_value");
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_2"))
                 .thenReturn(null);
-        when(alreadyRunningServiceConfig.find("autostart")).thenReturn(mock(Topic.class));
+        when(alreadyRunningService.isAutostart()).thenReturn(true);
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
