@@ -299,7 +299,7 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public void handleError() throws InterruptedException {
         // A placeholder for error handling in GenericExternalService
-        run("handleError", null, lifecycleProcesses);
+        run("recover", null, lifecycleProcesses);
     }
 
     /**
