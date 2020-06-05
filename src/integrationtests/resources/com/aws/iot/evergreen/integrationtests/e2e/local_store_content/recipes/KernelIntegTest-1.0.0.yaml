@@ -1,12 +1,16 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: KernelIntegTestDependency
+PackageName: KernelIntegTest
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
 Lifecycle:
   install:
-    all:
+    ubuntu:
       skipif: onpath git
       script: sudo apt-get install git
     debian:
@@ -15,11 +19,14 @@ Lifecycle:
     macos:
       skipif: onpath git
       script: brew install git
+Artifacts:
+  all:
+    - greengrass:kernel_integ_test_artifact.txt
 Dependencies:
   all:
     Log:
-      VersionRequirements: '2.0'
+      VersionRequirements: '>1.0'
       DependencyType: Soft
-    Cool-Database:
-      VersionRequirements: '1.0'
+    KernelIntegTestDependency:
+      VersionRequirements: '1.0.0'
       DependencyType: Hard

@@ -12,13 +12,14 @@ import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfiguratio
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
-import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.vdurmont.semver4j.Semver;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -27,9 +28,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -45,8 +43,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
 
-    private Kernel kernel;
-
     @AfterEach
     void afterEach() {
         if (kernel != null) {
@@ -56,17 +52,21 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         cleanup();
     }
 
-    private void launchKernel(String configFile) throws IOException, InterruptedException {
-        kernel = new Kernel()
-                .parseArgs("-i", DeploymentE2ETest.class.getResource(configFile).toString(), "-r", tempRootDir
-                        .toAbsolutePath().toString());
-
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
+    @BeforeEach
+    void launchKernel() throws Exception {
+        initKernel();
         kernel.launch();
 
-        Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
-        // pre-load contents to package store
-        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        uploadTestComponentsToCms(true, new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
+                new PackageIdentifier("CustomerApp", new Semver("0.9.0")),
+                new PackageIdentifier("CustomerApp", new Semver("0.9.1")),
+                new PackageIdentifier("SomeService", new Semver("1.0.0")),
+                new PackageIdentifier("SomeOldService", new Semver("0.9.0")),
+                new PackageIdentifier("GreenSignal", new Semver("1.0.0")),
+                new PackageIdentifier("RedSignal", new Semver("1.0.0")),
+                new PackageIdentifier("YellowSignal", new Semver("1.0.0")),
+                new PackageIdentifier("Mosquitto", new Semver("1.0.0")),
+                new PackageIdentifier("Mosquitto", new Semver("0.9.0")));
 
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
@@ -77,8 +77,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_removes_packages_THEN_services_should_be_stopped_and_job_is_successful() throws Exception {
-        launchKernel("blank_config.yaml");
-
         // First Deployment to have some services running in Kernel which can be removed later
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
@@ -111,8 +109,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(ExtensionContext context) throws Exception {
-        launchKernel("blank_config.yaml");
-
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "Conflicts in resolving package: Mosquitto");
 
         // New deployment contains dependency conflicts
@@ -139,8 +135,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful(ExtensionContext context) throws Exception {
-        launchKernel("blank_config.yaml");
-
         ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
 
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
@@ -174,8 +168,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_failure_policy_is_rollback_THEN_deployment_is_rolled_back_and_job_fails(ExtensionContext context) throws Exception {
-        launchKernel("blank_config.yaml");
-
         ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
 
         // Deploy some services that can be used for verification later

@@ -3,22 +3,31 @@ RecipeTemplateVersion: '2020-01-25'
 PackageName: Mosquitto
 Description: Mosquitto MQTT Server
 Publisher: Eclipse Foundation
-Version: '1.0.0'
+Version: '0.9.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
 Lifecycle:
   startup:
     macos: echo "Hello this is mosquitto getting started"
     ubuntu: echo "Hello this is mosquitto getting started"
+    debian: echo "Hello this is mosquitto getting started"
   install:
     macos:
       script: echo "Hello This is mosquitto being installed"
     ubuntu:
+      script: echo "Hello This is mosquitto being installed"
+    debian:
       script: echo "Hello This is mosquitto being installed"
   shutdown:
     macos:
       script: echo "By mosquitto signing off!"
     ubuntu:
       script: echo "By mosquitto signing off!"
+    debian:
+      script: echo "By mosquitto signing off!"
 Dependencies:
-  GreenSignal:
-    VersionRequirements: "=1.0.0"
-
+  all:
+    GreenSignal:
+      VersionRequirements: "=1.0.0"

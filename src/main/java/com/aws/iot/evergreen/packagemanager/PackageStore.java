@@ -36,8 +36,9 @@ import javax.inject.Named;
 public class PackageStore {
     private static final Logger logger = LogManager.getLogger(PackageStore.class);
 
-    private static final String RECIPE_DIRECTORY = "recipes";
-    private static final String ARTIFACT_DIRECTORY = "artifacts";
+    public static final String CONTEXT_PACKAGE_STORE_DIRECTORY = "packageStoreDirectory";
+    public static final String RECIPE_DIRECTORY = "recipes";
+    public static final String ARTIFACT_DIRECTORY = "artifacts";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
@@ -53,7 +54,8 @@ public class PackageStore {
      * @throws PackagingException if fails to create recipe or artifact directory.
      */
     @Inject
-    public PackageStore(@Named("packageStoreDirectory") @NonNull Path packageStoreDirectory) throws PackagingException {
+    public PackageStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path packageStoreDirectory)
+            throws PackagingException {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
         if (!Files.exists(recipeDirectory)) {
             try {
@@ -197,9 +199,19 @@ public class PackageStore {
      * @param packageIdentifier packageIdentifier
      * @return the artifact directory path for target package.
      */
-    Path resolveArtifactDirectoryPath(@NonNull PackageIdentifier packageIdentifier) {
+    public Path resolveArtifactDirectoryPath(@NonNull PackageIdentifier packageIdentifier) {
         return artifactDirectory.resolve(packageIdentifier.getName())
                 .resolve(packageIdentifier.getVersion().getValue());
+    }
+
+    /**
+     * Resolve the recipe file path for a target package id.
+     *
+     * @param packageIdentifier packageIdentifier
+     * @return the recipe file path for target package.
+     */
+    public Path resolveRecipePath(@NonNull PackageIdentifier packageIdentifier) {
+        return resolveRecipePath(packageIdentifier.getName(), packageIdentifier.getVersion());
     }
 
     private Path resolveRecipePath(String packageName, Semver packageVersion) {
