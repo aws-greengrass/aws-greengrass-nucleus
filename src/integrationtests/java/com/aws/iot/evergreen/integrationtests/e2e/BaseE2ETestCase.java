@@ -45,7 +45,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
     protected CreateThingGroupResponse thingGroupResp;
-    protected DeviceProvisioningHelper deviceProvisioningHelper = new DeviceProvisioningHelper(BETA_REGION.toString());
+    protected DeviceProvisioningHelper deviceProvisioningHelper =
+            new DeviceProvisioningHelper(BETA_REGION.toString(), System.out);
 
     @TempDir
     protected Path tempRootDir;
