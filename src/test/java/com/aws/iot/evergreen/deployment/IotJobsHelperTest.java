@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.iot.Timestamp;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
@@ -31,6 +32,7 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -196,6 +198,7 @@ public class IotJobsHelperTest {
         JobExecutionData jobExecutionData = new JobExecutionData();
         jobExecutionData.jobId = TEST_JOB_ID;
         jobExecutionData.status = JobStatus.QUEUED;
+        jobExecutionData.queuedAt = new Timestamp(new Date());
         HashMap<String, Object> sampleJobDocument = new HashMap<>();
         sampleJobDocument.put("DeploymentId", TEST_JOB_ID);
         jobExecutionData.jobDocument = sampleJobDocument;
@@ -208,6 +211,56 @@ public class IotJobsHelperTest {
         assertEquals(TEST_JOB_ID, actualDeployment.getId());
         assertEquals(IOT_JOBS, actualDeployment.getDeploymentType());
         assertEquals("{\"DeploymentId\":\"TestJobId\"}", actualDeployment.getDeploymentDocument());
+    }
+
+    @Test
+    public void GIVEN_iot_job_notifications_WHEN_duplicate_or_outdated_THEN_ignore_jobs() {
+        LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
+        iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
+        CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
+        when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
+                , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
+        when(mockIotJobsClient.SubscribeToDescribeJobExecutionAccepted(any()
+                , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
+        when(mockIotJobsClient.SubscribeToDescribeJobExecutionRejected(any()
+                , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
+        iotJobsHelper.subscribeToJobsTopics();
+        verify(mockIotJobsClient, times(2)).SubscribeToDescribeJobExecutionAccepted(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), describeJobResponseCaptor.capture());
+        verify(mockIotJobsClient, times(2)).SubscribeToDescribeJobExecutionRejected(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
+
+        // Create four mock jobs
+        Timestamp current = new Timestamp(new Date());
+        DescribeJobExecutionResponse describeJobExecutionResponse1 = new DescribeJobExecutionResponse();
+        describeJobExecutionResponse1.execution = getMockJobExecutionData(TEST_JOB_ID, current);
+        describeJobResponseCaptor.getValue().accept(describeJobExecutionResponse1);
+
+        DescribeJobExecutionResponse describeJobExecutionResponse2 = new DescribeJobExecutionResponse();
+        describeJobExecutionResponse2.execution = getMockJobExecutionData(TEST_JOB_ID, current);
+        describeJobResponseCaptor.getValue().accept(describeJobExecutionResponse2);
+
+        DescribeJobExecutionResponse describeJobExecutionResponse3 = new DescribeJobExecutionResponse();
+        describeJobExecutionResponse3.execution = getMockJobExecutionData("anyId1", new Timestamp(new Date(0)));
+        describeJobResponseCaptor.getValue().accept(describeJobExecutionResponse3);
+
+        DescribeJobExecutionResponse describeJobExecutionResponse4 = new DescribeJobExecutionResponse();
+        describeJobExecutionResponse4.execution = getMockJobExecutionData("anyId2", current);
+        describeJobResponseCaptor.getValue().accept(describeJobExecutionResponse4);
+
+        // Only two jobs should be queued
+        ArgumentCaptor<Deployment> deploymentArgumentCaptor = ArgumentCaptor.forClass(Deployment.class);
+        verify(mockDeploymentsQueue, times(2)).offer(deploymentArgumentCaptor.capture());
+
+        List<Deployment> actualDeployments = deploymentArgumentCaptor.getAllValues();
+        assertEquals(2, actualDeployments.size());
+        assertEquals(TEST_JOB_ID, actualDeployments.get(0).getId());
+        assertEquals(IOT_JOBS, actualDeployments.get(0).getDeploymentType());
+        assertEquals("{\"DeploymentId\":\"TestJobId\"}", actualDeployments.get(0).getDeploymentDocument());
+
+        assertEquals("anyId2", actualDeployments.get(1).getId());
+        assertEquals(IOT_JOBS, actualDeployments.get(1).getDeploymentType());
+        assertEquals("{\"DeploymentId\":\"anyId2\"}", actualDeployments.get(1).getDeploymentDocument());
     }
 
     @Test
@@ -354,5 +407,16 @@ public class IotJobsHelperTest {
         iotJobsHelper.getCallbacks().onConnectionResumed(false);
         verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(deploymentStatusKeeper).publishPersistedStatusUpdates(eq(IOT_JOBS));
+    }
+
+    private JobExecutionData getMockJobExecutionData(String jobId, Timestamp ts) {
+        JobExecutionData jobExecutionData = new JobExecutionData();
+        jobExecutionData.jobId = jobId;
+        jobExecutionData.status = JobStatus.QUEUED;
+        jobExecutionData.queuedAt = ts;
+        HashMap<String, Object> sampleJobDocument = new HashMap<>();
+        sampleJobDocument.put("DeploymentId", jobId);
+        jobExecutionData.jobDocument = sampleJobDocument;
+        return jobExecutionData;
     }
 }

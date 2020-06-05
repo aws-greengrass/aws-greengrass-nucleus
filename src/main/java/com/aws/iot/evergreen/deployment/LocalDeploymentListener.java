@@ -6,15 +6,12 @@ import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +25,8 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.iot.evergreen.deployment.DeploymentService.OBJECT_MAPPER;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -36,13 +35,10 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 public class LocalDeploymentListener {
 
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
 
     @Inject
-    @Named("deploymentsQueue")
+    @Named(DEPLOYMENTS_QUEUE)
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
     @Inject
@@ -61,7 +57,7 @@ public class LocalDeploymentListener {
         LocalOverrideRequest request;
 
         try {
-            request = new ObjectMapper().readValue(localOverrideRequestStr, LocalOverrideRequest.class);
+            request = OBJECT_MAPPER.readValue(localOverrideRequestStr, LocalOverrideRequest.class);
         } catch (JsonProcessingException e) {
             logger.atError().setCause(e).kv("localOverrideRequestStr", localOverrideRequestStr)
                     .log("Failed to parse local override request.");
@@ -88,8 +84,7 @@ public class LocalDeploymentListener {
      */
     public String listComponents() throws DeviceConfigurationException {
         try {
-            List<String> rootComponenetNames = kernel.getMain().getDependencies().keySet().stream()
-                    .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+            List<String> rootComponentNames = kernel.getMain().getDependencies().keySet().stream()
                     .map(EvergreenService::getName).collect(Collectors.toList());
 
             List<ComponentInfo> componentInfo = kernel.orderedDependencies().stream()
@@ -103,14 +98,14 @@ public class LocalDeploymentListener {
                         }
                         if (parameters != null) {
                             componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream()
-                                    .collect(Collectors.toMap(e -> e.getKey(), e -> Coerce.toString(e.getValue()))));
+                                    .collect(Collectors.toMap(Map.Entry::getKey, e -> Coerce.toString(e.getValue()))));
 
                         }
                         return componentInfoBuilder.build();
                     }).collect(Collectors.toList());
 
             return OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(new ListComponentsResult(rootComponenetNames, componentInfo));
+                    .writeValueAsString(new ListComponentsResult(rootComponentNames, componentInfo));
         } catch (JsonProcessingException e) {
             //TODO: during IPC integration, change this to report internal error
             throw new DeviceConfigurationException("Unable to list components", e);

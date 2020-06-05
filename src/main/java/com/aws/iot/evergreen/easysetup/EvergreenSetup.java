@@ -215,16 +215,20 @@ public class EvergreenSetup {
     }
 
     void provision(Kernel kernel) throws IOException {
+        logger.atInfo().log("Provisioning AWS IoT resources for the device...");
         ThingInfo thingInfo =
                 deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
+        logger.atInfo().log("Configuring kernel with provisioning details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
 
         if (setupTes) {
+            logger.atInfo().log("Setting up resources for TokenExchangeService...");
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
+            logger.atInfo().log("Configuring kernel with TokenExchangeService role details...");
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
+            logger.atInfo().log("Creating an empty component for TokenExchangeService...");
+            deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
         }
-
-        deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 
 }

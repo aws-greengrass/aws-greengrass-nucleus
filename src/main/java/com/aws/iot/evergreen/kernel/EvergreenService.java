@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.DependencyType;
+import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
@@ -552,6 +553,11 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     public Map<EvergreenService, DependencyType> getDependencies() {
         return dependencies.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
+    }
+
+    public boolean isAutostart() {
+        ImplementsService serviceAnnotation = getClass().getAnnotation(ImplementsService.class);
+        return serviceAnnotation != null && serviceAnnotation.autostart();
     }
 
     protected final long getStateGeneration() {

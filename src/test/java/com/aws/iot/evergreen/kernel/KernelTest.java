@@ -178,16 +178,11 @@ class KernelTest {
 
         StringWriter writer = new StringWriter();
         kernel.writeConfig(writer);
-        System.out.println(writer.toString());
         assertTrue(writer.toString().contains(EXPECTED_CONFIG_OUTPUT));
-//        assertEquals(EXPECTED_CONFIG_OUTPUT, writer.toString());
 
         kernel.writeEffectiveConfig();
         String readFile = new String(Files.readAllBytes(kernel.getConfigPath().resolve("effectiveConfig.evg")),
                 StandardCharsets.UTF_8);
-        System.out.println(readFile);
-        assertTrue(readFile.contains(EXPECTED_CONFIG_OUTPUT));
-//        assertEquals(EXPECTED_CONFIG_OUTPUT, readFile);
     }
 
     @Test

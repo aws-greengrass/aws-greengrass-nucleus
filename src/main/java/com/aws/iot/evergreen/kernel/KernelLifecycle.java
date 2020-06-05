@@ -74,7 +74,8 @@ public class KernelLifecycle {
                 }
                 if (!Files.exists(transactionLogPath) && !Files.exists(configurationFile)) {
                     kernel.getConfig()
-                            .lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC, kernelCommandLine.mainServiceName);
+                            .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, kernelCommandLine.mainServiceName,
+                                    EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
                 }
             }
             tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath);
