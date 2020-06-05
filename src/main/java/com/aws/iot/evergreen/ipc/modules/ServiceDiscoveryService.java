@@ -28,7 +28,7 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCodes.values;
 
 //TODO: see if this needs to be a GGService
-@ImplementsService(name = "servicediscovery", autostart = true)
+@ImplementsService(name = "servicediscovery", isSystem = true)
 public class ServiceDiscoveryService extends EvergreenService {
     private final ObjectMapper mapper = new CBORMapper();
 

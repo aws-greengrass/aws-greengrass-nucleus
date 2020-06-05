@@ -335,6 +335,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             Subscriber subscriber = createDependencySubscriber(dependentEvergreenService, dependencyType);
             dependentEvergreenService.addStateSubscriber(subscriber);
             context.get(Kernel.class).clearODcache();
+            // TODO : remove isDefault field
             return new DependencyInfo(dependencyType, isDefault, subscriber);
         });
     }
@@ -555,9 +556,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
 
+    // TODO: remove isAutoStart
     public boolean isAutostart() {
         ImplementsService serviceAnnotation = getClass().getAnnotation(ImplementsService.class);
-        return serviceAnnotation != null && serviceAnnotation.autostart();
+        return serviceAnnotation != null && serviceAnnotation.isSystem();
     }
 
     protected final long getStateGeneration() {
@@ -577,6 +579,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         // dependency type. Default to be HARD.
         DependencyType dependencyType;
         // true if the dependency isn't explicitly declared in config
+        // TODO: remove isDefault
         boolean isDefaultDependency;
         Subscriber stateTopicSubscriber;
     }

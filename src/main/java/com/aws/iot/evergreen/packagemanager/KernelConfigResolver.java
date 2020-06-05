@@ -187,12 +187,6 @@ public class KernelConfigResolver {
     private Map<Object, Object> getMainConfig(List<String> rootPackages) {
         Map<Object, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
-        kernel.getMain().getDependencies().forEach((evergreenService, dependencyType) -> {
-            // Add all autostart dependencies
-            if (evergreenService.isAutostart()) {
-                mainDependencies.add(evergreenService.getName() + ":" + dependencyType);
-            }
-        });
         mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
         return mainServiceConfig;
     }

@@ -25,7 +25,7 @@ import java.util.concurrent.Future;
 import javax.inject.Inject;
 
 //TODO: see if this needs to be a GGService
-@ImplementsService(name = "lifecycleipc", autostart = true)
+@ImplementsService(name = "lifecycleipc", isSystem = true)
 public class LifecycleIPCService extends EvergreenService {
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
 

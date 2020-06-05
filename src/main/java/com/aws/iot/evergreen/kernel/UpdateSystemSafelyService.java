@@ -25,7 +25,7 @@ import javax.inject.Singleton;
  * Otherwise, it the update will be processed immediately, assuming that all disruptability
  * checks pass.
  */
-@ImplementsService(name = "SafeSystemUpdate", autostart = true)
+@ImplementsService(name = "SafeSystemUpdate", isSystem = true)
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
     private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();

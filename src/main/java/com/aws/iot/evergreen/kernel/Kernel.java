@@ -285,9 +285,18 @@ public class Kernel {
             // If found class, try to load service class from plugins.
             if (clazz != null) {
                 try {
+                    boolean isSystem = false;
+                    if (clazz.getAnnotation(ImplementsService.class) != null) {
+                        isSystem = clazz.getAnnotation(ImplementsService.class).isSystem();
+                    }
                     // Lookup the service topics here because the Topics passed into the EvergreenService
                     // constructor must not be null
-                    Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
+                    Topics topics;
+                    if (isSystem) {
+                        topics = config.lookupTopics("system", name);
+                    } else {
+                        topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
+                    }
 
                     try {
                         Constructor<?> ctor = clazz.getConstructor(Topics.class);
@@ -341,10 +350,7 @@ public class Kernel {
 
         for (EvergreenService service : getMain().getDependencies().keySet()) {
             Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
-            // If the service is an autostart service then ignore it.
-            if (service.isAutostart()) {
-                continue;
-            }
+
             rootPackageNameAndVersionMap.put(service.getName(), Coerce.toString(version));
         }
         return rootPackageNameAndVersionMap;

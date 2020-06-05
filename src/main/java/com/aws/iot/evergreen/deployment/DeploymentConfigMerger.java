@@ -365,12 +365,6 @@ public class DeploymentConfigMerger {
                 try {
                     EvergreenService eg = kernel.locate(serviceName);
 
-                    // If the service is an autostart service, then do not close it and do not
-                    // remove it from the config
-                    if (eg.isAutostart()) {
-                        return false;
-                    }
-
                     serviceClosedFutures.add(eg.close());
                 } catch (ServiceLoadException e) {
                     logger.atError().setCause(e).addKeyValue("serviceName", serviceName)

@@ -24,7 +24,7 @@ import java.util.concurrent.Future;
 import javax.inject.Inject;
 
 //TODO: see if this needs to be a GGService
-@ImplementsService(name = "configstoreipc", autostart = true)
+@ImplementsService(name = "configstoreipc", isSystem = true)
 public class ConfigStoreIPCService extends EvergreenService {
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
 

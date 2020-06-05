@@ -42,7 +42,7 @@ import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.MAX_PAYLOAD_SI
  * the service will receive a pointer to the channel that they will then be able to use to push messages
  * to the client at any time in the future.
  */
-@ImplementsService(name = "IPCService", autostart = true)
+@ImplementsService(name = "IPCService", isSystem = true)
 public class IPCService extends EvergreenService {
     public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
     private static final int MAX_SO_BACKLOG = 128;

@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-@ImplementsService(name = "DeploymentService", autostart = true)
+@ImplementsService(name = "DeploymentService", isSystem = true)
 public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";

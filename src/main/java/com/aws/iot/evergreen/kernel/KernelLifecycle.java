@@ -17,6 +17,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -45,6 +46,7 @@ public class KernelLifecycle {
     private ConfigurationWriter tlog;
     private EvergreenService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
+    private final List<EvergreenService> systemServices = new ArrayList<>();
 
     public KernelLifecycle(Kernel kernel, KernelCommandLine kernelCommandLine) {
         this.kernel = kernel;
@@ -88,6 +90,15 @@ public class KernelLifecycle {
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
+        autostart.forEach(s -> {
+            try {
+                systemServices.add(kernel.locate(s));
+            } catch (ServiceLoadException se) {
+                throw new RuntimeException(se);
+            }
+        });
+        systemServices.forEach(s -> s.requestRestart());
+        // TODO: wait until all running
 
         try {
             mainService = kernel.locate(kernelCommandLine.mainServiceName);
@@ -98,23 +109,13 @@ public class KernelLifecycle {
             throw rte;
         }
 
-        autostart.forEach(s -> {
-            try {
-                mainService.addOrUpdateDependency(kernel.locate(s), DependencyType.HARD, true);
-            } catch (ServiceLoadException se) {
-                logger.atError().log("Unable to load service {}", s, se);
-            } catch (InputValidationException e) {
-                logger.atError().log("Unable to add auto-starting dependency {} to main", s, e);
-            }
-        });
-
         kernel.writeEffectiveConfig();
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
     }
 
     private Queue<String> findBuiltInServicesAndPlugins() {
-        Queue<String> autostart = new LinkedList<>();
+        Queue<String> isSystem = new LinkedList<>();
         try {
             EZPlugins pim = kernel.getContext().get(EZPlugins.class);
             pim.withCacheDirectory(kernel.getRootPath().resolve("plugins"));
@@ -125,8 +126,8 @@ public class KernelLifecycle {
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
-                if (is.autostart()) {
-                    autostart.add(is.name());
+                if (is.isSystem()) {
+                    isSystem.add(is.name());
                 }
                 serviceImplementors.put(is.name(), cl);
                 logger.atInfo().log("Found Plugin: {}", cl.getSimpleName());
@@ -140,7 +141,7 @@ public class KernelLifecycle {
         } catch (IOException t) {
             logger.atError().log("Error launching plugins", t);
         }
-        return autostart;
+        return isSystem;
     }
 
     /**
@@ -200,6 +201,8 @@ public class KernelLifecycle {
                         .kv("unclosedServices", unclosedServices)
                         .log();
             }
+
+            // TODO shutdown system services.
 
             // Wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);
