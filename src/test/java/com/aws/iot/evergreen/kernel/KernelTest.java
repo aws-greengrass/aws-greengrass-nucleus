@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -245,8 +244,8 @@ class KernelTest {
                         .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         EvergreenService service2 = new EvergreenService(kernel.getConfig()
                 .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service2"));
-        service1.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.0.0"));
-        service2.getConfig().lookup(VERSION_CONFIG_KEY).dflt(new Semver("1.1.0"));
+        service1.getConfig().lookup(VERSION_CONFIG_KEY).dflt("1.0.0");
+        service2.getConfig().lookup(VERSION_CONFIG_KEY).dflt("1.1.0");
 
         EvergreenService mockMain = mock(EvergreenService.class);
         Map<EvergreenService, DependencyType> mainsDependency = new HashMap<>();

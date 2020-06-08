@@ -20,7 +20,6 @@ import com.aws.iot.evergreen.util.CommitableWriter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -302,8 +301,8 @@ public class Kernel {
                         context.put(ret.getClass(), v);
                     }
                     if (clazz.getAnnotation(ImplementsService.class) != null) {
-                        Semver version = new Semver(clazz.getAnnotation(ImplementsService.class).version());
-                        topics.createLeafChild(VERSION_CONFIG_KEY).withValue(version);
+                        topics.createLeafChild(VERSION_CONFIG_KEY)
+                                .withValue(clazz.getAnnotation(ImplementsService.class).version());
                     }
 
                     logger.atInfo("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName())
@@ -346,7 +345,7 @@ public class Kernel {
             if (service.isAutostart()) {
                 continue;
             }
-            rootPackageNameAndVersionMap.put(service.getName(), ((Semver) version.getOnce()).getValue());
+            rootPackageNameAndVersionMap.put(service.getName(), Coerce.toString(version));
         }
         return rootPackageNameAndVersionMap;
     }

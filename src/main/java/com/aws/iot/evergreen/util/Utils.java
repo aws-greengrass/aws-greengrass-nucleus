@@ -7,6 +7,7 @@ import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.nio.Buffer;
 import java.nio.CharBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -483,11 +484,13 @@ public final class Utils {
                                 radix = 2;
                                 break;
                             default:
-                                str.position(str.position() - 1);
+                                // Stupid cast for jdk 9+
+                                ((Buffer) str).position(str.position() - 1);
                                 break;
                         }
                     } else {
-                        str.position(str.position() - 1);
+                        // Stupid cast for jdk 9+
+                        ((Buffer) str).position(str.position() - 1);
                     }
                     break scanPrefix;
             }
