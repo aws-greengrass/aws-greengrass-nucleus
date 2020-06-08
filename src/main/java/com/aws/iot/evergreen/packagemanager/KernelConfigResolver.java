@@ -126,7 +126,7 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
-        resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion());
+        resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion().getValue());
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParams.stream()
                 .collect(Collectors.toMap(PackageParameter::getName, PackageParameter::getValue)));
 

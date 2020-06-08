@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -94,7 +93,7 @@ public class LocalDeploymentListener {
                         ComponentInfo.ComponentInfoBuilder componentInfoBuilder =
                                 ComponentInfo.builder().packageName(service.getName());
                         if (version != null) {
-                            componentInfoBuilder.version(((Semver) version.getOnce()).getValue());
+                            componentInfoBuilder.version(Coerce.toString(version));
                         }
                         if (parameters != null) {
                             componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream()
