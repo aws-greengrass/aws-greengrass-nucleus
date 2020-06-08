@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.util.Utils.inputStreamToString;
+
 public class QNXPlatform extends UnixPlatform {
     @Override
     public void killProcessAndChildren(Process process, boolean force) throws IOException, InterruptedException {
@@ -26,8 +28,17 @@ public class QNXPlatform extends UnixPlatform {
     }
 
     private void killUsingSlay(int pid, boolean force) throws IOException, InterruptedException {
+        logger.atDebug().log("Running slay to kill pid {}", pid);
         // Use slay on QNX because kill doesn't exist, and we can't link to libc
         String[] cmd = {"slay", "-" + (force ? SIGKILL : SIGINT), "-f", "-Q", Integer.toString(pid)};
-        Runtime.getRuntime().exec(cmd).waitFor();
+        Process proc = Runtime.getRuntime().exec(cmd);
+        proc.waitFor();
+        // For slay, exit 0 is an error (https://www.qnx.com/developers/docs/6.3.0SP3/neutrino/utilities/s/slay.html)
+        if (proc.exitValue() == 0) {
+            logger.atWarn().kv("pid", pid)
+                    .kv("stdout", inputStreamToString(proc.getInputStream()))
+                    .kv("stderr", inputStreamToString(proc.getErrorStream()))
+                    .log("slay exited with an error");
+        }
     }
 }

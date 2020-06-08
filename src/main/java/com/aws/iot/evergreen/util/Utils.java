@@ -3,12 +3,16 @@
 
 package com.aws.iot.evergreen.util;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.nio.Buffer;
 import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -584,5 +588,19 @@ public final class Utils {
                     a.addAll(b);
                     return a;
                 }));
+    }
+
+    /**
+     * Read InputStream to a string.
+     * @param is input stream
+     * @return string or null if there was an exception
+     */
+    public static String inputStreamToString(InputStream is) {
+        try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+             BufferedReader sr = new BufferedReader(isr)) {
+            return sr.lines().collect(Collectors.joining("\n"));
+        } catch (IOException e) {
+            return null;
+        }
     }
 }
