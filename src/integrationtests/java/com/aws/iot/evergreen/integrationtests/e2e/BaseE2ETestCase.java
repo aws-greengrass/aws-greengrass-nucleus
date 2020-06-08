@@ -6,7 +6,10 @@
 package com.aws.iot.evergreen.integrationtests.e2e;
 
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
+import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagementClientBuilder;
 import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentResult;
+import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
 import com.amazonaws.services.greengrasscomponentmanagement.model.InvalidInputException;
 import com.amazonaws.services.greengrasscomponentmanagement.model.ResourceAlreadyExistException;
 import com.amazonaws.services.greengrassfleetconfiguration.AWSGreengrassFleetConfiguration;
@@ -26,6 +29,9 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
+import com.vdurmont.semver4j.Semver;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.regions.Region;
@@ -36,7 +42,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,10 +57,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
     protected static final String FCS_BETA_ENDPOINT = "https://aqzw8qdn5l.execute-api.us-east-1.amazonaws.com/Beta";
+    protected static final String CMS_BETA_ENDPOINT = "https://3w5ajog718.execute-api.us-east-1.amazonaws.com/Beta";
     protected static final Region BETA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
 
     protected final Logger logger = LogManager.getLogger(this.getClass());
+    private static final Logger staticlogger = LogManager.getLogger(BaseE2ETestCase.class);
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
@@ -68,6 +78,38 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(BETA_REGION.toString());
     private static AWSGreengrassFleetConfiguration fcsClient;
+    protected static final AWSGreengrassComponentManagement cmsClient =
+            AWSGreengrassComponentManagementClientBuilder.standard().withEndpointConfiguration(
+            new AwsClientBuilder.EndpointConfiguration(CMS_BETA_ENDPOINT, BETA_REGION.toString())).build();
+    private static final PackageIdentifier[] testComponents = {
+            new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
+            new PackageIdentifier("CustomerApp", new Semver("0.9.0")),
+            new PackageIdentifier("CustomerApp", new Semver("0.9.1")),
+            new PackageIdentifier("SomeService", new Semver("1.0.0")),
+            new PackageIdentifier("SomeOldService", new Semver("0.9.0")),
+            new PackageIdentifier("GreenSignal", new Semver("1.0.0")),
+            new PackageIdentifier("RedSignal", new Semver("1.0.0")),
+            new PackageIdentifier("YellowSignal", new Semver("1.0.0")),
+            new PackageIdentifier("Mosquitto", new Semver("1.0.0")),
+            new PackageIdentifier("Mosquitto", new Semver("0.9.0")),
+            new PackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
+            new PackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
+            new PackageIdentifier("Log", new Semver("2.0.0"))};
+
+    @BeforeAll
+    static void beforeAll() throws Exception {
+        uploadTestComponentsToCms(true, testComponents);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        for (PackageIdentifier component : testComponents) {
+            // The delete API is not implemented on the service side yet. Currently API always returns 200
+            DeleteComponentResult result = GreengrassPackageServiceHelper.deleteComponent(cmsClient,
+                    component.getName(), component.getVersion().toString());
+            assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+        }
+    }
 
     protected BaseE2ETestCase() {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
@@ -96,39 +138,39 @@ public class BaseE2ETestCase implements AutoCloseable {
      * @param commit whether to call commitComponent with the created components
      * @param pkgIds list of component identifiers
      */
-    protected void uploadTestComponentsToCms(boolean commit, PackageIdentifier... pkgIds)
+    private static void uploadTestComponentsToCms(boolean commit, PackageIdentifier... pkgIds)
             throws IOException, PackagingException {
-        GreengrassPackageServiceHelper cmsHelper = kernel.getContext().get(GreengrassPackageServiceHelper.class);
+        List<String> errors = new ArrayList<>();
+        for (PackageIdentifier pkgId : pkgIds) {
+            try {
+                draftComponent(pkgId);
+            } catch (ResourceAlreadyExistException e) {
+                // Don't fail the test if the component exists
+                errors.add(e.getMessage());
+            }
 
-        // Avoid uploading the same components at the same time, since E2E tests share some test components
-        synchronized (BaseE2ETestCase.class) {
-            for (PackageIdentifier pkgId : pkgIds) {
+            if (commit) {
                 try {
-                    draftComponent(cmsHelper, pkgId);
-                } catch (ResourceAlreadyExistException e) {
-                    // Don't fail the test if the component exists
-                    logger.atWarn().kv("component", pkgId).log(e.getMessage());
-                }
-
-                if (commit) {
-                    try {
-                        cmsHelper.commitComponent(pkgId.getName(), pkgId.getVersion().toString());
-                    } catch (InvalidInputException e) {
-                        // Don't fail the test if the component is already committed
-                        logger.atWarn().kv("component", pkgId).log(e.getMessage());
-                    }
+                    GreengrassPackageServiceHelper.commitComponent(cmsClient, pkgId.getName(),
+                            pkgId.getVersion().toString());
+                } catch (InvalidInputException e) {
+                    // Don't fail the test if the component is already committed
+                    errors.add(e.getMessage());
                 }
             }
         }
+        if (!errors.isEmpty()) {
+            staticlogger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
+        }
     }
 
-    private void draftComponent(GreengrassPackageServiceHelper cmsHelper, PackageIdentifier pkgId)
-            throws PackagingException, IOException {
+    private static void draftComponent(PackageIdentifier pkgId) throws PackagingException, IOException {
         Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
         PackageStore e2eTestPackageStore = new PackageStore(localStoreContentPath);
 
         Path testRecipePath = e2eTestPackageStore.resolveRecipePath(pkgId);
-        CreateComponentResult createComponentResult = cmsHelper.createComponent(testRecipePath);
+        CreateComponentResult createComponentResult = GreengrassPackageServiceHelper.createComponent(cmsClient,
+                testRecipePath);
         assertEquals("DRAFT", createComponentResult.getStatus());
         assertEquals(pkgId.getName(), createComponentResult.getComponentName());
         assertEquals(pkgId.getVersion().toString(), createComponentResult.getComponentVersion());
@@ -136,11 +178,12 @@ public class BaseE2ETestCase implements AutoCloseable {
         Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgId);
         File[] artifactFiles = artifactDirPath.toFile().listFiles();
         if (artifactFiles == null) {
-            logger.atInfo().kv("component", pkgId).kv("artifactPath", artifactDirPath.toAbsolutePath())
+            staticlogger.atInfo().kv("component", pkgId).kv("artifactPath", artifactDirPath.toAbsolutePath())
                     .log("Skip artifact upload. No artifacts found");
         } else {
             for (File artifact : artifactFiles) {
-                cmsHelper.uploadComponentArtifact(artifact, pkgId.getName(), pkgId.getVersion().toString());
+                GreengrassPackageServiceHelper.uploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
+                        pkgId.getVersion().toString());
             }
         }
     }
@@ -185,6 +228,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         if (fcsClient != null) {
             fcsClient.shutdown();
         }
+        cmsClient.shutdown();
         iotClient.close();
     }
 }

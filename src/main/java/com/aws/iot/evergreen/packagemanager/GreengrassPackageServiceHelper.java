@@ -9,6 +9,8 @@ import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponen
 import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentArtifactUploadUrlResult;
 import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentRequest;
 import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentResult;
+import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentRequest;
+import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
 import com.amazonaws.services.greengrasscomponentmanagement.model.FindComponentVersionsByPlatformRequest;
 import com.amazonaws.services.greengrasscomponentmanagement.model.FindComponentVersionsByPlatformResult;
 import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentRequest;
@@ -47,7 +49,7 @@ public class GreengrassPackageServiceHelper {
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
     // Service logger instance
-    protected final Logger logger = LogManager.getLogger(GreengrassPackageServiceHelper.class);
+    protected static final Logger logger = LogManager.getLogger(GreengrassPackageServiceHelper.class);
 
     private final AWSGreengrassComponentManagement evgCmsClient;
 
@@ -113,16 +115,18 @@ public class GreengrassPackageServiceHelper {
     /**
      * Create a component with the given recipe file.
      *
+     * @param cmsClient client of Component Management Service
      * @param recipeFilePath the path to the component recipe file
      * @return {@Link CreateComponentResult}
      * @throws IOException if file reading fails
      */
-    public CreateComponentResult createComponent(Path recipeFilePath) throws IOException {
+    public static CreateComponentResult createComponent(AWSGreengrassComponentManagement cmsClient,
+                                                        Path recipeFilePath) throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
 
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipeBuf);
         logger.atDebug("create-component").kv("request", createComponentRequest).log();
-        CreateComponentResult createComponentResult = evgCmsClient.createComponent(createComponentRequest);
+        CreateComponentResult createComponentResult = cmsClient.createComponent(createComponentRequest);
         logger.atDebug("create-component").kv("result", createComponentResult).log();
         return createComponentResult;
     }
@@ -130,13 +134,14 @@ public class GreengrassPackageServiceHelper {
     /**
      * Upload component artifacts for the specified component.
      *
+     * @param cmsClient client of Component Management Service
      * @param artifact artifact file
      * @param componentName name of the component that requires the artifact
      * @param componentVersion version of the component that requires the artifact
      * @throws IOException if file upload fails
      */
-    public void uploadComponentArtifact(File artifact, String componentName, String componentVersion)
-            throws IOException {
+    public static void uploadComponentArtifact(AWSGreengrassComponentManagement cmsClient, File artifact,
+                                        String componentName, String componentVersion) throws IOException {
         if (skipComponentArtifactUpload(artifact)) {
             logger.atDebug("upload-component-artifact").kv("filePath",  artifact.getAbsolutePath())
                     .log("Skip artifact upload. Not a regular file");
@@ -147,7 +152,7 @@ public class GreengrassPackageServiceHelper {
         CreateComponentArtifactUploadUrlRequest artifactUploadUrlRequest = new CreateComponentArtifactUploadUrlRequest()
                 .withComponentName(componentName).withComponentVersion(componentVersion)
                 .withArtifactName(artifact.getName());
-        CreateComponentArtifactUploadUrlResult artifactUploadUrlResult = evgCmsClient
+        CreateComponentArtifactUploadUrlResult artifactUploadUrlResult = cmsClient
                 .createComponentArtifactUploadUrl(artifactUploadUrlRequest);
 
         URL s3PreSignedURL = new URL(artifactUploadUrlResult.getUrl());
@@ -156,31 +161,50 @@ public class GreengrassPackageServiceHelper {
         connection.setRequestMethod("PUT");
         connection.connect();
 
-        long length;
         try (BufferedOutputStream bos = new BufferedOutputStream(connection.getOutputStream())) {
-            length = Files.copy(artifact.toPath(), bos);
+            long length = Files.copy(artifact.toPath(), bos);
+            logger.atDebug("upload-component-artifact").kv("artifactName", artifact.getName())
+                    .kv("fileSize", length).kv("status", connection.getResponseMessage()).log();
         }
-        logger.atDebug("upload-component-artifact").kv("artifactName", artifact.getName())
-                .kv("fileSize", length).kv("status", connection.getResponseMessage()).log();
     }
 
     /**
-     * Commit a component of the given identifier.
+     * Commit a component of the given name and version.
      *
+     * @param cmsClient client of Component Management Service
      * @param componentName name of the component to commit
      * @param componentVersion version of the component to commit
      * @return {@Link CommitComponentResult}
      */
-    public CommitComponentResult commitComponent(String componentName, String componentVersion) {
+    public static CommitComponentResult commitComponent(AWSGreengrassComponentManagement cmsClient,
+                                                        String componentName, String componentVersion) {
         CommitComponentRequest commitComponentRequest = new CommitComponentRequest().withComponentName(componentName)
                 .withComponentVersion(componentVersion);
         logger.atDebug("commit-component").kv("request", commitComponentRequest).log();
-        CommitComponentResult commitComponentResult = evgCmsClient.commitComponent(commitComponentRequest);
+        CommitComponentResult commitComponentResult = cmsClient.commitComponent(commitComponentRequest);
         logger.atDebug("commit-component").kv("result", commitComponentResult).log();
         return commitComponentResult;
     }
 
-    private boolean skipComponentArtifactUpload(File artifact) {
+    /**
+     * Delete a component of the given name and version.
+     *
+     * @param cmsClient client of Component Management Service
+     * @param componentName name of the component to delete
+     * @param componentVersion version of the component to delete
+     * @return {@Link DeleteComponentResult}
+     */
+    public static DeleteComponentResult deleteComponent(AWSGreengrassComponentManagement cmsClient,
+                                                        String componentName, String componentVersion) {
+        DeleteComponentRequest deleteComponentRequest = new DeleteComponentRequest()
+                .withComponentName(componentName).withComponentVersion(componentVersion);
+        logger.atDebug("delete-component").kv("request", deleteComponentRequest).log();
+        DeleteComponentResult deleteComponentResult = cmsClient.deleteComponent(deleteComponentRequest);
+        logger.atDebug("delete-component").kv("result", deleteComponentResult).log();
+        return deleteComponentResult;
+    }
+
+    private static boolean skipComponentArtifactUpload(File artifact) {
         return artifact.getName().equals(".DS_Store") || artifact.isDirectory();
     }
 }

@@ -55,7 +55,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
 
-    protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementors";
+    protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     @Getter
     private final Context context;
     @Getter

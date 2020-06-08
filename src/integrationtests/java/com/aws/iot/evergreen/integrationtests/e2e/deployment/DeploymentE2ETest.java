@@ -14,9 +14,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.vdurmont.semver4j.Semver;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,17 +54,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     void launchKernel() throws Exception {
         initKernel();
         kernel.launch();
-
-        uploadTestComponentsToCms(true, new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
-                new PackageIdentifier("CustomerApp", new Semver("0.9.0")),
-                new PackageIdentifier("CustomerApp", new Semver("0.9.1")),
-                new PackageIdentifier("SomeService", new Semver("1.0.0")),
-                new PackageIdentifier("SomeOldService", new Semver("0.9.0")),
-                new PackageIdentifier("GreenSignal", new Semver("1.0.0")),
-                new PackageIdentifier("RedSignal", new Semver("1.0.0")),
-                new PackageIdentifier("YellowSignal", new Semver("1.0.0")),
-                new PackageIdentifier("Mosquitto", new Semver("1.0.0")),
-                new PackageIdentifier("Mosquitto", new Semver("0.9.0")));
 
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and

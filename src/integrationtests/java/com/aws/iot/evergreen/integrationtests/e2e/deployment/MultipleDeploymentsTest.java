@@ -14,9 +14,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.DeploymentJobHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -46,14 +44,6 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     @BeforeEach
     void beforeEach() throws Exception {
         initKernel();
-
-        uploadTestComponentsToCms(true, new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
-                new PackageIdentifier("CustomerApp", new Semver("0.9.0")),
-                new PackageIdentifier("CustomerApp", new Semver("0.9.1")),
-                new PackageIdentifier("SomeService", new Semver("1.0.0")),
-                new PackageIdentifier("GreenSignal", new Semver("1.0.0")),
-                new PackageIdentifier("Mosquitto", new Semver("1.0.0")),
-                new PackageIdentifier("Mosquitto", new Semver("0.9.0")));
     }
 
     @AfterEach
