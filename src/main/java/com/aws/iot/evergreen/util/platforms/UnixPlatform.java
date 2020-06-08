@@ -9,7 +9,6 @@ import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.Utils;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
-import org.zeroturnaround.process.unix.LibC;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,13 +26,14 @@ import java.util.stream.Stream;
 
 public class UnixPlatform extends Platform {
     protected static final int SIGINT = 2;
+    protected static final int SIGKILL = 9;
     public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
 
     @Override
     public void killProcessAndChildren(Process process, boolean force) throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
         // Use pkill to kill all subprocesses under the main shell
-        String[] cmd = {"pkill", "-" + (force ? LibC.SIGKILL : SIGINT), "-P", Integer.toString(pp.getPid())};
+        String[] cmd = {"pkill", "-" + (force ? SIGKILL : SIGINT), "-P", Integer.toString(pp.getPid())};
         Runtime.getRuntime().exec(cmd).waitFor();
 
         // If forcible, then also kill the parent (the shell)
@@ -44,7 +44,7 @@ public class UnixPlatform extends Platform {
         }
     }
 
-    void killProcessAndChildrenUsingPS(Process process, boolean force) throws IOException, InterruptedException {
+    List<Integer> getChildPids(Process process) throws IOException, InterruptedException {
         // Use PS to list process PID and parent PID so that we can identify the process tree
         Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-ax", "-o", "pid,ppid"});
         proc.waitFor();
@@ -68,17 +68,7 @@ public class UnixPlatform extends Platform {
             PidProcess pp = Processes.newPidProcess(process);
             List<String> childProcesses = children(Integer.toString(pp.getPid()), parentToChildren);
 
-            // Kill all child processes
-            for (String childPid : childProcesses) {
-                Processes.newPidProcess(Integer.parseInt(childPid)).destroy(force);
-            }
-        }
-
-        // If forcible, then also kill the parent (the shell)
-        if (force) {
-            process.destroy();
-            process.waitFor(2, TimeUnit.SECONDS);
-            process.destroyForcibly();
+            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toList());
         }
     }
 
