@@ -528,7 +528,8 @@ public final class Utils {
                 digit = 99;
             }
             if (digit >= radix) {
-                str.position(str.position() - 1);
+                // Stupid cast for jdk 9+
+                ((Buffer) str).position(str.position() - 1);
                 break;
             }
             ret = ret * radix + digit;
