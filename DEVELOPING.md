@@ -30,18 +30,7 @@ needs to have a `config.yaml` file in it.
 
 ### Config YAML
 The `config.yaml` file contains keys for platforms, launchers, and services. The file must contain
-a `main`.
-
-A very basic example looks like:
-
-```yaml
----
-sayHi:
-  run: |-
-    echo "Hello there, friend"
-main:
-  requires: sayHi
-```
+a `main` service. Detailed config schema is in `README_CONFIG_SCHEMA.md`
 
 ### Plugins
 Plugins like the internalhttp server can be installed simply by placing the jar file that it generates into the
