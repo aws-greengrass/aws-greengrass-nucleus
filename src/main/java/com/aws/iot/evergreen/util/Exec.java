@@ -5,12 +5,8 @@ package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.platforms.Platform;
 import lombok.Getter;
-import org.zeroturnaround.process.PidProcess;
-import org.zeroturnaround.process.Processes;
-import org.zeroturnaround.process.UnixProcess;
-import org.zeroturnaround.process.WindowsProcess;
-import org.zeroturnaround.process.unix.LibC;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -374,7 +370,7 @@ public final class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    synchronized void setClosed() {
+    void setClosed() {
         if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
@@ -400,20 +396,13 @@ public final class Exec implements Closeable {
             return;
         }
 
-        PidProcess pp = Processes.newPidProcess(p);
-
-        if (pp instanceof UnixProcess) {
-            pp = new UnixParentProcess(p, pp.getPid());
-        } else if (pp instanceof WindowsProcess) {
-            ((WindowsProcess) pp).setIncludeChildren(true);
-            ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
-        }
+        Platform platformInstance = Platform.getInstance();
 
         try {
-            pp.destroyGracefully();
+            platformInstance.killProcessAndChildren(p, false);
             // TODO: configurable timeout?
             if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                pp.destroyForcefully();
+                platformInstance.killProcessAndChildren(p, true);
                 if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                     throw new IOException("Could not stop " + this);
                 }
@@ -421,7 +410,7 @@ public final class Exec implements Closeable {
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
             try {
-                pp.destroyForcefully();
+                platformInstance.killProcessAndChildren(p, true);
             } catch (InterruptedException ignore) {
             }
         }
@@ -430,35 +419,6 @@ public final class Exec implements Closeable {
     @Override
     public String toString() {
         return Utils.deepToString(cmds, 90).toString();
-    }
-
-    private static class UnixParentProcess extends PidProcess {
-        public static final int SIGINT = 2;
-        private final Process process;
-
-        public UnixParentProcess(Process process, int pid) {
-            super(pid);
-            this.process = process;
-        }
-
-        @Override
-        public void destroy(boolean forceful) throws IOException, InterruptedException {
-            // Use pkill to kill all subprocesses under the main shell
-            String[] cmd = {"pkill", "-" + (forceful ? LibC.SIGKILL : SIGINT), "-P", Integer.toString(pid)};
-            Runtime.getRuntime().exec(cmd).waitFor();
-
-            // If forcible, then also kill the parent (the shell)
-            if (forceful) {
-                process.destroy();
-                process.waitFor(2, TimeUnit.SECONDS);
-                process.destroyForcibly();
-            }
-        }
-
-        @Override
-        public boolean isAlive() throws IOException, InterruptedException {
-            return process.isAlive();
-        }
     }
 
     /**

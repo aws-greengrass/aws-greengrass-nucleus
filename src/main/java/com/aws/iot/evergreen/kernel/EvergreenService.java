@@ -289,6 +289,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     public final CompletableFuture<Void> close() {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
         context.get(Executor.class).execute(() -> {
+            logger.atInfo("service-close").log("Service is now closing");
             try {
                 Periodicity t = periodicityInformation;
                 if (t != null) {
