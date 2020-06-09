@@ -3,21 +3,28 @@
 
 package com.aws.iot.evergreen.util;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.nio.Buffer;
 import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"})
 public final class Utils {
@@ -564,6 +571,36 @@ public final class Utils {
             // change this when trying to support Evergreen in Non-POSIX OS.
             Files.createDirectories(p,
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+        }
+    }
+
+    /**
+     * Flip a Map from key->value to value->List(key).
+     *
+     * @param sourceMap map to flip
+     * @param <K> key type
+     * @param <V> value type
+     * @return inverted map
+     */
+    public static <K, V> Map<V, List<K>> inverseMap(Map<K, V> sourceMap) {
+        return sourceMap.entrySet().stream().collect(Collectors
+                .toMap(Map.Entry::getValue, t -> new ArrayList<>(Collections.singletonList(t.getKey())), (a, b) -> {
+                    a.addAll(b);
+                    return a;
+                }));
+    }
+
+    /**
+     * Read InputStream to a string.
+     * @param is input stream
+     * @return string or null if there was an exception
+     */
+    public static String inputStreamToString(InputStream is) {
+        try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+             BufferedReader sr = new BufferedReader(isr)) {
+            return sr.lines().collect(Collectors.joining("\n"));
+        } catch (IOException e) {
+            return null;
         }
     }
 }
