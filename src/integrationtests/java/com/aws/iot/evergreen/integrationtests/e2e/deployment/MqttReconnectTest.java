@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -52,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EGExtension.class)
 @Tag("E2E-INTRUSIVE")
 public class MqttReconnectTest extends BaseE2ETestCase {
-    private Kernel kernel;
 
     private static final String dnsCacheTtlPropertyKey = "networkaddress.cache.ttl";
     private static final Duration DNS_CACHE_TTL = Duration.ofSeconds(10);
@@ -67,13 +65,9 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         dnsCacheTtlValue = java.security.Security.getProperty(dnsCacheTtlPropertyKey);
         java.security.Security.setProperty(dnsCacheTtlPropertyKey, Long.toString(DNS_CACHE_TTL.getSeconds()));
 
-        kernel = new Kernel()
-                .parseArgs("-i", DeploymentE2ETest.class.getResource("blank_config.yaml").toString(), "-r", tempRootDir
-                        .toAbsolutePath().toString());
+        initKernel();
 
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
-
-        Path localStoreContentPath = Paths.get(DeploymentE2ETest.class.getResource("local_store_content").getPath());
+        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }

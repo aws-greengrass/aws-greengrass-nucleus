@@ -26,6 +26,7 @@ import java.util.Objects;
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
 import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
 import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_SERVICE_CRED_PROVIDER;
+import static com.aws.iot.evergreen.packagemanager.PackageStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -137,7 +138,7 @@ public class KernelCommandLine {
             throw rte;
         }
 
-        kernel.getContext().put("packageStoreDirectory", kernel.getPackageStorePath());
+        kernel.getContext().put(CONTEXT_PACKAGE_STORE_DIRECTORY, kernel.getPackageStorePath());
     }
 
     /**

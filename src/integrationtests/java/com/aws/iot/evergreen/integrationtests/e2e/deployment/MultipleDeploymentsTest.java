@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.DeploymentJobHelper;
-import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -24,9 +23,6 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,19 +40,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
 class MultipleDeploymentsTest extends BaseE2ETestCase {
-    private Kernel kernel;
 
     @BeforeEach
-    void beforeEach() throws IOException {
-        kernel = new Kernel().parseArgs("-i", MultipleDeploymentsTest.class.getResource("blank_config.yaml")
-                .toString(), "-r", tempRootDir.toAbsolutePath().toString());
-
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
-
-        Path localStoreContentPath = Paths
-                .get(MultipleDeploymentsTest.class.getResource("local_store_content").getPath());
-        // pre-load contents to package store
-        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+    void beforeEach() throws Exception {
+        initKernel();
     }
 
     @AfterEach

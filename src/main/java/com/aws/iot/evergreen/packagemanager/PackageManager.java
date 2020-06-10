@@ -160,7 +160,7 @@ public class PackageManager implements InjectionActions {
         Optional<PackageRecipe> packageOptional = Optional.empty();
         try {
             packageOptional = packageStore.findPackageRecipe(packageIdentifier);
-            logger.atInfo().kv("component", packageIdentifier).log("Loaded from local component store");
+            logger.atDebug().kv("component", packageIdentifier).log("Loaded from local component store");
         } catch (PackageLoadingException e) {
             logger.atWarn().log("Failed to load package recipe for {}", packageIdentifier, e);
         }
@@ -169,7 +169,7 @@ public class PackageManager implements InjectionActions {
         }
         PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
         packageStore.savePackageRecipe(packageRecipe);
-        logger.atInfo().kv("component", packageIdentifier).log("Downloaded from component service");
+        logger.atDebug().kv("component", packageIdentifier).log("Downloaded from component service");
         return packageRecipe;
     }
 
