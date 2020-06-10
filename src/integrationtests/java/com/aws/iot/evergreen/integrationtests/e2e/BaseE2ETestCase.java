@@ -182,7 +182,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                     .log("Skip artifact upload. No artifacts found");
         } else {
             for (File artifact : artifactFiles) {
-                GreengrassPackageServiceHelper.uploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
+                GreengrassPackageServiceHelper.createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
                         pkgId.getVersion().toString());
             }
         }

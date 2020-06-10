@@ -57,6 +57,11 @@ public final class TestHelper {
         return getPathForTestPackage(testPackageName, testPackageVersion).resolve("recipe.yaml");
     }
 
+    public static Path getArtifactForTestPackage(String testPackageName, String testPackageVersion,
+                                                 String testArtifactName) throws URISyntaxException {
+        return getPathForTestPackage(testPackageName, testPackageVersion).resolve(testArtifactName);
+    }
+
     public static PackageRecipe getPackageObject(String recipe) throws IOException {
         return OBJECT_MAPPER.readValue(recipe, PackageRecipe.class);
     }

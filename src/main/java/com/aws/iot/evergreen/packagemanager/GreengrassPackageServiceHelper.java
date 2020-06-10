@@ -140,8 +140,9 @@ public class GreengrassPackageServiceHelper {
      * @param componentVersion version of the component that requires the artifact
      * @throws IOException if file upload fails
      */
-    public static void uploadComponentArtifact(AWSGreengrassComponentManagement cmsClient, File artifact,
-                                        String componentName, String componentVersion) throws IOException {
+    public static void createAndUploadComponentArtifact(AWSGreengrassComponentManagement cmsClient, File artifact,
+                                                        String componentName, String componentVersion)
+            throws IOException {
         if (skipComponentArtifactUpload(artifact)) {
             logger.atDebug("upload-component-artifact").kv("filePath",  artifact.getAbsolutePath())
                     .log("Skip artifact upload. Not a regular file");
@@ -149,14 +150,27 @@ public class GreengrassPackageServiceHelper {
         }
         logger.atDebug("upload-component-artifact").kv("artifactName", artifact.getName())
                 .kv("filePath", artifact.getAbsolutePath()).log();
+        CreateComponentArtifactUploadUrlResult artifactUploadUrlResult = createComponentArtifactUploadUrl(cmsClient,
+                componentName, componentVersion, artifact.getName());
+        uploadComponentArtifact(artifactUploadUrlResult.getUrl(), artifact);
+    }
+
+    protected static CreateComponentArtifactUploadUrlResult createComponentArtifactUploadUrl(
+            AWSGreengrassComponentManagement cmsClient, String componentName,
+            String componentVersion, String artifactName) {
         CreateComponentArtifactUploadUrlRequest artifactUploadUrlRequest = new CreateComponentArtifactUploadUrlRequest()
                 .withComponentName(componentName).withComponentVersion(componentVersion)
-                .withArtifactName(artifact.getName());
-        CreateComponentArtifactUploadUrlResult artifactUploadUrlResult = cmsClient
-                .createComponentArtifactUploadUrl(artifactUploadUrlRequest);
+                .withArtifactName(artifactName);
+        return cmsClient.createComponentArtifactUploadUrl(artifactUploadUrlRequest);
+    }
 
-        URL s3PreSignedURL = new URL(artifactUploadUrlResult.getUrl());
-        HttpURLConnection connection = (HttpURLConnection) s3PreSignedURL.openConnection();
+    protected static void uploadComponentArtifact(String uploadUrl, File artifact) throws IOException {
+        URL s3PreSignedURL = new URL(uploadUrl);
+        uploadComponentArtifact(s3PreSignedURL, artifact);
+    }
+
+    protected static void uploadComponentArtifact(URL uploadUrl, File artifact) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) uploadUrl.openConnection();
         connection.setDoOutput(true);
         connection.setRequestMethod("PUT");
         connection.connect();
