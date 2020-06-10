@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,13 +167,13 @@ public class PackageStore {
             throws PackagingException {
         File[] recipeFiles = recipeDirectory.toFile().listFiles();
 
+        List<PackageMetadata> packageMetadataList = new ArrayList<>();
         if (recipeFiles == null || recipeFiles.length == 0) {
-            return Collections.emptyList();
+            return packageMetadataList;
         }
 
         Arrays.sort(recipeFiles);
 
-        List<PackageMetadata> packageMetadataList = new ArrayList<>();
 
         for (File recipeFile : recipeFiles) {
             String recipePackageName = parsePackageNameFromFileName(recipeFile.getName());

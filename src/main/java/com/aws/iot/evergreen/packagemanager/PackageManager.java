@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -91,8 +90,8 @@ public class PackageManager implements InjectionActions {
                 findActiveAndSatisfiedPackageMetadata(packageName, versionRequirement);
 
         // 2. list available packages locally
-        List<PackageMetadata> packageMetadataList = new ArrayList<>(
-                packageStore.listAvailablePackageMetadata(packageName, versionRequirement));
+        List<PackageMetadata> packageMetadataList =
+                packageStore.listAvailablePackageMetadata(packageName, versionRequirement);
 
         // 3. If the active satisfied version presents, set it as the head of list.
         if (optionalActivePackageMetadata.isPresent()) {
