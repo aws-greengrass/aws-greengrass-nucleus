@@ -5,9 +5,12 @@
 
 package com.aws.iot.evergreen.mqtt;
 
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.LockScope;
+import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.WriteLockScope;
 import lombok.Getter;
 import software.amazon.awssdk.crt.CRT;
@@ -18,9 +21,12 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -28,9 +34,13 @@ import java.util.function.Supplier;
 import javax.inject.Provider;
 
 import static com.aws.iot.evergreen.mqtt.MqttClient.CLIENT_ID_KEY;
+import static com.aws.iot.evergreen.mqtt.MqttClient.DEFAULT_MQTT_CONNECT_TIMEOUT;
 import static com.aws.iot.evergreen.mqtt.MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+import static com.aws.iot.evergreen.mqtt.MqttClient.MQTT_CONNECT_TIMEOUT_KEY;
 
 public class IndividualMqttClient implements Closeable {
+    private static final String TOPIC_KEY = "topic";
+    private static final String QOS_KEY = "qos";
     private final Logger logger = LogManager.getLogger(IndividualMqttClient.class).createChild()
             .dfltKv(CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
@@ -61,61 +71,71 @@ public class IndividualMqttClient implements Closeable {
         public void onConnectionResumed(boolean sessionPresent) {
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
                 currentlyConnected.set(true);
+                // If we didn't reconnect using the same session, then resubscribe to all the topics
+                if (!sessionPresent) {
+                    resubscribe();
+                }
             }
             logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
         }
     };
 
     private final Consumer<MqttMessage> messageHandler;
-    private final AtomicInteger subscriptionCount = new AtomicInteger(0);
+    private final Topics mqttTopics;
+    private final Set<Pair<String, QualityOfService>> subscriptionTopics = new CopyOnWriteArraySet<>();
 
     IndividualMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider, Consumer<MqttMessage> messageHandler,
-                         String clientId) {
+                         String clientId, Topics mqttTopics) {
         this.builderProvider = builderProvider;
         this.messageHandler = messageHandler;
         this.clientId = clientId;
+        this.mqttTopics = mqttTopics;
     }
 
-    void subscribe(String topic, QualityOfService qos) throws ExecutionException, InterruptedException {
+    void subscribe(String topic, QualityOfService qos)
+            throws ExecutionException, InterruptedException, TimeoutException {
         try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
             connect();
-            logger.atTrace().kv("topic", topic).kv("qos", qos.name()).log("Subscribing to topic");
+            logger.atTrace().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
             connection.subscribe(topic, qos).get();
-            subscriptionCount.incrementAndGet();
+            subscriptionTopics.add(new Pair<>(topic, qos));
         }
     }
 
-    void unsubscribe(String topic) throws ExecutionException, InterruptedException {
+    void unsubscribe(String topic) throws ExecutionException, InterruptedException, TimeoutException {
         try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
             connect();
-            logger.atTrace().kv("topic", topic).log("Unsubscribing from topic");
+            logger.atTrace().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
             connection.unsubscribe(topic).get();
-            subscriptionCount.decrementAndGet();
+            subscriptionTopics.removeIf(p -> p.getLeft().equals(topic));
         }
     }
 
     void publish(MqttMessage message, QualityOfService qos, boolean retain)
-            throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException, TimeoutException {
         try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
             connect();
-            logger.atTrace().kv("topic", message.getTopic()).kv("qos", qos.name()).kv("retain", retain)
+            logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
                     .log("Publishing message");
             connection.publish(message, qos, retain).get();
         }
     }
 
-    void reconnect() throws ExecutionException, InterruptedException {
+    void reconnect() throws ExecutionException, InterruptedException, TimeoutException {
         try (WriteLockScope scope = WriteLockScope.lock(connectionLock)) {
             logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
             disconnect();
-            connect();
+            // If we didn't resume the session (which is unlikely), then manually resubscribe
+            if (!connect()) {
+                resubscribe();
+            }
         }
     }
 
-    private void connect() throws ExecutionException, InterruptedException {
+    private boolean connect() throws ExecutionException, InterruptedException, TimeoutException {
         try (WriteLockScope scope = WriteLockScope.lock(connectionLock)) {
             if (connected()) {
-                return;
+                return true;
             }
 
             // Always use the builder provider here so that the builder is updated with whatever
@@ -127,20 +147,34 @@ public class IndividualMqttClient implements Closeable {
                 connection = builder.build();
                 connection.onMessage(messageHandler);
                 logger.atInfo().log("Connecting to AWS IoT Core");
-                connection.connect().get();
+                boolean sessionPresent = connection.connect()
+                        .get(Coerce.toInt(
+                                mqttTopics.findOrDefault(DEFAULT_MQTT_CONNECT_TIMEOUT, MQTT_CONNECT_TIMEOUT_KEY)),
+                        TimeUnit.MILLISECONDS);
                 currentlyConnected.set(true);
-                subscriptionCount.set(0);
-                logger.atInfo().log("Successfully connected to AWS IoT Core");
+                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
+                return sessionPresent;
             }
         }
     }
 
+    private void resubscribe() {
+        subscriptionTopics.forEach(s -> {
+            try {
+                subscribe(s.getLeft(), s.getRight());
+            } catch (ExecutionException | InterruptedException | TimeoutException e) {
+                logger.atError().kv(TOPIC_KEY, s.getLeft()).kv(QOS_KEY, s.getRight().name())
+                        .log("Unable to resubscribe to topic");
+            }
+        });
+    }
+
     boolean canAddNewSubscription() {
-        return subscriptionCount.get() < MAX_SUBSCRIPTIONS_PER_CONNECTION;
+        return subscriptionTopics.size() < MAX_SUBSCRIPTIONS_PER_CONNECTION;
     }
 
     int subscriptionCount() {
-        return subscriptionCount.get();
+        return subscriptionTopics.size();
     }
 
     boolean connected() {
@@ -154,6 +188,7 @@ public class IndividualMqttClient implements Closeable {
             currentlyConnected.set(false);
             if (connection != null) {
                 logger.atDebug().log("Disconnecting from AWS IoT Core");
+                subscriptionTopics.clear();
                 connection.disconnect().get();
                 connection.close();
                 logger.atDebug().log("Successfully disconnected from AWS IoT Core");

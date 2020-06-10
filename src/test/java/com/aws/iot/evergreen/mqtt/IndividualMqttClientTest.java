@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.mqtt;
 
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,10 +21,12 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,8 +53,10 @@ class IndividualMqttClientTest {
 
     @Test
     void GIVEN_individual_client_THEN_it_tracks_connection_state_correctly()
-            throws ExecutionException, InterruptedException {
-        IndividualMqttClient client = new IndividualMqttClient(() -> builder, null, "A");
+            throws ExecutionException, InterruptedException, TimeoutException {
+        Topics mockTopic = mock(Topics.class);
+        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
+        IndividualMqttClient client = new IndividualMqttClient(() -> builder, null, "A", mockTopic);
 
         assertFalse(client.connected());
 

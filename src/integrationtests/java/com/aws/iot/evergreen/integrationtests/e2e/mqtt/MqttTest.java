@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,7 +43,7 @@ public class MqttTest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_mqttclient_WHEN_subscribe_and_publish_THEN_receives_all_messages()
-            throws IOException, ExecutionException, InterruptedException {
+            throws IOException, ExecutionException, InterruptedException, TimeoutException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());

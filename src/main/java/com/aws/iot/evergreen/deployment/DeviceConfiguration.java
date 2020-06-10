@@ -37,9 +37,10 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
+    public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
+    public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
+
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
-    private static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
-    private static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
 

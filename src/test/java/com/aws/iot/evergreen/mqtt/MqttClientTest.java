@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.Pair;
+import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -83,9 +85,10 @@ class MqttClientTest {
         config.context.close();
     }
 
+    @SneakyThrows
     @Test
     void GIVEN_multiple_subset_subscriptions_WHEN_subscribe_or_unsubscribe_THEN_only_subscribes_and_unsubscribes_once()
-            throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder);
         assertFalse(client.connected());
 
@@ -108,7 +111,8 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_connection_WHEN_settings_change_THEN_reconnects() throws ExecutionException, InterruptedException {
+    void GIVEN_connection_WHEN_settings_change_THEN_reconnects()
+            throws ExecutionException, InterruptedException, TimeoutException {
         ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
         doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder));
@@ -119,7 +123,7 @@ class MqttClientTest {
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
-        cc.getValue().childChanged(WhatHappened.childChanged, null);
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_MQTT_NAMESPACE));
         verify(iClient1).reconnect();
 
         client.close();
@@ -128,15 +132,13 @@ class MqttClientTest {
 
     @Test
     void GIVEN_connection_has_50_subscriptions_THEN_new_connection_added_as_needed()
-            throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder));
         IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
         IndividualMqttClient iClient2 = mock(IndividualMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
-        when(iClient1.canAddNewSubscription()).thenReturn(false);
+        when(iClient1.canAddNewSubscription()).thenReturn(true).thenReturn(false);
         when(iClient2.canAddNewSubscription()).thenReturn(true);
-        when(iClient1.subscriptionCount()).thenReturn(50);
-        when(iClient2.subscriptionCount()).thenReturn(1);
 
         // Have the MQTT client load the client with 50 subscriptions
         client.subscribe(SubscribeRequest.builder().topic("A").callback(cb).build());
@@ -147,26 +149,29 @@ class MqttClientTest {
 
     @Test
     void GIVEN_connection_has_0_subscriptions_THEN_all_but_last_connection_will_be_closed()
-            throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder));
         IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
         IndividualMqttClient iClient2 = mock(IndividualMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
-        when(iClient1.canAddNewSubscription()).thenReturn(false).thenReturn(true);
-        when(iClient1.subscriptionCount()).thenReturn(50).thenReturn(0);
+        when(iClient1.canAddNewSubscription()).thenReturn(true).thenReturn(false).thenReturn(false);
+        when(iClient2.canAddNewSubscription()).thenReturn(true);
+        when(iClient1.subscriptionCount()).thenReturn(1);
         when(iClient2.subscriptionCount()).thenReturn(0);
 
         client.subscribe(SubscribeRequest.builder().topic("A").callback(cb).build());
         client.subscribe(SubscribeRequest.builder().topic("B").callback(cb).build());
+        client.publish(PublishRequest.builder().topic("A").payload(new byte[0]).build());
 
         verify(client, times(3)).getNewMqttClient();
         // Only 1 client is closed
         verify(iClient1, times(0)).close();
-        verify(iClient2).close();
+        verify(iClient2, times(1)).close();
     }
 
     @Test
-    void GIVEN_mqttclient_WHEN_publish_THEN_message_published() throws ExecutionException, InterruptedException {
+    void GIVEN_mqttclient_WHEN_publish_THEN_message_published()
+            throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder);
         assertFalse(client.connected());
 
