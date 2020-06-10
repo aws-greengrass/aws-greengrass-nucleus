@@ -4,6 +4,11 @@ PackageName: SlowToDeployApp
 Description: An app that takes some time to install so as to slow down deployments
 Publisher: Me
 Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
 Lifecycle:
-  install:
-    sleep 5
+  all:
+    install:
+      sleep 5

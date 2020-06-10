@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.aws.iot.evergreen.kernel.Kernel.CONTEXT_SERVICE_IMPLEMENTERS;
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
 
@@ -134,7 +135,7 @@ public class KernelLifecycle {
 
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
-                kernel.getContext().put("service-implementors", serviceImplementors);
+                kernel.getContext().put(CONTEXT_SERVICE_IMPLEMENTERS, serviceImplementors);
             }
             logger.atInfo().log("serviceImplementors: {}", deepToString(serviceImplementors));
         } catch (IOException t) {
