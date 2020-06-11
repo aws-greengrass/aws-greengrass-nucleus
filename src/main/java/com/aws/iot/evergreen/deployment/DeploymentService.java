@@ -57,7 +57,7 @@ public class DeploymentService extends EvergreenService {
     // When the wait time is reduced, the old job could already completed and removed from the queue when
     // the duplicated job comes. It can only be reduced after the IoTJobHelper::describeJobExecutionResponseConsumer
     // can dedupe properly.
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(3).toMillis();
+    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
