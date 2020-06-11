@@ -54,11 +54,15 @@ class MqttTopicTest {
     void superset_single_level_wildcards() {
         assertTrue(MqttTopic.topicIncludes("+", "+"));
         assertTrue(MqttTopic.topicIncludes("+", "X"));
-        assertTrue(MqttTopic.topicIncludes("A/+", "+/B"));
-        assertTrue(MqttTopic.topicIncludes("+/B", "A/+"));
-        assertTrue(MqttTopic.topicIncludes("A/+/C", "A/B/+"));
+        assertTrue(MqttTopic.topicIncludes("A/+", "A/B"));
+        assertTrue(MqttTopic.topicIncludes("A/+", "A/D"));
+        assertTrue(MqttTopic.topicIncludes("A/+/B", "A/D/B"));
 
+        assertFalse(MqttTopic.topicIncludes("A/+/C", "A/B/+"));
+        assertFalse(MqttTopic.topicIncludes("+/B", "A/+"));
+        assertFalse(MqttTopic.topicIncludes("A/+", "+/B"));
         assertFalse(MqttTopic.topicIncludes("A/B/+/+", "A/B/+"));
+        assertFalse(MqttTopic.topicIncludes("A/B/+", "A/+/C"));
         assertFalse(MqttTopic.topicIncludes("A/+", "B/C"));
         assertFalse(MqttTopic.topicIncludes("A/+/C", "A/B/+/+"));
     }

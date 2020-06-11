@@ -47,9 +47,6 @@ public class MqttTopic {
             }
             String testStr = tester.subscriptionParts.get(i);
             if (!subscriptionParts.get(i).equals(testStr)) {
-                if (SINGLE_LEVEL_WILDCARD.equals(testStr)) {
-                    continue;
-                }
                 return false;
             }
         }
