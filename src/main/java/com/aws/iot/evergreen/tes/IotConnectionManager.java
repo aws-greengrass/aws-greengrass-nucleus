@@ -61,8 +61,8 @@ public class IotConnectionManager implements Closeable {
             return HttpClientConnectionManager
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
                             .withSocketOptions(new SocketOptions()).withTlsContext(new TlsContext(tlsCtxOptions))
-                            .withPort(IOT_PORT)
-                            .withUri( URI.create("https://" + Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))));
+                            .withPort(IOT_PORT).withUri(URI.create(
+                                    "https://" + Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))));
         }
     }
 

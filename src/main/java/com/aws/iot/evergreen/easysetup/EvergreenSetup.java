@@ -225,10 +225,13 @@ public class EvergreenSetup {
     }
 
     void provision(Kernel kernel) throws IOException {
-        outStream.println(String.format("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...", thingName));
+        outStream.println(
+                String.format("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...", thingName));
         ThingInfo thingInfo =
                 deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
-        outStream.println(String.format("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!", thingName));
+        outStream.println(
+                String.format("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!",
+                        thingName));
 
         outStream.println("Configuring kernel with provisioned resource details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
