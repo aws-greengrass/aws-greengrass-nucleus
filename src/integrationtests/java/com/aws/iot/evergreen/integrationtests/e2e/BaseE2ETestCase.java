@@ -92,7 +92,10 @@ public class BaseE2ETestCase implements AutoCloseable {
             new PackageIdentifier("Mosquitto", new Semver("0.9.0")),
             new PackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
             new PackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
-            new PackageIdentifier("Log", new Semver("2.0.0"))};
+            new PackageIdentifier("Log", new Semver("2.0.0")),
+            new PackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
+            new PackageIdentifier("NonDisruptableService", new Semver("1.0.1"))
+    };
 
     @BeforeAll
     static void beforeAll() throws Exception {

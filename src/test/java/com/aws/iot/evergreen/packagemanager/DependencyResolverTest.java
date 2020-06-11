@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.dependency.DependencyType;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
@@ -182,7 +183,7 @@ class DependencyResolverTest {
 
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections.singletonList(pkgA), Collections
                     .singletonList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
             List<PackageIdentifier> result = resolver.resolveDependencies(doc, Collections.singletonList(pkgA));
 
             assertEquals(4, result.size());
@@ -242,10 +243,10 @@ class DependencyResolverTest {
             when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
             // top-level package order: A, B2
-            DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2), Arrays.asList(
-                    new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                    new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
+            DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
             List<PackageIdentifier> result = resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2));
 
@@ -266,10 +267,10 @@ class DependencyResolverTest {
             when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
-            doc = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA), Arrays.asList(
-                    new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                    new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
+            doc = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
             result = resolver.resolveDependencies(doc, Arrays.asList(pkgB2, pkgA));
             verify(mockPackageManager).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
 
@@ -332,10 +333,10 @@ class DependencyResolverTest {
             when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
             // top-level package order: A, B2
-            DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2), Arrays.asList(
-                    new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                    new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
+            DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
             Exception thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2)));
@@ -357,10 +358,10 @@ class DependencyResolverTest {
             when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0"))))
                     .thenReturn(Collections.singletonList(packageC_1_2_0).iterator());
 
-            DeploymentDocument doc2 = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA), Arrays.asList(
-                    new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                    new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
+            DeploymentDocument doc2 = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
             thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc2, Arrays.asList(pkgB2, pkgA)));
@@ -426,10 +427,10 @@ class DependencyResolverTest {
             when(mockPackageManager.getPackageVersionFromService(mockServiceB2)).thenReturn(v1_0_0);
 
             // New deployment: A, B1
-            DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB1), Arrays.asList(
-                    new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                    new DeploymentPackageConfiguration(pkgB1, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING);
+            DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB1),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB1, v1_1_0.toString(), new HashMap<>())),
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
             // DA gives A, B1, B2 as root packages, meaning B2 is a root package for another group
             List<PackageIdentifier> result = resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB1, pkgB2));

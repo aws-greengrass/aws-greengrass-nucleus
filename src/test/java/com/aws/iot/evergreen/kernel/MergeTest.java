@@ -16,10 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,6 +46,8 @@ public class MergeTest {
         }
     }
 
+    // TODO : following tests need to go into the unit tests for DeploymentConfigMerger class when we add it
+    //  and should be tested through the available public method mergeNewConfig instead
     @Test
     public void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()
             throws Exception {
@@ -58,12 +58,9 @@ public class MergeTest {
         when(mockMainService.reachedDesiredState()).thenReturn(true);
         when(mockServiceA.reachedDesiredState()).thenReturn(true);
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
-        CompletableFuture<?> future = new CompletableFuture<>();
         Set<EvergreenService> evergreenServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, System.currentTimeMillis());
-
-        assertFalse(future.isCompletedExceptionally());
+        DeploymentConfigMerger.waitForServicesToStart(evergreenServices, System.currentTimeMillis());
     }
 
     @Test
@@ -78,11 +75,10 @@ public class MergeTest {
         when(mockMainService.reachedDesiredState()).thenReturn(true);
         when(mockServiceA.reachedDesiredState()).thenReturn(true);
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
-        CompletableFuture<?> future = new CompletableFuture<>();
         Set<EvergreenService> evergreenServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
 
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
-                () -> DeploymentConfigMerger.waitForServicesToStart(evergreenServices, future, curTime - 10L));
+                () -> DeploymentConfigMerger.waitForServicesToStart(evergreenServices, curTime - 10L));
 
         assertEquals("Service main in broken state after deployment", ex.getMessage());
     }

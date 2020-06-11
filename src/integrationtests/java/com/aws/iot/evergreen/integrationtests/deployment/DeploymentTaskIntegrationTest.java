@@ -314,6 +314,81 @@ class DeploymentTaskIntegrationTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
     }
 
+    @Test
+    @Order(6)
+    void GIVEN_deployment_in_progress_WHEN_deployment_task_is_cancelled_THEN_stop_processing() throws Exception {
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("AddNewServiceWithSafetyCheck.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(30, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+
+        // should contain main, NonDisruptableService 1.0.0
+        assertEquals(2, services.size());
+        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+
+        CountDownLatch cdlUpdateStarted = new CountDownLatch(1);
+        CountDownLatch cdlMergeCancelled = new CountDownLatch(1);
+        Consumer<EvergreenStructuredLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getMessage().contains("checkIfSafeToUpdate decided it is unsafe to update now")) {
+                cdlUpdateStarted.countDown();
+            }
+            if (m.getMessage() != null && m.getMessage().contains("Cancelled deployment merge future due to interrupt")) {
+                cdlMergeCancelled.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(),
+                System.currentTimeMillis());
+
+        assertTrue(cdlUpdateStarted.await(30, TimeUnit.SECONDS));
+        resultFuture.cancel(true);
+
+        assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
+
+        services = kernel.orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+
+        // should contain main, NonDisruptableService 1.0.0
+        assertEquals(2, services.size());
+        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService")
+                .find("version").getOnce());
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
+    }
+
+    @Test
+    @Order(7)
+    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
+
+        // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
+        // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
+        // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
+        // safety check
+
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(evergreenService -> evergreenService instanceof GenericExternalService)
+                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+
+        // should contain main, NonDisruptableService 1.0.1
+        assertEquals(2, services.size());
+        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService")
+                .find("version").getOnce());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+    }
+
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);

@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -48,6 +49,7 @@ import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtec
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -172,6 +174,33 @@ class PackageManagerTest {
 
         Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_prepare_packages_running_WHEN_prepare_cancelled_THEN_task_stops()
+            throws Exception {
+        PackageIdentifier pkgId1 = new PackageIdentifier("MonitoringService", new Semver("1.0.0"), "PackageARN");
+        PackageIdentifier pkgId2 = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+
+        String fileName = "MonitoringService-1.0.0.yaml";
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        PackageRecipe pkg1 = SerializerFactory.getRecipeSerializer()
+                .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+
+        CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
+        when(packageServiceHelper.downloadPackageRecipe(pkgId1)).thenAnswer(
+                invocationOnMock -> {
+                    startedPreparingPkgId1.countDown();
+                    Thread.sleep(2_000);
+                    return pkg1;
+                });
+
+        Future<Void> future = packageManager.preparePackages(Arrays.asList(pkgId1, pkgId2));
+        assertTrue(startedPreparingPkgId1.await(1, TimeUnit.SECONDS));
+        future.cancel(true);
+
+        verify(packageServiceHelper).downloadPackageRecipe(pkgId1);
+        verify(packageServiceHelper, times(0)).downloadPackageRecipe(pkgId2);
     }
 
     @Test

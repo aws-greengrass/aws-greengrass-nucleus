@@ -1,0 +1,22 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: NonDisruptableService
+Description: A service that can be performing important task so should not be restarted if not safe
+Publisher: Me
+Version: '1.0.1'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
+  - windows
+Lifecycle:
+  run: |-
+    while true; do
+    echo "running non disruptable service version 1.0.1"; sleep 5
+    done
+  checkIfSafeToUpdate:
+    recheckPeriod: 5
+    script: |-
+      echo "Not SafeUpdate"
+      exit 1
+    updatesCompleted: echo "Yes! Updates completed"

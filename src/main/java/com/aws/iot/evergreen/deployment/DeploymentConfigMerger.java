@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -61,87 +62,95 @@ public class DeploymentConfigMerger {
     public Future<DeploymentResult> mergeInNewConfig(DeploymentDocument deploymentDocument,
                                                      Map<Object, Object> newConfig) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
-        long timestamp = deploymentDocument.getTimestamp();
 
         if (newConfig.get(SERVICES_NAMESPACE_TOPIC) == null) {
-            kernel.getConfig().mergeMap(timestamp, newConfig);
+            kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
             totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
             return totallyCompleteFuture;
+        }
+
+        if (DeploymentSafetyPolicy.CHECK_SAFETY.equals(deploymentDocument.getDeploymentSafetyPolicy())) {
+            kernel.getContext().get(UpdateSystemSafelyService.class)
+                    .addUpdateAction(deploymentDocument.getDeploymentId(),
+                            () -> updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture));
+        } else {
+            logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
+            updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture);
+        }
+
+        return totallyCompleteFuture;
+    }
+
+    private void updateActionForDeployment(Map<Object, Object> newConfig, DeploymentDocument deploymentDocument,
+                                           CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+        String deploymentId = deploymentDocument.getDeploymentId();
+
+        // if the update is cancelled, don't perform merge
+        if (totallyCompleteFuture.isCancelled()) {
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
+                    .log("Future was cancelled so no need to go through with the update");
+            return;
+        }
+        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
+                .log("Applying deployment changes , deployment cannot be cancelled now");
+
+        FailureHandlingPolicy failureHandlingPolicy = deploymentDocument.getFailureHandlingPolicy();
+        if (isAutoRollbackRequested(failureHandlingPolicy)) {
+            try {
+                takeSnapshotForRollback(deploymentId);
+            } catch (IOException e) {
+                // Failed to record snapshot hence did not execute merge, no rollback needed
+                logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                        .log("Failed to take a snapshot for rollback");
+                totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+                return;
+            }
         }
 
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
         AggregateServicesChangeManager servicesChangeManager =
                 new AggregateServicesChangeManager(kernel, serviceConfig);
 
-        String deploymentId = deploymentDocument.getDeploymentId();
-        kernel.getContext().get(UpdateSystemSafelyService.class).addUpdateAction(deploymentId, () -> {
+        // Get the timestamp before mergeMap(). It will be used to check whether services have started.
+        long mergeTime = System.currentTimeMillis();
 
-            // if the update is cancelled, don't perform merge
-            if (totallyCompleteFuture.isCancelled()) {
-                return;
-            }
-
-            FailureHandlingPolicy failureHandlingPolicy = deploymentDocument.getFailureHandlingPolicy();
-            if (isAutoRollbackRequested(failureHandlingPolicy)) {
+        kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
+        // wait until topic listeners finished processing mergeMap changes.
+        kernel.getContext().runOnPublishQueue(() -> {
+            // polling to wait for all services to be started.
+            kernel.getContext().get(ExecutorService.class).execute(() -> {
+                //TODO: Add timeout
                 try {
-                    takeSnapshotForRollback(deploymentId);
-                } catch (IOException e) {
-                    // Failed to record snapshot hence did not execute merge, no rollback needed
-                    logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                            .log("Failed to take a snapshot for rollback");
-                    totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-                    return;
-                }
-            }
-            // Get the timestamp before mergeMap(). It will be used to check whether services have started.
-            long mergeTime = System.currentTimeMillis();
+                    servicesChangeManager.startNewServices();
 
-            kernel.getConfig().mergeMap(timestamp, newConfig);
-            // wait until topic listeners finished processing mergeMap changes.
-            kernel.getContext().runOnPublishQueue(() -> {
-                // polling to wait for all services to be started.
-                kernel.getContext().get(ExecutorService.class).execute(() -> {
-                    //TODO: Add timeout
-                    try {
-                        servicesChangeManager.startNewServices();
+                    // Restart any services that may have been broken before this deployment
+                    // This is added to allow deployments to fix broken services
+                    servicesChangeManager.reinstallBrokenServices();
 
-                        // Restart any services that may have been broken before this deployment
-                        // This is added to allow deployments to fix broken services
-                        servicesChangeManager.reinstallBrokenServices();
+                    Set<EvergreenService> servicesToTrack = servicesChangeManager.servicesToTrack();
+                    logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack)
+                            .log("Applied new service config. Waiting for services to complete update");
 
-                        Set<EvergreenService> servicesToTrack = servicesChangeManager.servicesToTrack();
-                        logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack)
-                                .log("Applied new service config. Waiting for services to complete update");
-
-                        waitForServicesToStart(servicesToTrack, totallyCompleteFuture, mergeTime);
-                        logger.atDebug(MERGE_CONFIG_EVENT_KEY).log("new/updated services are running, will now remove"
-                                + " old services");
-                        if (totallyCompleteFuture.isCancelled()) {
-                            // TODO : Does this need rolling back to old config?
-                            logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
-                                    .log("merge-config-cancelled");
-                            return;
-                        }
-                        servicesChangeManager.removeObsoleteServices();
-                        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
-                                .log("All services updated");
-                        totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
-                    } catch (ServiceLoadException | InterruptedException | ServiceUpdateException
-                            | ExecutionException e) {
-                        logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
-                                .log("Deployment failed");
-                        if (isAutoRollbackRequested(failureHandlingPolicy)) {
-                            rollback(deploymentId, totallyCompleteFuture, e, servicesChangeManager.toRollback());
-                        } else {
-                            totallyCompleteFuture
-                                    .complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, e));
-                        }
+                    waitForServicesToStart(servicesToTrack, mergeTime);
+                    logger.atDebug(MERGE_CONFIG_EVENT_KEY).log("new/updated services are running, will now remove"
+                            + " old services");
+                    servicesChangeManager.removeObsoleteServices();
+                    logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                            .log("All services updated");
+                    totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
+                } catch (ServiceLoadException | InterruptedException | ServiceUpdateException
+                        | ExecutionException e) {
+                    logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
+                            .log("Deployment failed");
+                    if (isAutoRollbackRequested(failureHandlingPolicy)) {
+                        rollback(deploymentId, totallyCompleteFuture, e, servicesChangeManager.toRollback());
+                    } else {
+                        totallyCompleteFuture
+                                .complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, e));
                     }
-                });
+                }
             });
-
         });
-        return totallyCompleteFuture;
     }
 
     /*
@@ -150,7 +159,8 @@ public class DeploymentConfigMerger {
     private void rollback(String deploymentId, CompletableFuture<DeploymentResult> totallyCompleteFuture,
                           Throwable failureCause, AggregateServicesChangeManager servicesChangeManager) {
 
-        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("Rolling back failed deployment");
+        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                .log("Rolling back failed deployment");
 
         // Get the timestamp before merging snapshot. It will be used to check whether services have started.
         long mergeTime;
@@ -181,7 +191,7 @@ public class DeploymentConfigMerger {
 
                     Set<EvergreenService> servicesToTrackForRollback = servicesChangeManager.servicesToTrack();
 
-                    waitForServicesToStart(servicesToTrackForRollback, totallyCompleteFuture, mergeTime);
+                    waitForServicesToStart(servicesToTrackForRollback, mergeTime);
 
                     servicesChangeManager.removeObsoleteServices();
                     logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
@@ -208,15 +218,15 @@ public class DeploymentConfigMerger {
      * Completes the provided future when all of the listed services are running.
      *
      * @param servicesToTrack       service to track
-     * @param totallyCompleteFuture future to complete
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
      */
-    public static void waitForServicesToStart(Set<EvergreenService> servicesToTrack,
-                                              CompletableFuture<?> totallyCompleteFuture, long mergeTime)
+    public static void waitForServicesToStart(Set<EvergreenService> servicesToTrack, long mergeTime)
             throws InterruptedException, ServiceUpdateException {
-        while (!totallyCompleteFuture.isCancelled()) {
+        // Relying on the fact that all service lifecycle steps should have timeouts,
+        // assuming this loop will not get stuck waiting forever
+        while (true) {
             boolean allServicesRunning = true;
             for (EvergreenService service : servicesToTrack) {
                 State state = service.getState();
@@ -373,7 +383,7 @@ public class DeploymentConfigMerger {
 
                     serviceClosedFutures.add(eg.close());
                 } catch (ServiceLoadException e) {
-                    logger.atError().setCause(e).addKeyValue("serviceName", serviceName)
+                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue("serviceName", serviceName)
                             .log("Could not locate EvergreenService to close service");
                     // No need to handle the error when trying to stop a non-existing service.
                     return false;
