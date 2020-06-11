@@ -182,6 +182,7 @@ class KernelTest {
         kernel.writeEffectiveConfig();
         String readFile = new String(Files.readAllBytes(kernel.getConfigPath().resolve("effectiveConfig.evg")),
                 StandardCharsets.UTF_8);
+        assertTrue(readFile.contains(EXPECTED_CONFIG_OUTPUT));
     }
 
     @Test
