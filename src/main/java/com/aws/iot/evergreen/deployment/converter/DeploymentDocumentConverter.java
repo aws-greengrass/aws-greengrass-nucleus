@@ -5,10 +5,14 @@
 
 package com.aws.iot.evergreen.deployment.converter;
 
+import com.amazonaws.arn.Arn;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
+import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
+import com.aws.iot.evergreen.deployment.model.PackageInfo;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +24,7 @@ import java.util.stream.Collectors;
 public final class DeploymentDocumentConverter {
 
     private static final String ANY_VERSION = "*";
+    private static final String DEFAULT_GROUP_NAME = "DEFAULT";
 
     private DeploymentDocumentConverter() {
         // So that this can't be initialized
@@ -61,7 +66,46 @@ public final class DeploymentDocumentConverter {
                 .deploymentPackageConfigurationList(packageConfigurations)
                 // Currently we always skip safety check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).build();
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK)
+                .groupName(StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? DEFAULT_GROUP_NAME
+                        : localOverrideRequest.getGroupName()).build();
+    }
+
+    /**
+     * Convert {@link FleetConfiguration} to a {@link DeploymentDocument}.
+     * @param config config received from Iot cloud
+     * @return equivalent {@link DeploymentDocument}
+     */
+    public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
+        DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
+                .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
+                .rootPackages(new ArrayList<>()).deploymentPackageConfigurationList(new ArrayList<>()).build();
+
+        String groupName = null;
+        try {
+            // Resource name formats:
+            // configuration:thing/<thing-name>:version
+            // configuration:thinggroup/<thing-group-name>:version
+            groupName = Arn.fromString(config.getConfigurationArn())
+                    .getResource().getResource();
+        } catch (IllegalArgumentException e) {
+            groupName = config.getConfigurationArn();
+        }
+        deploymentDocument.setGroupName(groupName);
+
+        if (config.getPackages() == null) {
+            return deploymentDocument;
+        }
+        for (Map.Entry<String, PackageInfo> entry : config.getPackages().entrySet()) {
+            String pkgName = entry.getKey();
+            PackageInfo pkgInfo = entry.getValue();
+            if (pkgInfo.isRootComponent()) {
+                deploymentDocument.getRootPackages().add(pkgName);
+            }
+            deploymentDocument.getDeploymentPackageConfigurationList()
+                    .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.getVersion(), pkgInfo.getConfiguration()));
+        }
+        return deploymentDocument;
     }
 
     private static List<DeploymentPackageConfiguration> buildDeploymentPackageConfigurations(
@@ -93,5 +137,4 @@ public final class DeploymentDocumentConverter {
         });
         return packageConfigurations;
     }
-
 }

@@ -35,7 +35,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
-import software.amazon.awssdk.regions.Region;
 
 import java.io.File;
 import java.io.IOException;
@@ -77,8 +76,6 @@ class DeploymentTaskIntegrationTest {
     private static final String TEST_CUSTOMER_APP_STRING_UPDATED = "Hello evergreen. This is a new value";
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
-
-    protected static final Region BETA_REGION = Region.US_EAST_1;
 
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -395,7 +392,7 @@ class DeploymentTaskIntegrationTest {
         sampleJobDocument.setTimestamp(timestamp);
         DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
-                        logger, sampleJobDocument);
+                        logger, sampleJobDocument, kernel);
         return executorService.submit(deploymentTask);
     }
 

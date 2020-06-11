@@ -3,6 +3,9 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
@@ -17,6 +20,7 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import org.apache.commons.codec.Charsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -26,21 +30,30 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Spy;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 import org.mockito.verification.VerificationWithTimeout;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.spy;
@@ -54,6 +67,9 @@ import static org.mockito.Mockito.when;
 public class DeploymentServiceTest extends EGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
+    private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
+    private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
+
     private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
 
     @Spy
@@ -61,8 +77,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
     @Mock
     ExecutorService mockExecutorService;
-    DeploymentService deploymentService;
-    LinkedBlockingQueue<Deployment> deploymentsQueue;
     @Mock
     private DependencyResolver dependencyResolver;
     @Mock
@@ -73,13 +87,30 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private DeploymentConfigMerger deploymentConfigMerger;
     @Mock
     private DeploymentStatusKeeper deploymentStatusKeeper;
+    @Mock
+    private Topics mockGroupToRootPackages;
     private Thread deploymentServiceThread;
+
+    DeploymentService deploymentService;
+    LinkedBlockingQueue<Deployment> deploymentsQueue;
+    List<Topic> groupsToRootPackageEntries = new ArrayList<>();
+
 
     @BeforeEach
     public void setup() {
         // initialize Evergreen service specific mocks
         serviceFullName = "DeploymentService";
         initializeMockedConfig();
+        when(mockGroupToRootPackages.lookup(anyString())).thenAnswer( new Answer() {
+            @Override
+            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+                Topic topicForGroup = Topic.of(new Context(), (String)invocationOnMock.getArguments()[0], null);
+                groupsToRootPackageEntries.add(topicForGroup);
+                return topicForGroup;
+            }
+        });
+
+        when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_PACKAGES_TOPICS)).thenReturn(mockGroupToRootPackages);
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
 
         // Creating the class to be tested
@@ -107,7 +138,12 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @BeforeEach
         public void setup() throws Exception {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
-            deploymentsQueue.put(new Deployment("{\"configurationArn\":\"testArn\"}",
+            String deploymentDocument
+                    = new BufferedReader(new InputStreamReader(
+                            getClass().getResourceAsStream("TestDeploymentDocument.json"), Charsets.UTF_8))
+                    .lines()
+                    .collect(Collectors.joining("\n"));
+            deploymentsQueue.put(new Deployment(deploymentDocument,
                     Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
         }
 
@@ -122,6 +158,12 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+            assertThat("Missing group to root package entries",
+                    groupsToRootPackageEntries != null || !groupsToRootPackageEntries.isEmpty());
+            assertThat("Wrong group name entry",
+                    groupsToRootPackageEntries.get(0).getName().equals(EXPECTED_GROUP_NAME));
+            assertThat("Wrong root components list for group name",
+                    ((List<String>)groupsToRootPackageEntries.get(0).getOnce()).contains(EXPECTED_ROOT_PACKAGE_NAME));
             verify(mockExecutorService).submit(any(DeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());

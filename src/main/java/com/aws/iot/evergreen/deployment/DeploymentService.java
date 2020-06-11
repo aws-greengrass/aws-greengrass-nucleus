@@ -48,6 +48,7 @@ import javax.inject.Named;
 public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
+    public static final String GROUP_TO_ROOT_PACKAGES_TOPICS = "GroupToRootPackages";
 
     protected static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -293,6 +294,9 @@ public class DeploymentService extends EvergreenService {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
             deploymentDocument = parseAndValidateJobDocument(deployment);
+            Topics groupToRootPackages = config.lookupTopics(GROUP_TO_ROOT_PACKAGES_TOPICS);
+            groupToRootPackages.lookup(deploymentDocument.getGroupName())
+                    .withValue(deploymentDocument.getRootPackages());
         } catch (InvalidRequestException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
@@ -305,7 +309,7 @@ public class DeploymentService extends EvergreenService {
         }
         DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
-                        logger, deploymentDocument);
+                        logger, deploymentDocument, kernel);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
@@ -335,7 +339,7 @@ public class DeploymentService extends EvergreenService {
                     break;
                 case IOT_JOBS:
                     FleetConfiguration config = OBJECT_MAPPER.readValue(jobDocumentString, FleetConfiguration.class);
-                    document = new DeploymentDocument(config);
+                    document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());

@@ -24,6 +24,7 @@ import java.util.Map;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -69,7 +70,9 @@ public class DeploymentDocument {
         deploymentPackageConfigurationList = new ArrayList<>();
 
         try {
-            // Example formats: thing/<thing-name>, thinggroup/<thing-group-name>
+            // Resource name format:
+            // configuration:thinggroup/<thing-group-name>:version
+            //configuration:thing/<thingname>:version
             groupName = Arn.fromString(deploymentId).getResource().getResource();
         } catch (IllegalArgumentException e) {
             groupName = deploymentId;
@@ -84,8 +87,8 @@ public class DeploymentDocument {
             if (pkgInfo.isRootComponent()) {
                 rootPackages.add(pkgName);
             }
-            deploymentPackageConfigurationList.add(new DeploymentPackageConfiguration(pkgName, pkgInfo.getVersion(),
-                    pkgInfo.getConfiguration()));
+            deploymentPackageConfigurationList
+                    .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.getVersion(), pkgInfo.getConfiguration()));
         }
     }
 }

@@ -1,9 +1,14 @@
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
@@ -16,16 +21,24 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,12 +47,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 class DeploymentTaskTest {
+
+    private static final String COMPONENT_1_ROOT_PACKAGE_NAME = "component1";
+    private static final String COMPONENT_2_ROOT_PACKAGE_NAME = "component2";
+
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
@@ -52,9 +71,16 @@ class DeploymentTaskTest {
     private Future<Void> mockPreparePackagesFuture;
     @Mock
     private Future<DeploymentResult> mockMergeConfigFuture;
+    @Mock
+    private Kernel mockKernel;
+    @Mock
+    private Configuration mockConfig;
+    @Mock
+    private Topics mockTopics;
+
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
-                    .rootPackages(Collections.emptyList()).build();
+                    .rootPackages(Arrays.asList(COMPONENT_1_ROOT_PACKAGE_NAME)).build();
 
     private final Logger logger = LogManager.getLogger("unit test");
 
@@ -63,8 +89,22 @@ class DeploymentTaskTest {
 
     @BeforeEach
     void setup() {
+        when(mockKernel.getConfig()).thenReturn(mockConfig);
+        doAnswer(new Answer() {
+
+            @Override
+            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+                Consumer<Topic> consumerMethod = (Consumer<Topic>) invocationOnMock.getArguments()[0];
+                Topic group1 = Topic.of(new Context(), "group1", Arrays.asList(COMPONENT_2_ROOT_PACKAGE_NAME));
+                consumerMethod.accept(group1);
+                return null;
+            }
+        }).when(mockTopics).deepForEachTopic(any());
+
+        when(mockConfig.lookupTopics(eq(SERVICES_NAMESPACE_TOPIC), eq(DeploymentService.DEPLOYMENT_SERVICE_TOPICS),
+                eq(DeploymentService.GROUP_TO_ROOT_PACKAGES_TOPICS))).thenReturn(mockTopics);
         deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageManager, mockKernelConfigResolver,
-                mockDeploymentConfigMerger, logger, deploymentDocument);
+                mockDeploymentConfigMerger, logger, deploymentDocument, mockKernel);
     }
 
     @Test
@@ -74,7 +114,10 @@ class DeploymentTaskTest {
         when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        ArgumentCaptor<List> argumentCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), argumentCaptor.capture());
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_1_ROOT_PACKAGE_NAME));
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_2_ROOT_PACKAGE_NAME));
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger).mergeInNewConfig(any(), any());
@@ -83,11 +126,15 @@ class DeploymentTaskTest {
     @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_with_conflicted_dependency_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.emptyList()))
+        when(mockDependencyResolver.resolveDependencies(eq(deploymentDocument),
+                eq(Arrays.asList(COMPONENT_1_ROOT_PACKAGE_NAME, COMPONENT_2_ROOT_PACKAGE_NAME))))
                 .thenThrow(new PackageVersionConflictException(""));
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageVersionConflictException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        ArgumentCaptor<List> argumentCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), argumentCaptor.capture());
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_1_ROOT_PACKAGE_NAME));
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_2_ROOT_PACKAGE_NAME));
         verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -95,11 +142,15 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted() throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.emptyList()))
+        when(mockDependencyResolver.resolveDependencies(eq(deploymentDocument),
+                eq(Arrays.asList(COMPONENT_1_ROOT_PACKAGE_NAME, COMPONENT_2_ROOT_PACKAGE_NAME))))
                 .thenThrow(new PackagingException("mock error"));
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackagingException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        ArgumentCaptor<List> argumentCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), argumentCaptor.capture());
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_1_ROOT_PACKAGE_NAME));
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_2_ROOT_PACKAGE_NAME));
         verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -160,7 +211,12 @@ class DeploymentTaskTest {
         assertTrue(preparePackagesInvoked.await(3, TimeUnit.SECONDS));
         t.interrupt();
 
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        Exception thrown = assertThrows(ExecutionException.class, () -> futureTask.get(5, TimeUnit.SECONDS));
+        assertThat(thrown.getCause(), isA(RetryableDeploymentTaskFailureException.class));
+        ArgumentCaptor<List> argumentCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), argumentCaptor.capture());
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_1_ROOT_PACKAGE_NAME));
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_2_ROOT_PACKAGE_NAME));
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockPreparePackagesFuture, timeout(5000)).cancel(true);
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
@@ -185,7 +241,12 @@ class DeploymentTaskTest {
         resolveConfigInvoked.await(3, TimeUnit.SECONDS);
         t.interrupt();
 
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
+        assertThat(thrown.getCause(), isA(PackageLoadingException.class));
+        ArgumentCaptor<List> argumentCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), argumentCaptor.capture());
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_1_ROOT_PACKAGE_NAME));
+        assertThat("Missing root package", argumentCaptor.getValue().contains(COMPONENT_2_ROOT_PACKAGE_NAME));
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
