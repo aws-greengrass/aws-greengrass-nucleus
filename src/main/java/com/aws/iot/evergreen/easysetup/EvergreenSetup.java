@@ -147,8 +147,9 @@ public class EvergreenSetup {
                 setup.provision(kernel);
             }
 
+            setup.outStream.println("Launching kernel...");
             kernel.launch();
-            setup.outStream.println("Launched kernel");
+            setup.outStream.println("Launched kernel successfully.");
 
             // Install Evergreen cli
             if (setup.installCli) {
@@ -224,11 +225,18 @@ public class EvergreenSetup {
     }
 
     void provision(Kernel kernel) throws IOException {
-        outStream.println("Provisioning AWS IoT resources for the device...");
+        outStream.println(
+                String.format("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...", thingName));
         ThingInfo thingInfo =
                 deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
-        outStream.println("Configuring kernel with provisioning details...");
+        outStream.println(
+                String.format("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!",
+                        thingName));
+
+        outStream.println("Configuring kernel with provisioned resource details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
+        outStream.println("Successfully configured kernel with provisioned resource details!");
+
 
         if (setupTes) {
             outStream.println("Setting up resources for TokenExchangeService...");
@@ -237,6 +245,8 @@ public class EvergreenSetup {
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
             outStream.println("Creating an empty component for TokenExchangeService...");
             deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
+            outStream.println("Successfully configured TokenExchangeService!");
+
         }
     }
 

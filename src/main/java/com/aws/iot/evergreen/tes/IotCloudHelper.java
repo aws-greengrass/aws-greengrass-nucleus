@@ -92,7 +92,7 @@ public class IotCloudHelper {
         final CompletableFuture<Integer> reqCompleted = new CompletableFuture<>();
         final Map<String, String> responseHeaders = new HashMap<>();
         final StringBuilder responseBody = new StringBuilder();
-        conn.makeRequest(request, createResponseHandler(reqCompleted, responseHeaders, responseBody));
+        conn.makeRequest(request, createResponseHandler(reqCompleted, responseHeaders, responseBody)).activate();
         // Give the request up to N seconds to complete, otherwise throw a TimeoutException
         // TODO: handle 4xx,5xx, timeouts and connection issues
         try {
