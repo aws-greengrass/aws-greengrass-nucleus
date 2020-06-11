@@ -20,7 +20,6 @@ import com.aws.iot.evergreen.util.CommitableWriter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -55,6 +54,8 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
  */
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
+
+    protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     @Getter
     private final Context context;
     @Getter
@@ -274,7 +275,7 @@ public class Kernel {
 
             // try to find service implementation class from plugins.
             if (clazz == null) {
-                Map<String, Class<?>> si = context.getIfExists(Map.class, "service-implementors");
+                Map<String, Class<?>> si = context.getIfExists(Map.class, CONTEXT_SERVICE_IMPLEMENTERS);
                 if (si != null) {
                     logger.atInfo().kv(EvergreenService.SERVICE_NAME_KEY, name)
                             .log("Attempt to load service from plugins");
@@ -302,8 +303,8 @@ public class Kernel {
                         context.put(ret.getClass(), v);
                     }
                     if (clazz.getAnnotation(ImplementsService.class) != null) {
-                        Semver version = new Semver(clazz.getAnnotation(ImplementsService.class).version());
-                        topics.createLeafChild(VERSION_CONFIG_KEY).withValue(version);
+                        topics.createLeafChild(VERSION_CONFIG_KEY)
+                                .withValue(clazz.getAnnotation(ImplementsService.class).version());
                     }
 
                     logger.atInfo("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName())
@@ -346,7 +347,7 @@ public class Kernel {
             if (service.isAutostart()) {
                 continue;
             }
-            rootPackageNameAndVersionMap.put(service.getName(), ((Semver) version.getOnce()).getValue());
+            rootPackageNameAndVersionMap.put(service.getName(), Coerce.toString(version));
         }
         return rootPackageNameAndVersionMap;
     }

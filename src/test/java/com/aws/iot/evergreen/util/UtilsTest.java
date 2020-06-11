@@ -4,19 +4,24 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import org.hamcrest.collection.IsMapWithSize;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.aws.iot.evergreen.util.Utils.deepToString;
 import static com.aws.iot.evergreen.util.Utils.dequote;
+import static com.aws.iot.evergreen.util.Utils.inverseMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -86,12 +91,15 @@ public class UtilsTest {
         assertEquals("[5,\"hello\",{},{CDC:\"6400\",PDP:\"8/I\"}]", deepToString(o, 80).toString());
         assertEquals("[5,\"hello\"...]", deepToString(o, 6).toString());
         assertEquals("[5,\"hello\",{},{CDC:\"6400\"...}]", deepToString(o, 20).toString());
+        assertEquals("null", deepToString(null).toString());
+        assertEquals("[5,\"hello\",{},{CDC:\"6400\"...}]", deepToString(Arrays.asList(o), 20).toString());
     }
 
     @Test
     public void T3() {
         assertEquals("foo", dequote("foo"));
         assertEquals("foo\nbar", dequote("\"foo\\nbar\""));
+        assertEquals("foo\b\r\tbar", dequote("\"foo\\b\\r\\tbar\\uxxxx\""));
         assertEquals("foo\nbar", dequote("\"foo\\u000Abar\""));
     }
 
@@ -115,4 +123,12 @@ public class UtilsTest {
         assertThrows(UnsupportedOperationException.class, () -> map.put("b", 4));
     }
 
+    @Test
+    public void testInverseMap() {
+        Map<String, Integer> map = Utils.immutableMap("a", 1, "b", 2, "c", 1);
+        Map<Integer, List<String>> result = inverseMap(map);
+        assertThat(result, IsMapWithSize.aMapWithSize(2));
+        assertThat(result.get(1), containsInAnyOrder("a", "c"));
+        assertThat(result.get(2), containsInAnyOrder("b"));
+    }
 }

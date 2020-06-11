@@ -4,10 +4,15 @@ PackageName: YellowSignal
 Description: A service signalling proceed with caution
 Publisher: Me
 Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
 Parameters:
   - name: message
     type: STRING
     value: This is a test
 Lifecycle:
-  run:
-    "echo proceed with caution {{params:message.value}}"
+  all:
+    run:
+      "echo proceed with caution {{params:message.value}}"

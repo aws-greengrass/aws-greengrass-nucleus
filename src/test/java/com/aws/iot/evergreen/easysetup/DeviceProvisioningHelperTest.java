@@ -93,7 +93,7 @@ public class DeviceProvisioningHelperTest {
 
     @BeforeEach
     public void setup() {
-        deviceProvisioningHelper = new DeviceProvisioningHelper(iotClient, iamClient, cmsClient);
+        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, cmsClient);
     }
 
     @Test

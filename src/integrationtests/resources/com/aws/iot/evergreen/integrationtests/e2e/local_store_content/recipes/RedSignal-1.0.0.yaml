@@ -4,6 +4,11 @@ PackageName: RedSignal
 Description: A service revoking approval to proceed
 Publisher: Me
 Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
 Lifecycle:
-  run:
-    "echo Stop what you are doing"
+  all:
+    run:
+      "echo Stop what you are doing"

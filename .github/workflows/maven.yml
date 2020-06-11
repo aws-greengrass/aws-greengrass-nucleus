@@ -36,6 +36,8 @@ jobs:
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
+        if: always()
+        continue-on-error: true
         with:
           name: Coverage Report
           path: target/jacoco-report
