@@ -126,6 +126,7 @@ public class EvergreenSetup {
     @SuppressWarnings({"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.DoNotCallSystemExit"})
     public static void main(String[] args) {
         try {
+            System.out.println("Setting up the Lifecycle Manager...");
             EvergreenSetup setup = new EvergreenSetup(args);
 
             // Describe usage of the command
@@ -140,8 +141,9 @@ public class EvergreenSetup {
                 setup.provision(kernel);
             }
 
+            System.out.println("Starting the kernel...");
             kernel.launch();
-            logger.atInfo().log("Launched kernel");
+            System.out.println("The Evergreen Lifecycle Manager has been setup and started successfully! Please go to localhost:1441 to view the local dashboard.");
 
             // Install Evergreen cli
             if (setup.installCli) {
@@ -150,6 +152,7 @@ public class EvergreenSetup {
             }
         } catch (Throwable t) {
             logger.atError().setCause(t).log("Error while trying to setup Evergreen kernel");
+            System.out.println("Error while trying to setup Evergreen Lifecycle Manager.");
             System.exit(1);
         }
     }
@@ -215,17 +218,23 @@ public class EvergreenSetup {
     }
 
     void provision(Kernel kernel) throws IOException {
-        logger.atInfo().log("Provisioning AWS IoT resources for the device...");
+        System.out.println("Provisioning AWS IoT resources for the device...");
+        System.out.println("IoT Thing Name: " + thingName);
         ThingInfo thingInfo =
                 deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
-        logger.atInfo().log("Configuring kernel with provisioning details...");
+        System.out.println("Succeeded!");
+        System.out.println("Configuring kernel with provisioning details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
+        System.out.println("Succeeded!");
 
         if (setupTes) {
-            logger.atInfo().log("Setting up resources for TokenExchangeService...");
+            System.out.println("Setting up resources for TokenExchangeService...");
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
-            logger.atInfo().log("Configuring kernel with TokenExchangeService role details...");
+            System.out.println("Succeeded!");
+
+            System.out.println("Configuring kernel with TokenExchangeService role details...");
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
+            System.out.println("Succeeded!");
             logger.atInfo().log("Creating an empty component for TokenExchangeService...");
             deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
         }
