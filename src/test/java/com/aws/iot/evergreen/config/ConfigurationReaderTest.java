@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(EGExtension.class)
 public class ConfigurationReaderTest {
@@ -55,5 +56,48 @@ public class ConfigurationReaderTest {
         ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, true, null);
         assertEquals("TLogValue", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                                 SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_forced_timestamp_THEN_topic_is_removed() throws Exception {
+        // Create this topic with temp value
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                      "lifecycle", "shutdown").withNewerValue(Long.MAX_VALUE, "Test");
+        Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, true, null);
+
+        assertNull(config.find(SERVICES_NAMESPACE_TOPIC, "YellowSignal", "lifecycle", "shutdown"));
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_smaller_timestamp_THEN_topic_is_removed() throws Exception {
+        // Create this topic with temp value
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                      "lifecycle", "shutdown").withNewerValue(1,"Test", true);
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, false, null);
+        assertNull(config.find(SERVICES_NAMESPACE_TOPIC, "YellowSignal", "lifecycle", "shutdown"));
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_larger_timestamp_THEN_topic_is_not_removed() throws Exception {
+        // Create this topic with temp value
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                      "lifecycle", "shutdown").withNewerValue(Long.MAX_VALUE,"Test");
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, false, null);
+
+        Topic resultTopic = config.find(SERVICES_NAMESPACE_TOPIC, "YellowSignal", "lifecycle", "shutdown");
+        assertEquals("Test", resultTopic.getOnce());
+        assertEquals(Long.MAX_VALUE, resultTopic.getModtime());
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_merge_THEN_first_and_last_line_is_merged() throws Exception {
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, false, null);
+
+        assertEquals("firstline", config.find("test", "firstline").getOnce());
+        assertEquals("lastline", config.find("test", "lastline").getOnce());
     }
 }

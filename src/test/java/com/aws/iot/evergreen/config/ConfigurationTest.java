@@ -21,6 +21,7 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
@@ -182,4 +183,27 @@ public class ConfigurationTest {
         assertTrue(childChangedCorrectly.await(100, TimeUnit.MILLISECONDS));
     }
 
+    @Test
+    public void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() {
+        Topic testTopic = config.lookup("a", "b", "c");
+        AtomicInteger childNotified = new AtomicInteger(0);
+        testTopic.subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified.incrementAndGet();
+            }
+        });
+        AtomicInteger parentNotified = new AtomicInteger(0);
+        config.findTopics("a", "b").subscribe((what, child) -> {
+            if (child == testTopic && what.equals(WhatHappened.childRemoved)) {
+                parentNotified.incrementAndGet();
+            }
+        });
+
+        testTopic.remove();
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        assertEquals(1, childNotified.get());
+        assertEquals(1, parentNotified.get());
+        assertNull(config.find("a", "b", "c"));
+    }
 }

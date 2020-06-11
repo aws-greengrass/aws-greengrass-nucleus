@@ -198,7 +198,7 @@ public class Configuration {
                                 .anyFrom(in));
                 break;
             case "tlog":
-                ConfigurationReader.mergeTLogInto(this, in);
+                ConfigurationReader.mergeTLogInto(this, in, false, null);
                 break;
             default:
                 throw new IllegalArgumentException(
