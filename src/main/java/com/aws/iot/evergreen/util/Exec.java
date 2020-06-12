@@ -148,7 +148,7 @@ public final class Exec implements Closeable {
     }
 
     public static String sh(File dir, String command) throws InterruptedException, IOException {
-        return new Exec().cd(dir).withShell(command).execAndGetStringOutput();
+        return new Exec().cd(dir).withExec("sh", "-c", command).execAndGetStringOutput();
     }
 
     public static String sh(Path dir, String command) throws InterruptedException, IOException {

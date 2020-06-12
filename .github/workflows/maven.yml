@@ -90,11 +90,11 @@ jobs:
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: mvn -ntp install -DskipTests && mvn -ntp -f src/test/evergreen-kernel-benchmark install
   e2e-test:
-    name: E2E Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [Linux, Windows]
+      strategy:
+        matrix:
+          os: [Linux, Windows]
+      name: E2E Test on ${{ matrix.os }}
     needs: build
     steps:
       - uses: actions/checkout@v2
