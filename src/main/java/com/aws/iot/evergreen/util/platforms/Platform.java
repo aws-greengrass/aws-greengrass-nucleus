@@ -38,4 +38,6 @@ public abstract class Platform {
             throws IOException, InterruptedException;
 
     public abstract String[] getShellForCommand(String command);
+
+    public abstract int exitCodeWhenCommandDoesNotExist();
 }

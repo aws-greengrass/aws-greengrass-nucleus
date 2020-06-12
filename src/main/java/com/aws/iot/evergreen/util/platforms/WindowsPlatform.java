@@ -25,4 +25,9 @@ public class WindowsPlatform extends Platform {
     public String[] getShellForCommand(String command) {
         return new String[]{"cmd.exe", "/C", command};
     }
+
+    @Override
+    public int exitCodeWhenCommandDoesNotExist() {
+        return 1;
+    }
 }

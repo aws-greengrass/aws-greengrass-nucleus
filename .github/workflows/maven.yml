@@ -91,10 +91,10 @@ jobs:
         run: mvn -ntp install -DskipTests && mvn -ntp -f src/test/evergreen-kernel-benchmark install
   e2e-test:
     runs-on: ${{ matrix.os }}
-      strategy:
-        matrix:
-          os: [Linux, Windows]
-      name: E2E Test on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [Linux, Windows]
+    name: E2E Test on ${{ matrix.os }}
     needs: build
     steps:
       - uses: actions/checkout@v2
