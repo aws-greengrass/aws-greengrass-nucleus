@@ -77,7 +77,6 @@ public class MqttClient implements Closeable {
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
     private final ClientBootstrap clientBootstrap;
-    private final ExecutorService executorService;
 
     //
     // TODO: Handle timeouts and retries
@@ -110,7 +109,6 @@ public class MqttClient implements Closeable {
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
                          ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
-        this.executorService = executorService;
 
         // If anything in the device configuration changes, then we wil need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
@@ -123,7 +121,7 @@ public class MqttClient implements Closeable {
                     return;
                 }
                 // Reconnect in separate thread to not block publish thread
-                executorService.submit(() -> {
+                executorService.execute(() -> {
                     for (IndividualMqttClient connection : connections) {
                         try {
                             connection.reconnect();
@@ -164,7 +162,7 @@ public class MqttClient implements Closeable {
                 // If none of our existing subscriptions include (through wildcards) the new topic, then
                 // go ahead and subscribe to it
                 if (subscriptionTopics.stream()
-                        .noneMatch(s -> MqttTopic.topicIncludes(s.getLeft(), request.getTopic()))) {
+                        .noneMatch(s -> MqttTopic.topicIsSupersetOf(s.getLeft(), request.getTopic()))) {
                     connection = getConnection(true);
                 }
             }
@@ -195,7 +193,7 @@ public class MqttClient implements Closeable {
                         r -> r.getCallback() == request.getCallback() && r.getTopic().equals(request.getTopic()));
                 // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
                 deadSubscriptionTopics = subscriptionTopics.stream().filter(s -> subscriptions.stream()
-                        .noneMatch(sub -> MqttTopic.topicIncludes(s.getLeft(), sub.getTopic())))
+                        .noneMatch(sub -> MqttTopic.topicIsSupersetOf(s.getLeft(), sub.getTopic())))
                         .collect(Collectors.toSet());
 
             }
@@ -252,7 +250,7 @@ public class MqttClient implements Closeable {
         return (message) -> {
             logger.atTrace().kv(CLIENT_ID_KEY, clientId).kv("topic", message.getTopic()).log("Received MQTT message");
             Set<SubscribeRequest> subs =
-                    subscriptions.stream().filter(s -> MqttTopic.topicIncludes(s.getTopic(), message.getTopic()))
+                    subscriptions.stream().filter(s -> MqttTopic.topicIsSupersetOf(s.getTopic(), message.getTopic()))
                             .collect(Collectors.toSet());
             if (subs.isEmpty()) {
                 logger.atError().kv("topic", message.getTopic()).kv(CLIENT_ID_KEY, clientId)

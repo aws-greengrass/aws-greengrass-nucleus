@@ -30,31 +30,29 @@ public class MqttTopic {
      * @param testTopic topic to compare against
      * @return true if this instance equals or contains the testTopic
      */
-    public boolean includes(String testTopic) {
-        if (this.topic.equals(testTopic)) {
+    public boolean isSupersetOf(MqttTopic testTopic) {
+        if (this.topic.equals(testTopic.topic)) {
             return true;
         }
 
-        MqttTopic tester = new MqttTopic(testTopic);
-
         int i;
-        for (i = 0; i < Math.min(subscriptionParts.size(), tester.subscriptionParts.size()); i++) {
+        for (i = 0; i < Math.min(subscriptionParts.size(), testTopic.subscriptionParts.size()); i++) {
             if (MULTILEVEL_WILDCARD.equals(subscriptionParts.get(i))) {
                 return true;
             }
             if (SINGLE_LEVEL_WILDCARD.equals(subscriptionParts.get(i))) {
                 continue; // single wildcard, continue to match on the rest of the topic
             }
-            String testStr = tester.subscriptionParts.get(i);
+            String testStr = testTopic.subscriptionParts.get(i);
             if (!subscriptionParts.get(i).equals(testStr)) {
                 return false;
             }
         }
         // If we didn't make it to the end of either topic, then it doesn't match
-        return i >= tester.subscriptionParts.size() && i >= subscriptionParts.size();
+        return i >= testTopic.subscriptionParts.size() && i >= subscriptionParts.size();
     }
 
-    public static boolean topicIncludes(String topic, String testTopic) {
-        return new MqttTopic(topic).includes(testTopic);
+    public static boolean topicIsSupersetOf(String topic, String testTopic) {
+        return new MqttTopic(topic).isSupersetOf(new MqttTopic(testTopic));
     }
 }
