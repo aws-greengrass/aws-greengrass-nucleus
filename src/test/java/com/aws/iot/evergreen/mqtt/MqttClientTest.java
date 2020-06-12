@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -49,6 +51,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +67,8 @@ class MqttClientTest {
 
     @Mock
     MqttClientConnection mockConnection;
+
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     Configuration config = new Configuration(new Context());
     private final Consumer<MqttMessage> cb = (m) -> {
@@ -83,13 +88,14 @@ class MqttClientTest {
     @AfterEach
     void afterEach() throws IOException {
         config.context.close();
+        executorService.shutdown();
     }
 
     @SneakyThrows
     @Test
     void GIVEN_multiple_subset_subscriptions_WHEN_subscribe_or_unsubscribe_THEN_only_subscribes_and_unsubscribes_once()
             throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder);
+        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
         assertFalse(client.connected());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
@@ -115,16 +121,15 @@ class MqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
         doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
-        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
 
         IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1);
-        when(iClient1.canAddNewSubscription()).thenReturn(true);
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_MQTT_NAMESPACE));
-        verify(iClient1).reconnect();
+        verify(iClient1, timeout(500)).reconnect();
 
         client.close();
         verify(iClient1).close();
@@ -133,12 +138,11 @@ class MqttClientTest {
     @Test
     void GIVEN_connection_has_50_subscriptions_THEN_new_connection_added_as_needed()
             throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
         IndividualMqttClient iClient2 = mock(IndividualMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
-        when(iClient1.canAddNewSubscription()).thenReturn(true).thenReturn(false);
-        when(iClient2.canAddNewSubscription()).thenReturn(true);
+        when(iClient1.canAddNewSubscription()).thenReturn(false);
 
         // Have the MQTT client load the client with 50 subscriptions
         client.subscribe(SubscribeRequest.builder().topic("A").callback(cb).build());
@@ -150,12 +154,11 @@ class MqttClientTest {
     @Test
     void GIVEN_connection_has_0_subscriptions_THEN_all_but_last_connection_will_be_closed()
             throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
         IndividualMqttClient iClient2 = mock(IndividualMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
-        when(iClient1.canAddNewSubscription()).thenReturn(true).thenReturn(false).thenReturn(false);
-        when(iClient2.canAddNewSubscription()).thenReturn(true);
+        when(iClient1.canAddNewSubscription()).thenReturn(false);
         when(iClient1.subscriptionCount()).thenReturn(1);
         when(iClient2.subscriptionCount()).thenReturn(0);
 
@@ -172,7 +175,7 @@ class MqttClientTest {
     @Test
     void GIVEN_mqttclient_WHEN_publish_THEN_message_published()
             throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder);
+        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
         assertFalse(client.connected());
 
         client.publish(PublishRequest.builder().topic("A/B").payload(ByteBuffer.allocate(1024).array()).build());
@@ -188,7 +191,7 @@ class MqttClientTest {
     @Test
     void GIVEN_incoming_message_WHEN_received_THEN_subscribers_are_called()
             throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder);
+        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
         assertFalse(client.connected());
 
         // Subscribe with wildcard first so that that is the active cloud subscription.
@@ -230,7 +233,7 @@ class MqttClientTest {
             ExtensionContext context)
             throws ExecutionException, InterruptedException, TimeoutException {
         ignoreExceptionWithMessage(context, "Uncaught!");
-        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder);
+        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
         assertFalse(client.connected());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback((m) -> {

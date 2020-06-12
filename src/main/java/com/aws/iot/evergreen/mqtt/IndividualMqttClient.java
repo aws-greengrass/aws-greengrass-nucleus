@@ -188,7 +188,6 @@ public class IndividualMqttClient implements Closeable {
             currentlyConnected.set(false);
             if (connection != null) {
                 logger.atDebug().log("Disconnecting from AWS IoT Core");
-                subscriptionTopics.clear();
                 connection.disconnect().get();
                 connection.close();
                 logger.atDebug().log("Successfully disconnected from AWS IoT Core");

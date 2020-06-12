@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -76,6 +77,7 @@ public class MqttClient implements Closeable {
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
     private final ClientBootstrap clientBootstrap;
+    private final ExecutorService executorService;
 
     //
     // TODO: Handle timeouts and retries
@@ -85,10 +87,11 @@ public class MqttClient implements Closeable {
      * Constructor for injection.
      *
      * @param deviceConfiguration device configuration
+     * @param executorService executor service
      */
     @Inject
-    public MqttClient(DeviceConfiguration deviceConfiguration) {
-        this(deviceConfiguration, null);
+    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
+        this(deviceConfiguration, null, executorService);
         this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
                 .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
                         Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
@@ -104,8 +107,10 @@ public class MqttClient implements Closeable {
     }
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
-                         Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider) {
+                         Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
+                         ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
+        this.executorService = executorService;
 
         // If anything in the device configuration changes, then we wil need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
@@ -114,18 +119,20 @@ public class MqttClient implements Closeable {
                 // List of configuration nodes that we need to reconfigure for if they change
                 if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node
                         .childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node
-                        .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
-                        .childOf(DEVICE_MQTT_NAMESPACE))) {
+                        .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH))) {
                     return;
                 }
-                for (IndividualMqttClient connection : connections) {
-                    try {
-                        connection.reconnect();
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
-                                .log("Error while reconnecting MQTT client");
+                // Reconnect in separate thread to not block publish thread
+                executorService.submit(() -> {
+                    for (IndividualMqttClient connection : connections) {
+                        try {
+                            connection.reconnect();
+                        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                            logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
+                                    .log("Error while reconnecting MQTT client");
+                        }
                     }
-                }
+                });
             }
         });
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
@@ -219,7 +226,9 @@ public class MqttClient implements Closeable {
         // If we have no connections, or our connections are over-subscribed, create a new connection
         if (connections.isEmpty() || forSubscription && connections.stream()
                 .noneMatch(IndividualMqttClient::canAddNewSubscription)) {
-            connections.add(getNewMqttClient());
+            IndividualMqttClient conn = getNewMqttClient();
+            connections.add(conn);
+            return conn;
         } else {
             // Check for, and then close and remove any connection that has no subscriptions
             Set<IndividualMqttClient> closableConnections =
@@ -232,12 +241,6 @@ public class MqttClient implements Closeable {
                 closableConnection.close();
                 connections.remove(closableConnection);
             }
-        }
-
-        // If this connection is to add a new subscription, then don't provide a connection
-        // which is already maxed out on subscriptions
-        if (forSubscription) {
-            return connections.stream().filter(IndividualMqttClient::canAddNewSubscription).findAny().get();
         }
 
         // Get a somewhat random, somewhat round robin connection
