@@ -18,11 +18,14 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,9 +37,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.*;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -110,9 +111,9 @@ public class ServiceDependencyLifecycleTest {
     @Test
     void GIVEN_hard_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_impacted() throws Throwable {
         // setup
+        URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_hard_dependency.yaml");
         kernel = new Kernel()
-                .parseArgs("-i", ServiceDependencyLifecycleTest.class.getResource("service_with_hard_dependency.yaml")
-                        .toString());
+                .parseArgs("-i", configFile.toString());
 
         // WHEN_kernel_launch_THEN_customer_app_starts_after_hard_dependency_is_running
         LinkedList<KernelTest.ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(Arrays
@@ -139,12 +140,8 @@ public class ServiceDependencyLifecycleTest {
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
                 put(CustomerApp, new HashMap<Object, Object>() {{
+                    putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
                 }});
             }});
         }};
@@ -164,29 +161,7 @@ public class ServiceDependencyLifecycleTest {
                 .asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<Object, Object> configAddDep = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
-                }});
-                put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(HardDependency + ":" + DependencyType.HARD));
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-                put(HardDependency, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-            }});
-        }};
+        Map<Object, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -245,9 +220,9 @@ public class ServiceDependencyLifecycleTest {
     @Test
     void GIVEN_soft_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_not_impacted() throws Throwable {
         // setup
+        URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         kernel = new Kernel()
-                .parseArgs("-i", ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml")
-                        .toString());
+                .parseArgs("-i", configFile.toString());
 
         Set<KernelTest.ExpectedStateTransition> unexpectedDuringAllSoftDepChange = new HashSet<>(Arrays
                 .asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
@@ -272,12 +247,8 @@ public class ServiceDependencyLifecycleTest {
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
                 put(CustomerApp, new HashMap<Object, Object>() {{
+                    putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
                 }});
             }});
         }};
@@ -298,29 +269,7 @@ public class ServiceDependencyLifecycleTest {
                         new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<Object, Object> configAddDep = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
-                }});
-                put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(SoftDependency + ":" + DependencyType.SOFT));
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-                put(SoftDependency, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-            }});
-        }};
+        Map<Object, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -375,9 +324,10 @@ public class ServiceDependencyLifecycleTest {
         // Assuming no other changes in customer app and dependency service
 
         String Dependency = SoftDependency;
+        URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         kernel = new Kernel()
-                .parseArgs("-i", ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml")
-                        .toString()).launch();
+                .parseArgs("-i", configFile.toString())
+                .launch();
         assertThat(kernel.locate("main")::getState, eventuallyEval(is(State.FINISHED)));
 
         List<KernelTest.ExpectedStateTransition> stateTransitions = Arrays
@@ -385,29 +335,9 @@ public class ServiceDependencyLifecycleTest {
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
 
 
-        Map<Object, Object> depTypeSoftToHard = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
-                }});
-                put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.HARD));
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-                put(Dependency, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-            }});
-        }};
+        Map<Object, Object> depTypeSoftToHard = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        ((Map) ((Map) depTypeSoftToHard.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
+                .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.HARD));
 
         DeploymentConfigMerger configMerger = kernel.getContext().get(DeploymentConfigMerger.class);
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
@@ -420,29 +350,9 @@ public class ServiceDependencyLifecycleTest {
                 new HashSet<>(stateTransitions));
 
 
-        Map<Object, Object> depTypeHardToSoft = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
-                }});
-                put(CustomerApp, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.SOFT));
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-                put(Dependency, new HashMap<Object, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "while true; do sleep 1000; done");
-                        }});
-                    }});
-                }});
-            }});
-        }};
+        Map<Object, Object> depTypeHardToSoft = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        ((Map) ((Map) depTypeHardToSoft.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
+                .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.SOFT));
 
         DeploymentDocument doc1 = mock(DeploymentDocument.class);
         when(doc1.getTimestamp()).thenReturn(System.currentTimeMillis());

@@ -2,14 +2,22 @@
 services:
   HardDependency:
     lifecycle:
-      run:
-        script: while true; do sleep 1000; done
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -c "while(1) { sleep 1000 }"
   CustomerApp:
     dependencies:
-    - HardDependency:HARD
+      - HardDependency:HARD
     lifecycle:
-      run:
-        script: while true; do sleep 1000; done
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -c "while(1) { sleep 1000 }"
   main:
     dependencies:
-    - CustomerApp:HARD
+      - CustomerApp:HARD
