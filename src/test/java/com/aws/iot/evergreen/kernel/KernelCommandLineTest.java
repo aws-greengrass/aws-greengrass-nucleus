@@ -16,9 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessageSubstring;
@@ -63,7 +61,7 @@ class KernelCommandLineTest {
     @Test
     void GIVEN_create_path_fail_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) throws Exception {
         // Make the root path not writeable so the create path method will fail
-        Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
+        // Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
 
         Kernel kernel = new Kernel();
         kernel.shutdown();

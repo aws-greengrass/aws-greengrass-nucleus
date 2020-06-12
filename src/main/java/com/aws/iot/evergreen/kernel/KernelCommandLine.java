@@ -20,7 +20,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Objects;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
@@ -157,7 +156,7 @@ public class KernelCommandLine {
             try (InputStream is = resource.openStream()) {
                 Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
             }
-            Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
+            // Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
         } catch (IOException t) {
             logger.atError().setEventType("cli-install-error").setCause(t).log();
         }

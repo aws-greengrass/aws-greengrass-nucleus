@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows]
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -86,7 +86,7 @@ jobs:
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: mvn -ntp install -DskipTests && mvn -ntp -f src/test/evergreen-kernel-benchmark install
   e2e-test:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows]
     needs: build
     steps:
       - uses: actions/checkout@v2
@@ -120,7 +120,7 @@ jobs:
           path: target/surefire-reports
   publish:
     needs: build
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2

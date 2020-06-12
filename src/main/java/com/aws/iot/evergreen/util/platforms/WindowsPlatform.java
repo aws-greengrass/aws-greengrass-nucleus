@@ -20,4 +20,9 @@ public class WindowsPlatform extends Platform {
 
         pp.destroy(force);
     }
+
+    @Override
+    public String[] getShellForCommand(String command) {
+        return new String[]{"cmd.exe", "/C", command};
+    }
 }
