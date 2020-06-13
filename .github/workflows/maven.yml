@@ -29,7 +29,7 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Build with Maven
-        run: mvn -ntp -U clean verify
+        run: mvn -ntp -U clean verify 2>&1
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
