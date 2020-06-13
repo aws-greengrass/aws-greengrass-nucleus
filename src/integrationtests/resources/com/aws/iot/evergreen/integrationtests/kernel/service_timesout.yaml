@@ -4,21 +4,19 @@ services:
     lifecycle:
       startup:
         timeout: 1
-        windows:
-          script:
+        script:
+          windows:
             powershell -command sleep 120
-        posix:
-          script: |-
+          posix:
             sleep 120
   ServiceB:
     lifecycle:
       run:
         timeout: 1
-        windows:
-          script:
+        script:
+          windows:
             powershell -command sleep 120
-        posix:
-          script: |-
+          posix:
             sleep 120
   main:
     dependencies:

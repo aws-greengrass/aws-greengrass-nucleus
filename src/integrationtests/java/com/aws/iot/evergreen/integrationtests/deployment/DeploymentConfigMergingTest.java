@@ -203,7 +203,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 put("new_service", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                            put("script", "sleep 60");
+                            put("script", "echo done");
                         }});
                     }});
                 }});
@@ -264,14 +264,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                 put("new_service", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "sleep 60");
+                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "sleep 60");
+                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                 }});
             }});
@@ -300,14 +300,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                 put("new_service", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "sleep 60");
+                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
                 }});
 
                 put("new_service2", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "sleep 60");
+                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                 }});
             }});

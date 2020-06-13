@@ -13,11 +13,10 @@ services:
     lifecycle:
       install:
         echo "Installing service_with_dynamic_config"
-      posix:
-        run:
+      run:
+        posix:
           echo "Running service_with_dynamic_config" && sleep 1000
-      windows:
-        run:
+        windows:
           powershell -command echo \"Running service_with_dynamic_config\"; sleep 1000
     version: 1.0.0
     setenv:
