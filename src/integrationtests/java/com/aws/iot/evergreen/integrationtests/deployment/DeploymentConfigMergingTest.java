@@ -406,8 +406,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         dependencies.removeIf(s -> s.contains("sleeperA"));
         servicesConfig.get("main").put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencies);
         // updating service B's run
-        ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
-                .put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "while true; do\n echo sleeperB_running; sleep 10\n done");
+        Map lifecycle = ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC));
+                lifecycle.put(LIFECYCLE_RUN_NAMESPACE_TOPIC,
+                        ((String) lifecycle.get(LIFECYCLE_RUN_NAMESPACE_TOPIC)).replace("5", "10"));
 
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
@@ -513,7 +514,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("sleeperB", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "exit -1");
+                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "exit 1");
                     }});
                 }});
             }});

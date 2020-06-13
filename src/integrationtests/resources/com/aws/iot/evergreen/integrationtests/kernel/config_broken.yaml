@@ -1,34 +1,56 @@
 services:
   installErrorRetry:
     lifecycle:
-      install: |-
-        if [ -f "/tmp/egInstallErrorRetry" ]; then
-          echo "INSTALL_SUCCEED"
-          rm /tmp/egInstallErrorRetry
-        else
-          echo "INSTALL_FAIL"
-          touch /tmp/egInstallErrorRetry
-          exit 1
-        fi
-      shutdown:
-        rm -f /tmp/egInstallErrorRetry
+      posix:
+        install: |-
+          if [ -f "/tmp/egInstallErrorRetrySucceed" ]; then
+            echo "INSTALL_SUCCEED"
+            rm /tmp/egInstallErrorRetrySucceed
+          else
+            echo "INSTALL_FAIL"
+            touch /tmp/egInstallErrorRetrySucceed
+            exit 1
+          fi
+        shutdown:
+            rm -f /tmp/egInstallErrorRetry
+      windows:
+        # DO NOT ADD INDENTATION BELOW
+        # Adding "helpful" indentation breaks the way yaml parses the string
+        install: >-
+          powershell -command "& {if ([System.IO.File]::Exists(\"egInstallErrorRetrySucceed\")) {
+          echo INSTALL_SUCCEEDED;
+          Remove-Item egInstallErrorRetrySucceed;
+          } else {
+          echo INSTALL_FAIL;
+          New-Item egInstallErrorRetrySucceed;
+          exit 1;
+          }}"
+        shutdown: powershell -command Remove-Item egInstallErrorRetrySucceed;
 
   runErrorRetry:
     lifecycle:
-      run: |-
-        sleep 1 # Sleep just a little so that it is marked as running and allows main to startup before this fails
-        echo "RUN_BROKEN"
-        exit 1
+      posix:
+        run: |-
+          sleep 1 # Sleep just a little so that it is marked as running and allows main to startup before this fails
+          echo "RUN_BROKEN"
+          exit 1
+      windows:
+        run: |-
+          powershell -command sleep1; echo RUN_BROKEN; exit 1;
 
   main:
     lifecycle:
       install:
         all: echo All installed
-      run: |-
-        echo main of config_broken is running
-        while true; do
-        date; sleep 5;
-        done
+      posix:
+        run: |-
+          echo main of config_broken is running
+          while true; do
+          date; sleep 5;
+          done
+      windows:
+        run: |-
+          powershell -command "& { echo \"main of config_broken is running\"; while (1) { sleep 5 }}"
     dependencies:
       - installErrorRetry
       - runErrorRetry

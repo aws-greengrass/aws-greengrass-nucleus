@@ -264,7 +264,7 @@ public final class Exec implements Closeable {
     }
 
     public Exec cd(String d) {
-        return cd(new File(dir, d));
+        return cd(dir.toPath().toAbsolutePath().resolve(Paths.get(d)).toAbsolutePath().toFile());
     }
 
     public Exec cd() {

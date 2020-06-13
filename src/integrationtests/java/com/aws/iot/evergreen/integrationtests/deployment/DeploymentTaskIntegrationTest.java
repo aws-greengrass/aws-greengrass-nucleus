@@ -43,6 +43,7 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -114,7 +115,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() throws IOException {
+    static void setupKernel() throws IOException, URISyntaxException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
@@ -129,7 +130,7 @@ class DeploymentTaskIntegrationTest {
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
         // pre-load contents to package store
         Path localStoreContentPath =
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").getPath());
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
         copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }
 

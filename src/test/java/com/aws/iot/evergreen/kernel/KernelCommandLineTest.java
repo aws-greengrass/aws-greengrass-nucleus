@@ -7,16 +7,24 @@ package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessageSubstring;
@@ -53,15 +61,17 @@ class KernelCommandLineTest {
         KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class));
         String exceptionSubstring = "Undefined command line argument";
         ignoreExceptionWithMessageSubstring(context, exceptionSubstring);
-        RuntimeException thrown = assertThrows(RuntimeException.class,
-                () -> kernel.parseArgs("-xyznonsense", "nonsense"));
+        RuntimeException thrown =
+                assertThrows(RuntimeException.class, () -> kernel.parseArgs("-xyznonsense", "nonsense"));
         assertThat(thrown.getMessage(), containsString(exceptionSubstring));
     }
 
+    // Skip on windows
+    @DisabledOnOs(OS.WINDOWS)
     @Test
     void GIVEN_create_path_fail_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) throws Exception {
         // Make the root path not writeable so the create path method will fail
-        // Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
+        Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
 
         Kernel kernel = new Kernel();
         kernel.shutdown();
@@ -72,7 +82,8 @@ class KernelCommandLineTest {
     }
 
     @Test
-    void GIVEN_unable_to_read_config_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) throws IOException {
+    void GIVEN_unable_to_read_config_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context)
+            throws IOException {
         Kernel mockKernel = mock(Kernel.class);
         Configuration mockConfig = mock(Configuration.class);
         when(mockKernel.getConfig()).thenReturn(mockConfig);
@@ -105,11 +116,15 @@ class KernelCommandLineTest {
 
         KernelCommandLine kcl = new KernelCommandLine(mockKernel);
 
-        assertThat(kcl.deTilde("~/test"), containsString(System.getProperty("user.name")+ "/test"));
-        assertThat(kcl.deTilde("~bin/test"), is(tempRootDir.toString()+ "/bin/test"));
-        assertThat(kcl.deTilde("~config/test"), is(tempRootDir.toString()+ "/config/test"));
-        assertThat(kcl.deTilde("~packages/test"), is(tempRootDir.toString()+ "/packages/test"));
-        assertThat(kcl.deTilde("~root/test"), is(tempRootDir.toString()+ "/root/test"));
+        assertThat(kcl.deTilde("~/test"), containsString(System.getProperty("user.name") + File.separator + "test"));
+        assertThat(kcl.deTilde("~bin/test"),
+                is(tempRootDir.toString() + File.separator + "bin" + File.separator + "test"));
+        assertThat(kcl.deTilde("~config/test"),
+                is(tempRootDir.toString() + File.separator + "config" + File.separator + "test"));
+        assertThat(kcl.deTilde("~packages/test"),
+                is(tempRootDir.toString() + File.separator + "packages" + File.separator + "test"));
+        assertThat(kcl.deTilde("~root/test"),
+                is(tempRootDir.toString() + File.separator + "root" + File.separator + "test"));
     }
 
     @Test
