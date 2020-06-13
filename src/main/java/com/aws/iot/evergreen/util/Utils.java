@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -567,10 +568,13 @@ public final class Utils {
      */
     public static void createPaths(Path... paths) throws IOException {
         for (Path p: paths) {
-            // This only supports POSIX compliant file permission right now. We will need to
-            // change this when trying to support Evergreen in Non-POSIX OS.
-            Files.createDirectories(p);
-            //, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+            if (Exec.isWindows) {
+                Files.createDirectories(p);
+            } else {
+                // This only supports POSIX compliant file permission right now. We will need to
+                // change this when trying to support Evergreen in Non-POSIX OS.
+                Files.createDirectories(p, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+            }
         }
     }
 

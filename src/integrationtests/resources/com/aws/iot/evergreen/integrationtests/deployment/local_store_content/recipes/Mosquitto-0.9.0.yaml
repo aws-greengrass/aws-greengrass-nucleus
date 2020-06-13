@@ -5,19 +5,9 @@ Description: Mosquitto MQTT Server
 Publisher: Eclipse Foundation
 Version: '0.9.0'
 Lifecycle:
-  startup:
-    macos: echo "Hello this is mosquitto getting started"
-    ubuntu: echo "Hello this is mosquitto getting started"
-  install:
-    macos:
-      script: echo "Hello This is mosquitto being installed"
-    ubuntu:
-      script: echo "Hello This is mosquitto being installed"
-  shutdown:
-    macos:
-      script: echo "By mosquitto signing off!"
-    ubuntu:
-      script: echo "By mosquitto signing off!"
+  startup: echo "Hello this is mosquitto getting started"
+  install: echo "Hello This is mosquitto being installed"
+  shutdown: echo "By mosquitto signing off!"
 Dependencies:
   GreenSignal:
     VersionRequirements: "=1.0.0"
