@@ -112,7 +112,7 @@ class KernelCommandLineTest {
 
         KernelCommandLine kcl = new KernelCommandLine(mockKernel);
 
-        assertThat(kcl.deTilde("~/test"), containsString(System.getProperty("user.name") + File.separator + "test"));
+        assertThat(kcl.deTilde("~/test"), containsString(System.getProperty("user.home") + File.separator + "test"));
         assertThat(kcl.deTilde("~bin/test"),
                 is(tempRootDir.toString() + File.separator + "bin" + File.separator + "test"));
         assertThat(kcl.deTilde("~config/test"),

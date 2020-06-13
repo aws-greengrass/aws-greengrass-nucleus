@@ -34,13 +34,13 @@ jobs:
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
-          name: Failed Test Report
+          name: Failed Test Report ${{ matrix.os }}
           path: target/surefire-reports
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
         if: always()
         with:
-          name: Coverage Report
+          name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
       - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
@@ -124,7 +124,7 @@ jobs:
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
-          name: Failed E2E Report
+          name: Failed E2E Report ${{ matrix.os }}
           path: target/surefire-reports
   publish:
     needs: build
