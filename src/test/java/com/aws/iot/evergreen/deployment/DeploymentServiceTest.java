@@ -76,17 +76,17 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     @Spy
     Kernel mockKernel;
 
-    @Mock
+    @Mock(lenient = true)
     ExecutorService mockExecutorService;
     @Mock
     private DependencyResolver dependencyResolver;
-    @Mock
+    @Mock(lenient = true)
     private PackageManager packageManager;
-    @Mock
+    @Mock(lenient = true)
     private KernelConfigResolver kernelConfigResolver;
-    @Mock
+    @Mock(lenient = true)
     private DeploymentConfigMerger deploymentConfigMerger;
-    @Mock
+    @Mock(lenient = true)
     private DeploymentStatusKeeper deploymentStatusKeeper;
     @Mock
     private Topics mockGroupPackages;

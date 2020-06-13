@@ -65,29 +65,29 @@ public class DeviceProvisioningHelperTest {
 
     @TempDir
     Path tempRootDir;
-    @Mock
+    @Mock(lenient = true)
     private IotClient iotClient;
-    @Mock
+    @Mock(lenient = true)
     private IamClient iamClient;
-    @Mock
+    @Mock(lenient = true)
     private AWSEvergreen cmsClient;
-    @Mock
+    @Mock(lenient = true)
     private GetPolicyResponse getPolicyResponse;
-    @Mock
+    @Mock(lenient = true)
     private CreateThingResponse createThingResponse;
-    @Mock
+    @Mock(lenient = true)
     private DescribeEndpointResponse describeEndpointResponse;
-    @Mock
+    @Mock(lenient = true)
     private DescribeRoleAliasResponse describeRoleAliasResponse;
-    @Mock
+    @Mock(lenient = true)
     private CreateRoleAliasResponse createRoleAliasResponse;
-    @Mock
+    @Mock(lenient = true)
     private CreateKeysAndCertificateResponse createKeysAndCertificateResponse;
-    @Mock
+    @Mock(lenient = true)
     private GetRoleResponse getRoleResponse;
-    @Mock
+    @Mock(lenient = true)
     private CreateRoleResponse createRoleResponse;
-    @Mock
+    @Mock(lenient = true)
     private CreateComponentResult createComponentResult;
     private DeviceProvisioningHelper deviceProvisioningHelper;
 

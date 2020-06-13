@@ -39,18 +39,18 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class IPCChannelHandlerTest {
     public static final String ERROR_MESSAGE = "AAAAAAH!";
-    @Mock
+    @Mock(lenient = true)
     AuthHandler mockAuth;
-    @Mock
+    @Mock(lenient = true)
     IPCRouter ipcRouter;
-    @Mock
+    @Mock(lenient = true)
     ChannelHandlerContext mockCtx;
-    @Mock
+    @Mock(lenient = true)
     Channel mockChannel;
-    @Mock
+    @Mock(lenient = true)
     Attribute<ConnectionContext> mockAttr;
     ConnectionContext mockAttrValue = null;
-    @Mock
+    @Mock(lenient = true)
     ChannelFuture mockChannelFuture;
 
     @Captor

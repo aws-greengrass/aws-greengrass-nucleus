@@ -33,7 +33,7 @@ public class HttpServerImplTest {
     private static final String mockResponse = "Hello World";
     private HttpServerImpl server;
 
-    @Mock
+    @Mock(lenient = true)
     private HttpHandler mockHttpHandler;
 
     @BeforeEach

@@ -63,34 +63,25 @@ public class IotJobsHelperTest {
     private static final String TEST_JOB_ID = "TestJobId";
     private static final String REJECTION_MESSAGE = "Job update rejected";
 
-    @Mock
+    @Mock(lenient = true)
     private IotJobsClient mockIotJobsClient;
-
-    @Mock
+    @Mock(lenient = true)
     private MqttClientConnection mockMqttClientConnection;
-
-    @Mock
+    @Mock(lenient = true)
     Consumer<JobExecutionsChangedEvent> eventConsumer;
-
-    @Mock
+    @Mock(lenient = true)
     Consumer<DescribeJobExecutionResponse> describeJobConsumer;
-
-    @Mock
+    @Mock(lenient = true)
     Consumer<RejectedError> rejectedErrorConsumer;
-
-    @Mock
+    @Mock(lenient = true)
     DeviceConfiguration deviceConfiguration;
-
-    @Mock
+    @Mock(lenient = true)
     IotJobsHelper.AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
-
-    @Mock
+    @Mock(lenient = true)
     IotJobsHelper.IotJobsClientFactory mockIotJobsClientFactory;
-
-    @Mock
+    @Mock(lenient = true)
     LinkedBlockingQueue<Deployment> mockDeploymentsQueue;
-
-    @Mock
+    @Mock(lenient = true)
     DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Mock
@@ -101,18 +92,14 @@ public class IotJobsHelperTest {
 
     @Captor
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorCaptor;
-
     @Captor
     ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> updateJobExecutionResponseCaptor;
-
     @Captor
     ArgumentCaptor<Consumer<DescribeJobExecutionResponse>> describeJobResponseCaptor;
-
     @Captor
     ArgumentCaptor<Consumer<JobExecutionsChangedEvent>> eventChangeResponseCaptor;
 
     private final ExecutorService executorService = TestUtils.synchronousExecutorService();
-
     private IotJobsHelper iotJobsHelper;
 
     @BeforeEach

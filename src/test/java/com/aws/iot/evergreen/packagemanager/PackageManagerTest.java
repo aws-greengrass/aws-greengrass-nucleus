@@ -80,19 +80,15 @@ class PackageManagerTest {
 
     private PackageManager packageManager;
 
-    @Mock
+    @Mock(lenient = true)
     private GreengrassRepositoryDownloader artifactDownloader;
-
-    @Mock
+    @Mock(lenient = true)
     private GreengrassPackageServiceHelper packageServiceHelper;
-
-    @Mock
+    @Mock(lenient = true)
     private Kernel kernel;
-
-    @Mock
+    @Mock(lenient = true)
     private PackageStore packageStore;
-
-    @Mock
+    @Mock(lenient = true)
     private EvergreenService mockService;
 
     @BeforeEach

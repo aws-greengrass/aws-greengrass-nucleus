@@ -86,7 +86,7 @@ class IPCServicesTest {
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("ServiceName") && newState.equals(State.FINISHED)) {
+            if (service.getName().equals("ServiceName") && newState.equals(State.RUNNING)) {
                 awaitIpcServiceLatch.countDown();
             }
         });
