@@ -248,7 +248,7 @@ public final class Coerce {
             int limit = s.length();
             for (int i = 0; i < limit; i++) {
                 char c = s.charAt(i);
-                if (c < ' ' || c == '\\'|| c >= 255 || c == 127 || c == '"') {
+                if (c < ' ' || c == '\\' || c >= 255 || c == 127 || c == '"') {
                     switch (c) {
                         case '\n':
                             out.append("\\n");

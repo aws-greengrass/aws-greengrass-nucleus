@@ -573,7 +573,8 @@ public final class Utils {
             } else {
                 // This only supports POSIX compliant file permission right now. We will need to
                 // change this when trying to support Evergreen in Non-POSIX OS.
-                Files.createDirectories(p, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+                Files.createDirectories(p,
+                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             }
         }
     }
