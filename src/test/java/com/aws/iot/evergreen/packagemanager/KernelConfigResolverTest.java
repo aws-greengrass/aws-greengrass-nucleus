@@ -304,10 +304,10 @@ class KernelConfigResolverTest {
         // THEN
         Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
 
-        Path jarPath = Paths.get("/packages/artifacts/test.jar").toAbsolutePath();
+        Path jarPath = Paths.get("/packages/artifacts").toAbsolutePath();
         assertThat("{{artifacts:path}} should be replace by the package's artifact path",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
-                equalTo("java -jar " + jarPath + " -x arg"));
+                equalTo("java -jar " + jarPath + "/test.jar -x arg"));
     }
 
     // utilities for mocking input

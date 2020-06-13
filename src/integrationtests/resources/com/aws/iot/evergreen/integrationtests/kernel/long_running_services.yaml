@@ -9,7 +9,7 @@ services:
           done
       windows:
         run: |-
-          powershell -c "while(1) { echo sleeperB_running; sleep 5 }"
+          powershell -command "& { while(1) { echo sleeperB_running; sleep 5 } }"
 
   sleeperA:
     dependencies:
@@ -22,7 +22,7 @@ services:
           done
       windows:
         run: |-
-          powershell -c "while(1) { echo sleeperA_running; sleep 5 }"
+          powershell -command "& { while(1) { echo sleeperA_running; sleep 5 } }"
 
   main:
     dependencies:
@@ -36,4 +36,4 @@ services:
           done
       windows:
         run: |-
-          powershell -c "while(1) { sleep 5 }"
+          powershell -command while(1) { sleep 5 }

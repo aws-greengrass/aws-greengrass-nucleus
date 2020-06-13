@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -103,8 +105,9 @@ class KernelTest extends BaseITCase {
         testGroup(0);
         System.out.println("Group 0 passed, now for the harder stuff");
 
-        kernel.findServiceTopic("main").find("lifecycle", "run")
-                .withValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
+        kernel.findServiceTopic("main")
+                .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC)
+                .withValue("echo NEWMAIN");
         testGroup(1);
 
         System.out.println("Group 1 passed");
