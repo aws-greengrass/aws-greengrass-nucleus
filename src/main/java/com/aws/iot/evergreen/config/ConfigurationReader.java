@@ -16,7 +16,7 @@ import java.util.function.Predicate;
 
 public final class ConfigurationReader {
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
-    private static final Logger logger = LogManager.getLogger(Configuration.class);
+    private static final Logger logger = LogManager.getLogger(ConfigurationReader.class);
 
     private ConfigurationReader() {
     }
@@ -24,17 +24,19 @@ public final class ConfigurationReader {
     /**
      * Merge the given transaction log into the given configuration.
      *
-     * @param config  configuration to merge into
-     * @param r0 reader of the transaction log to read from
-     * @param forceTimestamp forceTimestamp
-     * @param mergeCondition mergeCondition
+     * @param config         configuration to merge into
+     * @param reader         reader of the transaction log to read from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
+     *
      * @throws IOException if reading fails
      */
     public static void mergeTLogInto(Configuration config,
-                                     Reader r0,
+                                     Reader reader,
                                      boolean forceTimestamp,
                                      Predicate<Topic> mergeCondition) throws IOException {
-        try (BufferedReader in = r0 instanceof BufferedReader ? (BufferedReader) r0 : new BufferedReader(r0)) {
+        try (BufferedReader in = reader instanceof BufferedReader
+                ? (BufferedReader) reader : new BufferedReader(reader)) {
             String l;
 
             for (l = in.readLine(); l != null; l = in.readLine()) {
@@ -63,6 +65,22 @@ public final class ConfigurationReader {
         }
     }
 
+    /**
+     * Merge the given transaction log into the given configuration.
+     *
+     * @param config         configuration to merge into
+     * @param tlogPath       path of the tlog file to read to-be-merged config from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
+     *
+     * @throws IOException if reading fails
+     */
+    public static void mergeTLogInto(Configuration config, Path tlogPath, boolean forceTimestamp,
+                                     Predicate<Topic> mergeCondition)
+            throws IOException {
+        mergeTLogInto(config, Files.newBufferedReader(tlogPath), forceTimestamp, mergeCondition);
+    }
+
     private static void mergeTLogInto(Configuration c, Path p) throws IOException {
         mergeTLogInto(c, Files.newBufferedReader(p), false, null);
     }
@@ -79,21 +97,5 @@ public final class ConfigurationReader {
         Configuration c = new Configuration(context);
         ConfigurationReader.mergeTLogInto(c, p);
         return c;
-    }
-
-    /**
-     * Merge the given transaction log into the given configuration.
-     *
-     * @param config         configuration to merge into
-     * @param tlogPath       path of the tlog file to read to-be-merged config from
-     * @param forceTimestamp should ignore if the proposed timestamp is older than current
-     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
-     *
-     * @throws IOException if reading fails
-     */
-    public static void mergeTlogIntoConfig(Configuration config, Path tlogPath, boolean forceTimestamp,
-                                           Predicate<Topic> mergeCondition)
-            throws IOException {
-        mergeTLogInto(config, Files.newBufferedReader(tlogPath), forceTimestamp, mergeCondition);
     }
 }

@@ -159,7 +159,7 @@ public class DeploymentConfigMerger {
             // The lambda is set up to ignore anything that is a child of DEPLOYMENT_SAFE_NAMESPACE_TOPIC
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
-            ConfigurationReader.mergeTlogIntoConfig(kernel.getConfig(), getSnapshotFilePath(deploymentId), true,
+            ConfigurationReader.mergeTLogInto(kernel.getConfig(), getSnapshotFilePath(deploymentId), true,
                     s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed

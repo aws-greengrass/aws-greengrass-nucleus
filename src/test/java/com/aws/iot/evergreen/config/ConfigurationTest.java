@@ -206,4 +206,40 @@ public class ConfigurationTest {
         assertEquals(1, parentNotified.get());
         assertNull(config.find("a", "b", "c"));
     }
+
+    @Test
+    public void GIVEN_config_with_subscribers_WHEN_topics_removed_THEN_children_notified() {
+        config.lookup("a", "b", "c");
+        AtomicInteger[] childNotified = new AtomicInteger[3];
+
+        childNotified[0] = new AtomicInteger(0);
+        config.lookupTopics("a").subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified[0].incrementAndGet();
+            }
+        });
+
+        childNotified[1] = new AtomicInteger(0);
+        config.lookupTopics("a", "b").subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified[1].incrementAndGet();
+            }
+        });
+
+        childNotified[2] = new AtomicInteger(0);
+        config.lookup("a", "b", "c").subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified[2].incrementAndGet();
+            }
+        });
+
+        config.lookupTopics("a").remove();
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        assertEquals(1, childNotified[0].get());
+        assertNull(config.findTopics("a"));
+
+        assertEquals(1, childNotified[1].get());
+        assertEquals(1, childNotified[2].get());
+    }
 }
