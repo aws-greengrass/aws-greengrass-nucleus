@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailur
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentTaskMetadata;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -82,16 +83,7 @@ public class DeploymentService extends EvergreenService {
     @Inject
     private Kernel kernel;
 
-    @Getter
-    private Future<DeploymentResult> currentProcessStatus = null;
-
-    // This is very likely not thread safe. If the Deployment Service is split into multiple threads in a re-design
-    // as mentioned in some other comments, this will need an update as well
-    private String currentDeploymentId = null;
-    private Deployment.DeploymentType currentDeploymentType = null;
-
-    private final AtomicInteger currentJobAttemptCount = new AtomicInteger(0);
-    private DeploymentTask currentDeploymentTask = null;
+    private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -156,7 +148,8 @@ public class DeploymentService extends EvergreenService {
         logger.info("Running deployment service");
 
         while (!receivedShutdown.get()) {
-            if (currentProcessStatus != null && currentProcessStatus.isDone()) {
+            if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentProcess()
+                    .isDone()) {
                 finishCurrentDeployment();
             }
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
@@ -164,18 +157,21 @@ public class DeploymentService extends EvergreenService {
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
             Deployment deployment = deploymentsQueue.peek();
             if (deployment != null) {
-                if (currentDeploymentType != null && !deployment.getDeploymentType().equals(currentDeploymentType)) {
+                if (currentDeploymentTaskMetadata != null && !deployment.getDeploymentType()
+                        .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
                     // deployment from another source, wait till the current deployment finish
                     continue;
                 }
-                if (currentDeploymentId != null && currentDeploymentType != null) {
-                    if (deployment.getId().equals(currentDeploymentId) && deployment.getDeploymentType()
-                            .equals(currentDeploymentType)) {
+                if (currentDeploymentTaskMetadata != null
+                        && currentDeploymentTaskMetadata.getDeploymentType() != null) {
+                    if (deployment.getId().equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment
+                            .getDeploymentType().equals(currentDeploymentTaskMetadata.getDeploymentType())) {
                         //Duplicate message and already processing this deployment so nothing is needed
                         deploymentsQueue.remove();
                         continue;
                     } else {
-                        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).log("Canceling the job");
+                        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .log("Canceling the job");
                         //Assuming cancel will either cancel the current job or wait till it finishes
                         cancelCurrentDeployment();
                     }
@@ -194,64 +190,62 @@ public class DeploymentService extends EvergreenService {
 
     @SuppressWarnings("PMD.NullAssignment")
     private void finishCurrentDeployment() throws InterruptedException {
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).log("Current deployment finished");
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                .log("Current deployment finished");
         try {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
             // if something is going wrong
-            DeploymentResult result = currentProcessStatus.get();
+            DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentProcess().get();
             if (result != null) {
                 DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("detailed-deployment-status", deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
-                            JobStatus.SUCCEEDED, statusDetails);
+                    deploymentStatusKeeper
+                            .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
+                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
+                                    statusDetails);
                 } else {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
                     }
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType,
-                            JobStatus.FAILED, statusDetails);
+                    deploymentStatusKeeper
+                            .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
+                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
                 }
             }
-            currentJobAttemptCount.set(0);
         } catch (ExecutionException e) {
-            logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentId).setCause(e)
+            logger.atError().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId()).setCause(e)
                     .log("Caught exception while getting the status of the Job");
             Throwable t = e.getCause();
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", t.getMessage());
             if (t instanceof NonRetryableDeploymentTaskFailureException
-                    || currentJobAttemptCount.get() >= DEPLOYMENT_MAX_ATTEMPTS) {
+                    || currentDeploymentTaskMetadata.getDeploymentAttemptCount().get() >= DEPLOYMENT_MAX_ATTEMPTS) {
                 deploymentStatusKeeper
-                        .persistAndPublishDeploymentStatus(currentDeploymentId, currentDeploymentType, JobStatus.FAILED,
-                                statusDetails);
-                currentJobAttemptCount.set(0);
+                        .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
+                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
-                currentProcessStatus = executorService.submit(currentDeploymentTask);
-                currentJobAttemptCount.incrementAndGet();
+                currentDeploymentTaskMetadata.setDeploymentProcess(
+                        executorService.submit(currentDeploymentTaskMetadata.getDeploymentTask()));
+                currentDeploymentTaskMetadata.getDeploymentAttemptCount().incrementAndGet();
                 return;
             }
         }
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
-        //TODO: find a better way to track the current deployment details.
-        currentProcessStatus = null;
-        currentDeploymentId = null;
-        currentDeploymentType = null;
+        currentDeploymentTaskMetadata = null;
     }
 
     @SuppressWarnings("PMD.NullAssignment")
     private void cancelCurrentDeployment() {
         //TODO: Make the deployment task be able to handle the interrupt
         // and wait till the job gets cancelled or is finished
-        if (currentProcessStatus != null) {
-            currentProcessStatus.cancel(true);
-            currentProcessStatus = null;
-            currentDeploymentId = null;
-            currentDeploymentType = null;
+        if (currentDeploymentTaskMetadata != null) {
+            currentDeploymentTaskMetadata.getDeploymentProcess().cancel(true);
+            currentDeploymentTaskMetadata = null;
         }
     }
 
@@ -276,17 +270,16 @@ public class DeploymentService extends EvergreenService {
                     JobStatus.FAILED, statusDetails);
             return;
         }
-        currentDeploymentTask =
+        DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
                         logger, deploymentDocument);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
-        currentProcessStatus = executorService.submit(currentDeploymentTask);
+        Future<DeploymentResult> process = executorService.submit(deploymentTask);
 
-        // newIotJobsDeployment will only be called at first attempt
-        currentJobAttemptCount.set(1);
-        currentDeploymentId = deployment.getId();
-        currentDeploymentType = deployment.getDeploymentType();
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
+                        new AtomicInteger(1));
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
@@ -318,7 +311,6 @@ public class DeploymentService extends EvergreenService {
         }
         return document;
     }
-
 
     void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
         this.deploymentsQueue = deploymentsQueue;
