@@ -17,6 +17,10 @@ public class PublishRequest {
     @NonNull String topic;
     @Builder.Default
     @NonNull QualityOfService qos = QualityOfService.AT_LEAST_ONCE;
+    /**
+     * Retain the message in the cloud MQTT broker (only last message with retain is actually kept).
+     * Subscribers will immediately receive the last retained message when they first subscribe.
+     */
     boolean retain;
     @NonNull byte[] payload;
 }

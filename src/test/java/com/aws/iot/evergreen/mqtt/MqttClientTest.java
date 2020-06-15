@@ -123,7 +123,7 @@ class MqttClientTest {
         doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
 
-        IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
+        AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1);
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
@@ -139,8 +139,8 @@ class MqttClientTest {
     void GIVEN_connection_has_50_subscriptions_THEN_new_connection_added_as_needed()
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
-        IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
-        IndividualMqttClient iClient2 = mock(IndividualMqttClient.class);
+        AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
 
@@ -155,8 +155,8 @@ class MqttClientTest {
     void GIVEN_connection_has_0_subscriptions_THEN_all_but_last_connection_will_be_closed()
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
-        IndividualMqttClient iClient1 = mock(IndividualMqttClient.class);
-        IndividualMqttClient iClient2 = mock(IndividualMqttClient.class);
+        AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
         when(iClient1.subscriptionCount()).thenReturn(1);
@@ -192,7 +192,7 @@ class MqttClientTest {
     void GIVEN_incoming_message_WHEN_received_THEN_subscribers_are_called()
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
-        IndividualMqttClient mockIndividual = mock(IndividualMqttClient.class);
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 
@@ -235,10 +235,13 @@ class MqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         assertFalse(client.connected());
-        IndividualMqttClient mockIndividual1 = mock(IndividualMqttClient.class);
-        IndividualMqttClient mockIndividual2 = mock(IndividualMqttClient.class);
+        AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
-        when(mockIndividual1.canAddNewSubscription()).thenReturn(true).thenReturn(false);
+        when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
+        when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
+        when(mockIndividual1.subscriptionCount()).thenReturn(1);
+        when(mockIndividual2.subscriptionCount()).thenReturn(1);
 
         Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abc = asyncAssertOnConsumer((m) -> {
             assertEquals("A/B/C", m.getTopic());
@@ -282,7 +285,7 @@ class MqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         ignoreExceptionWithMessage(context, "Uncaught!");
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
-        IndividualMqttClient mockIndividual = mock(IndividualMqttClient.class);
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 

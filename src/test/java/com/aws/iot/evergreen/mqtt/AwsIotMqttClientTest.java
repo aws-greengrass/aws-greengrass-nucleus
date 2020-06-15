@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith({EGExtension.class, MockitoExtension.class})
-class IndividualMqttClientTest {
+class AwsIotMqttClientTest {
     @Mock
     AwsIotMqttConnectionBuilder builder;
 
@@ -56,7 +56,7 @@ class IndividualMqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         Topics mockTopic = mock(Topics.class);
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
-        IndividualMqttClient client = new IndividualMqttClient(() -> builder, (x) -> null, "A", mockTopic);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic);
 
         assertFalse(client.connected());
 

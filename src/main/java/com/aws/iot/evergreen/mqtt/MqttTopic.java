@@ -26,6 +26,11 @@ public class MqttTopic implements Comparable<MqttTopic> {
     private final int singleLevelWildcardCount;
     private final boolean usingMultilevelWildcard;
 
+    /**
+     * Constructor.
+     *
+     * @param topic string topic
+     */
     public MqttTopic(String topic) {
         this.topic = topic;
         subscriptionParts = Arrays.asList(topic.split(TOPIC_PATH_SEPARATOR));

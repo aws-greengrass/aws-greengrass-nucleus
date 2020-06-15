@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.LockScope;
-import com.aws.iot.evergreen.util.WriteLockScope;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
@@ -25,7 +24,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -59,8 +57,8 @@ public class MqttClient implements Closeable {
     private static final String MQTT_SOCKET_TIMEOUT_KEY = "socketTimeoutMs";
     // Default taken from AWS SDK
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
-    static final String MQTT_CONNECT_TIMEOUT_KEY = "connectTimeoutMs";
-    static final int DEFAULT_MQTT_CONNECT_TIMEOUT = (int) Duration.ofSeconds(10).toMillis();
+    static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
+    static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
 
@@ -70,9 +68,9 @@ public class MqttClient implements Closeable {
     private final Topics mqttTopics;
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
-    private final List<IndividualMqttClient> connections = new CopyOnWriteArrayList<>();
+    private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Set<SubscribeRequest> subscriptions = new CopyOnWriteArraySet<>();
-    private final Map<MqttTopic, IndividualMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
+    private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
 
     private final EventLoopGroup eventLoopGroup;
@@ -123,7 +121,7 @@ public class MqttClient implements Closeable {
                 }
                 // Reconnect in separate thread to not block publish thread
                 executorService.execute(() -> {
-                    for (IndividualMqttClient connection : connections) {
+                    for (AwsIotMqttClient connection : connections) {
                         try {
                             connection.reconnect();
                         } catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -151,11 +149,12 @@ public class MqttClient implements Closeable {
      * @throws TimeoutException     if the request times out
      */
     @SuppressWarnings("PMD.CloseResource")
-    public void subscribe(SubscribeRequest request) throws ExecutionException, InterruptedException, TimeoutException {
-        IndividualMqttClient connection = null;
-        try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
+    public synchronized void subscribe(SubscribeRequest request)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        try {
+            AwsIotMqttClient connection = null;
             // Use the write scope when identifying the subscriptionTopics that exist
-            try (WriteLockScope scope2 = WriteLockScope.lock(connectionLock)) {
+            try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
                 subscriptions.add(request);
 
                 // TODO: Handle subscriptions with differing QoS (Upgrade 0->1->2)
@@ -168,11 +167,17 @@ public class MqttClient implements Closeable {
                 }
             }
 
-            // Connection isn't null, so we should subscribe to the topic
-            if (connection != null) {
-                connection.subscribe(request.getTopic(), request.getQos());
-                subscriptionTopics.put(new MqttTopic(request.getTopic()), connection);
+            try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
+                // Connection isn't null, so we should subscribe to the topic
+                if (connection != null) {
+                    connection.subscribe(request.getTopic(), request.getQos());
+                    subscriptionTopics.put(new MqttTopic(request.getTopic()), connection);
+                }
             }
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            // If subscribing failed, then clean up the failed subscription callback
+            subscriptions.remove(request);
+            throw e;
         }
     }
 
@@ -184,22 +189,19 @@ public class MqttClient implements Closeable {
      * @throws InterruptedException if the thread is interrupted while unsubscribing
      * @throws TimeoutException     if the request times out
      */
-    public void unsubscribe(UnsubscribeRequest request)
+    public synchronized void unsubscribe(UnsubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
-        try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-            Set<Map.Entry<MqttTopic, IndividualMqttClient>> deadSubscriptionTopics;
-            // Use the write lock because we're modifying the subscriptions and trying to consolidate them
-            try (WriteLockScope scope2 = WriteLockScope.lock(connectionLock)) {
-                subscriptions.removeIf(
-                        r -> r.getCallback() == request.getCallback() && r.getTopic().equals(request.getTopic()));
-                // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
-                deadSubscriptionTopics = subscriptionTopics.entrySet().stream().filter(s -> subscriptions.stream()
-                        .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
-                        .collect(Collectors.toSet());
-
-            }
+        // Use the write lock because we're modifying the subscriptions and trying to consolidate them
+        try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
+            Set<Map.Entry<MqttTopic, AwsIotMqttClient>> deadSubscriptionTopics;
+            subscriptions
+                    .removeIf(r -> r.getCallback() == request.getCallback() && r.getTopic().equals(request.getTopic()));
+            // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
+            deadSubscriptionTopics = subscriptionTopics.entrySet().stream().filter(s -> subscriptions.stream()
+                    .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
+                    .collect(Collectors.toSet());
             if (!deadSubscriptionTopics.isEmpty()) {
-                for (Map.Entry<MqttTopic, IndividualMqttClient> sub : deadSubscriptionTopics) {
+                for (Map.Entry<MqttTopic, AwsIotMqttClient> sub : deadSubscriptionTopics) {
                     sub.getValue().unsubscribe(sub.getKey().getTopic());
                     subscriptionTopics.remove(sub.getKey());
                 }
@@ -221,18 +223,18 @@ public class MqttClient implements Closeable {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized IndividualMqttClient getConnection(boolean forSubscription) {
+    private synchronized AwsIotMqttClient getConnection(boolean forSubscription) {
         // If we have no connections, or our connections are over-subscribed, create a new connection
         if (connections.isEmpty() || forSubscription && connections.stream()
-                .noneMatch(IndividualMqttClient::canAddNewSubscription)) {
-            IndividualMqttClient conn = getNewMqttClient();
+                .noneMatch(AwsIotMqttClient::canAddNewSubscription)) {
+            AwsIotMqttClient conn = getNewMqttClient();
             connections.add(conn);
             return conn;
         } else {
             // Check for, and then close and remove any connection that has no subscriptions
-            Set<IndividualMqttClient> closableConnections =
+            Set<AwsIotMqttClient> closableConnections =
                     connections.stream().filter((c) -> c.subscriptionCount() == 0).collect(Collectors.toSet());
-            for (IndividualMqttClient closableConnection : closableConnections) {
+            for (AwsIotMqttClient closableConnection : closableConnections) {
                 // Leave the last connection alive to use for publishing
                 if (connections.size() == 1) {
                     break;
@@ -242,12 +244,18 @@ public class MqttClient implements Closeable {
             }
         }
 
+        // If this connection is to add a new subscription, then don't provide a connection
+        // which is already maxed out on subscriptions
+        if (forSubscription) {
+            return connections.stream().filter(AwsIotMqttClient::canAddNewSubscription).findAny().get();
+        }
+
         // Get a somewhat random, somewhat round robin connection
         return connections.get(connectionRoundRobin.getAndIncrement() % connections.size());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    Consumer<MqttMessage> getMessageHandlerForClient(IndividualMqttClient client) {
+    Consumer<MqttMessage> getMessageHandlerForClient(AwsIotMqttClient client) {
         return (message) -> {
             logger.atTrace().kv(CLIENT_ID_KEY, client.getClientId()).kv("topic", message.getTopic())
                     .log("Received MQTT message");
@@ -278,19 +286,21 @@ public class MqttClient implements Closeable {
         };
     }
 
-    protected IndividualMqttClient getNewMqttClient() {
-        String clientId = UUID.randomUUID().toString();
-        return new IndividualMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
+    protected AwsIotMqttClient getNewMqttClient() {
+        // Name client by thingName-<number> except for the first connection which will just be thingName
+        String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
+                : "-" + connections.size() + 1);
+        return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
                 clientId, mqttTopics);
     }
 
     public boolean connected() {
-        return !connections.isEmpty() && connections.stream().anyMatch(IndividualMqttClient::connected);
+        return !connections.isEmpty() && connections.stream().anyMatch(AwsIotMqttClient::connected);
     }
 
     @Override
     public void close() {
-        connections.forEach(IndividualMqttClient::close);
+        connections.forEach(AwsIotMqttClient::close);
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
