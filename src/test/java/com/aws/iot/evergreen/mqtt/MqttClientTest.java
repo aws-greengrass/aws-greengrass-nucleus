@@ -191,7 +191,9 @@ class MqttClientTest {
     @Test
     void GIVEN_incoming_message_WHEN_received_THEN_subscribers_are_called()
             throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
+        IndividualMqttClient mockIndividual = mock(IndividualMqttClient.class);
+        when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 
         // Subscribe with wildcard first so that that is the active cloud subscription.
@@ -212,7 +214,7 @@ class MqttClientTest {
         });
         client.subscribe(SubscribeRequest.builder().topic("A/B/D").callback(abd.getRight()).build());
 
-        Consumer<MqttMessage> handler = client.getMessageHandlerForClient("ABC");
+        Consumer<MqttMessage> handler = client.getMessageHandlerForClient(mockIndividual);
 
         handler.accept(new MqttMessage("A/B/C", new byte[0]));
         handler.accept(new MqttMessage("A/B/D", new byte[0]));
@@ -229,11 +231,59 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_incoming_messages_to_2clients_WHEN_received_THEN_subscribers_are_called_without_duplication()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
+        assertFalse(client.connected());
+        IndividualMqttClient mockIndividual1 = mock(IndividualMqttClient.class);
+        IndividualMqttClient mockIndividual2 = mock(IndividualMqttClient.class);
+        when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
+        when(mockIndividual1.canAddNewSubscription()).thenReturn(true).thenReturn(false);
+
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abc = asyncAssertOnConsumer((m) -> {
+            assertEquals("A/B/C", m.getTopic());
+        }, 1);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abd = asyncAssertOnConsumer((m) -> {
+            assertEquals("A/B/D", m.getTopic());
+        }, 1);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/D").callback(abd.getRight()).build());
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abPlus = asyncAssertOnConsumer((m) -> {
+            assertThat(m.getTopic(), either(is("A/B/C")).or(is("A/B/D")).or(is("A/B/F")));
+        }, 3);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
+
+        Consumer<MqttMessage> handler1 = client.getMessageHandlerForClient(mockIndividual1);
+        Consumer<MqttMessage> handler2 = client.getMessageHandlerForClient(mockIndividual2);
+
+        // Send messages to BOTH handler1 and handler2 to show that we appropriately route and don't duplicate
+        // messages when multiple overlapping subscriptions exist across individual clients
+
+        // Send all to handler1
+        handler1.accept(new MqttMessage("A/B/C", new byte[0]));
+        handler1.accept(new MqttMessage("A/B/D", new byte[0]));
+        handler1.accept(new MqttMessage("A/B/F", new byte[0]));
+        handler1.accept(new MqttMessage("A/X/Y", new byte[0]));
+
+        // Send all the same messages to handler2
+        handler2.accept(new MqttMessage("A/B/C", new byte[0]));
+        handler2.accept(new MqttMessage("A/B/D", new byte[0]));
+        handler2.accept(new MqttMessage("A/B/F", new byte[0]));
+        handler2.accept(new MqttMessage("A/X/Y", new byte[0])); // No subscribers for this one
+
+        abPlus.getLeft().get(0, TimeUnit.SECONDS);
+        abd.getLeft().get(0, TimeUnit.SECONDS);
+        abc.getLeft().get(0, TimeUnit.SECONDS);
+    }
+
+    @Test
     void GIVEN_incoming_message_WHEN_received_and_subscriber_throws_THEN_still_calls_remaining_subscriptions(
             ExtensionContext context)
             throws ExecutionException, InterruptedException, TimeoutException {
         ignoreExceptionWithMessage(context, "Uncaught!");
-        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
+        IndividualMqttClient mockIndividual = mock(IndividualMqttClient.class);
+        when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback((m) -> {
@@ -244,7 +294,7 @@ class MqttClientTest {
         });
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
 
-        Consumer<MqttMessage> handler = client.getMessageHandlerForClient("ABC");
+        Consumer<MqttMessage> handler = client.getMessageHandlerForClient(mockIndividual);
 
         handler.accept(new MqttMessage("A/B/C", new byte[0]));
         abc.getLeft().get(0, TimeUnit.SECONDS);

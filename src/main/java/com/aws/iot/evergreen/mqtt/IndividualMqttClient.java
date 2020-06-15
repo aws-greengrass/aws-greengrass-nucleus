@@ -10,8 +10,8 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.LockScope;
-import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.WriteLockScope;
+import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
@@ -21,8 +21,8 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Provider;
 
@@ -82,14 +83,16 @@ public class IndividualMqttClient implements Closeable {
 
     private final Consumer<MqttMessage> messageHandler;
     private final Topics mqttTopics;
-    private final Set<Pair<String, QualityOfService>> subscriptionTopics = new CopyOnWriteArraySet<>();
+    @Getter(AccessLevel.PACKAGE)
+    private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
 
-    IndividualMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider, Consumer<MqttMessage> messageHandler,
+    IndividualMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
+                         Function<IndividualMqttClient, Consumer<MqttMessage>> messageHandler,
                          String clientId, Topics mqttTopics) {
         this.builderProvider = builderProvider;
-        this.messageHandler = messageHandler;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
+        this.messageHandler = messageHandler.apply(this);
     }
 
     void subscribe(String topic, QualityOfService qos)
@@ -98,7 +101,7 @@ public class IndividualMqttClient implements Closeable {
             connect();
             logger.atTrace().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
             connection.subscribe(topic, qos).get();
-            subscriptionTopics.add(new Pair<>(topic, qos));
+            subscriptionTopics.put(topic, qos);
         }
     }
 
@@ -107,7 +110,7 @@ public class IndividualMqttClient implements Closeable {
             connect();
             logger.atTrace().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
             connection.unsubscribe(topic).get();
-            subscriptionTopics.removeIf(p -> p.getLeft().equals(topic));
+            subscriptionTopics.remove(topic);
         }
     }
 
@@ -159,12 +162,11 @@ public class IndividualMqttClient implements Closeable {
     }
 
     private void resubscribe() {
-        subscriptionTopics.forEach(s -> {
+        subscriptionTopics.forEach((key, value) -> {
             try {
-                subscribe(s.getLeft(), s.getRight());
+                subscribe(key, value);
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
-                logger.atError().kv(TOPIC_KEY, s.getLeft()).kv(QOS_KEY, s.getRight().name())
-                        .log("Unable to resubscribe to topic");
+                logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
             }
         });
     }

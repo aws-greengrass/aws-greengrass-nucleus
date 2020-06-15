@@ -8,6 +8,12 @@ package com.aws.iot.evergreen.mqtt;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -78,5 +84,32 @@ class MqttTopicTest {
         assertFalse(MqttTopic.topicIsSupersetOf("A/B/C", "A/B/#"));
         assertFalse(MqttTopic.topicIsSupersetOf("A/B/C/#", "A/B/#"));
         assertFalse(MqttTopic.topicIsSupersetOf("A/#", "B/C"));
+    }
+
+    @Test
+    void find_most_specific_topic() {
+        assertEquals(new MqttTopic("A/B/C"), new MqttTopic("A/B/C").mostSpecificSubscription(
+                Arrays.asList(new MqttTopic("A/#"), new MqttTopic("A/B/+"), new MqttTopic("A/B/C"))));
+        assertEquals(new MqttTopic("A/B/+"), new MqttTopic("A/B/C")
+                .mostSpecificSubscription(Arrays.asList(new MqttTopic("A/#"), new MqttTopic("A/B/+"))));
+
+        assertEquals(new MqttTopic("A/B/C/#"), new MqttTopic("A/B/C/D/E/F").mostSpecificSubscription(
+                Arrays.asList(new MqttTopic("A/#"), new MqttTopic("A/B/C/#"), new MqttTopic("A/B/+"))));
+    }
+
+    @Test
+    void orderby_specificity() {
+        List<MqttTopic> ordered = Stream.of(new MqttTopic("A/B"), new MqttTopic("A/B/C/D/E"), new MqttTopic("A/B/#"),
+                new MqttTopic("A/#"), new MqttTopic("A/+/B"), new MqttTopic("A/B/C"), new MqttTopic("A/+/+/C"),
+                new MqttTopic("A/+/+/C/D"), new MqttTopic("A/+/B/C")).sorted().collect(Collectors.toList());
+        assertEquals("A/B/C/D/E", ordered.get(0).toString());
+        assertEquals("A/B/C", ordered.get(1).toString());
+        assertEquals("A/B", ordered.get(2).toString());
+        assertEquals("A/+/B/C", ordered.get(3).toString());
+        assertEquals("A/+/B", ordered.get(4).toString());
+        assertEquals("A/+/+/C/D", ordered.get(5).toString());
+        assertEquals("A/+/+/C", ordered.get(6).toString());
+        assertEquals("A/B/#", ordered.get(7).toString());
+        assertEquals("A/#", ordered.get(8).toString());
     }
 }

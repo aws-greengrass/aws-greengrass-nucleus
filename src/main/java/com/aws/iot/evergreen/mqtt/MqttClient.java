@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.LockScope;
-import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.WriteLockScope;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
@@ -24,8 +23,10 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import java.io.Closeable;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
@@ -71,7 +72,7 @@ public class MqttClient implements Closeable {
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
     private final List<IndividualMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Set<SubscribeRequest> subscriptions = new CopyOnWriteArraySet<>();
-    private final Set<Pair<String, IndividualMqttClient>> subscriptionTopics = new CopyOnWriteArraySet<>();
+    private final Map<MqttTopic, IndividualMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
 
     private final EventLoopGroup eventLoopGroup;
@@ -86,7 +87,7 @@ public class MqttClient implements Closeable {
      * Constructor for injection.
      *
      * @param deviceConfiguration device configuration
-     * @param executorService executor service
+     * @param executorService     executor service
      */
     @Inject
     public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
@@ -161,8 +162,8 @@ public class MqttClient implements Closeable {
 
                 // If none of our existing subscriptions include (through wildcards) the new topic, then
                 // go ahead and subscribe to it
-                if (subscriptionTopics.stream()
-                        .noneMatch(s -> MqttTopic.topicIsSupersetOf(s.getLeft(), request.getTopic()))) {
+                if (subscriptionTopics.keySet().stream()
+                        .noneMatch(s -> s.isSupersetOf(new MqttTopic(request.getTopic())))) {
                     connection = getConnection(true);
                 }
             }
@@ -170,7 +171,7 @@ public class MqttClient implements Closeable {
             // Connection isn't null, so we should subscribe to the topic
             if (connection != null) {
                 connection.subscribe(request.getTopic(), request.getQos());
-                subscriptionTopics.add(new Pair<>(request.getTopic(), connection));
+                subscriptionTopics.put(new MqttTopic(request.getTopic()), connection);
             }
         }
     }
@@ -186,21 +187,21 @@ public class MqttClient implements Closeable {
     public void unsubscribe(UnsubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
         try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-            Set<Pair<String, IndividualMqttClient>> deadSubscriptionTopics;
+            Set<Map.Entry<MqttTopic, IndividualMqttClient>> deadSubscriptionTopics;
             // Use the write lock because we're modifying the subscriptions and trying to consolidate them
             try (WriteLockScope scope2 = WriteLockScope.lock(connectionLock)) {
                 subscriptions.removeIf(
                         r -> r.getCallback() == request.getCallback() && r.getTopic().equals(request.getTopic()));
                 // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
-                deadSubscriptionTopics = subscriptionTopics.stream().filter(s -> subscriptions.stream()
-                        .noneMatch(sub -> MqttTopic.topicIsSupersetOf(s.getLeft(), sub.getTopic())))
+                deadSubscriptionTopics = subscriptionTopics.entrySet().stream().filter(s -> subscriptions.stream()
+                        .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
                         .collect(Collectors.toSet());
 
             }
             if (!deadSubscriptionTopics.isEmpty()) {
-                for (Pair<String, IndividualMqttClient> sub : deadSubscriptionTopics) {
-                    sub.getRight().unsubscribe(sub.getLeft());
-                    subscriptionTopics.remove(sub);
+                for (Map.Entry<MqttTopic, IndividualMqttClient> sub : deadSubscriptionTopics) {
+                    sub.getValue().unsubscribe(sub.getKey().getTopic());
+                    subscriptionTopics.remove(sub.getKey());
                 }
             }
         }
@@ -246,14 +247,23 @@ public class MqttClient implements Closeable {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    Consumer<MqttMessage> getMessageHandlerForClient(String clientId) {
+    Consumer<MqttMessage> getMessageHandlerForClient(IndividualMqttClient client) {
         return (message) -> {
-            logger.atTrace().kv(CLIENT_ID_KEY, clientId).kv("topic", message.getTopic()).log("Received MQTT message");
+            logger.atTrace().kv(CLIENT_ID_KEY, client.getClientId()).kv("topic", message.getTopic())
+                    .log("Received MQTT message");
+            // Find all on-device subscriptions for which this message should go to by checking superset.
+            // Then ensure that we only send messages for subscriptions that this client has.
+            // This will prevent the subscription being triggered multiple times
+            // if client 1 has A/B and client 2 has A/+, then each subscription should only be called once.
             Set<SubscribeRequest> subs =
                     subscriptions.stream().filter(s -> MqttTopic.topicIsSupersetOf(s.getTopic(), message.getTopic()))
-                            .collect(Collectors.toSet());
+                            .filter(s -> {
+                                MqttTopic bestTopic = new MqttTopic(s.getTopic())
+                                        .mostSpecificSubscription(subscriptionTopics.keySet());
+                                return subscriptionTopics.get(bestTopic).equals(client);
+                            }).collect(Collectors.toSet());
             if (subs.isEmpty()) {
-                logger.atError().kv("topic", message.getTopic()).kv(CLIENT_ID_KEY, clientId)
+                logger.atError().kv("topic", message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
                         .log("Somehow got message from topic that no one subscribed to");
                 return;
             }
@@ -261,7 +271,7 @@ public class MqttClient implements Closeable {
                 try {
                     h.getCallback().accept(message);
                 } catch (Throwable t) {
-                    logger.atError().kv("message", message).kv(CLIENT_ID_KEY, clientId)
+                    logger.atError().kv("message", message).kv(CLIENT_ID_KEY, client.getClientId())
                             .log("Unhandled error in MQTT message callback", t);
                 }
             });
@@ -270,8 +280,8 @@ public class MqttClient implements Closeable {
 
     protected IndividualMqttClient getNewMqttClient() {
         String clientId = UUID.randomUUID().toString();
-        return new IndividualMqttClient(() -> builderProvider.apply(clientBootstrap),
-                getMessageHandlerForClient(clientId), clientId, mqttTopics);
+        return new IndividualMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
+                clientId, mqttTopics);
     }
 
     public boolean connected() {

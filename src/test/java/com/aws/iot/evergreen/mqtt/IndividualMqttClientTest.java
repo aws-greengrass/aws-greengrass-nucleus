@@ -56,7 +56,7 @@ class IndividualMqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         Topics mockTopic = mock(Topics.class);
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
-        IndividualMqttClient client = new IndividualMqttClient(() -> builder, null, "A", mockTopic);
+        IndividualMqttClient client = new IndividualMqttClient(() -> builder, (x) -> null, "A", mockTopic);
 
         assertFalse(client.connected());
 
