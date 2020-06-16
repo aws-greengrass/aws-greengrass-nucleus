@@ -3,7 +3,7 @@
 
 package com.aws.iot.evergreen.config;
 
-
+@FunctionalInterface
 public interface ChildChanged extends Watcher {
     void childChanged(WhatHappened what, Node child);
 }

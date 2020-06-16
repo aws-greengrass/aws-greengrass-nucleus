@@ -118,8 +118,19 @@ public class Topic extends Node {
         return this;
     }
 
+    /**
+     * Remove with timestamp check.
+     * @param timestamp timestamp
+     */
+    public void remove(long timestamp) {
+        if (timestamp < this.modtime) {
+            return;
+        }
+        remove();
+    }
+
     @Override
-    public void fire(WhatHappened what) {
+    protected void fire(WhatHappened what) {
         logger.atDebug().setEventType("config-node-update").addKeyValue("configNode", getFullName())
                 .addKeyValue("reason", what.name()).log();
         if (watchers != null) {
@@ -129,8 +140,15 @@ public class Topic extends Node {
                 }
             }
         }
+
+        // in the case of 'removed' event, parents are already notified with 'childRemoved'.
+        if (WhatHappened.removed.equals(what)) {
+            return;
+        }
+
+        // in the case of 'changed' event
         if (parent != null && parentNeedsToKnow()) {
-            parent.childChanged(what, this);
+            parent.childChanged(WhatHappened.childChanged, this);
         }
     }
 

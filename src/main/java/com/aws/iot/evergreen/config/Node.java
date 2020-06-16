@@ -17,7 +17,7 @@ public abstract class Node {
     public final Topics parent;
     private final String fnc;
     private final String name;
-    protected CopyOnWriteArraySet<Watcher> watchers;
+    protected final CopyOnWriteArraySet<Watcher> watchers = new CopyOnWriteArraySet<>();
     private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
     private List<String> path;
 
@@ -85,7 +85,7 @@ public abstract class Node {
         return sb.toString();
     }
 
-    abstract void fire(WhatHappened what);
+    protected abstract void fire(WhatHappened what);
 
     /**
      * Add a watcher.
@@ -95,9 +95,6 @@ public abstract class Node {
      */
     protected boolean addWatcher(Watcher s) {
         if (s != null) {
-            if (watchers == null) {
-                watchers = new CopyOnWriteArraySet<>();
-            }
             return watchers.add(s);
         }
         return false;
@@ -109,9 +106,7 @@ public abstract class Node {
      * @param s subscriber to remove
      */
     public void remove(Watcher s) {
-        if (watchers != null) {
-            watchers.remove(s);
-        }
+        watchers.remove(s);
     }
 
     /**
@@ -124,20 +119,18 @@ public abstract class Node {
     }
 
     protected Object validate(Object newValue, Object oldValue) {
-        if (watchers != null) {
-            boolean rewrite = true;
-            // Try to make all the validators happy, but not infinitely
-            for (int laps = 3; laps > 0 && rewrite; --laps) {
-                rewrite = false;
-                for (Watcher s : watchers) {
-                    if (!(s instanceof Validator)) {
-                        continue;
-                    }
-                    Object nv = ((Validator) s).validate(newValue, oldValue);
-                    if (!Objects.equals(nv, newValue)) {
-                        rewrite = true;
-                        newValue = nv;
-                    }
+        boolean rewrite = true;
+        // Try to make all the validators happy, but not infinitely
+        for (int laps = 3; laps > 0 && rewrite; --laps) {
+            rewrite = false;
+            for (Watcher s : watchers) {
+                if (!(s instanceof Validator)) {
+                    continue;
+                }
+                Object nv = ((Validator) s).validate(newValue, oldValue);
+                if (!Objects.equals(nv, newValue)) {
+                    rewrite = true;
+                    newValue = nv;
                 }
             }
         }

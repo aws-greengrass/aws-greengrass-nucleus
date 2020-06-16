@@ -5,6 +5,8 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
+import com.aws.iot.evergreen.util.Pair;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.core.StringContains;
@@ -19,14 +21,18 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -182,4 +188,77 @@ public class ConfigurationTest {
         assertTrue(childChangedCorrectly.await(100, TimeUnit.MILLISECONDS));
     }
 
+    @Test
+    public void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() throws Exception {
+        Topic testTopic = config.lookup("a", "b", "c");
+
+        AtomicInteger numCalled = new AtomicInteger(0);
+        Pair<CompletableFuture<Void>, BiConsumer<WhatHappened, Topic>> childRemoved =
+                TestUtils.asyncAssertOnBiConsumer((what, t) -> {
+                    if (numCalled.get() == 0) {
+                        assertEquals(WhatHappened.initialized, what);
+                    } else if (numCalled.get() == 1) {
+                        assertEquals(WhatHappened.removed, what);
+                    }
+                    numCalled.incrementAndGet();
+                }, 2);
+        testTopic.subscribe((w, t) -> childRemoved.getRight().accept(w, t));
+
+        AtomicInteger parentNumCalled = new AtomicInteger(0);
+        Pair<CompletableFuture<Void>, BiConsumer<WhatHappened, Node>> parentNotified =
+                TestUtils.asyncAssertOnBiConsumer((what, t) -> {
+                    if (parentNumCalled.get() == 0) {
+                        assertEquals(WhatHappened.initialized, what);
+                        parentNumCalled.incrementAndGet();
+                    } else if (parentNumCalled.get() == 1) {
+                        assertEquals(WhatHappened.childRemoved, what);
+                        assertEquals(testTopic, t);
+                    }
+                }, 2);
+        config.findTopics("a", "b").subscribe((w, n) -> parentNotified.getRight().accept(w, n));
+
+        testTopic.remove();
+
+        childRemoved.getLeft().get(100, TimeUnit.MILLISECONDS);
+        parentNotified.getLeft().get(100, TimeUnit.MILLISECONDS);
+        assertNull(config.find("a", "b", "c"));
+        assertFalse(config.findTopics("a", "b").children.containsKey("c"));
+    }
+
+    @Test
+    public void GIVEN_config_with_subscribers_WHEN_topics_removed_THEN_children_notified() {
+        config.lookup("a", "b", "c");
+        AtomicInteger[] childNotified = new AtomicInteger[3];
+
+        childNotified[0] = new AtomicInteger(0);
+        config.lookupTopics("a").subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified[0].incrementAndGet();
+            }
+        });
+
+        childNotified[1] = new AtomicInteger(0);
+        config.lookupTopics("a", "b").subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified[1].incrementAndGet();
+            }
+        });
+
+        childNotified[2] = new AtomicInteger(0);
+        config.lookup("a", "b", "c").subscribe((what, t) -> {
+            if (what.equals(WhatHappened.removed)) {
+                childNotified[2].incrementAndGet();
+            }
+        });
+
+        config.lookupTopics("a").remove();
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        assertEquals(1, childNotified[0].get());
+        assertNull(config.findTopics("a"));
+        assertFalse(config.root.children.containsKey("a"));
+
+        assertEquals(1, childNotified[1].get());
+        assertEquals(1, childNotified[2].get());
+    }
 }

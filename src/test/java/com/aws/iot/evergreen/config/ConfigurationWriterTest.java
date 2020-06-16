@@ -17,6 +17,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class ConfigurationWriterTest {
     @TempDir
@@ -62,6 +63,34 @@ class ConfigurationWriterTest {
             // Assert that we can get back to the current in-memory state by reading the tlog
             Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
             assertThat(readConfig.toPOJO(), is(config.toPOJO()));
+        }
+    }
+
+    @Test
+    void GIVEN_config_with_configuration_writer_WHEN_config_remove_made_THEN_written_to_tlog() throws IOException {
+        Path tlog = tempDir.resolve("test_topic_removal.tlog");
+        Configuration config = new Configuration(context);
+
+        try (ConfigurationWriter writer = ConfigurationWriter.logTransactionsTo(config, tlog)) {
+            writer.flushImmediately(true);
+
+            // Create a Topic somewhere in the hierarchy
+            config.lookup("a", "c").withValue("Some Val1");
+            Topic t = config.lookup("a", "toBeRemoved").withValue("Some Val2");
+            t.remove();
+
+            context.runOnPublishQueueAndWait(() -> {
+            }); // Block until publish queue is empty to ensure all changes have
+            // been processed
+
+            // Assert that we can get back to the current in-memory state by reading the tlog
+            Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
+            context.runOnPublishQueueAndWait(() -> {
+            }); // Block until publish queue is empty to ensure all changes have
+            // been processed
+
+            assertThat(readConfig.toPOJO(), is(config.toPOJO()));
+            assertNull(readConfig.find("a", "toBeRemoved"));
         }
     }
 }

@@ -5,7 +5,6 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Commitable;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Utils;
@@ -19,7 +18,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.aws.iot.evergreen.util.Utils.appendLong;
 import static com.aws.iot.evergreen.util.Utils.flush;
 
 public class ConfigurationWriter implements Closeable, ChildChanged {
@@ -100,18 +98,21 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (closed.get()) {
             return;
         }
-        if (what == WhatHappened.childChanged && n instanceof Topic) {
+        if ((what == WhatHappened.childChanged || what == WhatHappened.childRemoved)  && n instanceof Topic) {
             Topic t = (Topic) n;
             try {
                 if (n.getName().startsWith("_")) {
                     return;  // Don't log entries whose name starts in '_'
                 }
-                appendLong(t.getModtime(), out);
-                out.append(',');
-                n.appendNameTo(out);
-                out.append(',');
-                Coerce.appendParseableString(t.getOnce(), out);
-                out.append('\n');
+                WhatHappened action;
+                if (what == WhatHappened.childChanged) {
+                    action = WhatHappened.changed;
+                } else {
+                    action = WhatHappened.removed;
+                }
+
+                Tlogline tlogline = new Tlogline(t.getModtime(), t.getFullName(), action, t.getOnce());
+                tlogline.outputTo(out);
             } catch (IOException ex) {
                 logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
                         .setCause(ex).log();
