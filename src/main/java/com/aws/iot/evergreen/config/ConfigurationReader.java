@@ -4,22 +4,19 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.function.Predicate;
 
-import static com.aws.iot.evergreen.util.Coerce.toObject;
-import static com.aws.iot.evergreen.util.Utils.parseLong;
-
 public final class ConfigurationReader {
-    private static final java.util.regex.Pattern logLine =
-            java.util.regex.Pattern.compile("([0-9]+),([^,]*),([^\n]*)\n*");
     private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
+    private static final Logger logger = LogManager.getLogger(ConfigurationReader.class);
 
     private ConfigurationReader() {
     }
@@ -27,25 +24,62 @@ public final class ConfigurationReader {
     /**
      * Merge the given transaction log into the given configuration.
      *
-     * @param c  configuration to merge into
-     * @param r0 reader of the transaction log to read from
+     * @param config         configuration to merge into
+     * @param reader         reader of the transaction log to read from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
+     *
      * @throws IOException if reading fails
      */
-    public static void mergeTLogInto(Configuration c, Reader r0) throws IOException {
-        try (BufferedReader in = r0 instanceof BufferedReader ? (BufferedReader) r0 : new BufferedReader(r0)) {
-            String l = in.readLine();
-            while (l != null) {
-                java.util.regex.Matcher m = logLine.matcher(l);
-                if (m.matches()) {
-                    c.lookup(seperator.split(m.group(2))).withNewerValue(parseLong(m.group(1)), toObject(m.group(3)));
+    public static void mergeTLogInto(Configuration config,
+                                     Reader reader,
+                                     boolean forceTimestamp,
+                                     Predicate<Topic> mergeCondition) throws IOException {
+        try (BufferedReader in = reader instanceof BufferedReader
+                ? (BufferedReader) reader : new BufferedReader(reader)) {
+            String l;
+
+            for (l = in.readLine(); l != null; l = in.readLine()) {
+                try {
+                    Tlogline tlogline = Tlogline.fromStringInput(l);
+                    Topic targetTopic = config.lookup(seperator.split(tlogline.topicString));
+                    if (mergeCondition != null && !mergeCondition.test(targetTopic)) {
+                        continue;
+                    }
+                    if (WhatHappened.changed.equals(tlogline.action)) {
+                        targetTopic.withNewerValue(tlogline.timestamp, tlogline.value, forceTimestamp);
+                    } else if (WhatHappened.removed.equals(tlogline.action)) {
+                        if (forceTimestamp) {
+                            targetTopic.remove();
+                        } else {
+                            targetTopic.remove(tlogline.timestamp);
+                        }
+                    }
+                } catch (Tlogline.InvalidLogException e) {
+                    logger.atError().setCause(e).log("Fail to parse log line");
                 }
-                l = in.readLine();
             }
         }
     }
 
-    public static void mergeTLogInto(Configuration c, Path p) throws IOException {
-        ConfigurationReader.mergeTLogInto(c, Files.newBufferedReader(p));
+    /**
+     * Merge the given transaction log into the given configuration.
+     *
+     * @param config         configuration to merge into
+     * @param tlogPath       path of the tlog file to read to-be-merged config from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
+     *
+     * @throws IOException if reading fails
+     */
+    public static void mergeTLogInto(Configuration config, Path tlogPath, boolean forceTimestamp,
+                                     Predicate<Topic> mergeCondition)
+            throws IOException {
+        mergeTLogInto(config, Files.newBufferedReader(tlogPath), forceTimestamp, mergeCondition);
+    }
+
+    private static void mergeTLogInto(Configuration c, Path p) throws IOException {
+        mergeTLogInto(c, Files.newBufferedReader(p), false, null);
     }
 
     /**
@@ -60,33 +94,5 @@ public final class ConfigurationReader {
         Configuration c = new Configuration(context);
         ConfigurationReader.mergeTLogInto(c, p);
         return c;
-    }
-
-    /**
-     * Merge the given transaction log into the given configuration.
-     *
-     * @param config         configuration to merge into
-     * @param tlogPath       path of the tlog file to read to-be-merged config from
-     * @param forceTimestamp should ignore if the proposed timestamp is older than current
-     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
-     *
-     * @throws IOException if reading fails
-     */
-    public static void mergeTlogIntoConfig(Configuration config, Path tlogPath, boolean forceTimestamp,
-                                           Predicate<Topic> mergeCondition)
-            throws IOException {
-        // This can cause memory issues when the tlog files is large, use it only merge config that can fit in memory
-        // TODO : Maybe track this in benchmarking if the tlog file has the potential to cause memory issues
-        Iterator<String> logLines = Files.readAllLines(tlogPath).iterator();
-        while (logLines.hasNext()) {
-            java.util.regex.Matcher m = logLine.matcher(logLines.next());
-            if (m.matches()) {
-                String matchedValue = m.group(2);
-                Topic targetTopic = config.lookup(seperator.split(matchedValue));
-                if (mergeCondition == null || mergeCondition.test(targetTopic)) {
-                    targetTopic.withNewerValue(parseLong(m.group(1)), toObject(m.group(3)), forceTimestamp);
-                }
-            }
-        }
     }
 }

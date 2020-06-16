@@ -188,10 +188,6 @@ public class Topics extends Node implements Iterable<Node> {
         return n;
     }
 
-    public void publish(Topic t) {
-        childChanged(WhatHappened.childChanged, t);
-    }
-
     /**
      * Add the given map to this Topics tree.
      *
@@ -250,27 +246,35 @@ public class Topics extends Node implements Iterable<Node> {
      * @param n node to remove
      */
     public void remove(Node n) {
-        if (!children.remove(n.getName(), n)) {
-            logger.atError("config-node-child-remove-error").kv("thisNode", toString())
-                    .kv("childNode", n.getName()).log();
-        }
-        n.fire(WhatHappened.removed);
-        childChanged(WhatHappened.childRemoved, n);
+        context.runOnPublishQueue(() -> {
+            if (!children.remove(n.getName(), n)) {
+                logger.atError("config-node-child-remove-error").kv("thisNode", toString())
+                        .kv("childNode", n.getName()).log();
+                return;
+            }
+            n.fire(WhatHappened.removed);
+            this.childChanged(WhatHappened.childRemoved, n);
+        });
     }
 
     protected void childChanged(WhatHappened what, Node child) {
         logger.atDebug().setEventType("config-node-child-update").addKeyValue("configNode", getFullName())
                 .addKeyValue("reason", what.name()).log();
-        if (watchers != null) {
-            for (Watcher s : watchers) {
-                if (s instanceof ChildChanged) {
-                    ((ChildChanged) s).childChanged(what, child);
-                }
-                // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
+
+        for (Watcher s : watchers) {
+            if (s instanceof ChildChanged) {
+                ((ChildChanged) s).childChanged(what, child);
             }
+            // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
         }
+
+        if (what.equals(WhatHappened.removed)) {
+            children.forEach((k, v) -> v.fire(WhatHappened.removed));
+            return;
+        }
+
         if (parent != null && parentNeedsToKnow()) {
-            parent.childChanged(WhatHappened.childChanged, child);
+            parent.childChanged(what, child);
         }
     }
 

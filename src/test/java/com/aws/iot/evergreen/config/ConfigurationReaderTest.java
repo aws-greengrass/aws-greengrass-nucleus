@@ -14,8 +14,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(EGExtension.class)
 public class ConfigurationReaderTest {
@@ -37,8 +39,10 @@ public class ConfigurationReaderTest {
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                       SKIP_MERGE_NAMESPACE_KEY, "testTopic").withValue("Test");
         Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
-        ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, true,
+        ConfigurationReader.mergeTLogInto(config, tlogPath, true,
                                                 s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
+         // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         // Test tlog file has value set to "TLogValue"
         assertEquals("Test", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                            SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
@@ -52,8 +56,70 @@ public class ConfigurationReaderTest {
                       SKIP_MERGE_NAMESPACE_KEY, "testTopic")
                                 .withValue("Test");
         Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
-        ConfigurationReader.mergeTlogIntoConfig(config, tlogPath, true, null);
+        ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         assertEquals("TLogValue", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                                 SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_forced_timestamp_THEN_topic_is_removed() throws Exception {
+        // Create this topic with temp value
+        String[] topicPathToRemove = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
+        config.lookup(topicPathToRemove)
+                .withNewerValue(Long.MAX_VALUE, "Test");
+        assertEquals("Test", config.find(topicPathToRemove).getOnce());
+
+        Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
+        assertNull(config.find(topicPathToRemove));
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_smaller_timestamp_THEN_topic_is_removed() throws Exception {
+        // Create this topic with temp value
+        String[] topicPathToRemove = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
+        config.lookup(topicPathToRemove)
+                .withNewerValue(1, "Test", true);
+        assertEquals("Test", config.find(topicPathToRemove).getOnce());
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
+        assertNull(config.find(topicPathToRemove));
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_larger_timestamp_THEN_topic_is_not_removed() throws Exception {
+        // Create this topic with temp value
+        String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
+        config.lookup(topicPath)
+                .withNewerValue(Long.MAX_VALUE, "Test");
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        Topic resultTopic = config.find(topicPath);
+        assertEquals("Test", resultTopic.getOnce());
+        assertEquals(Long.MAX_VALUE, resultTopic.getModtime());
+    }
+
+    @Test
+    public void GIVEN_tlog_WHEN_merge_THEN_first_and_last_line_is_merged() throws Exception {
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        assertEquals("firstline", config.find("test", "firstline").getOnce());
+        assertEquals("lastline", config.find("test", "lastline").getOnce());
     }
 }

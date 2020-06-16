@@ -37,7 +37,7 @@ public class DeploymentStatusKeeperTest {
     public void setup() {
         context = new Context();
         deploymentStatusKeeper = new DeploymentStatusKeeper();
-        deploymentStatusKeeper.setConfig(new Configuration(new Context()));
+        deploymentStatusKeeper.setConfig(new Configuration(context));
         processedDeployments = deploymentStatusKeeper.getProcessedDeployments();
     }
 
@@ -86,6 +86,7 @@ public class DeploymentStatusKeeperTest {
     public void GIVEN_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> true);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
+        context.runOnPublishQueueAndWait(() -> {});
         assertEquals(0, processedDeployments.children.size());
     }
 
@@ -116,6 +117,7 @@ public class DeploymentStatusKeeperTest {
         // assert consumer is invoked second time
         assertEquals(2, consumerInvokeCount.get());
         // assert update is removed as consumer returns true
+        context.runOnPublishQueueAndWait(() -> {});
         assertEquals(0, processedDeployments.children.size());
         // nothing happens as there is no persisted updates
         deploymentStatusKeeper.publishPersistedStatusUpdates(IOT_JOBS);
