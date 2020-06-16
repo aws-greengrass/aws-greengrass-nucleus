@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -168,6 +170,18 @@ public class ConfigurationTest {
     }
 
     @Test
+    public void GIVEN_configuration_WHEN_findNode_called_THEN_correct_node_returned() {
+        assertNull(config.findNode("root", "container", "leaf"));
+        Topic createdTopic = config.lookup("root", "container", "leaf").dflt("defaultValue");
+        assertEquals("defaultValue", createdTopic.getOnce());
+        assertEquals(createdTopic, config.findNode("root", "container", "leaf"));
+
+        Topics containerNode = config.findTopics("root", "container");
+        assertEquals("defaultValue", containerNode.findLeafChild("leaf").getOnce());
+        assertEquals(containerNode, config.findNode("root", "container"));
+    }
+
+    @Test
     public void GIVEN_config_with_subscribers_WHEN_topic_updated_THEN_subscribers_notified_with_changed_node()
             throws Exception {
         Topic installTopic = config.lookup(SERVICES_NAMESPACE_TOPIC, "serviceA", "lifecycle", "install").dflt("default");
@@ -301,5 +315,75 @@ public class ConfigurationTest {
         config.read(getClass().getResource("test.json").toURI().toURL(), false);
         assertEquals("echo main service installed",
                 config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
+    }
+
+    @Test
+    public void GIVEN_topics_WHEN_call_replace_map_THEN_content_replaced_and_subscribers_invoked() throws Exception {
+        // GIVEN
+        // set up initial config and listeners
+        String initConfig = "---\n"
+                + "foo:\n"
+                + "  nodeToBeRemoved:\n"
+                + "    key1: val1\n"
+                + "  leafToBeUpdated: val2\n"
+                + "  nodeUnchanged: unchanged\n"
+                + "  leafToBeRemoved: dummy";
+
+        String updateConfig = "---\n"
+                + "foo:\n"
+                + "  nodeAdded: val1\n"
+                + "  nodeUnchanged: unchanged\n"
+                + "  leafToBeUpdated: updatedValue";
+
+        Map<Object, Object> initConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
+            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        config.mergeMap(System.currentTimeMillis(), initConfigMap);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        AtomicInteger containerNodeRemoved = new AtomicInteger(0);
+        config.findTopics("foo", "nodeToBeRemoved").subscribe((what, c) -> {
+            if (WhatHappened.removed == what) {
+                containerNodeRemoved.incrementAndGet();
+            }
+        });
+
+        AtomicInteger leafNodeRemoved = new AtomicInteger(0);
+        config.find("foo", "leafToBeRemoved").subscribe((what, c) -> {
+            if (WhatHappened.removed == what) {
+                leafNodeRemoved.incrementAndGet();
+            }
+        });
+
+        AtomicBoolean nodeUnchangedNotified = new AtomicBoolean(false);
+        config.find("foo", "nodeUnchanged").subscribe((what, c) -> {
+            if (WhatHappened.initialized != what) {
+                nodeUnchangedNotified.set(true);
+            }
+        });
+
+        AtomicInteger leafNodeUpdated = new AtomicInteger(0);
+        config.find("foo", "leafToBeUpdated").subscribe((what, c) -> {
+            if (WhatHappened.changed == what && c.getOnce().equals("updatedValue")) {
+                leafNodeUpdated.incrementAndGet();
+            }
+        });
+
+        // WHEN
+        Map<Object, Object> updateConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        config.root.replaceMap(System.currentTimeMillis(), updateConfigMap);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        // THEN
+        assertEquals(updateConfigMap, config.toPOJO());
+
+        assertEquals(1, leafNodeRemoved.get());
+        assertEquals(1, containerNodeRemoved.get());
+        assertEquals(1, leafNodeUpdated.get());
+        assertFalse(nodeUnchangedNotified.get());
     }
 }

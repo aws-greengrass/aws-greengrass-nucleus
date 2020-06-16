@@ -6,11 +6,14 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -192,13 +195,27 @@ public class Topics extends Node implements Iterable<Node> {
         return n;
     }
 
+    protected Node findNode(String... path) {
+        int limit = path.length - 1;
+        Topics n = this;
+        for (int i = 0; i < limit && n != null; i++) {
+            n = n.findInteriorChild(path[i]);
+        }
+        return n == null ? null : n.getChild(path[limit]);
+    }
+
     /**
      * Add the given map to this Topics tree.
      *
      * @param lastModified last modified time
      * @param map          map to merge in
      */
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
     public void mergeMap(long lastModified, Map<Object, Object> map) {
+        if (map == null) {
+            logger.atInfo().kv("node", getFullName()).log("Null map received in mergeMap(), ignoring.");
+            return;
+        }
         map.forEach((okey, value) -> {
             String key = okey.toString();
             if (value instanceof Map) {
@@ -206,6 +223,47 @@ public class Topics extends Node implements Iterable<Node> {
             } else {
                 createLeafChild(key).withNewerValue(lastModified, value);
             }
+        });
+    }
+
+    /**
+     * Replace the given map to this Topics tree.
+     *
+     * @param lastModified last modified time
+     * @param map          map to merge in
+     */
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
+    public void replaceMap(long lastModified, Map<Object, Object> map) {
+        if (map == null) {
+            logger.atInfo().kv("node", getFullName()).log("Null map received in mergeMap(), ignoring.");
+            return;
+        }
+        Set<String> childToRemove = new HashSet<>(children.keySet());
+
+        map.forEach((okey, value) -> {
+            String key = okey.toString();
+            childToRemove.remove(key);
+            Node existingChild = children.get(key);
+            // if new node is a container node
+            if (value instanceof Map) {
+                // if existing child is a leaf node
+                // TODO: handle node type change between container/leaf node
+                if (existingChild != null && !(existingChild instanceof Topics)) {
+                    remove(existingChild);
+                }
+                createInteriorChild(key).replaceMap(lastModified, (Map) value);
+            // if new node is a leaf node
+            } else {
+                // if existing child is a container node
+                if (existingChild != null && !(existingChild instanceof Topic)) {
+                    remove(existingChild);
+                }
+                createLeafChild(key).withNewerValue(lastModified, value);
+            }
+        });
+
+        childToRemove.forEach(child -> {
+            remove(children.get(child));
         });
     }
 
@@ -291,7 +349,20 @@ public class Topics extends Node implements Iterable<Node> {
             return;
         }
 
-        if (parent != null && parentNeedsToKnow()) {
+        if (child.modtime > this.modtime || children.isEmpty()) {
+            this.modtime = child.modtime;
+        } else {
+            this.modtime = children.values().stream().max((node, other) -> {
+                if (node.modtime == other.modtime) {
+                    return 0;
+                }
+                if (node.modtime < other.modtime) {
+                    return -1;
+                }
+                return 1;
+            }).get().modtime;
+        }
+        if (parentNeedsToKnow()) {
             parent.childChanged(what, child);
         }
     }

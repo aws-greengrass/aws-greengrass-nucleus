@@ -10,6 +10,7 @@ import java.nio.file.Paths;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(EGExtension.class)
@@ -106,9 +108,42 @@ public class ConfigurationReaderTest {
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         Topic resultTopic = config.find(topicPath);
         assertEquals("Test", resultTopic.getOnce());
         assertEquals(Long.MAX_VALUE, resultTopic.getModtime());
+    }
+
+    @Test
+    public void GIVEN_tlog_merge_WHEN_container_node_removed_in_tlog_THEN_node_is_removed() throws Exception {
+        // Create this topic with temp value
+        String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
+        config.lookup(ArrayUtils.add(topicPath, "script"))
+                .withNewerValue(1, "Test");
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
+        assertNull(config.findNode(topicPath));
+    }
+
+    @Test
+    public void GIVEN_tlog_merge_WHEN_container_node_removed_at_smaller_timestamp_THEN_node_is_not_removed() throws Exception {
+        // Create this topic with temp value
+        String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
+                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
+        config.lookup(ArrayUtils.add(topicPath, "script"))
+                .withNewerValue(Long.MAX_VALUE, "Test");
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
+        assertNotNull(config.findNode(topicPath));
+        assertEquals(Long.MAX_VALUE, config.findNode(topicPath).modtime);
     }
 
     @Test
