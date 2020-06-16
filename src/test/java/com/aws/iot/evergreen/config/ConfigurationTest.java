@@ -5,6 +5,8 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
+import com.aws.iot.evergreen.util.Pair;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.core.StringContains;
@@ -19,9 +21,11 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
@@ -184,26 +188,38 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() {
+    public void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() throws Exception {
         Topic testTopic = config.lookup("a", "b", "c");
-        AtomicInteger childNotified = new AtomicInteger(0);
-        testTopic.subscribe((what, t) -> {
-            if (what.equals(WhatHappened.removed)) {
-                childNotified.incrementAndGet();
-            }
-        });
-        AtomicInteger parentNotified = new AtomicInteger(0);
-        config.findTopics("a", "b").subscribe((what, child) -> {
-            if (child == testTopic && what.equals(WhatHappened.childRemoved)) {
-                parentNotified.incrementAndGet();
-            }
-        });
+
+        AtomicInteger numCalled = new AtomicInteger(0);
+        Pair<CompletableFuture<Void>, BiConsumer<WhatHappened, Topic>> childRemoved =
+                TestUtils.asyncAssertOnBiConsumer((what, t) -> {
+                    if (numCalled.get() == 0) {
+                        assertEquals(WhatHappened.initialized, what);
+                    } else if (numCalled.get() == 1) {
+                        assertEquals(WhatHappened.removed, what);
+                    }
+                    numCalled.incrementAndGet();
+                }, 2);
+        testTopic.subscribe((w, t) -> childRemoved.getRight().accept(w, t));
+
+        AtomicInteger parentNumCalled = new AtomicInteger(0);
+        Pair<CompletableFuture<Void>, BiConsumer<WhatHappened, Node>> parentNotified =
+                TestUtils.asyncAssertOnBiConsumer((what, t) -> {
+                    if (parentNumCalled.get() == 0) {
+                        assertEquals(WhatHappened.initialized, what);
+                        parentNumCalled.incrementAndGet();
+                    } else if (parentNumCalled.get() == 1) {
+                        assertEquals(WhatHappened.childRemoved, what);
+                        assertEquals(testTopic, t);
+                    }
+                }, 2);
+        config.findTopics("a", "b").subscribe((w, n) -> parentNotified.getRight().accept(w, n));
 
         testTopic.remove();
-        config.context.runOnPublishQueueAndWait(() -> {});
 
-        assertEquals(1, childNotified.get());
-        assertEquals(1, parentNotified.get());
+        childRemoved.getLeft().get(100, TimeUnit.MILLISECONDS);
+        parentNotified.getLeft().get(100, TimeUnit.MILLISECONDS);
         assertNull(config.find("a", "b", "c"));
     }
 

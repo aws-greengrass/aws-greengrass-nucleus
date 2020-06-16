@@ -141,11 +141,12 @@ public class Topic extends Node {
             }
         }
 
+        // in the case of 'removed' event, parents are already notified with 'childRemoved'.
         if (WhatHappened.removed.equals(what)) {
-            watchers.clear();
             return;
         }
 
+        // in the case of 'changed' event
         if (parent != null && parentNeedsToKnow()) {
             parent.childChanged(WhatHappened.childChanged, this);
         }

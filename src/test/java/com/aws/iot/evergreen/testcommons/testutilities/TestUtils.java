@@ -28,12 +28,30 @@ public final class TestUtils {
      * @return
      */
     public static <A, B> Pair<CompletableFuture<Void>, BiConsumer<A, B>> asyncAssertOnBiConsumer(BiConsumer<A, B> bi) {
+        return asyncAssertOnBiConsumer(bi, 1);
+    }
+
+
+    /**
+     * Wraps a given biconsumer function so that once it is called, the completable future can
+     * complete with the exception, or with a success.
+     *
+     * @param bi
+     * @param numCalls number of expected calls
+     */
+    public static <A, B> Pair<CompletableFuture<Void>, BiConsumer<A, B>> asyncAssertOnBiConsumer(BiConsumer<A, B> bi,
+                                                                                                 int numCalls) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        AtomicInteger calls = new AtomicInteger(0);
 
         return new Pair<>(f, (a, b) -> {
             try {
+                int callsSoFar = calls.incrementAndGet();
                 bi.accept(a, b);
-                f.complete(null);
+
+                if (callsSoFar == numCalls) {
+                    f.complete(null);
+                }
             } catch (Throwable ex) {
                 f.completeExceptionally(ex);
             }

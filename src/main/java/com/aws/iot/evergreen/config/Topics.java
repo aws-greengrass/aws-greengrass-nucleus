@@ -272,7 +272,6 @@ public class Topics extends Node implements Iterable<Node> {
         }
 
         if (what.equals(WhatHappened.removed)) {
-            watchers.clear();
             children.forEach((k, v) -> v.fire(WhatHappened.removed));
             return;
         }

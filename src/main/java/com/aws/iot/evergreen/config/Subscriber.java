@@ -11,6 +11,7 @@ package com.aws.iot.evergreen.config;
  * happen in rapid succession, they may be collapsed into one notification.  This usually
  * happens when a compound change occurs.
  */
+@FunctionalInterface
 public interface Subscriber extends Watcher {
     void published(WhatHappened what, Topic t);
 }
