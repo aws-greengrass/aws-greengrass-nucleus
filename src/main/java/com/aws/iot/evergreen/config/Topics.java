@@ -188,10 +188,6 @@ public class Topics extends Node implements Iterable<Node> {
         return n;
     }
 
-    public void publish(Topic t) {
-        childChanged(WhatHappened.childChanged, t);
-    }
-
     /**
      * Add the given map to this Topics tree.
      *
@@ -254,9 +250,10 @@ public class Topics extends Node implements Iterable<Node> {
             if (!children.remove(n.getName(), n)) {
                 logger.atError("config-node-child-remove-error").kv("thisNode", toString())
                         .kv("childNode", n.getName()).log();
+                return;
             }
             n.fire(WhatHappened.removed);
-            childChanged(WhatHappened.childRemoved, n);
+            this.childChanged(WhatHappened.childRemoved, n);
         });
     }
 

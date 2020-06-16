@@ -59,9 +59,6 @@ public final class ConfigurationReader {
                     logger.atError().setCause(e).log("Fail to parse log line");
                 }
             }
-
-            // block until all changes are merged in
-            config.context.runOnPublishQueueAndWait(() -> {});
         }
     }
 

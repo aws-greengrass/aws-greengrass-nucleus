@@ -41,6 +41,8 @@ public class ConfigurationReaderTest {
         Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true,
                                                 s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
+         // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         // Test tlog file has value set to "TLogValue"
         assertEquals("Test", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                            SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
@@ -55,6 +57,8 @@ public class ConfigurationReaderTest {
                                 .withValue("Test");
         Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         assertEquals("TLogValue", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                                 SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
     }
@@ -71,6 +75,8 @@ public class ConfigurationReaderTest {
         Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
 
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         assertNull(config.find(topicPathToRemove));
     }
 
@@ -84,6 +90,9 @@ public class ConfigurationReaderTest {
         assertEquals("Test", config.find(topicPathToRemove).getOnce());
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
         assertNull(config.find(topicPathToRemove));
     }
 
@@ -106,6 +115,9 @@ public class ConfigurationReaderTest {
     public void GIVEN_tlog_WHEN_merge_THEN_first_and_last_line_is_merged() throws Exception {
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.runOnPublishQueueAndWait(() -> {});
 
         assertEquals("firstline", config.find("test", "firstline").getOnce());
         assertEquals("lastline", config.find("test", "lastline").getOnce());
