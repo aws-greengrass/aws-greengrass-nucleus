@@ -415,6 +415,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // main and sleeperB should be running
         assertEquals(State.RUNNING, main.getState());
         assertEquals(State.RUNNING, sleeperB.getState());
+        // ensure context finish all tasks
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
         // ensuring config value for sleeperA is removed
         assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"));
         // ensure kernel no longer holds a reference of sleeperA

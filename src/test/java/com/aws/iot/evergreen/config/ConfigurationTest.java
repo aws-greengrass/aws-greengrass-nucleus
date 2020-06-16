@@ -32,6 +32,7 @@ import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -221,6 +222,7 @@ public class ConfigurationTest {
         childRemoved.getLeft().get(100, TimeUnit.MILLISECONDS);
         parentNotified.getLeft().get(100, TimeUnit.MILLISECONDS);
         assertNull(config.find("a", "b", "c"));
+        assertFalse(config.findTopics("a", "b").children.containsKey("c"));
     }
 
     @Test
@@ -254,6 +256,7 @@ public class ConfigurationTest {
 
         assertEquals(1, childNotified[0].get());
         assertNull(config.findTopics("a"));
+        assertFalse(config.root.children.containsKey("a"));
 
         assertEquals(1, childNotified[1].get());
         assertEquals(1, childNotified[2].get());

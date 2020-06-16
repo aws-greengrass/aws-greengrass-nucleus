@@ -85,6 +85,10 @@ class ConfigurationWriterTest {
 
             // Assert that we can get back to the current in-memory state by reading the tlog
             Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
+            context.runOnPublishQueueAndWait(() -> {
+            }); // Block until publish queue is empty to ensure all changes have
+            // been processed
+
             assertThat(readConfig.toPOJO(), is(config.toPOJO()));
             assertNull(readConfig.find("a", "toBeRemoved"));
         }
