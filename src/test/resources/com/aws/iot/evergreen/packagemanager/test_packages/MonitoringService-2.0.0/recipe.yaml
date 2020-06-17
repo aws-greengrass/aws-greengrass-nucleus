@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: MonitoringService
+ComponentName: MonitoringService
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '2.0.0'

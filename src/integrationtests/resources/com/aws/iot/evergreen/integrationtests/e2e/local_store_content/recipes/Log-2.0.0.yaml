@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: Log
+ComponentName: Log
 Description: A test app
 Publisher: Me
 Version: '2.0.0'

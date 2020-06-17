@@ -1,8 +1,8 @@
 package com.aws.iot.evergreen.easysetup;
 
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.ResourceAlreadyExistException;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.model.CreateComponentResult;
+import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
@@ -70,7 +70,7 @@ public class DeviceProvisioningHelperTest {
     @Mock
     private IamClient iamClient;
     @Mock
-    private AWSGreengrassComponentManagement cmsClient;
+    private AWSEvergreen cmsClient;
     @Mock
     private GetPolicyResponse getPolicyResponse;
     @Mock

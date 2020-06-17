@@ -51,7 +51,7 @@ public class PackageRecipeTest {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         PackageRecipe testPkg = TestHelper.getPackageObject(recipeContents);
-        assertThat(testPkg.getPackageName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
+        assertThat(testPkg.getComponentName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
         assertThat(testPkg.getVersion().getValue(), is("1.0.0"));
         assertThat(testPkg.getPublisher(), is("Me"));
         assertThat(testPkg.getRecipeTemplateVersion(), is(RecipeTemplateVersion.JAN_25_2020));
@@ -79,7 +79,7 @@ public class PackageRecipeTest {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "2.0.0");
         PackageRecipe testPkg = TestHelper.getPackageObject(recipeContents);
-        assertThat(testPkg.getPackageName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
+        assertThat(testPkg.getComponentName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
         assertThat(testPkg.getVersion().getValue(), is("2.0.0"));
         assertThat(testPkg.getPublisher(), is("Me"));
 

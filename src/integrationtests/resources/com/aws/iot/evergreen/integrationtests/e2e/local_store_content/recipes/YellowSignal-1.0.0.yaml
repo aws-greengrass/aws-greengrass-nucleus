@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: YellowSignal
+ComponentName: YellowSignal
 Description: A service signalling proceed with caution
 Publisher: Me
 Version: '1.0.0'
