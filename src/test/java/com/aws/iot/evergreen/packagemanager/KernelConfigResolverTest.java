@@ -84,9 +84,9 @@ class KernelConfigResolverTest {
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "2.3", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(
                         Arrays.asList(rootPackageDeploymentConfig, dependencyPackageDeploymentConfig)).build();
@@ -134,7 +134,7 @@ class KernelConfigResolverTest {
                 getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
@@ -175,7 +175,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", new HashMap<String, Object>() {{
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", new HashMap<String, Object>() {{
                     put("PackageA_Param_1", "PackageA_Param_1_value");
                 }});
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
@@ -225,7 +225,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
@@ -283,7 +283,7 @@ class KernelConfigResolverTest {
                 }}, Collections.emptyMap(), Collections.emptyMap());
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder().rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 

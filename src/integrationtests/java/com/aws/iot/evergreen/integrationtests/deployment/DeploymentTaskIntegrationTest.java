@@ -5,8 +5,10 @@
 
 package com.aws.iot.evergreen.integrationtests.deployment;
 
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.DeploymentTask;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -28,6 +30,7 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
 import java.io.IOException;
@@ -58,6 +62,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -71,6 +77,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DeploymentTaskIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello evergreen. This is a test";
+    private static final String MOCK_GROUP_NAME = "thinggroup/group1";
 
     // Based on the recipe files of the packages in sample job document
     private static final String TEST_CUSTOMER_APP_STRING_UPDATED = "Hello evergreen. This is a new value";
@@ -94,6 +101,8 @@ class DeploymentTaskIntegrationTest {
     private static Map<String, Long> outputMessagesToTimestamp;
     private CountDownLatch countDownLatch;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private Topics groupToRootComponentsTopics;
+    private Topics deploymentServiceTopics;
 
     @TempDir
     static Path rootDir;
@@ -110,6 +119,9 @@ class DeploymentTaskIntegrationTest {
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
+
+
+
         // get required instances from context
         packageManager = kernel.getContext().get(PackageManager.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
@@ -119,6 +131,13 @@ class DeploymentTaskIntegrationTest {
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").getPath());
         copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+    }
+
+    @BeforeEach
+    void beforeEach() {
+        deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
+                null);
+        groupToRootComponentsTopics = deploymentServiceTopics.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, MOCK_GROUP_NAME);
     }
 
     @AfterEach
@@ -133,7 +152,7 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(1)
-    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel()
+    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
             throws Exception {
         outputMessagesToTimestamp.clear();
         final List<String> listOfExpectedMessages =
@@ -153,6 +172,7 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
+
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
                 System.currentTimeMillis());
@@ -181,6 +201,8 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
+        groupToRootComponentsTopics.lookup("CustomerApp").withValue(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
@@ -213,7 +235,10 @@ class DeploymentTaskIntegrationTest {
         //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
         assertEquals(5, services.size());
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "CustomerApp", "Mosquitto", "GreenSignal"));
-
+        groupToRootComponentsTopics.lookup("CustomerApp").withValue(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookup("YellowSignal").withValue(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
@@ -252,7 +277,10 @@ class DeploymentTaskIntegrationTest {
         // should contain main, YellowSignal and RedSignal
         assertEquals(3, services.size());
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
-
+        groupToRootComponentsTopics.lookup("RedSignal").withValue(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookup("YellowSignal").withValue(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
@@ -267,7 +295,6 @@ class DeploymentTaskIntegrationTest {
         assertThat(services, containsInAnyOrder("main", "RedSignal", "BreakingService", "Mosquitto", "GreenSignal"));
         assertEquals(State.BROKEN, kernel.locate("BreakingService").getState());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, result.getDeploymentStatus());
-
     }
 
     /**
@@ -281,6 +308,12 @@ class DeploymentTaskIntegrationTest {
     @Order(5)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
             ExtensionContext context) throws Exception {
+        Map<String, Object> pkgDetails = new HashMap<>();
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
+        groupToRootComponentsTopics.lookup("RedSignal").withValue(
+                pkgDetails);
+        groupToRootComponentsTopics.lookup("YellowSignal").withValue(
+                pkgDetails);
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
@@ -294,6 +327,9 @@ class DeploymentTaskIntegrationTest {
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
 
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+        groupToRootComponentsTopics.lookup("YellowSignal").remove();
+        groupToRootComponentsTopics.lookup("BreakingService").withValue(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
@@ -364,12 +400,10 @@ class DeploymentTaskIntegrationTest {
     @Test
     @Order(7)
     void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
-
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
         // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
         // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
         // safety check
-
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
                 System.currentTimeMillis());
@@ -390,9 +424,10 @@ class DeploymentTaskIntegrationTest {
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
+        sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
         DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
-                        logger, sampleJobDocument, kernel);
+                        logger, sampleJobDocument, deploymentServiceTopics);
         return executorService.submit(deploymentTask);
     }
 

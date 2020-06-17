@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.deployment;
 
 
+import com.amazonaws.util.CollectionUtils;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -24,6 +25,7 @@ import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -34,7 +36,9 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -44,11 +48,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
-    public static final String GROUP_TO_ROOT_PACKAGES_TOPICS = "GroupToRootPackages";
+    public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
+    public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
 
     protected static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -202,6 +210,22 @@ public class DeploymentService extends EvergreenService {
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("detailed-deployment-status", deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
+                    //Add the root packages of successful deployment to the configuration
+                    DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
+                    Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
+                            deploymentDocument.getGroupName());
+                    Map<Object, Object> deploymentGroupToRootPackages = new HashMap<>();
+                    // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
+                    //  removed from a thing group. Empty configuration is treated as a valid config for a group but
+                    //  not treated as removal.
+                    deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
+                        if (pkgConfig.isRootComponent()) {
+                            Map<Object, Object> pkgDetails = new HashMap<>();
+                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
+                            deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
+                        }
+                    });
+                    deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
@@ -210,6 +234,9 @@ public class DeploymentService extends EvergreenService {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
                     }
+                    //TODO: Update the groupToRootPackages mapping in config for the case where there is no rollback
+                    // and now the packages deployed for the current group are not the same as before starting
+                    // deployment
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
@@ -294,9 +321,6 @@ public class DeploymentService extends EvergreenService {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
             deploymentDocument = parseAndValidateJobDocument(deployment);
-            Topics groupToRootPackages = config.lookupTopics(GROUP_TO_ROOT_PACKAGES_TOPICS);
-            groupToRootPackages.lookup(deploymentDocument.getGroupName())
-                    .withValue(deploymentDocument.getRootPackages());
         } catch (InvalidRequestException e) {
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
@@ -309,7 +333,7 @@ public class DeploymentService extends EvergreenService {
         }
         DeploymentTask deploymentTask =
                 new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
-                        logger, deploymentDocument, kernel);
+                        logger, deploymentDocument, config);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
@@ -317,7 +341,7 @@ public class DeploymentService extends EvergreenService {
 
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
-                        new AtomicInteger(1));
+                        new AtomicInteger(1), deploymentDocument);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
@@ -331,8 +355,24 @@ public class DeploymentService extends EvergreenService {
                 case LOCAL:
                     LocalOverrideRequest localOverrideRequest =
                             OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
+                    Map<String, String> rootComponents = new HashMap<>();
+                    Set<String> rootComponentsInRequestedGroup = new HashSet<>();
+                    config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS).lookupTopics(
+                            localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
+                                    : localOverrideRequest.getGroupName())
+                            .deepForEachTopic(t -> rootComponentsInRequestedGroup.add(t.getName()));
 
-                    Map<String, String> rootComponents = kernel.getRunningCustomRootComponents();
+                    //TODO: pulling the versions from kernel. Can pull it form the config itself.
+                    // Confirm if pulling from config should not break any use case for local
+                    if (!CollectionUtils.isNullOrEmpty(rootComponentsInRequestedGroup)) {
+                        rootComponentsInRequestedGroup.stream().forEach(c -> {
+                            Topics serviceTopic = kernel.findServiceTopic(c);
+                            if (serviceTopic != null) {
+                                String version = Coerce.toString(serviceTopic.find(VERSION_CONFIG_KEY));
+                                rootComponents.put(c, version);
+                            }
+                        });
+                    }
 
                     document = DeploymentDocumentConverter
                             .convertFromLocalOverrideRequestAndRoot(localOverrideRequest, rootComponents);

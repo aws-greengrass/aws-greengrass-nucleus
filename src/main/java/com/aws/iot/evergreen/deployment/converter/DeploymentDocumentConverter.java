@@ -23,8 +23,9 @@ import java.util.stream.Collectors;
 
 public final class DeploymentDocumentConverter {
 
+    public static final String DEFAULT_GROUP_NAME = "DEFAULT";
+
     private static final String ANY_VERSION = "*";
-    private static final String DEFAULT_GROUP_NAME = "DEFAULT";
 
     private DeploymentDocumentConverter() {
         // So that this can't be initialized
@@ -79,7 +80,11 @@ public final class DeploymentDocumentConverter {
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
-                .rootPackages(new ArrayList<>()).deploymentPackageConfigurationList(new ArrayList<>()).build();
+                .rootPackages(new ArrayList<>()).deploymentPackageConfigurationList(new ArrayList<>())
+                // TODO : When Fleet Configuration Service supports deployment safety policy,
+                //  read this from the fleet config
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
+                .build();
 
         String groupName = null;
         try {
@@ -103,7 +108,8 @@ public final class DeploymentDocumentConverter {
                 deploymentDocument.getRootPackages().add(pkgName);
             }
             deploymentDocument.getDeploymentPackageConfigurationList()
-                    .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.getVersion(), pkgInfo.getConfiguration()));
+                    .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(), pkgInfo.getVersion(),
+                            pkgInfo.getConfiguration()));
         }
         return deploymentDocument;
     }
@@ -118,7 +124,8 @@ public final class DeploymentDocumentConverter {
             packageConfigurations = new ArrayList<>();
         } else {
             packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream()
-                    .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), ANY_VERSION, entry.getValue()))
+                    .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
+                            entry.getValue()))
                     .collect(Collectors.toList());
         }
         // Add to or update root component with version in the configuration lists
@@ -130,9 +137,10 @@ public final class DeploymentDocumentConverter {
             if (optionalConfiguration.isPresent()) {
                 // if found, update the version requirement to be equal to the requested version
                 optionalConfiguration.get().setResolvedVersion(version);
+                optionalConfiguration.get().setRootComponent(true);
             } else {
                 // if not found, create it with version requirement as the requested version
-                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, version, null));
+                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, true, version, null));
             }
         });
         return packageConfigurations;

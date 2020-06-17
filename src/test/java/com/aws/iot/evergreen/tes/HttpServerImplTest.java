@@ -29,7 +29,7 @@ import static org.mockito.Mockito.any;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class HttpServerImplTest {
-    private static final int serverPort = 6666;
+    private static final int serverPort = 6665;
     private static final String mockResponse = "Hello World";
     private HttpServerImpl server;
 
