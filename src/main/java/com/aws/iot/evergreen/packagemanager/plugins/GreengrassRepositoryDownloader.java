@@ -2,9 +2,9 @@ package com.aws.iot.evergreen.packagemanager.plugins;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentArtifactRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentArtifactResult;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
@@ -29,7 +29,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT
             = "Failed to download artifact %s for package %s-%s, http response from server was %d";
 
-    private final AWSGreengrassComponentManagement evgCmsClient;
+    private final AWSEvergreen evgCmsClient;
 
     @Inject
     public GreengrassRepositoryDownloader(GreengrassPackageServiceClientFactory clientFactory) {

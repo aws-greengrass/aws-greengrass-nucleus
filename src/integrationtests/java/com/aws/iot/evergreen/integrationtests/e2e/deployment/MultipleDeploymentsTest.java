@@ -5,9 +5,9 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.greengrassfleetconfiguration.model.PackageMetaData;
-import com.amazonaws.services.greengrassfleetconfiguration.model.PublishConfigurationResult;
-import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfigurationRequest;
+import com.amazonaws.services.evergreen.model.PackageMetaData;
+import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
+import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
@@ -106,7 +106,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
             SetConfigurationRequest setRequest = new SetConfigurationRequest()
                     .withTargetName(thingGroupName)
                     .withTargetType(THING_GROUP_TARGET_TYPE)
-                    .withFailureHandlingPolicy(com.amazonaws.services.greengrassfleetconfiguration.model.FailureHandlingPolicy.DO_NOTHING)
+                    .withFailureHandlingPolicy(com.amazonaws.services.evergreen.model.FailureHandlingPolicy.DO_NOTHING)
                     .addPackagesEntry(helper.targetPkgName, new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
 
             PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);

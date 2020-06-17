@@ -5,10 +5,10 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.greengrassfleetconfiguration.model.FailureHandlingPolicy;
-import com.amazonaws.services.greengrassfleetconfiguration.model.PackageMetaData;
-import com.amazonaws.services.greengrassfleetconfiguration.model.PublishConfigurationResult;
-import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfigurationRequest;
+import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
+import com.amazonaws.services.evergreen.model.PackageMetaData;
+import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
+import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;

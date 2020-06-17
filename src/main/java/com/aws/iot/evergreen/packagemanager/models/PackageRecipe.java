@@ -38,7 +38,7 @@ public class PackageRecipe {
     private final RecipeTemplateVersion recipeTemplateVersion;
 
     @EqualsAndHashCode.Include
-    private final String packageName;
+    private final String componentName;
 
     @EqualsAndHashCode.Include
     private Semver version;
@@ -66,7 +66,7 @@ public class PackageRecipe {
      * Constructor for Jackson to deserialize.
      *
      * @param recipeTemplateVersion Template version found in the Recipe file
-     * @param packageName           Name of the package
+     * @param componentName           Name of the component
      * @param version               Version of the package
      * @param description           Description metadata
      * @param publisher             Name of the publisher
@@ -82,7 +82,7 @@ public class PackageRecipe {
     @JsonCreator
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
-                         @JsonProperty("PackageName") String packageName, @JsonProperty("Version") Semver version,
+                         @JsonProperty("ComponentName") String componentName, @JsonProperty("Version") Semver version,
                          @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
                          @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
                          @JsonProperty("Platforms") List<String> platforms,
@@ -98,7 +98,7 @@ public class PackageRecipe {
                                  using = MapFieldDeserializer.class) Map<String, String> environmentVariables) {
 
         this.recipeTemplateVersion = recipeTemplateVersion;
-        this.packageName = packageName;
+        this.componentName = componentName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
         //TODO: Validate SemverType.STRICT before creating this
         this.version = new Semver(version.toString(), Semver.SemverType.NPM);

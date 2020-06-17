@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: Mosquitto
+ComponentName: Mosquitto
 Description: Mosquitto MQTT Server
 Publisher: Eclipse Foundation
 Version: '1.0.0'
