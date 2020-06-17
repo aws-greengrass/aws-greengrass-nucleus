@@ -23,10 +23,10 @@ import java.io.Closeable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
@@ -69,7 +69,7 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
-    private final Set<SubscribeRequest> subscriptions = new CopyOnWriteArraySet<>();
+    private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
 
@@ -125,6 +125,7 @@ public class MqttClient implements Closeable {
                         try {
                             connection.reconnect();
                         } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                            // TODO: Revisit error handling.
                             logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
                                     .log("Error while reconnecting MQTT client");
                         }
@@ -155,15 +156,17 @@ public class MqttClient implements Closeable {
             AwsIotMqttClient connection = null;
             // Use the write scope when identifying the subscriptionTopics that exist
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-                subscriptions.add(request);
-
                 // TODO: Handle subscriptions with differing QoS (Upgrade 0->1->2)
 
                 // If none of our existing subscriptions include (through wildcards) the new topic, then
                 // go ahead and subscribe to it
-                if (subscriptionTopics.keySet().stream()
-                        .noneMatch(s -> s.isSupersetOf(new MqttTopic(request.getTopic())))) {
+                Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> existingConnection =
+                        findExistingSubscriberForTopic(request.getTopic());
+                if (existingConnection.isPresent()) {
+                    subscriptions.put(request, existingConnection.get().getValue());
+                } else {
                     connection = getConnection(true);
+                    subscriptions.put(request, connection);
                 }
             }
 
@@ -181,6 +184,11 @@ public class MqttClient implements Closeable {
         }
     }
 
+    private Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> findExistingSubscriberForTopic(String topic) {
+        return subscriptionTopics.entrySet().stream().filter(s -> s.getKey().isSupersetOf(new MqttTopic(topic)))
+                .findAny();
+    }
+
     /**
      * Unsubscribe from a MQTT topic.
      *
@@ -194,16 +202,36 @@ public class MqttClient implements Closeable {
         // Use the write lock because we're modifying the subscriptions and trying to consolidate them
         try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
             Set<Map.Entry<MqttTopic, AwsIotMqttClient>> deadSubscriptionTopics;
-            subscriptions
-                    .removeIf(r -> r.getCallback() == request.getCallback() && r.getTopic().equals(request.getTopic()));
+            for (Map.Entry<SubscribeRequest, AwsIotMqttClient> sub : subscriptions.entrySet()) {
+                if (sub.getKey().getCallback() == request.getCallback() && sub.getKey().getTopic()
+                        .equals(request.getTopic())) {
+                    subscriptions.remove(sub.getKey());
+                }
+
+            }
             // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
-            deadSubscriptionTopics = subscriptionTopics.entrySet().stream().filter(s -> subscriptions.stream()
+            deadSubscriptionTopics = subscriptionTopics.entrySet().stream().filter(s -> subscriptions.keySet().stream()
                     .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
                     .collect(Collectors.toSet());
             if (!deadSubscriptionTopics.isEmpty()) {
                 for (Map.Entry<MqttTopic, AwsIotMqttClient> sub : deadSubscriptionTopics) {
                     sub.getValue().unsubscribe(sub.getKey().getTopic());
                     subscriptionTopics.remove(sub.getKey());
+
+                    // Since we changed the cloud subscriptions, we need to recalculate the client to use for each
+                    // subscription, since it may have changed
+                    subscriptions.entrySet().stream()
+                            // if the cloud clients are the same, and the removed topic covered the topic
+                            // that we're looking at, then recalculate that topic's client
+                            .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
+                                    .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
+                        // recalculate and replace the client
+                        Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
+                                findExistingSubscriberForTopic(e.getKey().getTopic());
+                        if (subscriberForTopic.isPresent()) {
+                            subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
+                        }
+                    });
                 }
             }
         }
@@ -259,17 +287,18 @@ public class MqttClient implements Closeable {
         return (message) -> {
             logger.atTrace().kv(CLIENT_ID_KEY, client.getClientId()).kv("topic", message.getTopic())
                     .log("Received MQTT message");
-            // Find all on-device subscriptions for which this message should go to by checking superset.
-            // Then ensure that we only send messages for subscriptions that this client has.
-            // This will prevent the subscription being triggered multiple times
-            // if client 1 has A/B and client 2 has A/+, then each subscription should only be called once.
-            Set<SubscribeRequest> subs =
-                    subscriptions.stream().filter(s -> MqttTopic.topicIsSupersetOf(s.getTopic(), message.getTopic()))
-                            .filter(s -> {
-                                MqttTopic bestTopic = new MqttTopic(s.getTopic())
-                                        .mostSpecificSubscription(subscriptionTopics.keySet());
-                                return subscriptionTopics.get(bestTopic).equals(client);
-                            }).collect(Collectors.toSet());
+
+            // Each subscription is associated with a single AWSIotMqttClient even if this
+            // on-device subscription did not cause the cloud connection to be made.
+            // By checking that the client matches the client for the subscription, we will
+            // prevent duplicate messages occurring due to overlapping subscriptions between
+            // multiple clients such as A/B and A/#. Without this, an update to A/B would
+            // trigger twice if those 2 subscriptions were in different clients because
+            // both will receive the message from the cloud and call this handler.
+            Set<SubscribeRequest> subs = subscriptions.entrySet().stream()
+                    .filter(s -> s.getValue() == client && MqttTopic
+                            .topicIsSupersetOf(s.getKey().getTopic(), message.getTopic())).map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
             if (subs.isEmpty()) {
                 logger.atError().kv("topic", message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
                         .log("Somehow got message from topic that no one subscribed to");

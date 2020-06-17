@@ -119,10 +119,7 @@ class AwsIotMqttClient implements Closeable {
         synchronized (this) {
             logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
             disconnect();
-            // If we didn't resume the session (which is unlikely), then manually resubscribe
-            if (!connect()) {
-                resubscribe();
-            }
+            connect();
         }
     }
 
@@ -138,13 +135,17 @@ class AwsIotMqttClient implements Closeable {
             builder.withClientId(clientId);
 
             connection = builder.build();
-            // Set message handler for this connection to be our global message handler.
-            // The handler will then send out the message to all subscribers.
+            // Set message handler for this connection to be our global message handler in MqttClient.
+            // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
             logger.atDebug().log("Connecting to AWS IoT Core");
             boolean sessionPresent = connection.connect().get(getTimeout(), TimeUnit.MILLISECONDS);
             currentlyConnected.set(true);
             logger.atDebug().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
+
+            if (!sessionPresent) {
+                resubscribe();
+            }
             return sessionPresent;
         }
     }
