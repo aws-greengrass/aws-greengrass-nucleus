@@ -27,10 +27,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -66,6 +69,7 @@ public class MqttClient implements Closeable {
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private final DeviceConfiguration deviceConfiguration;
     private final Topics mqttTopics;
+    private final AtomicReference<Future<?>> reconfigureFuture = new AtomicReference<>();
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
@@ -119,18 +123,32 @@ public class MqttClient implements Closeable {
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH))) {
                     return;
                 }
+
                 // Reconnect in separate thread to not block publish thread
-                executorService.execute(() -> {
-                    for (AwsIotMqttClient connection : connections) {
-                        try {
-                            connection.reconnect();
-                        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                            // TODO: Revisit error handling.
-                            logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
-                                    .log("Error while reconnecting MQTT client");
+                Future<?> oldFuture = reconfigureFuture.getAndSet(executorService.submit(() -> {
+                    // Continually try to reconnect until all the connections are reconnected
+                    Set<AwsIotMqttClient> brokenConnections = new CopyOnWriteArraySet<>(connections);
+                    do {
+                        for (AwsIotMqttClient connection : brokenConnections) {
+                            if (Thread.currentThread().isInterrupted()) {
+                                return;
+                            }
+
+                            try {
+                                connection.reconnect();
+                                brokenConnections.remove(connection);
+                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                                logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
+                                        .log("Error while reconnecting MQTT client");
+                            }
                         }
-                    }
-                });
+                    } while (!brokenConnections.isEmpty());
+                }));
+
+                // If a reconfiguration task already existed, then kill it and create a new one
+                if (oldFuture != null) {
+                    oldFuture.cancel(true);
+                }
             }
         });
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
@@ -328,7 +346,7 @@ public class MqttClient implements Closeable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         connections.forEach(AwsIotMqttClient::close);
         clientBootstrap.close();
         hostResolver.close();
