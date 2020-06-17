@@ -5,8 +5,8 @@ package com.aws.iot.evergreen.packagemanager;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagementClientBuilder;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -25,7 +25,7 @@ public class GreengrassPackageServiceClientFactory {
     public static final String CONTEXT_SERVICE_CRED_PROVIDER = "greengrassServiceCredentialProvider";
     private static final Logger logger = LogManager.getLogger(GreengrassPackageServiceClientFactory.class);
 
-    private final AWSGreengrassComponentManagement cmsClient;
+    private final AWSEvergreen cmsClient;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -39,8 +39,8 @@ public class GreengrassPackageServiceClientFactory {
             @Named(CONTEXT_COMPONENT_SERVICE_ENDPOINT) String greengrassServiceEndpoint,
             DeviceConfiguration deviceConfiguration,
             @Named(CONTEXT_SERVICE_CRED_PROVIDER) AWSCredentialsProvider credentialsProvider) {
-        AWSGreengrassComponentManagementClientBuilder clientBuilder =
-                AWSGreengrassComponentManagementClientBuilder.standard();
+        AWSEvergreenClientBuilder clientBuilder =
+                AWSEvergreenClientBuilder.standard();
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {

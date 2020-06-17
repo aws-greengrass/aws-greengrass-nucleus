@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: GreenSignal
+ComponentName: GreenSignal
 Description: A service indicating approval to proceed
 Publisher: Me
 Version: '1.0.0'

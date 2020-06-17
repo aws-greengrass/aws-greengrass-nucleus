@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: six
+ComponentName: six
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.14.0'

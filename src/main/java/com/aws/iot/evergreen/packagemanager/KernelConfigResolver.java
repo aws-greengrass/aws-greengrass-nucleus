@@ -232,7 +232,7 @@ public class KernelConfigResolver {
     private Set<PackageParameter> getParametersFromDeployment(DeploymentDocument document,
                                                               PackageRecipe packageRecipe) {
         Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
-                getMatchingPackageConfigFromDeployment(document, packageRecipe.getPackageName(),
+                getMatchingPackageConfigFromDeployment(document, packageRecipe.getComponentName(),
                         packageRecipe.getVersion().toString());
         return packageConfigInDeployment.map(deploymentPackageConfiguration -> PackageParameter
                 .fromMap(deploymentPackageConfiguration.getConfiguration())).orElse(Collections.emptySet());
@@ -243,7 +243,7 @@ public class KernelConfigResolver {
      */
     private Set<PackageParameter> getParametersStoredInConfig(PackageRecipe packageRecipe) {
         try {
-            EvergreenService service = kernel.locate(packageRecipe.getPackageName());
+            EvergreenService service = kernel.locate(packageRecipe.getComponentName());
             Set<PackageParameter> parametersStoredInConfig = new HashSet<>();
 
             // Get only those parameters which are still valid for the current version of the package

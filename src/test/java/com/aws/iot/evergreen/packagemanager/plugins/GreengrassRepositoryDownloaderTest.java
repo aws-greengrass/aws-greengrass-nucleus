@@ -1,5 +1,8 @@
 package com.aws.iot.evergreen.packagemanager.plugins;
 
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -24,10 +27,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentArtifactRequest;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,7 +43,7 @@ class GreengrassRepositoryDownloaderTest {
     private HttpURLConnection connection;
 
     @Mock
-    private AWSGreengrassComponentManagement client;
+    private AWSEvergreen client;
 
     @Mock
     private GreengrassPackageServiceClientFactory clientFactory;
