@@ -231,7 +231,7 @@ class KernelLifecycleTest {
         CountDownLatch seenErrors = new CountDownLatch(2);
         Pair<CompletableFuture<Void>, Consumer<EvergreenStructuredLogMessage>> listener =
                 TestUtils.asyncAssertOnConsumer((m) -> {
-            if(m.getEventType().equals("service-shutdown-error")) {
+            if("service-shutdown-error".equals(m.getEventType())) {
                 if (seenErrors.getCount() == 2) {
                     assertEquals("Service5", m.getCause().getMessage());
                 } else if (seenErrors.getCount() == 1) {
@@ -239,7 +239,7 @@ class KernelLifecycleTest {
                 }
                 seenErrors.countDown();
             }
-        });
+        }, -1);
 
         ignoreExceptionUltimateCauseWithMessage(context, "Service5");
         ignoreExceptionUltimateCauseWithMessage(context, "Service1");

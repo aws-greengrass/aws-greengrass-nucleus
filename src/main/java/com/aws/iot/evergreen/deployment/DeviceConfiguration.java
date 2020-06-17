@@ -7,7 +7,9 @@ package com.aws.iot.evergreen.deployment;
 
 import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.aws.iot.evergreen.config.ChildChanged;
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.Validator;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -35,8 +37,10 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
+    public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
+    public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
+
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
-    private static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
 
@@ -140,6 +144,14 @@ public class DeviceConfiguration {
         return getTopic(DEVICE_PARAM_AWS_REGION).addValidator(regionValidator);
     }
 
+    public Topics getMQTTNamespace() {
+        return getTopics(DEVICE_MQTT_NAMESPACE);
+    }
+
+    public void onAnyChange(ChildChanged cc) {
+        kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
+    }
+
     private void validate() {
         String thingName = Coerce.toString(getThingName());
         String certificateFilePath = Coerce.toString(getCertificateFilePath());
@@ -158,6 +170,10 @@ public class DeviceConfiguration {
 
     private Topic getTopic(String parameterName) {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, parameterName).dflt("");
+    }
+
+    private Topics getTopics(String parameterName) {
+        return kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY, parameterName);
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,

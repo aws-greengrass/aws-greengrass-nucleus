@@ -21,8 +21,8 @@ public final class TestUtils {
     }
 
     /**
-     * Wraps a given biconsumer function so that once it is called, the completable future can
-     * complete with the exception, or with a success.
+     * Wraps a given biconsumer function so that once it is called, the completable future can complete with the
+     * exception, or with a success.
      *
      * @param bi
      * @return
@@ -63,11 +63,11 @@ public final class TestUtils {
     }
 
     /**
-     * Creates a test utility wrapping a given Consumer and returning a new Consumer and Future.
-     * Use the Future to validate that the Consumer is called numCalls times without any exceptions.
+     * Creates a test utility wrapping a given Consumer and returning a new Consumer and Future. Use the Future to
+     * validate that the Consumer is called numCalls times without any exceptions.
      *
-     * @param c Consumer to wrap
-     * @param numCalls number of expected calls
+     * @param c        Consumer to wrap
+     * @param numCalls number of expected calls. -1 will ignore the number of expected calls
      */
     public static <A> Pair<CompletableFuture<Void>, Consumer<A>> asyncAssertOnConsumer(Consumer<A> c, int numCalls) {
         CompletableFuture<Void> f = new CompletableFuture<>();
@@ -78,11 +78,14 @@ public final class TestUtils {
                 int callsSoFar = calls.incrementAndGet();
                 c.accept(a);
 
-                if (callsSoFar == numCalls) {
+                if (callsSoFar == numCalls || numCalls < 0) {
                     f.complete(null);
+                } else if (callsSoFar > numCalls) {
+                    f.obtrudeException(
+                            new Exception("Too many invocations! (" + callsSoFar + "), expected " + numCalls));
                 }
             } catch (Throwable ex) {
-                f.completeExceptionally(ex);
+                f.obtrudeException(ex);
             }
         });
     }
