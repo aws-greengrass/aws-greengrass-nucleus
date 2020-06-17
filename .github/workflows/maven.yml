@@ -29,13 +29,21 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Build with Maven
-        run: mvn -ntp -U clean verify 2>&1
+        run: mvn -ntp -U clean verify 2>&1 > buildout.txt
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
           name: Failed Test Report ${{ matrix.os }}
           path: target/surefire-reports
+      - name: Upload Failed Test Report 2
+        uses: actions/upload-artifact@v1.0.0
+        if: failure()
+        with:
+          name: Failed Test Report ${{ matrix.os }} 2
+          path: buildout.txt
+      - name: Convert Jacoco to Cobertura
+        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
         if: always()
