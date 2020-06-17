@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: RedSignal
+ComponentName: RedSignal
 Description: A service revoking approval to proceed
 Publisher: Me
 Version: '1.0.0'

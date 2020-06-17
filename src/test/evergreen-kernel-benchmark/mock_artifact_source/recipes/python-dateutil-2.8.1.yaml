@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: python-dateutil
+ComponentName: python-dateutil
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '2.8.1'

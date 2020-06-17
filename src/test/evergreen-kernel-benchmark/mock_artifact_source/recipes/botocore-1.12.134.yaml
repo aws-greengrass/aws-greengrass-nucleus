@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: botocore
+ComponentName: botocore
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.12.134'

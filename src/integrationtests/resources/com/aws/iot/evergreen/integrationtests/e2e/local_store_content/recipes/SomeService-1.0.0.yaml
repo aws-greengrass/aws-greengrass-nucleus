@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: SomeService
+ComponentName: SomeService
 Description: A random service to run in Evergreen
 Publisher: Me
 Version: '1.0.0'

@@ -1,13 +1,13 @@
 package com.aws.iot.evergreen.packagemanager;
 
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CommitComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentArtifactUploadUrlRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentResult;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.model.CommitComponentRequest;
+import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlRequest;
+import com.amazonaws.services.evergreen.model.CreateComponentRequest;
+import com.amazonaws.services.evergreen.model.CreateComponentResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
+import com.amazonaws.services.evergreen.model.GetComponentRequest;
+import com.amazonaws.services.evergreen.model.GetComponentResult;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
 class GreengrassPackageServiceHelperTest {
 
     @Mock
-    private AWSGreengrassComponentManagement client;
+    private AWSEvergreen client;
 
     @Mock
     private GreengrassPackageServiceClientFactory clientFactory;
@@ -74,7 +74,7 @@ class GreengrassPackageServiceHelperTest {
         assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertEquals("YAML", generatedRequest.getType());
-        assertEquals(testPackage.getPackageName(), TestHelper.MONITORING_SERVICE_PACKAGE_NAME);
+        assertEquals(testPackage.getComponentName(), TestHelper.MONITORING_SERVICE_PACKAGE_NAME);
         assertTrue(testPackage.getVersion().isEqualTo("1.0.0"));
     }
 

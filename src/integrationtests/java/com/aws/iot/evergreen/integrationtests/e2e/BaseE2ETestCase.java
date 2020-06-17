@@ -6,18 +6,16 @@
 package com.aws.iot.evergreen.integrationtests.e2e;
 
 import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagementClientBuilder;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.InvalidInputException;
-import com.amazonaws.services.greengrasscomponentmanagement.model.ResourceAlreadyExistException;
-import com.amazonaws.services.greengrassfleetconfiguration.AWSGreengrassFleetConfiguration;
-import com.amazonaws.services.greengrassfleetconfiguration.AWSGreengrassFleetConfigurationClientBuilder;
-import com.amazonaws.services.greengrassfleetconfiguration.model.PublishConfigurationRequest;
-import com.amazonaws.services.greengrassfleetconfiguration.model.PublishConfigurationResult;
-import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfigurationRequest;
-import com.amazonaws.services.greengrassfleetconfiguration.model.SetConfigurationResult;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.evergreen.model.CreateComponentResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentResult;
+import com.amazonaws.services.evergreen.model.InvalidInputException;
+import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
+import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
+import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
+import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
+import com.amazonaws.services.evergreen.model.SetConfigurationResult;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -77,9 +75,9 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected Kernel kernel;
 
     protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(BETA_REGION.toString());
-    private static AWSGreengrassFleetConfiguration fcsClient;
-    protected static final AWSGreengrassComponentManagement cmsClient =
-            AWSGreengrassComponentManagementClientBuilder.standard().withEndpointConfiguration(
+    private static AWSEvergreen fcsClient;
+    protected static final AWSEvergreen cmsClient =
+            AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration(CMS_BETA_ENDPOINT, BETA_REGION.toString())).build();
     private static final PackageIdentifier[] testComponents = {
             new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
@@ -188,11 +186,11 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static synchronized AWSGreengrassFleetConfiguration getFcsClient() {
+    protected static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
                     FCS_BETA_ENDPOINT, BETA_REGION.toString());
-            fcsClient = AWSGreengrassFleetConfigurationClientBuilder.standard()
+            fcsClient = AWSEvergreenClientBuilder.standard()
                     .withEndpointConfiguration(endpointConfiguration).build();
         }
         return fcsClient;
@@ -200,7 +198,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     @SuppressWarnings("PMD.LinguisticNaming")
     protected PublishConfigurationResult setAndPublishFleetConfiguration(SetConfigurationRequest setRequest) {
-        AWSGreengrassFleetConfiguration client = getFcsClient();
+        AWSEvergreen client = getFcsClient();
         logger.atInfo().kv("setRequest", setRequest).log();
         SetConfigurationResult setResult = client.setConfiguration(setRequest);
         logger.atInfo().kv("setResult", setResult).log();

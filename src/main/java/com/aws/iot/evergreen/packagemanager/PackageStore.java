@@ -81,7 +81,7 @@ public class PackageStore {
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
     void savePackageRecipe(@NonNull PackageRecipe packageRecipe) throws PackageLoadingException {
-        Path recipePath = resolveRecipePath(packageRecipe.getPackageName(), packageRecipe.getVersion());
+        Path recipePath = resolveRecipePath(packageRecipe.getComponentName(), packageRecipe.getVersion());
 
         try {
             RECIPE_SERIALIZER.writeValue(recipePath.toFile(), packageRecipe);
