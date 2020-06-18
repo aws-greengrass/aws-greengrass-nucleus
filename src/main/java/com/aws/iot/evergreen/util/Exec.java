@@ -378,7 +378,6 @@ public final class Exec implements Closeable {
             if (wd != null) {
                 wd.accept(exit);
             }
-            notifyAll();
         }
     }
 

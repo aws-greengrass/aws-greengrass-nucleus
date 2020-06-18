@@ -1,22 +1,22 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CommitComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CommitComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.ComponentNameVersion;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentArtifactUploadUrlRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentArtifactUploadUrlResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.DeleteComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.FindComponentVersionsByPlatformRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.FindComponentVersionsByPlatformResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.GetComponentResult;
-import com.amazonaws.services.greengrasscomponentmanagement.model.RecipeFormatType;
-import com.amazonaws.services.greengrasscomponentmanagement.model.ResolvedComponent;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.model.CommitComponentRequest;
+import com.amazonaws.services.evergreen.model.CommitComponentResult;
+import com.amazonaws.services.evergreen.model.ComponentNameVersion;
+import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlRequest;
+import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlResult;
+import com.amazonaws.services.evergreen.model.CreateComponentRequest;
+import com.amazonaws.services.evergreen.model.CreateComponentResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
+import com.amazonaws.services.evergreen.model.DeleteComponentResult;
+import com.amazonaws.services.evergreen.model.FindComponentVersionsByPlatformRequest;
+import com.amazonaws.services.evergreen.model.FindComponentVersionsByPlatformResult;
+import com.amazonaws.services.evergreen.model.GetComponentRequest;
+import com.amazonaws.services.evergreen.model.GetComponentResult;
+import com.amazonaws.services.evergreen.model.RecipeFormatType;
+import com.amazonaws.services.evergreen.model.ResolvedComponent;
 import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -51,7 +51,7 @@ public class GreengrassPackageServiceHelper {
     // Service logger instance
     protected static final Logger logger = LogManager.getLogger(GreengrassPackageServiceHelper.class);
 
-    private final AWSGreengrassComponentManagement evgCmsClient;
+    private final AWSEvergreen evgCmsClient;
 
     @Inject
     public GreengrassPackageServiceHelper(GreengrassPackageServiceClientFactory clientFactory) {
@@ -74,8 +74,7 @@ public class GreengrassPackageServiceHelper {
             return componentSelectedMetadataList.stream().map(componentMetadata -> {
                 PackageIdentifier packageIdentifier
                         = new PackageIdentifier(componentMetadata.getComponentName(),
-                                                new Semver(componentMetadata.getComponentVersion()),
-                                                componentMetadata.getComponentARN());
+                                                new Semver(componentMetadata.getComponentVersion()));
                 return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
                         Collectors.toMap(ComponentNameVersion::getComponentName,
                                          ComponentNameVersion::getComponentVersionConstraint)));
@@ -117,10 +116,10 @@ public class GreengrassPackageServiceHelper {
      *
      * @param cmsClient client of Component Management Service
      * @param recipeFilePath the path to the component recipe file
-     * @return {@Link CreateComponentResult}
+     * @return {@link CreateComponentResult}
      * @throws IOException if file reading fails
      */
-    public static CreateComponentResult createComponent(AWSGreengrassComponentManagement cmsClient,
+    public static CreateComponentResult createComponent(AWSEvergreen cmsClient,
                                                         Path recipeFilePath) throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
 
@@ -140,7 +139,7 @@ public class GreengrassPackageServiceHelper {
      * @param componentVersion version of the component that requires the artifact
      * @throws IOException if file upload fails
      */
-    public static void createAndUploadComponentArtifact(AWSGreengrassComponentManagement cmsClient, File artifact,
+    public static void createAndUploadComponentArtifact(AWSEvergreen cmsClient, File artifact,
                                                         String componentName, String componentVersion)
             throws IOException {
         if (skipComponentArtifactUpload(artifact)) {
@@ -156,7 +155,7 @@ public class GreengrassPackageServiceHelper {
     }
 
     protected static CreateComponentArtifactUploadUrlResult createComponentArtifactUploadUrl(
-            AWSGreengrassComponentManagement cmsClient, String componentName,
+            AWSEvergreen cmsClient, String componentName,
             String componentVersion, String artifactName) {
         CreateComponentArtifactUploadUrlRequest artifactUploadUrlRequest = new CreateComponentArtifactUploadUrlRequest()
                 .withComponentName(componentName).withComponentVersion(componentVersion)
@@ -188,9 +187,9 @@ public class GreengrassPackageServiceHelper {
      * @param cmsClient client of Component Management Service
      * @param componentName name of the component to commit
      * @param componentVersion version of the component to commit
-     * @return {@Link CommitComponentResult}
+     * @return {@link CommitComponentResult}
      */
-    public static CommitComponentResult commitComponent(AWSGreengrassComponentManagement cmsClient,
+    public static CommitComponentResult commitComponent(AWSEvergreen cmsClient,
                                                         String componentName, String componentVersion) {
         CommitComponentRequest commitComponentRequest = new CommitComponentRequest().withComponentName(componentName)
                 .withComponentVersion(componentVersion);
@@ -206,9 +205,9 @@ public class GreengrassPackageServiceHelper {
      * @param cmsClient client of Component Management Service
      * @param componentName name of the component to delete
      * @param componentVersion version of the component to delete
-     * @return {@Link DeleteComponentResult}
+     * @return {@link DeleteComponentResult}
      */
-    public static DeleteComponentResult deleteComponent(AWSGreengrassComponentManagement cmsClient,
+    public static DeleteComponentResult deleteComponent(AWSEvergreen cmsClient,
                                                         String componentName, String componentVersion) {
         DeleteComponentRequest deleteComponentRequest = new DeleteComponentRequest()
                 .withComponentName(componentName).withComponentVersion(componentVersion);

@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-PackageName: BreakingService
+ComponentName: BreakingService
 Description: A service that just can't run
 Publisher: Me
 Version: '1.0.0'

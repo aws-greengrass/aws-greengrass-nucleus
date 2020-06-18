@@ -1,11 +1,11 @@
 package com.aws.iot.evergreen.easysetup;
 
 import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagement;
-import com.amazonaws.services.greengrasscomponentmanagement.AWSGreengrassComponentManagementClientBuilder;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CommitComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.CreateComponentRequest;
-import com.amazonaws.services.greengrasscomponentmanagement.model.ResourceAlreadyExistException;
+import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.evergreen.model.CommitComponentRequest;
+import com.amazonaws.services.evergreen.model.CreateComponentRequest;
+import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -76,7 +76,7 @@ public class DeviceProvisioningHelper {
 
     private IotClient iotClient;
     private IamClient iamClient;
-    private AWSGreengrassComponentManagement cmsClient;
+    private AWSEvergreen cmsClient;
 
     /**
      * Constructor for a desired region.
@@ -87,7 +87,7 @@ public class DeviceProvisioningHelper {
     public DeviceProvisioningHelper(String awsRegion, PrintStream outStream) {
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion);
         this.iamClient = IamSdkClientFactory.getIamClient();
-        this.cmsClient = AWSGreengrassComponentManagementClientBuilder.standard().withEndpointConfiguration(
+        this.cmsClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
                 new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, awsRegion)).build();
         this.outStream = outStream;
     }
@@ -101,7 +101,7 @@ public class DeviceProvisioningHelper {
      * @param cmsClient cms client
      */
     DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient,
-                             AWSGreengrassComponentManagement cmsClient) {
+                             AWSEvergreen cmsClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
@@ -314,7 +314,7 @@ public class DeviceProvisioningHelper {
     /*
      * Create and commit an empty component.
      */
-    private void createEmptyComponent(AWSGreengrassComponentManagement cmsClient, String componentName) {
+    private void createEmptyComponent(AWSEvergreen cmsClient, String componentName) {
         outStream.println("Creating empty component " + componentName);
         ByteBuffer recipe =
                 ByteBuffer.wrap(FIRST_PARTY_COMPONENT_RECIPES.get(componentName).getBytes(StandardCharsets.UTF_8));
