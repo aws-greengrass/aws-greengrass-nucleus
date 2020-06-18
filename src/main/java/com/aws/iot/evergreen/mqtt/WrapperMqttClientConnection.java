@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.mqtt;
 
-import com.aws.iot.evergreen.deployment.IotJobsHelper;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -8,19 +7,22 @@ import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttConnectionConfig;
-//import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import javax.inject.Inject;
 
 public class WrapperMqttClientConnection extends MqttClientConnection {
 
      private final MqttClient mqttClient;
-     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
+     private static final Logger logger = LogManager.getLogger(WrapperMqttClientConnection.class);
+     private final Map<String, UnsubscribeRequest> unsubscriptions = new ConcurrentHashMap<>();
 
     /**
      * Constructor.
@@ -28,6 +30,7 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
      * @param mqttClient is from package of com.aws.iot.evergreen.mqtt to replace
      *                   the old MqttClient from software.amazon.awssdk.crt.mqtt.MqttClient
      */
+    @Inject
     public WrapperMqttClientConnection(MqttClient mqttClient) {
         super(getMqttConnectionConfig());
         this.mqttClient = mqttClient;
@@ -40,13 +43,13 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
      * @return MqttConnectionConfig
      */
     private static MqttConnectionConfig getMqttConnectionConfig() {
-        try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
+        try (EventLoopGroup eventLoopGroup = new EventLoopGroup(0);
             HostResolver resolver = new HostResolver(eventLoopGroup);
             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
             software.amazon.awssdk.crt.mqtt.MqttClient oldMqttClient =
                      new software.amazon.awssdk.crt.mqtt.MqttClient(clientBootstrap);) {
-            String clientId = "clientId";
-            String endpoint = "endpoint";
+            String clientId = "fakeClientId";
+            String endpoint = "fakeEndpoint";
             int portNumber = 1;
             MqttConnectionConfig fakeConfig = new MqttConnectionConfig();
             fakeConfig.setMqttClient(oldMqttClient);
@@ -60,12 +63,17 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
     @Override
     public CompletableFuture<Integer> subscribe(String topic, QualityOfService qos, Consumer<MqttMessage> handler) {
         CompletableFuture<Integer> future = new CompletableFuture<>();
+        SubscribeRequest request = SubscribeRequest.builder()
+                .topic(topic).qos(qos).callback(handler).build();
+        UnsubscribeRequest unsubscribeRequest = UnsubscribeRequest.builder()
+                .topic(request.getTopic()).callback(request.getCallback()).build();
+        unsubscriptions.put(request.getTopic(), unsubscribeRequest);
         try {
-            SubscribeRequest request = SubscribeRequest.builder().topic(topic).qos(qos).callback(handler).build();
             mqttClient.subscribe(request);
             future.complete(0);
             return future;
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            unsubscriptions.remove(request.getTopic());
             future.completeExceptionally(e);
             return future;
         }
@@ -73,10 +81,10 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
 
     @Override
     public CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
         String errMsg = "The operation of subscribe is not supported because the request's callback should be non-null";
-        future.completeExceptionally(new UnsupportedOperationException(errMsg));
-        return future;
+        UnsupportedOperationException e = new UnsupportedOperationException(errMsg);
+        logger.atError().setCause(e).log(errMsg);
+        throw e;
     }
 
     @Override
@@ -97,59 +105,45 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
     }
 
     @Override
+    public CompletableFuture<Integer> unsubscribe(String topic) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        UnsubscribeRequest request = getUnsubscribeRequest(topic);
+        try {
+            mqttClient.unsubscribe(request);
+            unsubscriptions.remove(topic);
+            future.complete(0);
+            return future;
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            future.completeExceptionally(e);
+            return future;
+        }
+    }
+
+    @Override
     public CompletableFuture<Boolean> connect() {
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
         String errMsg = "The operation of connect is not supported by the class of WrapperMqttClientConnection";
-        future.completeExceptionally(new UnsupportedOperationException(errMsg));
-        return future;
+        UnsupportedOperationException e = new UnsupportedOperationException(errMsg);
+        logger.atError().setCause(e).log(errMsg);
+        throw e;
     }
 
     @Override
     public CompletableFuture<Void> disconnect() {
-        CompletableFuture<Void> future = new CompletableFuture<>();
         String errMsg = "The operation of disconnect is not supported by the class of WrapperMqttClientConnection";
-        future.completeExceptionally(new UnsupportedOperationException(errMsg));
-        return future;
-    }
-
-    @Override
-    public CompletableFuture<Integer> unsubscribe(String topic) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        String errMsg = "The operation of unsubscribe is not supported by the class of WrapperMqttClientConnection";
-        future.completeExceptionally(new UnsupportedOperationException(errMsg));
-        return future;
+        UnsupportedOperationException e = new UnsupportedOperationException(errMsg);
+        logger.atError().setCause(e).log(errMsg);
+        throw e;
     }
 
     @Override
     public void onMessage(Consumer<MqttMessage> handler) {
         String errMsg = "The operation of onMessage is not supported by the class of WrapperMqttClientConnection";
-        try {
-            throw new UnsupportedOperationException(errMsg);
-        } catch (UnsupportedOperationException e) {
-            logger.atError().setCause(e).log(errMsg);
-        }
+        UnsupportedOperationException e = new UnsupportedOperationException(errMsg);
+        logger.atError().setCause(e).log(errMsg);
+        throw e;
     }
 
-    @Override
-    protected void releaseNativeHandle() {
-        String errMsg = "The operation of releaseNativeHandle is not supported "
-                + "by the class of WrapperMqttClientConnection";
-        try {
-            throw new UnsupportedOperationException(errMsg);
-        } catch (UnsupportedOperationException e) {
-            logger.atError().setCause(e).log(errMsg);
-        }
-    }
-
-    @Override
-    protected boolean canReleaseReferencesImmediately() {
-        String errMsg = "The operation of canReleaseReferencesImmediately is not supported "
-                + "by the class of WrapperMqttClientConnection";
-        try {
-            throw new UnsupportedOperationException(errMsg);
-        } catch (UnsupportedOperationException e) {
-            logger.atError().setCause(e).log(errMsg);
-        }
-        return true;
+    private UnsubscribeRequest getUnsubscribeRequest(String subscriptionTopic) {
+        return unsubscriptions.get(subscriptionTopic);
     }
 }

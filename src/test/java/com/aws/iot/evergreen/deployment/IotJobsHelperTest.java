@@ -5,9 +5,7 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.model.Deployment;
-import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqtt.UnsubscribeRequest;
-//import com.aws.iot.evergreen.mqtt.WrapperMqttClientConnection;
+import com.aws.iot.evergreen.mqtt.WrapperMqttClientConnection;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,13 +82,10 @@ public class IotJobsHelperTest {
     DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Mock
-    MqttClient mockMqttClient;
+    WrapperMqttClientConnection mockWrapperMqttClientConnection;
 
     @Mock
     private IotJobsClient mockIotJobsClient;
-
-    @Mock
-    UnsubscribeRequest mockUnsubscribeRequest;
 
     @Captor
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorCaptor;
@@ -112,7 +107,7 @@ public class IotJobsHelperTest {
     @BeforeEach
     public void setup() throws Exception {
         iotJobsHelper = new IotJobsHelper(deviceConfiguration, mockIotJobsClientFactory, mockDeploymentsQueue,
-                deploymentStatusKeeper, executorService, mockMqttClient);
+                deploymentStatusKeeper, executorService, mockWrapperMqttClientConnection);
         Topic mockThingNameTopic = mock(Topic.class);
         when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
         when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
@@ -124,7 +119,7 @@ public class IotJobsHelperTest {
                 .thenReturn(integerCompletableFuture);
         when(mockIotJobsClient.SubscribeToDescribeJobExecutionRejected(any(), any(), any()))
                 .thenReturn(integerCompletableFuture);
-        iotJobsHelper.postConnect();
+        iotJobsHelper.postInject();
      }
 
     @Test
@@ -328,7 +323,6 @@ public class IotJobsHelperTest {
         cf.complete(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
-        when(mockMqttClient.getUnsubscribeRequest(any())).thenReturn(mockUnsubscribeRequest);
         when(mockIotJobsClient.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClient).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
                     eq(QualityOfService.AT_LEAST_ONCE), updateJobExecutionResponseCaptor.capture());
@@ -345,7 +339,8 @@ public class IotJobsHelperTest {
         assertEquals(TEST_JOB_ID,actualRequest.jobId);
         assertEquals(TEST_THING_NAME, actualRequest.thingName);
 
-        verify(mockMqttClient).unsubscribe(mockUnsubscribeRequest);
+        verify(mockWrapperMqttClientConnection).unsubscribe(eq(IotJobsHelper.UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace(
+                "{thingName}", TEST_THING_NAME).replace("{jobId}", TEST_JOB_ID)));
 
         ArgumentCaptor<UpdateJobExecutionRequest> publishRequestCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionRequest.class);
@@ -365,8 +360,7 @@ public class IotJobsHelperTest {
         cf.complete(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
-        assertNotNull(mockMqttClient);
-        when(mockMqttClient.getUnsubscribeRequest(any())).thenReturn(mockUnsubscribeRequest);
+        assertNotNull(mockWrapperMqttClientConnection);
         when(mockIotJobsClient.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClient).SubscribeToUpdateJobExecutionRejected(requestArgumentCaptor.capture(),
                     eq(QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
@@ -389,7 +383,8 @@ public class IotJobsHelperTest {
         assertEquals(TEST_JOB_ID,actualRequest.jobId);
         assertEquals(TEST_THING_NAME, actualRequest.thingName);
 
-        verify(mockMqttClient).unsubscribe(mockUnsubscribeRequest);
+        verify(mockWrapperMqttClientConnection).unsubscribe(eq(IotJobsHelper.UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace(
+                "{thingName}", TEST_THING_NAME).replace("{jobId}", TEST_JOB_ID)));
 
         ArgumentCaptor<UpdateJobExecutionRequest> publishRequestCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionRequest.class);
@@ -400,14 +395,6 @@ public class IotJobsHelperTest {
         assertEquals(JobStatus.IN_PROGRESS, publishRequest.status);
         assertEquals(statusDetails, publishRequest.statusDetails);
         assertEquals(TEST_THING_NAME, publishRequest.thingName);
-    }
-
-    @Test
-    public void WHEN_mqttConnection_resumes_THEN_jobsclient_resubscribes_and_call_publish_persisted_deployment_status() {
-        verify(mockIotJobsClient, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
-        iotJobsHelper.getCallbacks().onConnectionResumed(false);
-        verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
-        verify(deploymentStatusKeeper).publishPersistedStatusUpdates(eq(IOT_JOBS));
     }
 
     private JobExecutionData getMockJobExecutionData(String jobId, Timestamp ts) {

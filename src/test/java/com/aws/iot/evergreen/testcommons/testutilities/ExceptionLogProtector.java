@@ -126,6 +126,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionUltimateCauseWithMessage(context, "Mqtt operation interrupted by connection shutdown");
 
         // Ignore exceptions trying to determine AWS region/credentials
+        ignoreExceptionWithMessageSubstring(context, "AWS_ERROR_FILE_INVALID_PATH(43), Invalid file path");
         ignoreExceptionWithMessage(context, "Unable to load region information from any provider in the chain");
         ignoreExceptionWithMessageSubstring(context, "Failed to connect to service endpoint:");
         ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
