@@ -23,7 +23,7 @@ public class ThreadProtector implements AfterAllCallback {
     public void afterAll(ExtensionContext context) throws Exception {
         Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
         List<String> liveThreads =
-                threadSet.stream().filter(Thread::isAlive).filter(t -> t.getThreadGroup().getName().equals("main"))
+                threadSet.stream().filter(Thread::isAlive).filter(t -> "main".equals(t.getThreadGroup().getName()))
                         .map(Thread::getName).filter(Objects::nonNull)
                         .filter(name -> !ALLOWED_THREAD_NAMES.contains(name)).collect(Collectors.toList());
         if (!liveThreads.isEmpty()) {

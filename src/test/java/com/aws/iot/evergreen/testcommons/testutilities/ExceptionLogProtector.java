@@ -15,12 +15,14 @@ import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
+import org.zeroturnaround.exec.InvalidExitValueException;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -129,6 +131,9 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionWithMessage(context, "Unable to load region information from any provider in the chain");
         ignoreExceptionWithMessageSubstring(context, "Failed to connect to service endpoint:");
         ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
+
+        ignoreExceptionOfType(context, RejectedExecutionException.class);
+        ignoreExceptionOfType(context, InvalidExitValueException.class);
     }
 
     @Override
