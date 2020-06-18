@@ -75,6 +75,7 @@ public class MqttClient implements Closeable {
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
+    private final Map<String, UnsubscribeRequest> unsubscriptions = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
 
     private final EventLoopGroup eventLoopGroup;
@@ -194,10 +195,14 @@ public class MqttClient implements Closeable {
                     connection.subscribe(request.getTopic(), request.getQos());
                     subscriptionTopics.put(new MqttTopic(request.getTopic()), connection);
                 }
+                UnsubscribeRequest unsubscribeRequest = UnsubscribeRequest.builder()
+                        .topic(request.getTopic()).callback(request.getCallback()).build();
+                unsubscriptions.put(request.getTopic(), unsubscribeRequest);
             }
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
             // If subscribing failed, then clean up the failed subscription callback
             subscriptions.remove(request);
+            unsubscriptions.remove(request.getTopic());
             throw e;
         }
     }
@@ -252,6 +257,7 @@ public class MqttClient implements Closeable {
                     });
                 }
             }
+            unsubscriptions.remove(request.getTopic());
         }
     }
 
@@ -351,5 +357,9 @@ public class MqttClient implements Closeable {
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
+    }
+
+    public UnsubscribeRequest getUnsubscribeRequest(String subscriptionTopic) {
+        return unsubscriptions.get(subscriptionTopic);
     }
 }
