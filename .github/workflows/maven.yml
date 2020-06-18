@@ -41,18 +41,18 @@ jobs:
         with:
           name: Failed Test Report ${{ matrix.os }}
           path: target/surefire-reports
-      - name: Convert Jacoco to Cobertura
-        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
-        if: always()
+        if: matrix.os == 'Linux'
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
       - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
+        if: matrix.os == 'Linux'
       - name: Convert Jacoco interation test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
+        if: matrix.os == 'Linux'
       - name: cobertura-report-unit-test
         uses: shaguptashaikh/cobertura-action@master
         continue-on-error: true
