@@ -31,10 +31,10 @@ jobs:
       - name: Build with Maven
         run: mvn -ntp -U clean verify
         shell: cmd
-        if: ${{ matrix.os }} == Windows
+        if: matrix.os == "Windows"
       - name: Build with Maven
         run: mvn -ntp -U clean verify
-        if: ${{ matrix.os }} != Windows
+        if: matrix.os != "Windows"
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
