@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [Windows]
+        os: [Linux, Windows]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -29,7 +29,12 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Build with Maven
-        run: $erroractionpreference = 'continue'; mvn -ntp -U clean verify
+        run: mvn -ntp -U clean verify
+        shell: cmd
+        if: matrix.os == "Windows"
+      - name: Build with Maven
+        run: mvn -ntp -U clean verify
+        if: matrix.os != "Windows"
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
