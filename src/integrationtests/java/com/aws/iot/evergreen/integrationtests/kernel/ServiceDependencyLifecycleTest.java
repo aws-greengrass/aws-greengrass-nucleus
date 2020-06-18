@@ -191,7 +191,7 @@ public class ServiceDependencyLifecycleTest {
         Set<KernelTest.ExpectedStateTransition> unexpectedDepFinish = new HashSet<>(
                 Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
-        testRoutine(15, kernel, () -> kernel.locate(HardDependency).requestStop(), "dependency stop", expectedDepFinish,
+        testRoutine(20, kernel, () -> kernel.locate(HardDependency).requestStop(), "dependency stop", expectedDepFinish,
                 unexpectedDepFinish);
 
 

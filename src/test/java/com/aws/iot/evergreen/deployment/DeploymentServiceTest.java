@@ -163,7 +163,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
 
-            verify(mockExecutorService).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
             jobSucceededLatch.await(10, TimeUnit.SECONDS);
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
