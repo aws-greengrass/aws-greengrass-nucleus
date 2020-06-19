@@ -110,7 +110,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [Linux, Windows]
+        os: [Linux]
     name: E2E Test on ${{ matrix.os }}
     needs: build
     steps:
