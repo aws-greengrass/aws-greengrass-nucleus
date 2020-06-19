@@ -95,7 +95,17 @@ jobs:
           report_name: Integration Tests Coverage Report
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
-        run: mvn -ntp install -DskipTests && mvn -ntp -f src/test/evergreen-kernel-benchmark install
+        run: |
+          mvn -ntp install -DskipTests
+          mvn -ntp -f src/test/evergreen-kernel-benchmark install
+        if: matrix.os != 'Windows'
+      - name: Build benchmark with Maven
+        # Changes can break the benchmark, so compile it now to make sure it is buildable
+        run: |
+          mvn -ntp install -DskipTests
+          mvn -ntp -f src/test/evergreen-kernel-benchmark install
+        shell: cmd
+        if: matrix.os == 'Windows'
   e2e-test:
     runs-on: ${{ matrix.os }}
     strategy:
