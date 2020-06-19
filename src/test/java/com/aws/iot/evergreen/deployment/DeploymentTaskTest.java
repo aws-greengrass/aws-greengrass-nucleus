@@ -54,11 +54,11 @@ class DeploymentTaskTest {
 
     @Mock
     private DependencyResolver mockDependencyResolver;
-    @Mock(lenient = true)
+    @Mock
     private PackageManager mockPackageManager;
-    @Mock(lenient = true)
+    @Mock
     private KernelConfigResolver mockKernelConfigResolver;
-    @Mock(lenient = true)
+    @Mock
     private DeploymentConfigMerger mockDeploymentConfigMerger;
     @Mock
     private Future<Void> mockPreparePackagesFuture;

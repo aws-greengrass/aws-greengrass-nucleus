@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -104,37 +105,34 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_changing_directories_THEN_success() throws InterruptedException, IOException {
-        Exec exec = new Exec();
-        String getWorkingDirCmd = "pwd";
-        if (Exec.isWindows) {
-            getWorkingDirCmd = "echo %cd%";
-        }
-        // By default Exec uses home current directory for exec
-        String expectedDir = System.getProperty("user.dir");
+        final Exec exec = new Exec();
+        final String getWorkingDirCmd = Exec.isWindows ? "cd" : "pwd";
+
+        // By default Exec uses home as current directory for exec
+        Path expectedDir = Paths.get(System.getProperty("user.dir"));
         String defaultDir = exec.withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, defaultDir);
+        assertEquals(0, expectedDir.compareTo(Paths.get(defaultDir)));
 
         // Now change it to some other directory
-        // TODO: Change this to a proper root to work on all platforms
-        expectedDir = "/";
-        File expectedDirFile = Paths.get(expectedDir).toAbsolutePath().toFile();
-        String changedDir = exec.cd(expectedDirFile).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDirFile.toPath().toAbsolutePath().toString(), changedDir);
+        expectedDir = Paths.get("/").toAbsolutePath();
+        String changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
 
         // Now use the file argument to change into another directory again
         // File argument would use the current directory ("/") as base
-        expectedDir = System.getProperty("user.home");
-        changedDir = exec.cd(expectedDir).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, changedDir);
+        expectedDir = Paths.get(System.getProperty("user.home")).toAbsolutePath();
+        changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
 
         // Now change it to root again
-        changedDir = exec.cd(expectedDirFile).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDirFile.toString(), changedDir);
+        expectedDir = Paths.get("/").toAbsolutePath();
+        changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
 
         // by default cd change to home directory
-        expectedDir = System.getProperty("user.home");
-        changedDir = exec.cd().withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, changedDir);
+        expectedDir = Paths.get(System.getProperty("user.home"));
+        changedDir = exec.cd(/* no argument */).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
         exec.close();
     }
 

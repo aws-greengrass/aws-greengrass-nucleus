@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -112,15 +113,11 @@ class KernelCommandLineTest {
 
         KernelCommandLine kcl = new KernelCommandLine(mockKernel);
 
-        assertThat(kcl.deTilde("~/test"), containsString(System.getProperty("user.home") + File.separator + "test"));
-        assertThat(kcl.deTilde("~bin/test"),
-                is(tempRootDir.toString() + File.separator + "bin" + File.separator + "test"));
-        assertThat(kcl.deTilde("~config/test"),
-                is(tempRootDir.toString() + File.separator + "config" + File.separator + "test"));
-        assertThat(kcl.deTilde("~packages/test"),
-                is(tempRootDir.toString() + File.separator + "packages" + File.separator + "test"));
-        assertThat(kcl.deTilde("~root/test"),
-                is(tempRootDir.toString() + File.separator + "root" + File.separator + "test"));
+        assertEquals(Paths.get(System.getProperty("user.home"), "test").toString(), kcl.deTilde("~/test"));
+        assertEquals(tempRootDir.resolve("bin/test").toString(), kcl.deTilde("~bin/test"));
+        assertEquals(tempRootDir.resolve("config/test").toString(), kcl.deTilde("~config/test"));
+        assertEquals(tempRootDir.resolve("packages/test").toString(), kcl.deTilde("~packages/test"));
+        assertEquals(tempRootDir.resolve("root/test").toString(), kcl.deTilde("~root/test"));
     }
 
     @Test

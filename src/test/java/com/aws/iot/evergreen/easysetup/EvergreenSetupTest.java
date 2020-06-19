@@ -17,12 +17,12 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class EvergreenSetupTest {
-    @Mock(lenient = true)
+    @Mock
     private DeviceProvisioningHelper deviceProvisioningHelper;
-    @Mock(lenient = true)
+    @Mock
     private Kernel kernel;
 
-    @Mock(lenient = true)
+    @Mock
     private DeviceProvisioningHelper.ThingInfo thingInfo;
 
     private EvergreenSetup evergreenSetup;

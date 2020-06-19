@@ -59,14 +59,14 @@ class AuthHandlerTest {
     private static final String SERVICE_NAME = "ServiceName";
 
     AuthHandler mockAuth;
-    @Mock(lenient = true)
+    @Mock
     ChannelHandlerContext mockCtx;
-    @Mock(lenient = true)
+    @Mock
     Channel mockChannel;
-    @Mock(lenient = true)
+    @Mock
     Attribute<ConnectionContext> mockAttr;
     ConnectionContext mockAttrValue = null;
-    @Mock(lenient = true)
+    @Mock
     ChannelFuture mockChannelFuture;
 
     @Captor

@@ -63,25 +63,25 @@ public class IotJobsHelperTest {
     private static final String TEST_JOB_ID = "TestJobId";
     private static final String REJECTION_MESSAGE = "Job update rejected";
 
-    @Mock(lenient = true)
+    @Mock
     private IotJobsClient mockIotJobsClient;
-    @Mock(lenient = true)
+    @Mock
     private MqttClientConnection mockMqttClientConnection;
-    @Mock(lenient = true)
+    @Mock
     Consumer<JobExecutionsChangedEvent> eventConsumer;
-    @Mock(lenient = true)
+    @Mock
     Consumer<DescribeJobExecutionResponse> describeJobConsumer;
-    @Mock(lenient = true)
+    @Mock
     Consumer<RejectedError> rejectedErrorConsumer;
-    @Mock(lenient = true)
+    @Mock
     DeviceConfiguration deviceConfiguration;
-    @Mock(lenient = true)
+    @Mock
     IotJobsHelper.AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
-    @Mock(lenient = true)
+    @Mock
     IotJobsHelper.IotJobsClientFactory mockIotJobsClientFactory;
-    @Mock(lenient = true)
+    @Mock
     LinkedBlockingQueue<Deployment> mockDeploymentsQueue;
-    @Mock(lenient = true)
+    @Mock
     DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Mock

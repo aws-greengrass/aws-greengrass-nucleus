@@ -23,7 +23,7 @@ public class BaseRetryableAccessorTest {
     private static final int BACKOFF_MILLIS = 100;
     private static final Iterable<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS = new HashSet<>(
             Arrays.asList(HttpException.class));
-    @Mock(lenient = true)
+    @Mock
     private CrashableSupplier func;
 
     BaseRetryableAccessor accessor = new BaseRetryableAccessor();
