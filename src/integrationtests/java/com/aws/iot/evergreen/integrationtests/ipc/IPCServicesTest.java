@@ -49,8 +49,8 @@ import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
-import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -215,7 +215,7 @@ class IPCServicesTest {
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
-        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(CUSTOM_CONFIG_NAMESPACE);
+        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
 
         AtomicInteger numCalls = new AtomicInteger();
         Pair<CompletableFuture<Void>, Consumer<String>> p = TestUtils.asyncAssertOnConsumer((a) -> {
@@ -248,7 +248,7 @@ class IPCServicesTest {
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
-        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(CUSTOM_CONFIG_NAMESPACE);
+        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         custom.createLeafChild("abc").withValue("ABC");
         custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
 

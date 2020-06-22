@@ -26,10 +26,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 
 public class KernelConfigResolver {
 
@@ -104,20 +102,6 @@ public class KernelConfigResolver {
                     interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
-
-        Map<Object, Object> resolvedCustomConfig = new HashMap<>();
-        for (Map.Entry<String, Object> configKVPair : packageRecipe.getCustomConfig().entrySet()) {
-            resolvedCustomConfig.put(configKVPair.getKey(),
-                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
-        }
-        resolvedServiceConfig.put(CUSTOM_CONFIG_NAMESPACE, resolvedCustomConfig);
-
-        Map<String, String> resolvedSetEnvConfig = new HashMap<>();
-        for (Map.Entry<String, String> configKVPair : packageRecipe.getEnvironmentVariables().entrySet()) {
-            resolvedSetEnvConfig.put(configKVPair.getKey(),
-                    (String) interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
-        }
-        resolvedServiceConfig.put(SETENV_CONFIG_NAMESPACE, resolvedSetEnvConfig);
 
         // Generate dependencies
         List<String> dependencyConfig = new ArrayList<>();
