@@ -33,7 +33,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
 /**
  * Class to handle business logic for all ConfigStore requests over IPC.
@@ -68,7 +68,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         }
         // Ensure that the node which changed was part of the custom config
         int customConfigIndex = nodePath.size() - 4;
-        if (!nodePath.get(customConfigIndex).equals(CUSTOM_CONFIG_NAMESPACE)) {
+        if (!nodePath.get(customConfigIndex).equals(PARAMETERS_CONFIG_KEY)) {
             return;
         }
 
@@ -148,7 +148,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
                     .build();
         }
 
-        Topics configTopics = serviceTopic.findInteriorChild(CUSTOM_CONFIG_NAMESPACE);
+        Topics configTopics = serviceTopic.findInteriorChild(PARAMETERS_CONFIG_KEY);
         if (configTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.NoDynamicConfig)
                     .errorMessage("Service has no dynamic config").build();

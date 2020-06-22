@@ -58,10 +58,6 @@ public class PackageRecipe {
 
     private final Map<String, RecipeDependencyProperties> dependencies;
 
-    private final Map<String, Object> customConfig;
-
-    private final Map<String, String> environmentVariables;
-
     /**
      * Constructor for Jackson to deserialize.
      *
@@ -75,8 +71,6 @@ public class PackageRecipe {
      * @param lifecycle             Lifecycle definitions
      * @param artifacts             Artifact definitions
      * @param dependencies          List of dependencies
-     * @param customConfig          Custom config to store in kernel config store
-     * @param environmentVariables  Environment variables for the service
      * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
@@ -91,11 +85,7 @@ public class PackageRecipe {
                          @JsonProperty("Artifacts") Map<String, List<URI>> artifacts,
                          @JsonProperty("Dependencies") @JsonDeserialize(
                                  using = DependencyMapDeserializer.class)
-                                     Map<String, RecipeDependencyProperties> dependencies,
-                         @JsonProperty("CustomConfig") @JsonDeserialize(
-                                 using = MapFieldDeserializer.class) Map<String, Object> customConfig,
-                         @JsonProperty("EnvironmentVariables") @JsonDeserialize(
-                                 using = MapFieldDeserializer.class) Map<String, String> environmentVariables) {
+                                     Map<String, RecipeDependencyProperties> dependencies) {
 
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.componentName = componentName;
@@ -109,8 +99,6 @@ public class PackageRecipe {
         this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
         this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
-        this.customConfig = customConfig == null ? Collections.emptyMap() : customConfig;
-        this.environmentVariables = environmentVariables == null ? Collections.emptyMap() : environmentVariables;
     }
 
     @JsonSerialize(using = SemverSerializer.class)
