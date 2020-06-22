@@ -20,9 +20,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.CUSTOM_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -123,7 +123,7 @@ class GenericExternalServiceTest extends BaseITCase {
         Subscriber customConfigWatcher = (WhatHappened what, Topic t) -> {
             topicUpdateProcessedFuture.complete(null);
         };
-        Topic customConfigTopic = service.getServiceConfig().find(CUSTOM_CONFIG_NAMESPACE, "my_custom_key");
+        Topic customConfigTopic = service.getServiceConfig().find(PARAMETERS_CONFIG_KEY, "my_custom_key");
         customConfigTopic.subscribe(customConfigWatcher);
 
         customConfigTopic.withValue("my_custom_initial_value");

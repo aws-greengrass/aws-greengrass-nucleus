@@ -14,5 +14,5 @@ services:
     version: 1.0.0
     setenv:
       my_env_var: var1
-    custom:
+    parameters:
       my_custom_key: 'my_custom_initial_value'
