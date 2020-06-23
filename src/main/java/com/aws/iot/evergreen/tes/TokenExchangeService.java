@@ -27,16 +27,16 @@ public class TokenExchangeService extends EvergreenService {
     private String iotRoleAlias;
     private HttpServerImpl server;
 
-    private final IotConnectionManager iotConnectionManager;
+    private final CredentialsProviderBuilder credentialsProviderBuilder;
 
     /**
      * Constructor.
      * @param topics the configuration coming from kernel
-     * @param iotConnectionManager {@link IotConnectionManager}
+     * @param credentialsProviderBuilder  {@link CredentialsProviderBuilder}
      */
     @Inject
     public TokenExchangeService(Topics topics,
-                                IotConnectionManager iotConnectionManager) {
+                                CredentialsProviderBuilder credentialsProviderBuilder) {
         super(topics);
         // TODO: Add support for other params like role Aliases
         topics.lookup(PORT_TOPIC)
@@ -48,7 +48,7 @@ public class TokenExchangeService extends EvergreenService {
                 .subscribe((why, newv) ->
                         iotRoleAlias = Coerce.toString(newv));
 
-        this.iotConnectionManager = iotConnectionManager;
+        this.credentialsProviderBuilder = credentialsProviderBuilder;
     }
 
     @Override
@@ -57,9 +57,8 @@ public class TokenExchangeService extends EvergreenService {
         // TODO: Support tes restart with change in configuration like port, roleAlias.
         logger.atInfo().addKeyValue("port", port).log("Starting Token Server at port {}", port);
         try {
-            IotCloudHelper cloudHelper = new IotCloudHelper();
             server = new HttpServerImpl(port,
-                    new CredentialRequestHandler(iotRoleAlias, cloudHelper, iotConnectionManager));
+                    new CredentialRequestHandler(iotRoleAlias, credentialsProviderBuilder));
             server.start();
             setEnvVariablesForDependencies();
             reportState(State.RUNNING);
