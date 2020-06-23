@@ -9,6 +9,10 @@ import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableExceptio
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
+import com.aws.iot.evergreen.deployment.model.DeploymentTaskMetadata;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -112,6 +116,9 @@ public class IotJobsHelper implements InjectionActions {
     @Inject
     private DeploymentStatusKeeper deploymentStatusKeeper;
 
+    @Inject
+    private Kernel kernel;
+
     @Setter
     @Inject
     @Named(DEPLOYMENTS_QUEUE)
@@ -143,8 +150,11 @@ public class IotJobsHelper implements InjectionActions {
             requestNextPendingJobDocument();
             return;
         }
-        //TODO: If there was only one job, then indicate cancellation of that job.
-        // Empty list will be received.
+        if (jobs.isEmpty()) {
+            logger.atInfo().log("Received empty jobs in notification ");
+            evaluateCancellationAndCancelDeploymentIfNeeded();
+            return;
+        }
         logger.atInfo().kv("jobs", jobs).log("Received other deployment notification. Not supported yet");
     };
 
@@ -182,6 +192,15 @@ public class IotJobsHelper implements InjectionActions {
             // This should not happen as we are converting a HashMap
             return;
         }
+
+        // Reaching this point means there is no IN_PROGRESS job in cloud because if there was, it would
+        // have been deduplicated. The fact that we got the next queued deployment means that the previous
+        // IN_PROGRESS job is either finished with SUCCEEDED/FAILED status or got cancelled
+        // Hence, evaluate if there was a cancellation and if so add a cancellation deployment and
+        // then add this next QUEUED job to the deployment queue
+        evaluateCancellationAndCancelDeploymentIfNeeded();
+
+        // Add the job queued in cloud to the deployment queue so it's picked up on its turn
         Deployment deployment =
                 new Deployment(documentString, DeploymentType.IOT_JOBS, jobExecutionData.jobId);
 
@@ -222,13 +241,15 @@ public class IotJobsHelper implements InjectionActions {
                   IotJobsClientFactory iotJobsClientFactory,
                   LinkedBlockingQueue<Deployment> deploymentsQueue,
                   DeploymentStatusKeeper deploymentStatusKeeper,
-                  ExecutorService executorService) {
+                  ExecutorService executorService,
+                  Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
         this.awsIotMqttConnectionFactory = awsIotMqttConnectionFactory;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentsQueue = deploymentsQueue;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.executorService = executorService;
+        this.kernel = kernel;
     }
 
     @Override
@@ -568,6 +589,27 @@ public class IotJobsHelper implements InjectionActions {
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
         subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
         logger.atInfo().log("Subscribed to deployment job event notifications.");
+    }
+
+    private void evaluateCancellationAndCancelDeploymentIfNeeded() {
+        try {
+            EvergreenService deploymentServiceLocateResult = kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            if (deploymentServiceLocateResult instanceof DeploymentService) {
+                DeploymentService deploymentService = (DeploymentService) deploymentServiceLocateResult;
+                DeploymentTaskMetadata currentDeployment = deploymentService.getCurrentDeploymentTaskMetadata();
+
+                // If the queue is not empty then it means deployment(s) from other sources is/are queued in it,
+                // in that case don't add a cancellation deployment because it can't be added to the front of the queue
+                // we will just have to let current deployment finish
+                Deployment deployment = new Deployment(DeploymentType.IOT_JOBS, UUID.randomUUID().toString(), true);
+                if (deploymentsQueue.isEmpty() && currentDeployment != null && DeploymentType.IOT_JOBS
+                        .equals(currentDeployment.getDeploymentType()) && deploymentsQueue.offer(deployment)) {
+                    logger.atInfo().log("Added cancellation deployment to the queue");
+                }
+            }
+        } catch (ServiceLoadException e) {
+            logger.atError().setCause(e).log("Failed to find deployment service");
+        }
     }
 
     private static class LatestQueuedJobs {

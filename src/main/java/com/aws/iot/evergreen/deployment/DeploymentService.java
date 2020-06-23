@@ -20,6 +20,7 @@ import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -43,7 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-@ImplementsService(name = "DeploymentService", autostart = true)
+@ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
@@ -54,11 +55,7 @@ public class DeploymentService extends EvergreenService {
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     // TODO: These should probably become configurable parameters eventually
-    // TODO: Deployment polling wait time can't be simply reduced now because it may result doing duplicate deployment.
-    // When the wait time is reduced, the old job could already completed and removed from the queue when
-    // the duplicated job comes. It can only be reduced after the IoTJobHelper::describeJobExecutionResponseConsumer
-    // can dedupe properly.
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(30).toMillis();
+    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(15).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
@@ -148,7 +145,7 @@ public class DeploymentService extends EvergreenService {
         logger.info("Running deployment service");
 
         while (!receivedShutdown.get()) {
-            if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentProcess()
+            if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
                     .isDone()) {
                 finishCurrentDeployment();
             }
@@ -157,27 +154,29 @@ public class DeploymentService extends EvergreenService {
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
             Deployment deployment = deploymentsQueue.peek();
             if (deployment != null) {
+                if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
+                        .equals(deployment.getDeploymentType()) && deployment.isCancelled()) {
+                    logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .log("Canceling current deployment");
+                    // Assuming cancel will either cancel the current deployment or wait till it finishes
+                    cancelCurrentDeployment();
+                }
                 if (currentDeploymentTaskMetadata != null && !deployment.getDeploymentType()
                         .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                    // deployment from another source, wait till the current deployment finish
+                    // deployment from another source, wait till the current deployment finishes
                     continue;
                 }
-                if (currentDeploymentTaskMetadata != null
-                        && currentDeploymentTaskMetadata.getDeploymentType() != null) {
-                    if (deployment.getId().equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment
-                            .getDeploymentType().equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                        //Duplicate message and already processing this deployment so nothing is needed
-                        deploymentsQueue.remove();
-                        continue;
-                    } else {
-                        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                                .log("Canceling the job");
-                        //Assuming cancel will either cancel the current job or wait till it finishes
-                        cancelCurrentDeployment();
-                    }
+                if (currentDeploymentTaskMetadata != null && deployment.getId()
+                        .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
+                        .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                    //Duplicate message and already processing this deployment so nothing is needed
+                    deploymentsQueue.remove();
+                    continue;
                 }
                 deploymentsQueue.remove();
-                createNewDeployment(deployment);
+                if (!deployment.isCancelled()) {
+                    createNewDeployment(deployment);
+                }
             }
             Thread.sleep(pollingFrequency);
         }
@@ -196,7 +195,7 @@ public class DeploymentService extends EvergreenService {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
             // if something is going wrong
-            DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentProcess().get();
+            DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
                 DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
                 Map<String, String> statusDetails = new HashMap<>();
@@ -228,7 +227,7 @@ public class DeploymentService extends EvergreenService {
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
-                currentDeploymentTaskMetadata.setDeploymentProcess(
+                currentDeploymentTaskMetadata.setDeploymentResultFuture(
                         executorService.submit(currentDeploymentTaskMetadata.getDeploymentTask()));
                 currentDeploymentTaskMetadata.getDeploymentAttemptCount().incrementAndGet();
                 return;
@@ -239,12 +238,46 @@ public class DeploymentService extends EvergreenService {
         currentDeploymentTaskMetadata = null;
     }
 
+    /*
+     * When a cancellation is received, there are following possibilities -
+     *  - No task has yet been created for current deployment so result future is null, we do nothing for this
+     *  - If the result future has already completed then we cannot cancel it, we do nothing for this
+     *  - The deployment is not yet running the update, i.e. it may be in any one of dependency resolution stage/
+     *    package download stage/ config resolution stage/ waiting for safe time to update as part of the merge stage,
+     *    in that case we cancel that update and the DeploymentResult future
+     *  - The deployment is already executing the update, so we let it finish
+     * For cases when deployment cannot be cancelled customers can figure out what happened through logs
+     * because in the case of IoT jobs, a cancelled job does not accept status update
+     */
     @SuppressWarnings("PMD.NullAssignment")
     private void cancelCurrentDeployment() {
-        //TODO: Make the deployment task be able to handle the interrupt
-        // and wait till the job gets cancelled or is finished
-        if (currentDeploymentTaskMetadata != null) {
-            currentDeploymentTaskMetadata.getDeploymentProcess().cancel(true);
+        if (currentDeploymentTaskMetadata.getDeploymentResultFuture() != null) {
+            if (currentDeploymentTaskMetadata.getDeploymentResultFuture().isDone()) {
+                logger.atInfo().log("Deployment already finished processing, cannot cancel now");
+            } else {
+                boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
+                        currentDeploymentTaskMetadata.getDeploymentTask().getDeploymentDocument().getDeploymentId());
+                if (canCancelDeployment) {
+                    currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
+                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                            .log("Deployment was cancelled");
+                } else {
+                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                            .log("Deployment is in a stage where it cannot be cancelled,"
+                                    + "need to wait for it to finish");
+                    try {
+                        currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
+                    } catch (ExecutionException | InterruptedException e) {
+                        logger.atError().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                                .log("Error while finishing "
+                                        + "deployment, no-op since the deployment was canceled at the source");
+                    }
+                }
+            }
+            // Currently cancellation for only IoT Jobs based deployments is supported and for such deployments job
+            // status should not be reported back since once a job is cancelled IoT Jobs will reject any status
+            // updates for it. however, if we later support cancellation for more deployment types this may need to
+            // be handled on case by case basis
             currentDeploymentTaskMetadata = null;
         }
     }
@@ -276,6 +309,7 @@ public class DeploymentService extends EvergreenService {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
+        logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
@@ -314,5 +348,9 @@ public class DeploymentService extends EvergreenService {
 
     void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
         this.deploymentsQueue = deploymentsQueue;
+    }
+
+    public DeploymentTaskMetadata getCurrentDeploymentTaskMetadata() {
+        return currentDeploymentTaskMetadata;
     }
 }

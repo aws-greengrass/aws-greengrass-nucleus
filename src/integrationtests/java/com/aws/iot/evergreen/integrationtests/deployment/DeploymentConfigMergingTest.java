@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -78,7 +79,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_with_some_config_WHEN_merge_simple_yaml_file_THEN_config_is_updated() throws Throwable {
-
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
@@ -119,8 +119,16 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 mainRunning.countDown();
             }
         });
-        kernel.launch();
 
+        AtomicBoolean safeUpdateRegistered = new AtomicBoolean();
+        Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
+            if ("register-service-update-action".equals(m.getEventType())) {
+                safeUpdateRegistered.set(true);
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        kernel.launch();
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // WHEN
@@ -130,6 +138,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 mainRestarted.countDown();
             }
         });
+
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
@@ -146,6 +155,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertThat((String) kernel.findServiceTopic("main")
                         .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC).getOnce(),
                 containsString("echo \"Running main\""));
+        assertTrue(safeUpdateRegistered.get());
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     @Test
@@ -541,13 +553,73 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.getContext().removeGlobalStateChangeListener(listener);
     }
 
+    @Test
+    void GIVEN_kernel_running_single_service_WHEN_deployment_with_skip_safety_check_config_THEN_merge_without_checking_safety()
+            throws Throwable {
+
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
+                mainRunning.countDown();
+            }
+        });
+        kernel.launch();
+        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+
+        // WHEN
+        CountDownLatch mainRestarted = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
+                mainRestarted.countDown();
+            }
+        });
+        AtomicBoolean safeUpdateSkipped= new AtomicBoolean();
+        Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
+            if ("Deployment is configured to skip safety check, not waiting for safe time to update"
+                    .equals(m.getMessage())) {
+                    safeUpdateSkipped.set(true);
+                }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+        deploymentConfigMerger
+                .mergeInNewConfig(testDeploymentDocumentWithSkipSafetyCheckConfig(), new HashMap<Object, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
+                    put(SETENV_CONFIG_NAMESPACE, new HashMap<Object, Object>() {{
+                        put("HELLO", "redefined");
+                    }});
+                }});
+            }});
+        }}).get(60, TimeUnit.SECONDS);
+
+        // THEN
+        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
+        assertThat((String) kernel.findServiceTopic("main")
+                        .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC).getOnce(),
+                containsString("echo \"Running main\""));
+        assertTrue(safeUpdateSkipped.get());
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
+    }
+
     private DeploymentDocument testDeploymentDocument() {
         return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
-                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).build();
+                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
     }
 
     private DeploymentDocument testRollbackDeploymentDocument() {
         return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("rollback_id")
-                .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK).build();
+                .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+    }
+
+    private DeploymentDocument testDeploymentDocumentWithSkipSafetyCheckConfig() {
+        return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
+                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).build();
     }
 }

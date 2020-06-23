@@ -51,6 +51,9 @@ public class DeploymentDocument {
     @JsonProperty("FailureHandlingPolicy")
     private FailureHandlingPolicy failureHandlingPolicy;
 
+    @JsonProperty("DeploymentSafetyPolicy")
+    private DeploymentSafetyPolicy deploymentSafetyPolicy;
+
     /**
      * Constructor to wrap around deployment configurations from Fleet Configuration Service.
      *
@@ -60,6 +63,8 @@ public class DeploymentDocument {
         deploymentId = config.getConfigurationArn();
         timestamp = config.getCreationTimestamp();
         failureHandlingPolicy = config.getFailureHandlingPolicy();
+        // TODO : When Fleet Configuration Service supports deployment safety policy, read this from the fleet config
+        deploymentSafetyPolicy = DeploymentSafetyPolicy.CHECK_SAFETY;
         rootPackages = new ArrayList<>();
         deploymentPackageConfigurationList = new ArrayList<>();
 

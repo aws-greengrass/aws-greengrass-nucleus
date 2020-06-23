@@ -13,7 +13,10 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
@@ -27,7 +30,9 @@ import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
@@ -35,7 +40,9 @@ import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventually
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
@@ -195,5 +202,144 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE.name(), iotClient
                 .describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thingInfo.getThingName())
                         .build()).execution().statusDetails().detailsMap().get("detailed-deployment-status"));
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
+    void GIVEN_some_running_services_WHEN_cancel_event_received_and_kernel_is_waiting_for_safe_time_THEN_deployment_should_be_canceled() throws Exception {
+        // First Deployment to have a service running in Kernel which has a safety check that always returns
+        // false, i.e. keeps waiting forever
+        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        // Second deployment to update the service which is currently running an important task so deployment should
+        // wait for a safe time to update
+        SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
+                        "1.0.1"));
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+
+        CountDownLatch updateRegistered = new CountDownLatch(1);
+        CountDownLatch deploymentCancelled = new CountDownLatch(1);
+        Consumer<EvergreenStructuredLogMessage> logListener = m -> {
+            if ("register-service-update-action".equals(m.getEventType())) {
+                updateRegistered.countDown();
+            }
+            if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
+                deploymentCancelled.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+        // Wait for the second deployment to start waiting for safe time to update and
+        // then cancel it's corresponding job from cloud
+        assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
+        assertTrue(kernel.getContext().get(UpdateSystemSafelyService.class)
+                .hasPendingUpdateAction(publishResult2.getConfigurationArn()));
+
+        // TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
+        IotJobsUtils.cancelJob(iotClient, publishResult2.getJobId());
+
+        // Wait for indication that cancellation has gone through
+        assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
+        assertFalse(kernel.getContext().get(UpdateSystemSafelyService.class)
+                .hasPendingUpdateAction(publishResult2.getConfigurationArn()));
+
+        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService")
+                .find("version").getOnce());
+
+        Slf4jLogAdapter.removeGlobalListener(logListener);
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
+    void GIVEN_deployment_in_progress_with_more_jobs_queued_in_cloud_WHEN_cancel_event_received_and_kernel_is_waiting_for_safe_time_THEN_deployment_should_be_canceled() throws Exception {
+        // First Deployment to have a service running in Kernel which has a safety check that always returns
+        // false, i.e. keeps waiting forever
+        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        CountDownLatch updateRegistered = new CountDownLatch(1);
+        CountDownLatch deploymentCancelled = new CountDownLatch(1);
+        Consumer<EvergreenStructuredLogMessage> logListener = m -> {
+            if ("register-service-update-action".equals(m.getEventType())) {
+                updateRegistered.countDown();
+            }
+            if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
+                deploymentCancelled.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
+
+        // Second deployment to update the service which is currently running an important task so deployment should
+        // keep waiting for a safe time to update
+        SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
+                        "1.0.1"));
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+        // Create one more deployment so that it's queued in cloud
+        SetConfigurationRequest setRequest3 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
+                        "1.0.1"));
+        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
+
+        // Wait for the second deployment to start waiting for safe time to update and
+        // then cancel it's corresponding job from cloud
+        assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
+        assertTrue(kernel.getContext().get(UpdateSystemSafelyService.class)
+                .hasPendingUpdateAction(publishResult2.getConfigurationArn()));
+
+        // TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
+        IotJobsUtils.cancelJob(iotClient, publishResult2.getJobId());
+
+        // Wait for indication that cancellation has gone through
+        assertTrue(deploymentCancelled.await(240, TimeUnit.SECONDS));
+        assertFalse(kernel.getContext().get(UpdateSystemSafelyService.class)
+                .hasPendingUpdateAction(publishResult2.getConfigurationArn()));
+
+        // Now that we've verified that the job got cancelled, let's verify that the next job was picked up
+        // and put into IN_PROGRESS state
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService")
+                .find("version").getOnce());
+
+        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 }

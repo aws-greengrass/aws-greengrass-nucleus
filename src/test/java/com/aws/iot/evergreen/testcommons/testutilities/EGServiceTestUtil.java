@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.testcommons.testutilities;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -21,6 +22,9 @@ import static org.mockito.Mockito.mock;
 public class EGServiceTestUtil {
 
     protected String serviceFullName = "EvergreenServiceFullName";
+
+    @Mock
+    protected UpdateSystemSafelyService mockSafeUpdateService;
 
     @Mock
     protected Topics config;
@@ -42,6 +46,7 @@ public class EGServiceTestUtil {
         Mockito.when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
         Mockito.when(config.getContext()).thenReturn(context);
         lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
+        lenient().when(context.get(eq(UpdateSystemSafelyService.class))).thenReturn(mockSafeUpdateService);
 
         return config;
     }

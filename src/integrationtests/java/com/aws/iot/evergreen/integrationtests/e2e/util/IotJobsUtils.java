@@ -85,15 +85,20 @@ public final class IotJobsUtils {
     }
 
     public static void cleanJob(IotClient client, String jobId) {
+        cancelJob(client, jobId);
+        client.deleteJob(DeleteJobRequest.builder().jobId(jobId).force(true).build());
+    }
+
+    public static void cancelJob(IotClient client, String jobId) {
         try {
             client.cancelJob(CancelJobRequest.builder().jobId(jobId).force(true).build());
         } catch (InvalidRequestException e) {
-            // Ignore can't cancel due to job already completed
-            if (!e.getMessage().contains("in status COMPLETED cannot")) {
+            // Ignore can't cancel due to job already completed or canceled
+            if (!e.getMessage().contains("in status COMPLETED cannot") && !e.getMessage()
+                    .contains("in status CANCELED cannot be")) {
                 throw e;
             }
         }
-        client.deleteJob(DeleteJobRequest.builder().jobId(jobId).force(true).build());
     }
 
     /**

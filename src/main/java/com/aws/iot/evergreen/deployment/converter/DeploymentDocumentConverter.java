@@ -7,6 +7,7 @@ package com.aws.iot.evergreen.deployment.converter;
 
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 
 import java.util.ArrayList;
@@ -55,10 +56,12 @@ public final class DeploymentDocumentConverter {
         List<DeploymentPackageConfiguration> packageConfigurations =
                 buildDeploymentPackageConfigurations(localOverrideRequest, newRootComponents);
 
-
         return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp())
                 .deploymentId(localOverrideRequest.getRequestId()).rootPackages(rootPackages)
-                .deploymentPackageConfigurationList(packageConfigurations).build();
+                .deploymentPackageConfigurationList(packageConfigurations)
+                // Currently we always skip safety check for local deployment to not slow down testing for customers
+                // If we make this configurable in local development then we can plug that input in here
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).build();
     }
 
     private static List<DeploymentPackageConfiguration> buildDeploymentPackageConfigurations(
