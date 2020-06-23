@@ -14,7 +14,7 @@ public class DeploymentTaskMetadata {
     @NonNull @Getter
     private DeploymentTask deploymentTask;
     @NonNull
-    private Future<DeploymentResult> deploymentProcess;
+    private Future<DeploymentResult> deploymentResultFuture;
     @NonNull @Getter
     private String deploymentId;
     @NonNull @Getter
@@ -23,12 +23,12 @@ public class DeploymentTaskMetadata {
     private AtomicInteger deploymentAttemptCount;
 
     @Synchronized
-    public void setDeploymentProcess(Future<DeploymentResult> deploymentProcess) {
-        this.deploymentProcess = deploymentProcess;
+    public void setDeploymentResultFuture(Future<DeploymentResult> deploymentResultFuture) {
+        this.deploymentResultFuture = deploymentResultFuture;
     }
 
     @Synchronized
-    public Future<DeploymentResult> getDeploymentProcess() {
-        return deploymentProcess;
+    public Future<DeploymentResult> getDeploymentResultFuture() {
+        return deploymentResultFuture;
     }
 }

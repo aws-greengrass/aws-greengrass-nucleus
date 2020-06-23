@@ -133,6 +133,9 @@ public class PackageManager implements InjectionActions {
     public Future<Void> preparePackages(List<PackageIdentifier> pkgIds) {
         return executorService.submit(() -> {
             for (PackageIdentifier packageIdentifier : pkgIds) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return null;
+                }
                 preparePackage(packageIdentifier);
             }
             return null;

@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,28 +21,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 @AllArgsConstructor
 public class DeploymentTask implements Callable<DeploymentResult> {
+    private static final String DEPLOYMENT_ID_LOGGING_KEY = "deploymentId";
     private final DependencyResolver dependencyResolver;
     private final PackageManager packageManager;
     private final KernelConfigResolver kernelConfigResolver;
     private final DeploymentConfigMerger deploymentConfigMerger;
     private final Logger logger;
+    @Getter
     private final DeploymentDocument deploymentDocument;
 
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
 
     @Override
-    @SuppressWarnings({"PMD.PreserveStackTrace"})
+    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration"})
     public DeploymentResult call()
             throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException {
+        Future<Void> preparePackagesFuture = null;
+        Future<DeploymentResult> deploymentMergeFuture = null;
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .addKeyValue("deploymentId", deploymentDocument.getDeploymentId()).log("Start deployment task");
+                    .addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .log("Starting deployment task");
 
             // TODO: DA compute list of all root level packages by looking across root level packages
             // of all groups, when multi group support is added.
@@ -51,17 +58,24 @@ public class DeploymentTask implements Callable<DeploymentResult> {
                     dependencyResolver.resolveDependencies(deploymentDocument, rootPackages);
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
-            packageManager.preparePackages(desiredPackages).get();
+            preparePackagesFuture = packageManager.preparePackages(desiredPackages);
+            preparePackagesFuture.get();
 
             Map<Object, Object> newConfig =
                     kernelConfigResolver.resolve(desiredPackages, deploymentDocument, rootPackages);
-
+            if (Thread.currentThread().isInterrupted()) {
+                logger.atInfo().addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                        .log("Received interrupt before attempting deployment merge, skipping merge");
+                return null;
+            }
+            deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deploymentDocument, newConfig);
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
-            DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(deploymentDocument, newConfig).get();
+            DeploymentResult result = deploymentMergeFuture.get();
 
-            logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .addKeyValue("deploymentId", deploymentDocument.getDeploymentId()).log("Finish deployment task");
+            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
+                    .addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .log("Finished deployment task");
             return result;
         } catch (PackageVersionConflictException | UnexpectedPackagingException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
@@ -73,8 +87,36 @@ public class DeploymentTask implements Callable<DeploymentResult> {
                 throw new RetryableDeploymentTaskFailureException(t);
             }
             throw new NonRetryableDeploymentTaskFailureException(t);
-        } catch (InterruptedException | IOException | PackagingException e) {
+        } catch (InterruptedException e) {
+            // DeploymentTask got interrupted while waiting or blocked on either prepare packages
+            // or deployment merge step and landed here
+            handleCancellation(preparePackagesFuture, deploymentMergeFuture);
+            return null;
+        } catch (IOException | PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
+        }
+    }
+
+    /*
+     * Handle deployment cancellation
+     */
+    private void handleCancellation(Future<Void> preparePackagesFuture,
+                                    Future<DeploymentResult> deploymentMergeFuture) {
+        // Stop downloading packages since the task was cancelled
+        if (preparePackagesFuture != null && !preparePackagesFuture.isDone()) {
+            preparePackagesFuture.cancel(true);
+            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                    .kv(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .log("Cancelled package download due to received interrupt");
+            return;
+        }
+        // Cancel deployment config merge future
+        if (deploymentMergeFuture != null && !deploymentMergeFuture.isDone()) {
+            deploymentMergeFuture.cancel(false);
+            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .kv(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                        .log("Cancelled deployment merge future due to interrupt, update may not get cancelled if"
+                                + " it is already being applied");
         }
     }
 }

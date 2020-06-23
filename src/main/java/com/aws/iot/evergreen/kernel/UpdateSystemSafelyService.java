@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.dependency.State;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -29,6 +30,7 @@ import javax.inject.Singleton;
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
     private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
+    private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
     private final Kernel kernel;
 
@@ -55,7 +57,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
      */
     public synchronized void addUpdateAction(String tag, Crashable action) {
         pendingActions.put(tag, action);
-        logger.atDebug().setEventType("register-service-update-action").addKeyValue("action", tag).log();
+        logger.atInfo().setEventType("register-service-update-action").addKeyValue("action", tag).log();
         synchronized (pendingActions) {
             pendingActions.notifyAll();
         }
@@ -63,6 +65,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
+        runningUpdateActions.set(true);
         for (Map.Entry<String, Crashable> todo : pendingActions.entrySet()) {
             try {
                 todo.getValue().run();
@@ -76,6 +79,32 @@ public class UpdateSystemSafelyService extends EvergreenService {
         for (EvergreenService s : kernel.orderedDependencies()) {
             s.disruptionCompleted(); // Notify disruption is over
         }
+        runningUpdateActions.set(false);
+    }
+
+    /**
+     * Check if a pending action with the tag currently exists.
+     *
+     * @param tag tag to identify an update action
+     * @return true if there is a pending action for specified tag
+     */
+    public boolean hasPendingUpdateAction(String tag) {
+        return pendingActions.containsKey(tag);
+    }
+
+    /**
+     * Discard a pending action if update actions are not already running.
+     *
+     * @param tag tag to identify an update action
+     * @return true if all update actions are pending and requested action could be discarded, false if update actions
+     *         were already in progress so it's not safe to discard the requested action
+     */
+    public boolean discardPendingUpdateAction(String tag) {
+        if (runningUpdateActions.get()) {
+            return false;
+        }
+        pendingActions.remove(tag);
+        return true;
     }
 
     @SuppressWarnings({"SleepWhileInLoop"})

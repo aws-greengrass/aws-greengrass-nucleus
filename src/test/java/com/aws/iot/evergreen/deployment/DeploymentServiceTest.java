@@ -43,7 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,7 +102,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
     @Nested
     class DeploymentInProgress {
-        CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
+        CompletableFuture<DeploymentResult> mockFuture = spy(new CompletableFuture<>());
 
         @BeforeEach
         public void setup() throws Exception {
@@ -223,7 +225,78 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentService.shutdown();
         }
 
+        @Test
+        public void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
+                throws Exception {
+            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(true);
+            startDeploymentServiceInAnotherThread();
+
+            // Simulate a cancellation deployment
+            deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+
+            // Expecting three invocations, once for each retry attempt
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+            verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction("testArn");
+            verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
+
+            deploymentService.shutdown();
+        }
+
+        @Test
+        public void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
+                throws Exception {
+            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(false);
+            startDeploymentServiceInAnotherThread();
+
+            // Simulate a cancellation deployment
+            deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+
+            // Expecting three invocations, once for each retry attempt
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction("testArn");
+            verify(mockFuture, times(0)).cancel(true);
+            verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+            deploymentService.shutdown();
+        }
+
+        @Test
+        public void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
+                throws Exception {
+            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            startDeploymentServiceInAnotherThread();
+
+            CountDownLatch cdl = new CountDownLatch(1);
+            Consumer<EvergreenStructuredLogMessage> listener = m -> {
+                if (m.getMessage() != null && m.getMessage().equals("Started deployment execution")) {
+                    cdl.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(listener);
+
+            // Wait for deployment service to start a new deployment task then simulate finished task
+            cdl.await(1, TimeUnit.SECONDS);
+            Slf4jLogAdapter.removeGlobalListener(listener);
+
+            // Simulate a cancellation deployment
+            deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+
+            mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
+
+            // Expecting three invocations, once for each retry attempt
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockSafeUpdateService, times(0)).discardPendingUpdateAction(any());
+            verify(mockFuture, times(0)).cancel(true);
+            verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+            deploymentService.shutdown();
+        }
     }
+
 
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
         CountDownLatch cdl = new CountDownLatch(1);
