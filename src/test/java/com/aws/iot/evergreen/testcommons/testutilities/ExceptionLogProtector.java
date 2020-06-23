@@ -15,7 +15,6 @@ import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
-import org.zeroturnaround.exec.InvalidExitValueException;
 
 import java.util.Collection;
 import java.util.List;
@@ -133,7 +132,6 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
 
         ignoreExceptionOfType(context, RejectedExecutionException.class);
-        ignoreExceptionOfType(context, InvalidExitValueException.class);
     }
 
     @Override
