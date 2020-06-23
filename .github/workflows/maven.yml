@@ -43,7 +43,7 @@ jobs:
           path: target/surefire-reports
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
-        if: matrix.os == 'Linux'
+        if: always()
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
@@ -98,14 +98,7 @@ jobs:
         run: |
           mvn -ntp install -DskipTests
           mvn -ntp -f src/test/evergreen-kernel-benchmark install
-        if: matrix.os != 'Windows'
-      - name: Build benchmark with Maven
-        # Changes can break the benchmark, so compile it now to make sure it is buildable
-        run: |
-          mvn -ntp install -DskipTests
-          mvn -ntp -f src/test/evergreen-kernel-benchmark install
-        shell: cmd
-        if: matrix.os == 'Windows'
+        if: matrix.os == 'Linux'
   e2e-test:
     runs-on: ${{ matrix.os }}
     strategy:

@@ -12,7 +12,7 @@ services:
             exit 1
           fi
         shutdown:
-            rm -f /tmp/egInstallErrorRetry
+            rm -f /tmp/egInstallErrorRetrySucceed
       windows:
         # DO NOT ADD INDENTATION BELOW
         # Adding "helpful" indentation breaks the way yaml parses the string
@@ -36,7 +36,7 @@ services:
           exit 1
       windows:
         run: |-
-          powershell -command sleep1; echo RUN_BROKEN; exit 1;
+          powershell -command sleep 1; echo RUN_BROKEN; exit 1;
 
   main:
     lifecycle:

@@ -190,7 +190,7 @@ class KernelTest extends BaseITCase {
                 serviceInstalled.countDown();
             }
         });
-        assertTrue(serviceInstalled.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceInstalled.await(15, TimeUnit.SECONDS));
     }
 
     @Test
@@ -206,7 +206,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(15, TimeUnit.SECONDS));
     }
 
     @Test
@@ -272,22 +272,23 @@ class KernelTest extends BaseITCase {
                 return;
             }
 
-            expectedStateTransitionList.stream().filter(x -> x.group == currentGroup.get() && !x.seen)
+            expectedStateTransitionList.stream()
+                    .filter(x -> x.group == currentGroup.get() && !x.seen)
                     .filter(expected -> service.getName().equals(expected.serviceName) && (oldState.equals(expected.was)
-                            || expected.was == null) && newState.equals(expected.current)).forEach(expected -> {
+                            || expected.was == null) && newState.equals(expected.current))
+                    .forEach(expected -> {
                 LogManager.getLogger(getClass())
                         .info("Just saw state event for service {}: {} => {}", expected.serviceName, expected.was,
                                 expected.current);
                 expected.seen = true;
-
-                if (expectedStateTransitionList.isEmpty()) {
-                    assertionLatch.countDown();
-                }
             });
             if (expectedStateTransitionList.stream().noneMatch(x -> x.group == currentGroup.get() && !x.seen)) {
                 currentGroup.getAndIncrement();
             }
             expectedStateTransitionList.removeIf(x -> x.seen);
+            if (expectedStateTransitionList.isEmpty()) {
+                assertionLatch.countDown();
+            }
         });
 
         kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());

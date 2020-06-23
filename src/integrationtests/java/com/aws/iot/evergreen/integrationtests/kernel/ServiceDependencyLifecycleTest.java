@@ -286,7 +286,7 @@ public class ServiceDependencyLifecycleTest {
         LinkedList<KernelTest.ExpectedStateTransition> expectedDuringDepError = new LinkedList<>(
                 Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.RUNNING, State.ERRORED),
                         new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
-        testRoutine(15, kernel, () -> kernel.locate(SoftDependency).serviceErrored("mock dependency error"),
+        testRoutine(20, kernel, () -> kernel.locate(SoftDependency).serviceErrored("mock dependency error"),
                 "dependency errored", expectedDuringDepError, unexpectedDuringAllSoftDepChange);
 
 

@@ -538,7 +538,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.getContext().addGlobalStateChangeListener(listener);
         DeploymentResult result =
                 deploymentConfigMerger.mergeInNewConfig(testRollbackDeploymentDocument(), brokenConfig)
-                        .get(30, TimeUnit.SECONDS);
+                        .get(40, TimeUnit.SECONDS);
 
         // THEN
         // deployment should have errored and rolled back

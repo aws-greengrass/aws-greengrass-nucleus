@@ -22,7 +22,6 @@ public class ThreadProtector implements AfterAllCallback {
             "Monitor Ctrl-Break",
             "surefire-forkedjvm-command-thread",
             "junit-jupiter-timeout-watcher",
-            "Serialized listener processor",
             "idle-connection-reaper",
             "java-sdk-http-connection-reaper"));
 
@@ -30,9 +29,13 @@ public class ThreadProtector implements AfterAllCallback {
     public void afterAll(ExtensionContext context) throws Exception {
         Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
         List<String> liveThreads =
-                threadSet.stream().filter(Thread::isAlive).filter(t -> "main".equals(t.getThreadGroup().getName()))
-                        .map(Thread::getName).filter(Objects::nonNull)
-                        .filter(name -> !ALLOWED_THREAD_NAMES.contains(name)).collect(Collectors.toList());
+                threadSet.stream()
+                        .filter(Thread::isAlive)
+                        .filter(t -> t.getThreadGroup() != null && "main".equals(t.getThreadGroup().getName()))
+                        .map(Thread::getName)
+                        .filter(Objects::nonNull)
+                        .filter(name -> !ALLOWED_THREAD_NAMES.contains(name))
+                        .collect(Collectors.toList());
         if (!liveThreads.isEmpty()) {
             // Don't fail tests right now. Too many things would break.
             // fail("Threads are still running: " + liveThreads);
