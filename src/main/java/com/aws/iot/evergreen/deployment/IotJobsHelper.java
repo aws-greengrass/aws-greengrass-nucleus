@@ -49,7 +49,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -73,9 +72,6 @@ public class IotJobsHelper implements InjectionActions {
     public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
 
-    private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
-    private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
-    private static final int INITIAL_CONNECT_RETRY_FREQUENCY = (int) Duration.ofSeconds(30).toMillis();
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofMinutes(5).getSeconds();
@@ -113,8 +109,6 @@ public class IotJobsHelper implements InjectionActions {
     @Named(DEPLOYMENTS_QUEUE)
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
-    private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
-    private final AtomicBoolean postInjectInProgress = new AtomicBoolean(false);
     private IotJobsClient iotJobsClient;
     private WrapperMqttClientConnection connection;
 
