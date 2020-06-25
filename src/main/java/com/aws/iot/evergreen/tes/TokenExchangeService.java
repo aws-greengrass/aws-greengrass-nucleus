@@ -21,8 +21,8 @@ public class TokenExchangeService extends EvergreenService {
     private static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     // TODO: change when auth is supported
     private static final String TES_AUTH_ENV_VARIABLE_NAME = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
-    //TODO: this is used by GG daemon, revisit for backward compatibility
-    private static final int DEFAULT_PORT = 8000;
+    // Randomly choose a port
+    private static final int DEFAULT_PORT = 0;
     private int port;
     private String iotRoleAlias;
     private HttpServerImpl server;

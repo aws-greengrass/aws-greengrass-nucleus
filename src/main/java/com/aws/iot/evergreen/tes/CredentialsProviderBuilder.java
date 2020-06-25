@@ -25,8 +25,9 @@ import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
 public class CredentialsProviderBuilder {
-    private static final Logger LOGGER = LogManager.getLogger(IotConnectionManager.class);
+    private static final Logger LOGGER = LogManager.getLogger(CredentialsProviderBuilder.class);
     private X509CredentialsProviderBuilder x509builder;
+    private final DeviceConfiguration deviceConfiguration;
 
     /**
      * Constructor.
@@ -36,11 +37,13 @@ public class CredentialsProviderBuilder {
      */
     @Inject
     CredentialsProviderBuilder(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
-        this.x509builder = initCredentialsProviderBuilder(deviceConfiguration);
+        this.deviceConfiguration = deviceConfiguration;
+        this.x509builder = initCredentialsProviderBuilder();
     }
 
-    private X509CredentialsProviderBuilder initCredentialsProviderBuilder(DeviceConfiguration deviceConfiguration)
+    private X509CredentialsProviderBuilder initCredentialsProviderBuilder()
             throws DeviceConfigurationException {
+        DeviceConfiguration deviceConfiguration = this.deviceConfiguration;
         final String certPath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
         final String keyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         final String caPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
@@ -81,6 +84,9 @@ public class CredentialsProviderBuilder {
         try (X509CredentialsProvider provider = x509builder.build()) {
             CompletableFuture<Credentials> future = provider.getCredentials();
             credentials = future.get();
+            if (credentials == null) {
+                throw new AWSIotException("Unable to load AWS IOT credentials.");
+            }
         } catch (InterruptedException | ExecutionException e) {
             LOGGER.error("Getting AWS IOT credentials failed with error {} ", e);
             throw new AWSIotException(e);

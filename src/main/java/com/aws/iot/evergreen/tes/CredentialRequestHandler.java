@@ -24,10 +24,10 @@ import java.util.Map;
 public class CredentialRequestHandler implements HttpHandler {
     private static final Logger LOGGER = LogManager.getLogger(CredentialRequestHandler.class);
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
-    private static final String ACCESS_KEY_DOWNSTREAM_STR = "AccessKeyId";
-    private static final String SECRET_ACCESS_DOWNSTREAM_STR = "SecretAccessKey";
-    private static final String SESSION_TOKEN_DOWNSTREAM_STR = "Token";
-    private static final String EXPIRATION_DOWNSTREAM_STR = "Expiration";
+    private static final String ACCESS_KEY_STR = "AccessKeyId";
+    private static final String SECRET_ACCESS_STR = "SecretAccessKey";
+    private static final String SESSION_TOKEN_STR = "Token";
+    private static final String EXPIRATION_STR = "Expiration";
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     public static final String DATE_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
@@ -77,13 +77,10 @@ public class CredentialRequestHandler implements HttpHandler {
             final SimpleDateFormat alternateIso8601DateFormat = new SimpleDateFormat(DATE_PATTERN, Locale.getDefault());
             String formattedExpiration = alternateIso8601DateFormat.format(expiration);
             Map<String, String> response = new HashMap<>();
-            response.put(ACCESS_KEY_DOWNSTREAM_STR,
-                    new String(credentials.getAccessKeyId(), StandardCharsets.UTF_8));
-            response.put(SECRET_ACCESS_DOWNSTREAM_STR,
-                    new String(credentials.getSecretAccessKey(), StandardCharsets.UTF_8));
-            response.put(SESSION_TOKEN_DOWNSTREAM_STR,
-                    new String(credentials.getSessionToken(), StandardCharsets.UTF_8));
-            response.put(EXPIRATION_DOWNSTREAM_STR, formattedExpiration);
+            response.put(ACCESS_KEY_STR, new String(credentials.getAccessKeyId(), StandardCharsets.UTF_8));
+            response.put(SECRET_ACCESS_STR, new String(credentials.getSecretAccessKey(), StandardCharsets.UTF_8));
+            response.put(SESSION_TOKEN_STR, new String(credentials.getSessionToken(), StandardCharsets.UTF_8));
+            response.put(EXPIRATION_STR, formattedExpiration);
             return OBJECT_MAPPER.writeValueAsBytes(response);
         } catch (IOException e) {
             LOGGER.error("Received malformed credential input", e);
