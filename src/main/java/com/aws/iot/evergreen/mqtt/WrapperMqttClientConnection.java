@@ -18,6 +18,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
+
 public class WrapperMqttClientConnection extends MqttClientConnection {
 
      private final MqttClient mqttClient;
@@ -134,6 +135,7 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
         logger.atError().setCause(e).log(errMsg);
         throw e;
     }
+
 
     @Override
     public void onMessage(Consumer<MqttMessage> handler) {

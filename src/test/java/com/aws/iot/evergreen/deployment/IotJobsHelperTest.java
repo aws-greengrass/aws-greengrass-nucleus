@@ -43,7 +43,6 @@ import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -360,7 +359,6 @@ public class IotJobsHelperTest {
         cf.complete(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
-        assertNotNull(mockWrapperMqttClientConnection);
         when(mockIotJobsClient.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClient).SubscribeToUpdateJobExecutionRejected(requestArgumentCaptor.capture(),
                     eq(QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
