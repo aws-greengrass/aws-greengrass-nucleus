@@ -38,10 +38,12 @@ jobs:
         with:
           name: Coverage Report
           path: target/jacoco-report
-      - name: Convert Jacoco to Cobertura
+      - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
-      - name: cobertura-report
-        uses: 5monkeys/cobertura-action@master
+      - name: Convert Jacoco interation test report to Cobertura
+        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
+      - name: cobertura-report-unit-test
+        uses: shaguptashaikh/cobertura-action@master
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
@@ -51,13 +53,35 @@ jobs:
           # If files with 100% should be skipped from report.
           skip_covered: false
           # Minimum allowed coverage percentage as an integer.
-          minimum_coverage: 60
+          minimum_coverage: 64
           # Show line rate as specific column.
           show_line: true
           # Show branch rate as specific column.
           show_branch: true
           # Use class names instead of the filename
           show_class_names: true
+          # Use a unique name for the report and comment
+          report_name: Unit Tests Coverage Report
+      - name: cobertura-report-integration-test
+        uses: shaguptashaikh/cobertura-action@master
+        continue-on-error: true
+        with:
+          # The GITHUB_TOKEN for this repo
+          repo_token: ${{ github.token }}
+          # Path to the cobertura file.
+          path: target/jacoco-report/cobertura-it.xml
+          # If files with 100% should be skipped from report.
+          skip_covered: false
+          # Minimum allowed coverage percentage as an integer.
+          minimum_coverage: 58
+          # Show line rate as specific column.
+          show_line: true
+          # Show branch rate as specific column.
+          show_branch: true
+          # Use class names instead of the filename
+          show_class_names: true
+          # Use a unique name for the report and comment
+          report_name: Integration Tests Coverage Report
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: mvn -ntp install -DskipTests && mvn -ntp -f src/test/evergreen-kernel-benchmark install
