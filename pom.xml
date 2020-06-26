@@ -415,11 +415,6 @@
                                             <minimum>0.66</minimum>
                                         </limit>
                                         <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.67</minimum>
-                                        </limit>
-                                        <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
                                             <minimum>0.59</minimum>
@@ -447,9 +442,9 @@
                                             <minimum>0.58</minimum>
                                         </limit>
                                         <limit>
-                                            <counter>COMPLEXITY</counter>
+                                            <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.52</minimum>
+                                            <minimum>0.54</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
