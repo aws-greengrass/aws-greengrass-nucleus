@@ -27,6 +27,7 @@ import javax.inject.Inject;
 public class CredentialsProviderBuilder {
     private static final Logger LOGGER = LogManager.getLogger(CredentialsProviderBuilder.class);
     private X509CredentialsProviderBuilder x509builder;
+
     private final DeviceConfiguration deviceConfiguration;
 
     /**
@@ -39,6 +40,19 @@ public class CredentialsProviderBuilder {
     CredentialsProviderBuilder(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
         this.deviceConfiguration = deviceConfiguration;
         this.x509builder = initCredentialsProviderBuilder();
+    }
+
+    /**
+     * Constructor for unit testing.
+     *
+     * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
+     * @param x509builder x509Credentials provider builder
+     * @throws DeviceConfigurationException When unable to initialize this manager.
+     */
+    CredentialsProviderBuilder(DeviceConfiguration deviceConfiguration, X509CredentialsProviderBuilder x509builder)
+            throws DeviceConfigurationException {
+        this.deviceConfiguration = deviceConfiguration;
+        this.x509builder = x509builder;
     }
 
     private X509CredentialsProviderBuilder initCredentialsProviderBuilder()
