@@ -25,6 +25,9 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     @Mock
     IotConnectionManager mockIotConnectionManager;
 
+    @Mock
+    CredentialsProviderBuilder mockCredentialsProviderBuilder;
+
     @BeforeEach
     public void setup() {
         // initialize Evergreen service specific mocks
@@ -48,7 +51,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
         when(config.lookup(any())).thenReturn(mockTopic);
         when(mockConfig.lookup(anyString(), anyString())).thenReturn(mockTopic);
 
-        TokenExchangeService tes = new TokenExchangeService(config, mockIotConnectionManager);
+        TokenExchangeService tes = new TokenExchangeService(config, mockCredentialsProviderBuilder);
         tes.startup();
         Thread.sleep(5000L);
         tes.shutdown();
