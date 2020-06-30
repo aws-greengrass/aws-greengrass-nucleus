@@ -142,7 +142,7 @@ class KernelTest extends BaseITCase {
     }
 
     private void testGroup(int group) throws Exception {
-        COUNT_DOWN_LATCHES.get(group).await(20, TimeUnit.SECONDS);
+        COUNT_DOWN_LATCHES.get(group).await(30, TimeUnit.SECONDS);
 
         for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
             if (pattern.count > 0 && pattern.group == group) {
