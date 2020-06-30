@@ -282,7 +282,7 @@ public class ServiceDependencyLifecycleTest {
         when(doc2.getDeploymentId()).thenReturn("addSoftDep");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc2, configAddDep).get(10, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc2, configAddDep).get(15, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
 

@@ -390,7 +390,7 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(),
                 System.currentTimeMillis());
 
-        assertTrue(cdlUpdateStarted.await(30, TimeUnit.SECONDS));
+        assertTrue(cdlUpdateStarted.await(40, TimeUnit.SECONDS));
         resultFuture.cancel(true);
 
         assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
