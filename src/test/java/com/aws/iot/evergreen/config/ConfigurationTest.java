@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
@@ -53,8 +55,8 @@ public class ConfigurationTest {
         config.context.close();
     }
 
-    //    @Test
-    public void T1() {
+    @Test
+    public void GIVEN_empty_config_WHEN_single_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("v").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
@@ -69,8 +71,8 @@ public class ConfigurationTest {
         assertEquals("v:44", config.lookup("v").toString());
     }
 
-    //    @Test
-    public void T2() {
+    @Test
+    public void GIVEN_empty_config_WHEN_nested_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("x", "y").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
@@ -85,8 +87,8 @@ public class ConfigurationTest {
         assertEquals("x.y:44", config.lookup("x", "y").toString());
     }
 
-    //    @Test
-    public void T3() {
+    @Test
+    public void GIVEN_empty_config_WHEN_nested_topic_with_path_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("x", "z").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
@@ -102,10 +104,10 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void T4() throws Exception {
-        T1();
-        T2();
-        T3();
+    public void GIVEN_non_empty_config_WHEN_topics_created_and_updated_THEN_update_if_timestamp_is_valid() throws Exception {
+        GIVEN_empty_config_WHEN_single_topic_created_and_updated_THEN_update_if_timestamp_is_valid();
+        GIVEN_empty_config_WHEN_nested_topic_created_and_updated_THEN_update_if_timestamp_is_valid();
+        GIVEN_empty_config_WHEN_nested_topic_with_path_created_and_updated_THEN_update_if_timestamp_is_valid();
         config.lookup("x", "a").withNewerValue(20, "hello");
         config.lookup("x", "b").withNewerValue(20, true);
         config.lookup("x", "c").withNewerValue(20, Math.PI);
@@ -114,25 +116,18 @@ public class ConfigurationTest {
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
-        //            System.out.println(c2.hashCode() + " " + config.hashCode());
-        //            System.out.println("Read: " + deepToString(c2.getRoot(), 99));
         assertEquals(44, c2.lookup("x", "z").getOnce());
         assertEquals(config, c2);
-        //        config.lookupTopics("services").forEach(s -> System.out.println("Found service " + s.name));
         Topic nv = config.lookup("number");
     }
 
     @Test
-    public void hmm() throws Throwable {
+    public void GIVEN_yaml_file_to_merge_WHEN_merge_map_THEN_merge() throws Throwable {
         try (InputStream inputStream = getClass().getResourceAsStream("test.yaml")) {
             assertNotNull(inputStream);
-            //            System.out.println("resource: " + deepToString(inputStream, 200) + "\n\t" + getClass()
-            //            .getName());
-//            dump(testConfig,"Before");
             config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
-//            dump(testConfig,"After");
+
             Topics platforms = config.findTopics("platforms");
-            //            platforms.forEachTopicSet(n -> System.out.println(n.name));
 
             Topic testValue = config.lookup("number");
             testValue.addValidator((nv, ov) -> {
@@ -260,5 +255,51 @@ public class ConfigurationTest {
 
         assertEquals(1, childNotified[1].get());
         assertEquals(1, childNotified[2].get());
+    }
+
+    @Test
+    public void GIVEN_config_to_merge_WHEN_resolved_platform_is_not_a_map_THEN_reject() {
+        Map<Object, Object> toMerge = new HashMap<Object, Object>() {{
+            put("ubuntu", "This is not a map");
+        }};
+        assertThrows(IllegalArgumentException.class, () -> config.mergeMap(1, toMerge));
+    }
+
+    @Test
+    public void GIVEN_unsupported_merge_file_type_WHEN_merge_map_THEN_discard() throws Exception {
+        config.readMerge(getClass().getResource("test.txt").toURI().toURL(), true);
+        assertTrue(config.isEmpty());
+    }
+
+    @Test
+    public void GIVEN_json_file_to_merge_WHEN_merge_map_THEN_merge() throws Exception {
+        assertTrue(config.isEmpty());
+        assertEquals(0, config.size());
+        config.readMerge(getClass().getResource("test.json").toURI().toURL(), true);
+        assertEquals("echo main service installed",
+                config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
+        assertFalse(config.isEmpty());
+        assertEquals(1, config.size());
+    }
+
+    @Test
+    public void GIVEN_tlog_file_to_merge_WHEN_merge_map_THEN_merge() throws Exception {
+        config.readMerge(getClass().getResource("test.tlog").toURI().toURL(), true);
+        assertEquals("echo All installed",
+                config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
+    }
+
+    @Test
+    public void GIVEN_config_file_path_WHEN_read_from_path_THEN_merge() throws Exception {
+        config.read(getClass().getResource("test.json").getPath());
+        assertEquals("echo main service installed",
+                config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
+    }
+
+    @Test
+    public void GIVEN_config_to_merge_WHEN_read_with_current_timestamp_THEN_merge() throws Exception {
+        config.read(getClass().getResource("test.json").toURI().toURL(), false);
+        assertEquals("echo main service installed",
+                config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
     }
 }
