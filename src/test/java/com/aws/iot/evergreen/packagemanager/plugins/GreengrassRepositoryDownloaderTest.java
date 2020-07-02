@@ -74,7 +74,7 @@ class GreengrassRepositoryDownloaderTest {
                 .resolve("monitor_artifact_100.txt");
         when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
 
-        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "private");
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
@@ -83,6 +83,7 @@ class GreengrassRepositoryDownloaderTest {
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
+        assertEquals("private", generatedRequest.getScope());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
