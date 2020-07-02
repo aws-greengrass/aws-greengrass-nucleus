@@ -1,0 +1,23 @@
+---
+services:
+  sleeperB:
+    lifecycle:
+      startup: |-
+        date; echo sleeperB_running; sleep 5
+
+  sleeperA:
+    dependencies:
+      - sleeperB
+    lifecycle:
+      startup: |-
+        date; echo sleeperA_running; sleep 5
+
+  main:
+    dependencies:
+      - sleeperA
+      - sleeperB
+    lifecycle:
+      run: |-
+        while true; do
+        sleep 5
+        done
