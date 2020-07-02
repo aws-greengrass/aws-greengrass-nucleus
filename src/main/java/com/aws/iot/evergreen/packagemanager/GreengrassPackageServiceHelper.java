@@ -74,7 +74,8 @@ public class GreengrassPackageServiceHelper {
             return componentSelectedMetadataList.stream().map(componentMetadata -> {
                 PackageIdentifier packageIdentifier
                         = new PackageIdentifier(componentMetadata.getComponentName(),
-                                                new Semver(componentMetadata.getComponentVersion()));
+                                                new Semver(componentMetadata.getComponentVersion()),
+                                                componentMetadata.getScope());
                 return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
                         Collectors.toMap(ComponentNameVersion::getComponentName,
                                          ComponentNameVersion::getComponentVersionConstraint)));
@@ -91,14 +92,15 @@ public class GreengrassPackageServiceHelper {
         GetComponentRequest getComponentRequest =
                 new GetComponentRequest().withComponentName(packageIdentifier.getName())
                         .withComponentVersion(packageIdentifier.getVersion().toString())
-                        .withType(RecipeFormatType.YAML);
+                        .withType(RecipeFormatType.YAML)
+                        .withScope(packageIdentifier.getScope());
 
         GetComponentResult getPackageResult;
         try {
             getPackageResult = evgCmsClient.getComponent(getComponentRequest);
         } catch (AmazonClientException e) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
-            String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, packageIdentifier.getArn());
+            String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, packageIdentifier);
             throw new PackageDownloadException(errorMsg, e);
         }
 
@@ -106,7 +108,7 @@ public class GreengrassPackageServiceHelper {
             ByteBuffer recipeBuf = getPackageResult.getRecipe();
             return RECIPE_SERIALIZER.readValue(new ByteBufferBackedInputStream(recipeBuf), PackageRecipe.class);
         } catch (IOException e) {
-            String errorMsg = String.format(PACKAGE_RECIPE_PARSING_EXCEPTION_FMT, packageIdentifier.getArn());
+            String errorMsg = String.format(PACKAGE_RECIPE_PARSING_EXCEPTION_FMT, packageIdentifier);
             throw new PackageLoadingException(errorMsg, e);
         }
     }

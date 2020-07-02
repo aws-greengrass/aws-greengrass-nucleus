@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -60,7 +59,7 @@ class GreengrassPackageServiceHelperTest {
     }
 
     @Test
-    void GIVEN_artifact_url_WHEN_attempt_download_THEN_task_succeed() throws Exception {
+    void GIVEN_component_name_version_WHEN_download_component_recipe_THEN_task_succeed() throws Exception {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         ByteBuffer testRecipeBytes = ByteBuffer.wrap(recipeContents.getBytes());
@@ -68,14 +67,15 @@ class GreengrassPackageServiceHelperTest {
         doReturn(testResult).when(client).getComponent(getComponentRequestArgumentCaptor.capture());
         PackageRecipe testPackage =
                 helper.downloadPackageRecipe(new PackageIdentifier(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                                   new Semver("1.0.0")));
+                                                                   new Semver("1.0.0"), "private"));
 
         GetComponentRequest generatedRequest = getComponentRequestArgumentCaptor.getValue();
         assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertEquals("YAML", generatedRequest.getType());
-        assertEquals(testPackage.getComponentName(), TestHelper.MONITORING_SERVICE_PACKAGE_NAME);
-        assertTrue(testPackage.getVersion().isEqualTo("1.0.0"));
+        assertEquals("private", generatedRequest.getScope());
+        assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, testPackage.getComponentName());
+        assertEquals(new Semver("1.0.0"), testPackage.getVersion());
     }
 
     // TODO: Add test cases for failure status codes once the SDK model is updated to return proper http responses

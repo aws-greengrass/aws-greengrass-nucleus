@@ -19,18 +19,21 @@ public class PackageIdentifier {
     String name;
     @JsonProperty("Version")
     Semver version;
-    @JsonProperty("ARN")
-    String arn;
+    //TODO considering use enum if local name occluding is necessary.
+    @JsonProperty("Scope")
+    String scope;
 
     /**
      * PackageIdentifier constructor.
      * @param name package name
      * @param version package version in semver
      */
+    @Deprecated  //scope needs to be recorded locally, switch to use all args constructor
     public PackageIdentifier(String name, Semver version) {
         this.name = name;
         this.version = version;
-        this.arn = String.format("%s-%s", name, version.getValue());
+        //hardcode to 'private' before refactoring caller of this constructor
+        this.scope = "private";
     }
 
     @Override
