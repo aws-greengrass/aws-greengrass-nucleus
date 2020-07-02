@@ -1,5 +1,5 @@
 {
-  "DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
+  "DeploymentId": "arn:aws:us-east-1:greengrass:configuration:thinggroup/group1:1",
   "RootPackages": [
     "CustomerApp"
   ],

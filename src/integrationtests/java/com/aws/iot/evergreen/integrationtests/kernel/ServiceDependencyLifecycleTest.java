@@ -82,6 +82,7 @@ public class ServiceDependencyLifecycleTest {
             }
             KernelTest.ExpectedStateTransition actual = new KernelTest.ExpectedStateTransition(service.getName(),
                     oldState, newState);
+            logger.atInfo().kv("actual", actual).log("Actual state event");
             if (unexpectedStateTransitions.contains(actual)) {
                 unexpectedSeenInOrder.add(actual);
             }
@@ -192,7 +193,7 @@ public class ServiceDependencyLifecycleTest {
         when(doc2.getDeploymentId()).thenReturn("addHardDep");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(15, kernel, () -> configMerger.mergeInNewConfig(doc2, configAddDep).get(10,
+        testRoutine(60, kernel, () -> configMerger.mergeInNewConfig(doc2, configAddDep).get(10,
                 TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 

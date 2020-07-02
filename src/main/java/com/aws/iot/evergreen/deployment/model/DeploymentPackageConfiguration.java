@@ -29,6 +29,9 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("Name")
     private String packageName;
 
+    @JsonProperty("RootComponent")
+    private boolean rootComponent;
+
     // TODO: change to versionRequirements which can be a pinned version or a version range
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
