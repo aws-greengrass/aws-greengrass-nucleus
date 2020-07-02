@@ -45,8 +45,6 @@ public class DeploymentConfigMerger {
     private static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
 
-    public static final String DEPLOYMENT_SAFE_NAMESPACE_TOPIC = "notRolledBack";
-
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
     @Inject
@@ -178,7 +176,7 @@ public class DeploymentConfigMerger {
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
             ConfigurationReader.mergeTLogInto(kernel.getConfig(), getSnapshotFilePath(deploymentId), true,
-                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
+                    s -> !s.childOf(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");

@@ -25,16 +25,30 @@ services:
         
     lifecycle: # lifecycle commands.
     
+    resources: # service reserved resources path.
+
     logging: # logging config.
       
-    custom: # custom config. 
+    parameters: # custom config.
     
+    runtime: # namespace for service local datastore
+        # not rolled back during deployment
+
   <service2>:
     lifecycle:
     logging:
     
+  _AUTH_TOKENS: # auth token read by AuthHandler
+    <authToken>: <serviceName>
+
 system:
   <kernel system config> 
+
+registered-resource: # resources registered by service
+  <path>: <SDAResource>
+
+setenv:
+  # global env var for IPC, TES
 ```
 
 ### Config Validation
@@ -101,6 +115,14 @@ myCustomService:
 
 **DependencyType**
 DependencyType is either **SOFT or HARD**
+
+### Resource
+Service can reserve topic for resources:
+```
+resources:
+      - evergreen_1._mqtt._tcp.local
+      - evergreen_1._http._tcp.local
+```
 
 ### Logging
 

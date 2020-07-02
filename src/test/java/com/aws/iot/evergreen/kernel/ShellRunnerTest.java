@@ -20,6 +20,7 @@ import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ShellRunnerTest extends EGServiceTestUtil {
@@ -38,7 +39,10 @@ class ShellRunnerTest extends EGServiceTestUtil {
     @BeforeEach
     void beforeEach() {
         Topics config = initializeMockedConfig();
-        when(config.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
+        Topics serviceRuntimeTopics = mock(Topics.class);
+
+        when(config.lookupTopics(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC)).thenReturn(serviceRuntimeTopics);
+        when(serviceRuntimeTopics.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
         when(kernel.getWorkPath()).thenReturn(tempDir);
         evergreenService = new EvergreenService(config);
     }

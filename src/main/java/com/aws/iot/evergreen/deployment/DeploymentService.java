@@ -142,6 +142,7 @@ public class DeploymentService extends EvergreenService {
         // This is required because both the classes are independent and not evergreen services
         context.get(IotJobsHelper.class);
         context.get(LocalDeploymentListener.class);
+        deploymentStatusKeeper.setDeploymentService(this);
     }
 
     @Override
