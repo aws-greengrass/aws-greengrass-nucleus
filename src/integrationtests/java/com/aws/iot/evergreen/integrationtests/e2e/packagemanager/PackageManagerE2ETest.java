@@ -5,6 +5,9 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.packagemanager;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
@@ -21,7 +24,9 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import software.amazon.awssdk.utils.ImmutableMap;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,10 +61,11 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
         packageManager = kernel.getContext().get(PackageManager.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         packageStorePath = kernel.getPackageStorePath();
+
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws IOException {
         kernel.shutdown();
     }
 
@@ -91,28 +97,34 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
         List<String> rootPackageList = new ArrayList<>();
         rootPackageList.add("KernelIntegTest");
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
-        configList.add(new DeploymentPackageConfiguration("KernelIntegTest", "1.0.0",
+        configList.add(new DeploymentPackageConfiguration("KernelIntegTest", true, "1.0.0",
                                                           Collections.emptyMap()));
         DeploymentDocument testDeploymentDocument
                 = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
                                     .deploymentPackageConfigurationList(configList)
                                     .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                                     .groupName("test").build();
-        List<PackageIdentifier> resolutionResult
-                = dependencyResolver.resolveDependencies(testDeploymentDocument, rootPackageList);
-        Future<Void> testFuture = packageManager.preparePackages(resolutionResult);
-        testFuture.get(10, TimeUnit.SECONDS);
+        try(Context context = new Context()) {
+            Topics groupToRootPackagesTopics =
+                    Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookup(pkg)
+                    .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            List<PackageIdentifier> resolutionResult =
+                    dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
+            Future<Void> testFuture = packageManager.preparePackages(resolutionResult);
+            testFuture.get(10, TimeUnit.SECONDS);
 
-        assertThat(packageStorePath.toFile(), anExistingDirectory());
-        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
-        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
+            assertThat(packageStorePath.toFile(), anExistingDirectory());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
+            assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml").toFile(), anExistingFile());
-        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTestDependency-1.0.0.yaml").toFile(),
-                   anExistingFile());
-        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("Log-2.0.0.yaml").toFile(), anExistingFile());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml").toFile(),
+                    anExistingFile());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTestDependency-1.0.0.yaml").toFile(),
+                    anExistingFile());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("Log-2.0.0.yaml").toFile(), anExistingFile());
 
-        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")
-                                   .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
+            assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0").resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
+        }
     }
 }

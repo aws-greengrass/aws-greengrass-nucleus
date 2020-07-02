@@ -3,9 +3,9 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -31,11 +31,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+
 @AllArgsConstructor
 @NoArgsConstructor
 public class DependencyResolver {
     private static final Logger logger = LogManager.getLogger(DependencyResolver.class);
-    private static final String ROOT_REQUIREMENT_KEY = "ROOT";
     private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
 
@@ -50,14 +51,15 @@ public class DependencyResolver {
      * It also resolves the conflicts between the packages specified in the deployment document and the existing
      * running packages on the device.
      *
-     * @param document        deployment document
-     * @param newRootPackages new root level packages
+     * @param document                   deployment document
+     * @param groupToRootPackagesDetails {@link Topics} providing package details for each group
      * @return a list of packages to be run on the device
      * @throws PackageVersionConflictException when a package version conflict cannot be resolved
      * @throws IOException                     when a package cannot be retrieved from the package store
      * @throws PackagingException              for other package errors
      */
-    public List<PackageIdentifier> resolveDependencies(final DeploymentDocument document, List<String> newRootPackages)
+    public List<PackageIdentifier> resolveDependencies(final DeploymentDocument document,
+                                                       Topics groupToRootPackagesDetails)
             throws PackageVersionConflictException, IOException, PackagingException {
 
         // A map of package version constraints {packageName => {dependingPackageName => versionConstraint}} to be
@@ -66,23 +68,31 @@ public class DependencyResolver {
         // the version constraints will also change accordingly. 3. The information also shows the complete dependency
         // tree.
         Map<String, Map<String, String>> packageNameToVersionConstraints = new HashMap<>();
+        Set<String> rootPackagesToResolve = new LinkedHashSet<>();
 
-        // List of root packages to be resolved
-        Set<String> rootPackagesToResolve = new LinkedHashSet<>(newRootPackages);
-
-        // Get a list of package configurations with pinned versions
+        // Get a list of all package configurations with version constraints in the deployment document
         for (DeploymentPackageConfiguration dpc : document.getDeploymentPackageConfigurationList()) {
             logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, dpc.getPackageName())
                     .addKeyValue(VERSION_KEY, dpc.getResolvedVersion()).log("Found package configuration");
             packageNameToVersionConstraints.putIfAbsent(dpc.getPackageName(), new HashMap<>());
+
+            // Only the group to package mapping before this deployment is guaranteed to be available, since config
+            // updates happen in a separate thread.
+            if (document.getRootPackages().contains(dpc.getPackageName())) {
+                rootPackagesToResolve.add(dpc.getPackageName());
+            }
             packageNameToVersionConstraints.get(dpc.getPackageName())
-                    .put(ROOT_REQUIREMENT_KEY, dpc.getResolvedVersion());
+                    .put(document.getGroupName(), dpc.getResolvedVersion());
         }
 
-        // Merge the active root packages on the device
-        mergeActiveRootPackages(rootPackagesToResolve, packageNameToVersionConstraints);
-        logger.atInfo().setEventType("resolve-dependencies-start").addKeyValue("rootPackages", rootPackagesToResolve)
-                .addKeyValue("versionConstraints", packageNameToVersionConstraints).log();
+        //Get package version constraints for root packages corresponding to other groups
+        updatePackageConstraintsFromOtherGroups(groupToRootPackagesDetails, document.getGroupName(),
+                rootPackagesToResolve, packageNameToVersionConstraints);
+
+        logger.atInfo().setEventType("resolve-dependencies-start")
+                .addKeyValue("versionConstraints", packageNameToVersionConstraints)
+                .kv("RootPackagesToResolve", rootPackagesToResolve).kv("DeploymentGroup", document.getGroupName())
+                .log("The root packages for deployment");
 
         // Map of package name and resolved version
         Map<String, Semver> resolvedPackageNameToVersion = new HashMap<>();
@@ -101,6 +111,27 @@ public class DependencyResolver {
                 .map(e -> new PackageIdentifier(e.getKey(), e.getValue())).collect(Collectors.toList());
     }
 
+    private void updatePackageConstraintsFromOtherGroups(Topics groupToRootPackagesDetails, String deploymentGroupName,
+                                                          Set<String> rootPackagesToResolve,
+                                                          Map<String, Map<String, String>>
+                                                                  packageNameToVersionConstraints) {
+
+        //Get package version constraints for root packages corresponding to other groups
+        groupToRootPackagesDetails.forEach(node -> {
+            Topics groupTopics = (Topics) node;
+            String groupName = groupTopics.getName();
+            if (!groupName.equals(deploymentGroupName)) {
+                groupTopics.forEach(pkgTopic -> {
+                    rootPackagesToResolve.add(pkgTopic.getName());
+                    packageNameToVersionConstraints.putIfAbsent(pkgTopic.getName(), new HashMap<>());
+                    Map<Object, Object> pkgDetails = (Map) pkgTopic.toPOJO();
+                    packageNameToVersionConstraints.get(pkgTopic.getName())
+                            .putIfAbsent(groupName, pkgDetails.get(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY).toString());
+                });
+            }
+        });
+    }
+
     /**
      * Implementation of finding one possible solution for package dependency resolution with backtracking. In each
      * call stack, it tries to resolve one package in the packagesToResolve set in Breadth First Search manner, by
@@ -115,7 +146,7 @@ public class DependencyResolver {
      *                                        version requirements (from B to A)
      * @param packagesToResolve               set of package names, which is yet to be resolved
      * @return Optional containing an error message of dependency resolution conflicts, empty if dependency
-     *     resolution completes successfully.
+     *         resolution completes successfully.
      * @throws PackagingException for all package errors
      * @throws IOException        when a package cannot be retrieved from the package store
      */
@@ -135,8 +166,7 @@ public class DependencyResolver {
         // Compile a list of versions to explore for this package in order
         Map<String, String> versionConstraints = packageNameToVersionConstraints.get(pkgName);
 
-        logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, pkgName)
-                .addKeyValue("versionConstraints", versionConstraints)
+        logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, pkgName).addKeyValue("versionConstraints", versionConstraints)
                 .log("Parsing version constraints for dependency package");
 
         Requirement req = Requirement.buildNPM(mergeSemverRequirements(versionConstraints.values()));
@@ -241,28 +271,9 @@ public class DependencyResolver {
     }
 
     String mergeSemverRequirements(final Collection<String> packageVersionConstraintList) {
-        // TODO: See if there's a better way to get the union of version constraints
+        // TODO: See if there's a better way to get the intersection of version constraints
         return packageVersionConstraintList.stream().map(Requirement::buildNPM).map(Requirement::toString)
                 .collect(Collectors.joining(" "));
-    }
-
-    private void mergeActiveRootPackages(Set<String> rootPackagesToResolve,
-                                         Map<String, Map<String, String>> packageNameToVersionConstraints) {
-
-        Set<EvergreenService> activeServices = kernel.getMain().getDependencies().keySet();
-        for (EvergreenService evergreenService : activeServices) {
-            String serviceName = evergreenService.getName();
-            // Multi-group deployment support
-            // add active service in device but the version constraints not in the deployment document
-            if (rootPackagesToResolve.contains(serviceName) && !packageNameToVersionConstraints.keySet()
-                    .contains(serviceName)) {
-                Semver version = packageManager.getPackageVersionFromService(evergreenService);
-                packageNameToVersionConstraints.putIfAbsent(serviceName, new HashMap<>());
-                packageNameToVersionConstraints.get(serviceName).putIfAbsent(ROOT_REQUIREMENT_KEY, version.getValue());
-                logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, serviceName).addKeyValue(VERSION_KEY, version)
-                        .log("Merge active root packages");
-            }
-        }
     }
 
     private String buildErrorMessage(final String pkgName, final Map<String, Semver> resolvedPackageNameToVersion,
@@ -273,9 +284,9 @@ public class DependencyResolver {
             if (dependingPkgVersion == null) {
                 pkgIdToVersionRequirements.put(dependingPkgName, versionRequirement);
             } else {
-                pkgIdToVersionRequirements.put(
-                        new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName))
-                        .toString(), versionRequirement);
+                pkgIdToVersionRequirements
+                        .put(new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName))
+                                .toString(), versionRequirement);
             }
         });
         return String

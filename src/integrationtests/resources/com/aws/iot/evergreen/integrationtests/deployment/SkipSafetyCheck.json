@@ -6,7 +6,8 @@
   "Packages": [
     {
       "Name": "NonDisruptableService",
-      "ResolvedVersion": "1.0.1"
+      "ResolvedVersion": "1.0.1",
+      "RootComponent": true
     }
   ],
   "Timestamp": 1592574829000,

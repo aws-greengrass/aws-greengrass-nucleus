@@ -25,6 +25,10 @@ public class Topics extends Node implements Iterable<Node> {
         super(c, n, p);
     }
 
+    public static Topics of(Context c, String n, Topics p) {
+        return new Topics(c, n, p);
+    }
+
     /**
      * Create an errorNode with a given message.
      *
@@ -164,7 +168,7 @@ public class Topics extends Node implements Iterable<Node> {
      * exist, then it will return the default value provided.
      *
      * @param defaultV default value if the Topic was not found
-     * @param path String[] of node names to traverse to find or create the Topic
+     * @param path     String[] of node names to traverse to find or create the Topic
      */
     public Object findOrDefault(Object defaultV, String... path) {
         Topic potentialTopic = find(path);
@@ -248,13 +252,27 @@ public class Topics extends Node implements Iterable<Node> {
     public void remove(Node n) {
         context.runOnPublishQueue(() -> {
             if (!children.remove(n.getName(), n)) {
-                logger.atError("config-node-child-remove-error").kv("thisNode", toString())
-                        .kv("childNode", n.getName()).log();
+                logger.atError("config-node-child-remove-error").kv("thisNode", toString()).kv("childNode", n.getName())
+                        .log();
                 return;
             }
             n.fire(WhatHappened.removed);
             this.childChanged(WhatHappened.childRemoved, n);
         });
+    }
+
+    /**
+     * Clears all the children nodes and replaces with the provided new map. Waits for replace to finish
+     * @param newValue Map of new values for this topics
+     */
+    public void replaceAndWait(Map<Object, Object> newValue) {
+        context.runOnPublishQueueAndWait(() -> replaceNode(newValue));
+    }
+
+    private void replaceNode(Map<Object, Object> newValue) {
+        children.clear();
+        mergeMap(System.currentTimeMillis(), newValue);
+        this.fire(WhatHappened.changed);
     }
 
     protected void childChanged(WhatHappened what, Node child) {
