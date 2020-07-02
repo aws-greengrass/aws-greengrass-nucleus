@@ -100,11 +100,7 @@ jobs:
           mvn -ntp -f src/test/evergreen-kernel-benchmark install
         if: matrix.os == 'Linux'
   e2e-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [Linux]
-    name: E2E Test on ${{ matrix.os }}
+    runs-on: [self-hosted, Linux]
     needs: build
     steps:
       - uses: actions/checkout@v2
@@ -134,7 +130,7 @@ jobs:
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
-          name: Failed E2E Report ${{ matrix.os }}
+          name: Failed E2E Report
           path: target/surefire-reports
   publish:
     needs: build
