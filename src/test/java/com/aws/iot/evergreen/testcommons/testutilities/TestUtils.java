@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.testcommons.testutilities;
 
 import com.aws.iot.evergreen.util.Pair;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -97,7 +96,6 @@ public final class TestUtils {
             public void shutdown() {
             }
 
-            @NotNull
             @Override
             public List<Runnable> shutdownNow() {
                 return null;
@@ -114,12 +112,12 @@ public final class TestUtils {
             }
 
             @Override
-            public boolean awaitTermination(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
+            public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
                 return false;
             }
 
             @Override
-            public void execute(@NotNull Runnable command) {
+            public void execute(Runnable command) {
                 command.run();
             }
         };
