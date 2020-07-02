@@ -55,7 +55,7 @@ public class ServiceDependencyLifecycleTest {
 
     private static final int TEST_ROUTINE_SHORT_TIMEOUT = 15;
     private static final int TEST_ROUTINE_MEDIUM_TIMEOUT = 20;
-    private static final int TEST_ROUTINE_LONG_TIMEOUT = 30;
+    //private static final int TEST_ROUTINE_LONG_TIMEOUT = 30;
 
     private Kernel kernel;
 
