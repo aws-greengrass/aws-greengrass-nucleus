@@ -1,0 +1,9 @@
+{
+  "services": {
+    "main": {
+      "lifecycle": {
+        "install": "echo main service installed"
+      }
+    }
+  }
+}

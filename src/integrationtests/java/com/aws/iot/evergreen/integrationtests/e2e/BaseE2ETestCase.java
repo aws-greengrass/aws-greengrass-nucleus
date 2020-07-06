@@ -63,6 +63,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     private static final Logger staticlogger = LogManager.getLogger(BaseE2ETestCase.class);
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
+    protected final Set<String> createdThingGroups = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
     protected CreateThingGroupResponse thingGroupResp;
@@ -116,6 +117,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         thingGroupResp = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
         thingGroupName = thingGroupResp.thingGroupName();
+        createdThingGroups.add(thingGroupName);
     }
 
     protected void initKernel() throws IOException {
@@ -219,7 +221,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected void cleanup() {
         deviceProvisioningHelper.cleanThing(iotClient, thingInfo);
-        IotJobsUtils.cleanThingGroup(iotClient, thingGroupName);
+        createdThingGroups.forEach(thingGroup-> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
+        createdThingGroups.clear();
         createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
         createdIotJobIds.clear();
     }

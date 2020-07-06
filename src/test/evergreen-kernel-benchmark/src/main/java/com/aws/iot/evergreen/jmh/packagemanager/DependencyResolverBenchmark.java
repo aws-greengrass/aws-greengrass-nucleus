@@ -5,6 +5,8 @@
 
 package com.aws.iot.evergreen.jmh.packagemanager;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
@@ -13,6 +15,7 @@ import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
+import com.aws.iot.evergreen.config.Topics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -47,8 +50,8 @@ public class DependencyResolverBenchmark {
     public abstract static class DRIntegration {
         private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1", Arrays.asList("boto3", "awscli"),
                 Arrays.asList(
-                        new DeploymentPackageConfiguration("boto3", "1.9.128", new HashMap<>()),
-                        new DeploymentPackageConfiguration("awscli", "1.16.144", new HashMap<>())),
+                        new DeploymentPackageConfiguration("boto3", true, "1.9.128", new HashMap<>()),
+                        new DeploymentPackageConfiguration("awscli", true, "1.16.144", new HashMap<>())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
         private DependencyResolver resolver;
@@ -84,7 +87,8 @@ public class DependencyResolverBenchmark {
 
         @Benchmark
         public List<PackageIdentifier> measure() throws Exception {
-            result = resolver.resolveDependencies(jobDoc, Arrays.asList("boto3", "awscli"));
+            result = resolver.resolveDependencies(jobDoc, Topics.of(kernel.getContext(),
+                    DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null));
             return result;
         }
 

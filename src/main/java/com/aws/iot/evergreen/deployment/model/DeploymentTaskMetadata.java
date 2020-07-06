@@ -21,6 +21,8 @@ public class DeploymentTaskMetadata {
     private Deployment.DeploymentType deploymentType;
     @NonNull @Getter
     private AtomicInteger deploymentAttemptCount;
+    @NonNull @Getter
+    private DeploymentDocument deploymentDocument;
 
     @Synchronized
     public void setDeploymentResultFuture(Future<DeploymentResult> deploymentResultFuture) {

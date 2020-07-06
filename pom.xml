@@ -376,45 +376,35 @@
                         </goals>
                     </execution>
                     <execution>
-                        <id>merge-results</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>merge</goal>
-                        </goals>
-                        <configuration>
-                            <fileSets>
-                                <fileSet>
-                                    <directory>${project.build.directory}</directory>
-                                    <includes>
-                                        <include>*.exec</include>
-                                    </includes>
-                                    <excludes>
-                                        <exclude>aggregate.exec</exclude>
-                                    </excludes>
-                                </fileSet>
-                            </fileSets>
-                            <destFile>${project.build.directory}/aggregate.exec</destFile>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>post-merge-report</id>
+                        <id>unit-test-report</id>
                         <phase>verify</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
                         <configuration>
-                            <dataFile>${project.build.directory}/aggregate.exec</dataFile>
+                            <dataFile>${project.build.directory}/jacoco.exec</dataFile>
                             <outputDirectory>target/jacoco-report</outputDirectory>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>jacoco-check</id>
+                        <id>integration-test-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-it.exec</dataFile>
+                            <outputDirectory>target/jacoco-report/jacoco-it</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check-unit-test</id>
                         <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
                         <configuration>
-                            <dataFile>${project.build.directory}/aggregate.exec</dataFile>
+                            <dataFile>${project.build.directory}/jacoco.exec</dataFile>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
@@ -422,7 +412,39 @@
                                         <limit>
                                             <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.81</minimum>
+                                            <minimum>0.67</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.61</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check-integration-test</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-it.exec</dataFile>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.58</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.54</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

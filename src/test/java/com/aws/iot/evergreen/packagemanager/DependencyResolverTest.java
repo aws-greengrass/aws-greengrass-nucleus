@@ -5,13 +5,12 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.dependency.DependencyType;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -19,7 +18,9 @@ import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,6 +38,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,19 +59,28 @@ class DependencyResolverTest {
     @Mock
     private PackageManager mockPackageManager;
 
-    @Mock
-    private Kernel kernel;
-
-    @Mock
-    private EvergreenService mainService;
+    private Topics groupToRootPackagesTopics;
+    private Context context;
 
     @BeforeAll
     static void setup() {
         System.setProperty("log.level", "TRACE");
     }
 
+    @BeforeEach
+    void setupTopics() {
+        context = new Context();
+        groupToRootPackagesTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+    }
+
+    @AfterEach
+    void cleanupTopics() {
+        groupToRootPackagesTopics.deepForEachTopic(t -> t.remove());
+    }
+
     @Nested
     class MergeSemverRequirementsTest {
+
         @Test
         void GIVEN_list_of_version_ranges_WHEN_get_union_THEN_get_version_range() {
             List<String> constraints = new LinkedList<>();
@@ -118,16 +131,6 @@ class DependencyResolverTest {
         private static final String pkgB1 = "B1";
         private static final String pkgB2 = "B2";
         private static final String pkgC1 = "C1";
-        private static final String pkgD = "D";
-
-        @Mock
-        EvergreenService mockServiceB1;
-
-        @Mock
-        EvergreenService mockServiceB2;
-
-        @Mock
-        EvergreenService mockServiceD;
 
         @Test
         void GIVEN_package_A_WHEN_resolve_dependencies_THEN_resolve_A_and_dependency_versions()
@@ -178,13 +181,15 @@ class DependencyResolverTest {
             when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
-            when(kernel.getMain()).thenReturn(mainService);
-            when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
-
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections.singletonList(pkgA), Collections
-                    .singletonList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>())),
+                    .singletonList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
-            List<PackageIdentifier> result = resolver.resolveDependencies(doc, Collections.singletonList(pkgA));
+
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            context.runOnPublishQueueAndWait(
+                    () -> System.out.println("Waiting for queue to finish updating the config"));
+            List<PackageIdentifier> result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
 
             assertEquals(4, result.size());
             assertThat(result,
@@ -239,16 +244,19 @@ class DependencyResolverTest {
             when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
-            when(kernel.getMain()).thenReturn(mainService);
-            when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
-
             // top-level package order: A, B2
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2),
-                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
-            List<PackageIdentifier> result = resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgB2)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
+            context.runOnPublishQueueAndWait(
+                    () -> System.out.println("Waiting for queue to finish updating the config"));
+            List<PackageIdentifier> result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
 
             assertEquals(4, result.size());
             assertThat(result,
@@ -268,10 +276,11 @@ class DependencyResolverTest {
                     .thenReturn(Collections.singletonList(packageC_1_0_0).iterator());
 
             doc = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA),
-                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
-            result = resolver.resolveDependencies(doc, Arrays.asList(pkgB2, pkgA));
+
+            result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
             verify(mockPackageManager).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
 
 
@@ -329,17 +338,20 @@ class DependencyResolverTest {
                     .listAvailablePackageMetadata(eq(pkgC1), eq(Requirement.buildNPM(">1.1.0 <1.0.0"))))
                     .thenReturn(Collections.emptyIterator());
 
-            when(kernel.getMain()).thenReturn(mainService);
-            when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
-
             // top-level package order: A, B2
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2),
-                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgB2)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
+            context.runOnPublishQueueAndWait(
+                    () -> System.out.println("Waiting for queue to finish updating the config"));
             Exception thrown = assertThrows(PackageVersionConflictException.class,
-                    () -> resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB2)));
+                    () -> resolver.resolveDependencies(doc, groupToRootPackagesTopics));
             assertEquals("Conflicts in resolving package: C1. Version constraints from upstream packages: "
                     + "{B2-v1.1.0=>1.1.0, B1-v1.0.0=<1.0.0}", thrown.getMessage());
 
@@ -359,12 +371,11 @@ class DependencyResolverTest {
                     .thenReturn(Collections.singletonList(packageC_1_2_0).iterator());
 
             DeploymentDocument doc2 = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA),
-                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                            new DeploymentPackageConfiguration(pkgB2, v1_1_0.toString(), new HashMap<>())),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
-
             thrown = assertThrows(PackageVersionConflictException.class,
-                    () -> resolver.resolveDependencies(doc2, Arrays.asList(pkgB2, pkgA)));
+                    () -> resolver.resolveDependencies(doc2, groupToRootPackagesTopics));
             assertEquals("Package version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0.0",
                     thrown.getMessage());
         }
@@ -412,28 +423,23 @@ class DependencyResolverTest {
             when(mockPackageManager.listAvailablePackageMetadata(eq(pkgC1), Mockito.any()))
                     .thenReturn(Collections.singletonList(packageC_1_1_0).iterator());
 
-            when(kernel.getMain()).thenReturn(mainService);
-            Map<EvergreenService, DependencyType> serviceMap = new HashMap<>();
-            serviceMap.put(mockServiceB1, DependencyType.HARD);
-            serviceMap.put(mockServiceB2, DependencyType.HARD);
-            serviceMap.put(mockServiceD, DependencyType.HARD);
-            when(mainService.getDependencies()).thenReturn(serviceMap);
-            when(mockServiceB1.getName()).thenReturn(pkgB1);
-            when(mockServiceB2.getName()).thenReturn(pkgB2);
-            when(mockServiceD.getName()).thenReturn(pkgD);
-
-
-            // B2 is currently running as as root of another group
-            when(mockPackageManager.getPackageVersionFromService(mockServiceB2)).thenReturn(v1_0_0);
-
             // New deployment: A, B1
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB1),
-                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, v1_0_0.toString(), new HashMap<>()),
-                            new DeploymentPackageConfiguration(pkgB1, v1_1_0.toString(), new HashMap<>())),
+                    Arrays.asList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>()),
+                            new DeploymentPackageConfiguration(pkgB1, true, v1_1_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
 
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgB1)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup2").lookup(pkgB2)
+                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            context.runOnPublishQueueAndWait(
+                    () -> System.out.println("Waiting for queue to finish updating the config"));
+
             // DA gives A, B1, B2 as root packages, meaning B2 is a root package for another group
-            List<PackageIdentifier> result = resolver.resolveDependencies(doc, Arrays.asList(pkgA, pkgB1, pkgB2));
+            List<PackageIdentifier> result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
 
             assertEquals(4, result.size());
             assertThat(result,

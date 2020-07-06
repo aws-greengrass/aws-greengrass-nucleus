@@ -1,5 +1,8 @@
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -13,12 +16,17 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.utils.ImmutableMap;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -40,6 +48,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 class DeploymentTaskTest {
+
+    private static final String COMPONENT_1_ROOT_PACKAGE_NAME = "component1";
+    private static final String COMPONENT_2_ROOT_PACKAGE_NAME = "component2";
+
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
@@ -52,19 +64,42 @@ class DeploymentTaskTest {
     private Future<Void> mockPreparePackagesFuture;
     @Mock
     private Future<DeploymentResult> mockMergeConfigFuture;
+    @Mock
+    private Topics mockDeploymentServiceConfig;
+    private Topics mockGroupToRootConfig;
+    private static Context context;
+
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
-                    .rootPackages(Collections.emptyList()).build();
+                    .groupName(DeploymentDocumentConverter.DEFAULT_GROUP_NAME)
+                    .rootPackages(Arrays.asList(COMPONENT_1_ROOT_PACKAGE_NAME)).build();
 
     private final Logger logger = LogManager.getLogger("unit test");
 
     private DeploymentTask deploymentTask;
 
+    @BeforeAll
+    static void setupContext() {
+        context = new Context();
+    }
+
+    @AfterAll
+    static void cleanContext() throws IOException {
+        context.close();
+    }
 
     @BeforeEach
     void setup() {
+//        when(mockKernel.getConfig()).thenReturn(mockConfig);
+        mockGroupToRootConfig = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS,
+                null);
+        mockGroupToRootConfig.lookupTopics("group1").lookup(COMPONENT_2_ROOT_PACKAGE_NAME)
+                .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+
+        when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
+                .thenReturn(mockGroupToRootConfig);
         deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageManager, mockKernelConfigResolver,
-                mockDeploymentConfigMerger, logger, deploymentDocument);
+                        mockDeploymentConfigMerger, logger, deploymentDocument, mockDeploymentServiceConfig);
     }
 
     @Test
@@ -74,7 +109,7 @@ class DeploymentTaskTest {
         when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig));
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger).mergeInNewConfig(any(), any());
@@ -83,11 +118,12 @@ class DeploymentTaskTest {
     @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_with_conflicted_dependency_THEN_deploymentTask_aborted()
             throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.emptyList()))
+        when(mockDependencyResolver.resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig)))
                 .thenThrow(new PackageVersionConflictException(""));
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageVersionConflictException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig));
+
         verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -95,11 +131,11 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted() throws Exception {
-        when(mockDependencyResolver.resolveDependencies(deploymentDocument, Collections.emptyList()))
+        when(mockDependencyResolver.resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig)))
                 .thenThrow(new PackagingException("mock error"));
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackagingException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig));
         verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -114,7 +150,7 @@ class DeploymentTaskTest {
 
         Exception thrown = assertThrows(RetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
         assertThat(thrown.getCause(), isA(PackageLoadingException.class));
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, mockGroupToRootConfig);
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -136,7 +172,7 @@ class DeploymentTaskTest {
         resolveDependenciesInvoked.await(3, TimeUnit.SECONDS);
         t.interrupt();
 
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, mockGroupToRootConfig);
         verify(mockPackageManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -160,7 +196,7 @@ class DeploymentTaskTest {
         assertTrue(preparePackagesInvoked.await(3, TimeUnit.SECONDS));
         t.interrupt();
 
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, mockGroupToRootConfig);
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockPreparePackagesFuture, timeout(5000)).cancel(true);
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
@@ -185,7 +221,7 @@ class DeploymentTaskTest {
         resolveConfigInvoked.await(3, TimeUnit.SECONDS);
         t.interrupt();
 
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, mockGroupToRootConfig);
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());
@@ -211,7 +247,7 @@ class DeploymentTaskTest {
         assertTrue(mergeConfigInvoked.await(3, TimeUnit.SECONDS));
         t.interrupt();
 
-        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, Collections.emptyList());
+        verify(mockDependencyResolver).resolveDependencies(deploymentDocument, mockGroupToRootConfig);
         verify(mockPackageManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, timeout(4000)).mergeInNewConfig(any(), any());
