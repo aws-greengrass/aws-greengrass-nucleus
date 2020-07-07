@@ -19,6 +19,7 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -95,7 +96,7 @@ public class DependencyResolver {
                 .log("The root packages for deployment");
 
         // Map of package name and resolved version
-        Map<String, Semver> resolvedPackageNameToVersion = new HashMap<>();
+        Map<String, PackageIdentifier> resolvedPackageNameToVersion = new HashMap<>();
 
         Optional<String> errorMessage =
                 resolveDependencyTree(resolvedPackageNameToVersion, packageNameToVersionConstraints,
@@ -107,8 +108,7 @@ public class DependencyResolver {
 
         logger.atInfo().setEventType("resolve-dependencies-done").addKeyValue("packages", resolvedPackageNameToVersion)
                 .log();
-        return resolvedPackageNameToVersion.entrySet().stream()
-                .map(e -> new PackageIdentifier(e.getKey(), e.getValue())).collect(Collectors.toList());
+        return new ArrayList<>(resolvedPackageNameToVersion.values());
     }
 
     private void updatePackageConstraintsFromOtherGroups(Topics groupToRootPackagesDetails, String deploymentGroupName,
@@ -150,7 +150,7 @@ public class DependencyResolver {
      * @throws PackagingException for all package errors
      * @throws IOException        when a package cannot be retrieved from the package store
      */
-    private Optional<String> resolveDependencyTree(Map<String, Semver> resolvedPackageNameToVersion,
+    private Optional<String> resolveDependencyTree(Map<String, PackageIdentifier> resolvedPackageNameToVersion,
                                                    Map<String, Map<String, String>> packageNameToVersionConstraints,
                                                    Set<String> packagesToResolve)
             throws PackagingException, IOException, PackageVersionConflictException {
@@ -196,7 +196,7 @@ public class DependencyResolver {
                 String depPkgName = entry.getKey();
 
                 if (resolvedPackageNameToVersion.containsKey(depPkgName)) {
-                    Semver resolvedVersion = resolvedPackageNameToVersion.get(depPkgName);
+                    Semver resolvedVersion = resolvedPackageNameToVersion.get(depPkgName).getVersion();
                     String newRequirement = entry.getValue();
                     if (!Requirement.buildNPM(newRequirement).isSatisfiedBy(resolvedVersion)) {
                         // If a dependency package is already resolved, but the version does not satisfy the current
@@ -235,7 +235,7 @@ public class DependencyResolver {
             }
 
             // 1.3. Resolve current package version
-            resolvedPackageNameToVersion.put(pkgName, packageMetadata.getPackageIdentifier().getVersion());
+            resolvedPackageNameToVersion.put(pkgName, packageMetadata.getPackageIdentifier());
             packagesToResolve.remove(pkgName);
 
             // 2. Resolve the rest packages recursively
@@ -276,17 +276,17 @@ public class DependencyResolver {
                 .collect(Collectors.joining(" "));
     }
 
-    private String buildErrorMessage(final String pkgName, final Map<String, Semver> resolvedPackageNameToVersion,
+    private String buildErrorMessage(final String pkgName,
+                                     final Map<String, PackageIdentifier> resolvedPackageNameToVersion,
                                      final Map<String, String> versionConstraints) {
         Map<String, String> pkgIdToVersionRequirements = new HashMap<>();
         versionConstraints.forEach((dependingPkgName, versionRequirement) -> {
-            Semver dependingPkgVersion = resolvedPackageNameToVersion.get(dependingPkgName);
-            if (dependingPkgVersion == null) {
+            PackageIdentifier dependingPkg = resolvedPackageNameToVersion.get(dependingPkgName);
+            if (dependingPkg == null) {
                 pkgIdToVersionRequirements.put(dependingPkgName, versionRequirement);
             } else {
                 pkgIdToVersionRequirements
-                        .put(new PackageIdentifier(dependingPkgName, resolvedPackageNameToVersion.get(dependingPkgName))
-                                .toString(), versionRequirement);
+                        .put(dependingPkg.toString(), versionRequirement);
             }
         });
         return String
