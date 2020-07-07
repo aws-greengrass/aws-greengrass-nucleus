@@ -21,22 +21,22 @@ public class TokenExchangeService extends EvergreenService {
     private static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     // TODO: change when auth is supported
     private static final String TES_AUTH_ENV_VARIABLE_NAME = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
-    // Randomly choose a port
-    private static final int DEFAULT_PORT = 0;
+    //TODO: this is used by GG daemon, revisit for backward compatibility
+    private static final int DEFAULT_PORT = 8000;
     private int port;
     private String iotRoleAlias;
     private HttpServerImpl server;
 
-    private final CredentialsProviderBuilder credentialsProviderBuilder;
+    private final IotConnectionManager iotConnectionManager;
 
     /**
      * Constructor.
      * @param topics the configuration coming from kernel
-     * @param credentialsProviderBuilder  {@link CredentialsProviderBuilder}
+     * @param iotConnectionManager {@link IotConnectionManager}
      */
     @Inject
     public TokenExchangeService(Topics topics,
-                                CredentialsProviderBuilder credentialsProviderBuilder) {
+                                IotConnectionManager iotConnectionManager) {
         super(topics);
         // TODO: Add support for other params like role Aliases
         topics.lookup(PORT_TOPIC)
@@ -48,7 +48,7 @@ public class TokenExchangeService extends EvergreenService {
                 .subscribe((why, newv) ->
                         iotRoleAlias = Coerce.toString(newv));
 
-        this.credentialsProviderBuilder = credentialsProviderBuilder;
+        this.iotConnectionManager = iotConnectionManager;
     }
 
     @Override
@@ -57,8 +57,9 @@ public class TokenExchangeService extends EvergreenService {
         // TODO: Support tes restart with change in configuration like port, roleAlias.
         logger.atInfo().addKeyValue("port", port).log("Starting Token Server at port {}", port);
         try {
+            IotCloudHelper cloudHelper = new IotCloudHelper();
             server = new HttpServerImpl(port,
-                    new CredentialRequestHandler(iotRoleAlias, credentialsProviderBuilder));
+                    new CredentialRequestHandler(iotRoleAlias, cloudHelper, iotConnectionManager));
             server.start();
             setEnvVariablesForDependencies();
             reportState(State.RUNNING);
