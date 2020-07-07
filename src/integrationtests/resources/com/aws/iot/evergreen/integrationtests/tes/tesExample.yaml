@@ -25,13 +25,11 @@ services:
         tes_url=$(printenv AWS_CONTAINER_CREDENTIALS_FULL_URI)
         echo "TES got URI $tes_url"
         tes_response=$(curl -s -o /dev/null -w "%{http_code}" $tes_url)
-        creds=$(curl $tes_url)
-        echo $creds
         echo "TES got curl"
         if [ $tes_response -ne 200 ]; then
-          echo "Failed: TES returned non 200 status" | tee tesIntegTest.txt
+          echo "Failed: TES returned non 200 status"
           exit 1
         else
-          echo "Success: TES was success" | tee tesIntegTest.txt
+          echo "Success: TES was success"
           exit 0
         fi
