@@ -416,7 +416,6 @@ public class DeviceProvisioningHelper {
         outStream.println("Creating empty component " + componentName);
         ByteBuffer recipe =
                 ByteBuffer.wrap(FIRST_PARTY_COMPONENT_RECIPES.get(componentName).getBytes(StandardCharsets.UTF_8));
-        outStream.println(FIRST_PARTY_COMPONENT_RECIPES.get(componentName));
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipe);
         try {
             cmsClient.createComponent(createComponentRequest);
