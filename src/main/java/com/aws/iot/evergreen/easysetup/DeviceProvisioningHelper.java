@@ -15,7 +15,10 @@ import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
+import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
+import software.amazon.awssdk.services.iam.model.DetachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -28,9 +31,12 @@ import software.amazon.awssdk.services.iot.model.CreatePolicyRequest;
 import software.amazon.awssdk.services.iot.model.CreateRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingRequest;
 import software.amazon.awssdk.services.iot.model.DeleteCertificateRequest;
+import software.amazon.awssdk.services.iot.model.DeletePolicyRequest;
+import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingRequest;
 import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
 import software.amazon.awssdk.services.iot.model.DescribeRoleAliasRequest;
+import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
 import software.amazon.awssdk.services.iot.model.KeyPair;
@@ -69,7 +75,7 @@ public class DeviceProvisioningHelper {
             "https://3w5ajog718.execute-api.us-east-1.amazonaws.com/Beta/";
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
             .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"RecipeTemplateVersion\": \"2020-01-25\",\n"
-                    + "\t\"PackageName\": \"TokenExchangeService\",\n"
+                    + "\t\"ComponentName\": \"TokenExchangeService\",\n"
                     + "\t\"Description\": \"Enable Evergreen devices to interact with AWS services using certs\",\n"
                     + "\t\"Publisher\": \"Evergreen\",\n\t\"Version\": \"1.0.0\"\n}");
     private final PrintStream outStream;
@@ -116,6 +122,53 @@ public class DeviceProvisioningHelper {
     public ThingInfo createThingForE2ETests() {
         return createThing(iotClient, E2E_TESTS_POLICY_NAME_PREFIX + UUID.randomUUID().toString(),
                 E2E_TESTS_THING_NAME_PREFIX + UUID.randomUUID().toString());
+    }
+
+    /**
+     * Create a thing with provided configuration.
+     *
+     * @param policyName policyName
+     * @param thingName  thingName
+     * @return created thing info
+     */
+    public ThingInfo createThingForTES(String policyName, String thingName) {
+        // Find or create IoT policy
+        try {
+            iotClient.getPolicy(GetPolicyRequest.builder().policyName(policyName).build());
+            outStream.println(String.format("Found IoT policy \"%s\", reusing it", policyName));
+        } catch (ResourceNotFoundException e) {
+            outStream.println(String.format("Creating new IoT policy \"%s\"", policyName));
+            iotClient.createPolicy(CreatePolicyRequest.builder().policyName(policyName).policyDocument(
+                    "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
+                            + "      \"Effect\": \"Allow\",\n      \"Action\": [\n"
+                            + "                \"iot:Connect\",\n                \"iot:Publish\",\n"
+                            + "                \"iot:Subscribe\",\n                \"iot:Receive\"\n],\n"
+                            + "      \"Resource\": \"*\"\n    }\n  ]\n}").build());
+        }
+
+        // Create cert
+        outStream.println("Creating keys and certificate...");
+        CreateKeysAndCertificateResponse keyResponse =
+                iotClient.createKeysAndCertificate(CreateKeysAndCertificateRequest.builder().setAsActive(true).build());
+
+        // Attach policy to cert
+        outStream.println("Attaching policy to certificate...");
+        iotClient.attachPolicy(
+                AttachPolicyRequest.builder().policyName(policyName).target(keyResponse.certificateArn()).build());
+
+        // Create the thing and attach the cert to it
+        outStream.println(String.format("Creating IoT Thing \"%s\"...", thingName));
+        String thingArn = iotClient.createThing(CreateThingRequest.builder().thingName(thingName).build()).thingArn();
+        outStream.println("Attaching certificate to IoT thing...");
+        iotClient.attachThingPrincipal(
+                AttachThingPrincipalRequest.builder().thingName(thingName).principal(keyResponse.certificateArn())
+                        .build());
+
+        return new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
+                keyResponse.certificatePem(), keyResponse.keyPair(),
+                iotClient.describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build())
+                        .endpointAddress(), iotClient.describeEndpoint(
+                DescribeEndpointRequest.builder().endpointType("iot:CredentialProvider").build()).endpointAddress());
     }
 
     /**
@@ -262,6 +315,11 @@ public class DeviceProvisioningHelper {
                                 + "      \"Principal\": {\n        \"Service\": \"credentials.iot.amazonaws.com\"\n"
                                 + "      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
+                AttachRolePolicyRequest attachRolePolicyRequest = AttachRolePolicyRequest.builder()
+                        .policyArn("arn:aws:iam::aws:policy/ReadOnlyAccess")
+                        .roleName(roleName)
+                        .build();
+                iamClient.attachRolePolicy(attachRolePolicyRequest);
             }
 
             CreateRoleAliasRequest createRoleAliasRequest =
@@ -287,6 +345,46 @@ public class DeviceProvisioningHelper {
         AttachPolicyRequest attachPolicyRequest =
                 AttachPolicyRequest.builder().policyName(iotRolePolicyName).target(certificateArn).build();
         iotClient.attachPolicy(attachPolicyRequest);
+    }
+
+    /**
+     * Clean Up IoT/IAM roles for using TES.
+     *
+     * @param roleName IAM role Name
+     * @param roleAliasName IOT roleAlias name
+     * @param certArn IOT certificate Arn
+     */
+    public void cleanUpIotRoleForTest(String roleName, String roleAliasName, String certArn) {
+        try {
+            DeleteRoleAliasRequest deleteRoleAliasRequest = DeleteRoleAliasRequest.builder()
+                    .roleAlias(roleAliasName).build();
+            iotClient.deleteRoleAlias(deleteRoleAliasRequest);
+        } catch (ResourceNotFoundException e) {
+            // Ignore as role alias does not exist
+        }
+        try {
+            DetachRolePolicyRequest detachRolePolicyRequest = DetachRolePolicyRequest.builder()
+                    .policyArn("arn:aws:iam::aws:policy/ReadOnlyAccess")
+                    .roleName(roleName)
+                    .build();
+            iamClient.detachRolePolicy(detachRolePolicyRequest);
+            DeleteRoleRequest deleteRoleRequest = DeleteRoleRequest.builder()
+                    .roleName(roleName).build();
+            iamClient.deleteRole(deleteRoleRequest);
+        } catch (ResourceNotFoundException e) {
+            // Ignore as role alias does not exist
+        }
+        String iotRolePolicyName = IOT_ROLE_POLICY_NAME_PREFIX + roleAliasName;
+        try {
+            DetachPolicyRequest detachPolicyRequest = DetachPolicyRequest.builder()
+                    .policyName(iotRolePolicyName).target(certArn).build();
+            iotClient.detachPolicy(detachPolicyRequest);
+            DeletePolicyRequest deletePolicyRequest = DeletePolicyRequest.builder()
+                    .policyName(iotRolePolicyName).build();
+            iotClient.deletePolicy(deletePolicyRequest);
+        } catch (ResourceNotFoundException e) {
+            // Ignore as policy does not exist
+        }
     }
 
     /**
@@ -318,6 +416,7 @@ public class DeviceProvisioningHelper {
         outStream.println("Creating empty component " + componentName);
         ByteBuffer recipe =
                 ByteBuffer.wrap(FIRST_PARTY_COMPONENT_RECIPES.get(componentName).getBytes(StandardCharsets.UTF_8));
+        outStream.println(FIRST_PARTY_COMPONENT_RECIPES.get(componentName));
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipe);
         try {
             cmsClient.createComponent(createComponentRequest);
