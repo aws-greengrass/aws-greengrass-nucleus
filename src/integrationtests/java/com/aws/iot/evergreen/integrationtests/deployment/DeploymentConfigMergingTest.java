@@ -413,14 +413,22 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
+        CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("sleeperA".equals(service.getName()) && newState.isClosable()) {
                 isSleeperAClosed.set(true);
             }
+            if(isSleeperAClosed.get() && "main".equals(service.getName()) && newState.equals(State.RUNNING)){
+                mainRestarted.countDown();
+            }
         });
 
         // wait for merge to complete
-        future.get(60, TimeUnit.SECONDS);
+        mainRestarted.await(30, TimeUnit.SECONDS);
+        EvergreenService main = kernel.locate("main");
+        assertEquals(State.RUNNING, main.getState());
+        EvergreenService sleeperB = kernel.locate("sleeperB");
+        assertEquals(State.RUNNING, sleeperB.getState());
         //sleeperA should be closed
         assertTrue(isSleeperAClosed.get());
         // ensure context finish all tasks
@@ -516,7 +524,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }});
         }};
 
-        CountDownLatch sleeperBBroken = new CountDownLatch(1);
+        AtomicBoolean sleeperBBroken = new AtomicBoolean(false);
         CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("sleeperB")) {
@@ -525,9 +533,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
                             .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
                 }
                 if (newState.equals(State.BROKEN)) {
-                    sleeperBBroken.countDown();
+                    sleeperBBroken.set(true);
                 }
-                if (sleeperBBroken.getCount() == 0 && newState.equals(State.RUNNING)) {
+                if (sleeperBBroken.get() && newState.equals(State.RUNNING)) {
                     // Rollback should only count after error
                     sleeperBRolledBack.countDown();
                 }
@@ -541,7 +549,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // THEN
         // deployment should have errored and rolled back
-        assertTrue(sleeperBRolledBack.await(30, TimeUnit.SECONDS));
+        assertTrue(sleeperBRolledBack.await(1, TimeUnit.SECONDS));
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
 
         // Value set in listener should not have been rolled back
