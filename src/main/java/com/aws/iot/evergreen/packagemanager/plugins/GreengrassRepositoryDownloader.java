@@ -75,7 +75,8 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
         GetComponentArtifactRequest getComponentArtifactRequest
                 = new GetComponentArtifactRequest().withArtifactName(artifactName)
                                                    .withComponentName(packageIdentifier.getName())
-                                                   .withComponentVersion(packageIdentifier.getVersion().toString());
+                                                   .withComponentVersion(packageIdentifier.getVersion().toString())
+                                                   .withScope(packageIdentifier.getScope());
 
         GetComponentArtifactResult getComponentArtifactResult = null;
         // TODO: This is horribly bad code, but unfortunately, the service is configured to return 302 redirect and

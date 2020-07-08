@@ -333,8 +333,13 @@ public class ServiceDependencyLifecycleTest {
         kernel = new Kernel().parseArgs("-i", configFile.toString()).launch();
         assertThat(kernel.locate("main")::getState, eventuallyEval(is(State.FINISHED)));
 
-        List<KernelTest.ExpectedStateTransition> stateTransitions =
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+        // The test below assumes SoftDependency is already running and checks against RUNNING->STOPPING and
+        // STARTING->RUNNING. But I have seen cases where it hasn't get to the initial RUNNING state yet. So we need to
+        // wait for SoftDependency to be RUNNING first.
+        assertThat(kernel.locate("SoftDependency")::getState, eventuallyEval(is(State.RUNNING)));
+
+        List<KernelTest.ExpectedStateTransition> stateTransitions = Arrays
+                .asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
 
 
