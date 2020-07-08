@@ -49,6 +49,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -409,24 +410,29 @@ class DeploymentConfigMergingTest extends BaseITCase {
         ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
                 .put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "while true; do\n echo sleeperB_running; sleep 10\n done");
 
-        Future<DeploymentResult> future =
-                deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
+
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
+        CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("sleeperA".equals(service.getName()) && newState.isClosable()) {
                 isSleeperAClosed.set(true);
             }
+            if(isSleeperAClosed.get() && "main".equals(service.getName()) && newState.equals(State.RUNNING)){
+                mainRestarted.countDown();
+            }
         });
 
-        EvergreenService main = kernel.locate("main");
-        EvergreenService sleeperB = kernel.locate("sleeperB");
         // wait for merge to complete
-        future.get(60, TimeUnit.SECONDS);
+        //TODO: wait on the future returned by mergeInNewConfig. mainRestarted is required due to race condition
+        // mentioned in DeploymentConfigMergerL120 is fixed.
+        mainRestarted.await(30, TimeUnit.SECONDS);
+        EvergreenService main = kernel.locate("main");
+        assertEquals(State.RUNNING, main.getState());
+        EvergreenService sleeperB = kernel.locate("sleeperB");
+        assertEquals(State.RUNNING, sleeperB.getState());
         //sleeperA should be closed
         assertTrue(isSleeperAClosed.get());
-        // main and sleeperB should be running
-        assertEquals(State.RUNNING, main.getState());
-        assertEquals(State.RUNNING, sleeperB.getState());
         // ensure context finish all tasks
         kernel.getContext().runOnPublishQueueAndWait(() -> {});
         // ensuring config value for sleeperA is removed
@@ -499,7 +505,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("short_running_services_using_startup_script.yaml")
+                .toString());
 
         kernel.launch();
 
@@ -513,21 +520,24 @@ class DeploymentConfigMergingTest extends BaseITCase {
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("sleeperB", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "exit -1");
+                        put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit -1");
                     }});
                 }});
             }});
         }};
 
-        CountDownLatch sleeperBErrored = new CountDownLatch(1);
+        AtomicBoolean sleeperBBroken = new AtomicBoolean(false);
         CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("sleeperB")) {
                 if (newState.equals(State.ERRORED)) {
                     config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
                             .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
-                    sleeperBErrored.countDown();
-                } else if (sleeperBErrored.getCount() == 0 && newState.equals(State.RUNNING)) {
+                }
+                if (newState.equals(State.BROKEN)) {
+                    sleeperBBroken.set(true);
+                }
+                if (sleeperBBroken.get() && newState.equals(State.RUNNING)) {
                     // Rollback should only count after error
                     sleeperBRolledBack.countDown();
                 }
@@ -541,7 +551,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // THEN
         // deployment should have errored and rolled back
-        assertTrue(sleeperBErrored.await(1, TimeUnit.SECONDS));
         assertTrue(sleeperBRolledBack.await(1, TimeUnit.SECONDS));
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
 

@@ -1,0 +1,35 @@
+---
+services:
+  sleeperB:
+    lifecycle:
+      posix:
+        startup: |-
+          date; echo sleeperB_running; sleep 5
+      windows:
+        startup: >-
+          powershell -command "& date; echo sleeperB_running; sleep 5"
+
+  sleeperA:
+    dependencies:
+      - sleeperB
+    lifecycle:
+      posix:
+        startup: |-
+          date; echo sleeperA_running; sleep 5
+      windows:
+        startup: >-
+          powershell -command "& date; echo sleeperB_running; sleep 5"
+
+  main:
+    dependencies:
+      - sleeperA
+      - sleeperB
+    lifecycle:
+      posix:
+        run: |-
+          while true; do
+          sleep 5
+          done
+      windows:
+        run: >-
+          powershell -command "& { while(1) { sleep 5 } }"
