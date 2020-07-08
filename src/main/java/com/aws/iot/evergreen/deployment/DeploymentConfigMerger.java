@@ -117,6 +117,9 @@ public class DeploymentConfigMerger {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
+        //TODO: runOnPublishQueueAndWait does not wait because updateActionForDeployment itself is run on the
+        // publish queue. There needs to be another mechanism to ensure that mergemap completes and
+        // all listeners trigger before rest of deployment work flow is executed.
         kernel.getContext().runOnPublishQueueAndWait(() ->
                 kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig));
 

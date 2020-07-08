@@ -410,8 +410,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         ((Map) servicesConfig.get("sleeperB").get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC))
                 .put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "while true; do\n echo sleeperB_running; sleep 10\n done");
 
-        Future<DeploymentResult> future =
-                deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
+
+        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
         AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -424,6 +424,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         });
 
         // wait for merge to complete
+        //TODO: wait on the future returned by mergeInNewConfig. mainRestarted is required due to race condition
+        // mentioned in DeploymentConfigMergerL120 is fixed.
         mainRestarted.await(30, TimeUnit.SECONDS);
         EvergreenService main = kernel.locate("main");
         assertEquals(State.RUNNING, main.getState());
