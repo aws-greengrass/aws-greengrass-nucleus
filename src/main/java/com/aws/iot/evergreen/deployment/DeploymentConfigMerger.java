@@ -187,7 +187,7 @@ public class DeploymentConfigMerger {
             return;
         }
         // wait until topic listeners finished processing read changes.
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
             kernel.getContext().get(ExecutorService.class).execute(() -> {
                 // TODO: Add timeout
