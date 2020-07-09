@@ -60,6 +60,16 @@ public class UnixPlatform extends Platform {
         }
     }
 
+    @Override
+    public String[] getShellForCommand(String command) {
+        return new String[]{"sh", "-c", command};
+    }
+
+    @Override
+    public int exitCodeWhenCommandDoesNotExist() {
+        return 127;
+    }
+
     List<Integer> getChildPids(Process process) throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 

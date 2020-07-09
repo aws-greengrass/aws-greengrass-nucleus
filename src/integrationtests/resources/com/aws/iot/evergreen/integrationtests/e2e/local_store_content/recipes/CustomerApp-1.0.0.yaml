@@ -8,6 +8,7 @@ Platforms:
   - ubuntu
   - debian
   - macos
+  - windows
 Parameters:
   - name: sampleText
     value: This is a test

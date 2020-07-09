@@ -1,7 +1,11 @@
 services:
   main:
     lifecycle:
-      run:
-        echo "Running main" && sleep 100
+      posix:
+        run:
+          echo "Running main" && sleep 100
+      windows:
+        run:
+          powershell -command echo "Running main"; sleep 100
     setenv:
       HELLO: "Hi"

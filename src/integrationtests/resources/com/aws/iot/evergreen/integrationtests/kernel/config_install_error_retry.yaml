@@ -1,24 +1,41 @@
 services:
   installErrorRetry:
     lifecycle:
-      install: |-
-        if [ -f "/tmp/egInstallErrorRetrySucceed" ]; then
-          echo "INSTALL_SUCCEED"
-          rm /tmp/egInstallErrorRetrySucceed
-        else
-          echo "INSTALL_FAIL"
-          touch /tmp/egInstallErrorRetrySucceed
-          exit 1
-        fi
+      posix:
+        install: |-
+          if [ -f "/tmp/egInstallErrorRetrySucceed" ]; then
+            echo "INSTALL_SUCCEED"
+            rm /tmp/egInstallErrorRetrySucceed
+          else
+            echo "INSTALL_FAIL"
+            touch /tmp/egInstallErrorRetrySucceed
+            exit 1
+          fi
+      windows:
+        # DO NOT ADD INDENTATION BELOW
+        # Adding "helpful" indentation breaks the way yaml parses the string
+        install: >-
+          powershell -command "& {if ([System.IO.File]::Exists(\"egInstallErrorRetrySucceed\")) {
+          echo INSTALL_SUCCEEDED;
+          Remove-Item egInstallErrorRetrySucceed;
+          } else {
+          echo INSTALL_FAIL;
+          New-Item egInstallErrorRetrySucceed;
+          exit 1;
+          }}"
 
   main:
     lifecycle:
       install:
         all: echo All installed
-      run: |-
-        echo main of config_install_error_retry is running
-        while true; do
-        date; sleep 5;
-        done
+      posix:
+        run: |-
+          echo main of config_install_error_retry is running
+          while true; do
+          date; sleep 5;
+          done
+      windows:
+        run: |-
+          powershell -command "& { echo \"main of config_install_error_retry is running\"; while (1) { sleep 5 }}"
     dependencies:
       - installErrorRetry
