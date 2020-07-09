@@ -20,6 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -209,10 +211,31 @@ public class CredentialRequestHandler implements HttpHandler {
         return response;
     }
 
+    /**
+     * API for kernel to directly fetch credentials from TES instead of using HTTP server.
+     *
+     * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
+     */
+    public AwsCredentials getAwsCredentials() {
+        LOGGER.debug("Got request for credentials");
+        // TODO: Add cache
+        try {
+            final JsonNode credentials = deserializeCredentials(iotCloudHelper
+                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null).toString());
+            return AwsSessionCredentials
+                    .create(credentials.get(ACCESS_KEY_UPSTREAM_STR).asText(),
+                            credentials.get(SECRET_ACCESS_UPSTREAM_STR).asText(),
+                            credentials.get(SESSION_TOKEN_UPSTREAM_STR).asText());
+        } catch (AWSIotException e) {
+            LOGGER.error("Unable to parse response body", e);
+            return null;
+        }
+    }
+
     private byte[] translateToAwsSdkFormat(final String credentials) throws AWSIotException {
         try {
             // TODO: Validate if lowercase lookup can make this simpler
-            JsonNode jsonNode = OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
+            JsonNode jsonNode = deserializeCredentials(credentials);
             Map<String, String> response = new HashMap<>();
             response.put(ACCESS_KEY_DOWNSTREAM_STR, jsonNode.get(ACCESS_KEY_UPSTREAM_STR).asText());
             response.put(SECRET_ACCESS_DOWNSTREAM_STR, jsonNode.get(SECRET_ACCESS_UPSTREAM_STR).asText());
@@ -220,7 +243,6 @@ public class CredentialRequestHandler implements HttpHandler {
             response.put(EXPIRATION_DOWNSTREAM_STR, jsonNode.get(EXPIRATION_UPSTREAM_STR).asText());
             return OBJECT_MAPPER.writeValueAsBytes(response);
         } catch (JsonProcessingException e) {
-            LOGGER.error("Received malformed credential input", e);
             throw new AWSIotException(e);
         }
     }
@@ -259,6 +281,15 @@ public class CredentialRequestHandler implements HttpHandler {
             expiryTime = CLOUD_5XX_ERROR_CACHE_IN_MIN;
         }
         return Instant.now(clock).plus(Duration.ofMinutes(expiryTime));
+    }
+
+    private JsonNode deserializeCredentials(final String credentials) throws AWSIotException {
+        try {
+            // TODO: Validate if lowercase lookup can make this simpler
+            return OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
+        } catch (JsonProcessingException e) {
+            throw new AWSIotException(e);
+        }
     }
 
     /**

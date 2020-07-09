@@ -8,8 +8,6 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.iot.IotConnectionManager;
-import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
@@ -29,6 +27,7 @@ import java.util.Set;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -39,17 +38,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class TokenExchangeServiceTest extends EGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
-
-    @Mock
-    IotConnectionManager mockIotConnectionManager;
-
-    @Mock
-    AuthenticationHandler mockAuthNHandler;
 
     @Mock
     AuthorizationHandler mockAuthZHandler;

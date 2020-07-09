@@ -10,10 +10,12 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
+import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
+import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.vdurmont.semver4j.Requirement;
@@ -74,6 +76,7 @@ class PackageManagerTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final String ACTIVE_VERSION_STR = "2.0.0";
     private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
+    private static final String SCOPE = "private";
 
     @TempDir
     Path tempDir;
@@ -82,6 +85,9 @@ class PackageManagerTest {
 
     @Mock
     private GreengrassRepositoryDownloader artifactDownloader;
+    @Mock
+    private S3Downloader s3Downloader;
+
     @Mock
     private GreengrassPackageServiceHelper packageServiceHelper;
     @Mock
@@ -93,15 +99,14 @@ class PackageManagerTest {
 
     @BeforeEach
     void beforeEach() {
-        packageManager =
-                new PackageManager(artifactDownloader, packageServiceHelper, Executors.newSingleThreadExecutor(),
-                        packageStore, kernel);
+        packageManager = new PackageManager(s3Downloader, artifactDownloader, packageServiceHelper,
+                Executors.newSingleThreadExecutor(), packageStore, kernel);
     }
 
 
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
-        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
@@ -111,46 +116,64 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_artifact_list_WHEN_attempt_download_artifact_THEN_invoke_downloader() throws Exception {
-        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+    void GIVEN_artifact_from_gg_repo_WHEN_attempt_download_artifact_THEN_invoke_gg_downloader() throws Exception {
+        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         packageManager.downloadArtifactsIfNecessary(pkgId,
-                Arrays.asList(new URI("greengrass:binary1"), new URI("greengrass:binary2")));
+                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null),
+                        new ComponentArtifact(new URI("greengrass:binary2"), null)));
 
-        ArgumentCaptor<URI> uriArgumentCaptor = ArgumentCaptor.forClass(URI.class);
-        verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), uriArgumentCaptor.capture(), eq(tempDir));
-        List<URI> uriList = uriArgumentCaptor.getAllValues();
-        assertThat(uriList.size(), is(2));
-        assertThat(uriList.get(0).getSchemeSpecificPart(), is("binary1"));
-        assertThat(uriList.get(1).getSchemeSpecificPart(), is("binary2"));
+        ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
+        verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
+        List<ComponentArtifact> artifactsList = artifactArgumentCaptor.getAllValues();
+        assertThat(artifactsList.size(), is(2));
+        assertThat(artifactsList.get(0).getArtifactUri().getSchemeSpecificPart(), is("binary1"));
+        assertThat(artifactsList.get(1).getArtifactUri().getSchemeSpecificPart(), is("binary2"));
     }
 
+    @Test
+    void GIVEN_artifact_from_s3_WHEN_attempt_download_THEN_invoke_s3_downloader() throws Exception {
+        PackageIdentifier pkgId = new PackageIdentifier("SomeServiceWithArtifactsInS3", new Semver("1.0.0"), SCOPE);
+
+        when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
+
+        packageManager.downloadArtifactsIfNecessary(pkgId,
+                Collections.singletonList(new ComponentArtifact(new URI("s3://bucket/path/to/key"), null)));
+
+        ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
+        verify(s3Downloader, times(1)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
+        List<ComponentArtifact> artifactsList = artifactArgumentCaptor.getAllValues();
+        assertThat(artifactsList.size(), is(1));
+        assertThat(artifactsList.get(0).getArtifactUri().getSchemeSpecificPart(), is("//bucket/path/to/key"));
+    }
 
     @Test
     void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception() {
-        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
-                .downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("docker:image1"))));
+                .downloadArtifactsIfNecessary(pkgId,
+                        Collections.singletonList(new ComponentArtifact(new URI("docker:image1"), null))));
         assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
 
     @Test
     void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception() {
-        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0" + ".0"), "CoolServiceARN");
+        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0" + ".0"), SCOPE);
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
-                .downloadArtifactsIfNecessary(pkgId, Collections.singletonList(new URI("binary1"))));
+                .downloadArtifactsIfNecessary(pkgId,
+                        Collections.singletonList(new ComponentArtifact(new URI("binary1"), null))));
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
     @Test
     void GIVEN_package_identifier_WHEN_request_to_prepare_package_THEN_task_succeed() throws Exception {
-        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
+        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         String fileName = "MonitoringService-1.0.0.yaml";
@@ -171,7 +194,7 @@ class PackageManagerTest {
     @Test
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context)
             throws Exception {
-        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), "PackageARN");
+        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
         when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
@@ -182,8 +205,8 @@ class PackageManagerTest {
     @Test
     void GIVEN_prepare_packages_running_WHEN_prepare_cancelled_THEN_task_stops()
             throws Exception {
-        PackageIdentifier pkgId1 = new PackageIdentifier("MonitoringService", new Semver("1.0.0"), "PackageARN");
-        PackageIdentifier pkgId2 = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+        PackageIdentifier pkgId1 = new PackageIdentifier("MonitoringService", new Semver("1.0.0"), SCOPE);
+        PackageIdentifier pkgId2 = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);

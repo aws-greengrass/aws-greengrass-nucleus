@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -455,5 +456,21 @@ public class CredentialRequestHandlerTest {
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
+    }
+
+    @Test
+    public void GIVEN_credential_handler_WHEN_called_get_credentials_provider_THEN_returns_success() throws Exception {
+        Instant expirationTime = Instant.now().minus(Duration.ofMinutes(1));
+        String responseStr = String.format(RESPONSE_STR, expirationTime.toString());
+        IotCloudResponse mockResponse = new IotCloudResponse(responseStr.getBytes(StandardCharsets.UTF_8), 200);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(mockResponse);
+        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper,
+                mockConnectionManager);
+        final AwsCredentials creds = handler.getAwsCredentials();
+        final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
+        final String expectedVerb = "GET";
+        verify(mockCloudHelper).sendHttpRequest(mockConnectionManager, expectedPath, expectedVerb, null);
+        assertThat(ACCESS_KEY_ID, is(creds.accessKeyId()));
+        assertThat(SECRET_ACCESS_KEY, is(creds.secretAccessKey()));
     }
 }

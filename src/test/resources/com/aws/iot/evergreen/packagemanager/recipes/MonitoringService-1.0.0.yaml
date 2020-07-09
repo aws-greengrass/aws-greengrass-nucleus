@@ -24,7 +24,7 @@ Lifecycle:
     run: git status
 Artifacts:
   all:
-    - greengrass:/MonitoringService-1.0.0/monitor_artifact_100.txt
+    - Uri: greengrass:/MonitoringService-1.0.0/monitor_artifact_100.txt
 Dependencies:
   all:
     Log:

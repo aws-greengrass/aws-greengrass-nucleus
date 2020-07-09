@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.tes.TokenExchangeService;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,7 +58,7 @@ class TESTest extends BaseITCase {
     void setupKernel() throws Exception {
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
-        this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
+        deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
         roleId = UUID.randomUUID().toString();
         roleName = TES_ROLE_NAME + roleId;
         roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
@@ -153,6 +155,15 @@ class TESTest extends BaseITCase {
         assertEquals(HTTP_403, con.getResponseCode());
         con.disconnect();
 
+    }
+
+    @Test
+    void GIVEN_iot_role_alias_WHEN_tes_is_queried_within_kernel_bypassing_http_server_THEN_valid_credentials_are_returned() {
+        TokenExchangeService tes = kernel.getContext().get(TokenExchangeService.class);
+        AwsCredentials credentials = tes.resolveCredentials();
+
+        assertNotNull(credentials.accessKeyId());
+        assertNotNull(credentials.secretAccessKey());
     }
 
     private void provision(Kernel kernel) throws IOException, DeviceConfigurationException {

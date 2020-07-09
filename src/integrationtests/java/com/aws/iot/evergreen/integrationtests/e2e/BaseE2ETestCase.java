@@ -33,7 +33,9 @@ import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
+import com.aws.iot.evergreen.util.S3SdkClientFactory;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -41,9 +43,20 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
+import software.amazon.awssdk.services.iam.model.CreatePolicyRequest;
+import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
+import software.amazon.awssdk.services.iam.model.DeleteRolePolicyRequest;
+import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
+import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
+import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
+import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
+import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.File;
 import java.io.IOException;
@@ -75,9 +88,15 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final String FCS_GAMMA_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
+    private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
+    protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias" + UUID.randomUUID().toString();
+    private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy" + UUID.randomUUID().toString();
+    private static final String TES_ROLE_POLICY_DOCUMENT = "{\n" + "    \"Version\": \"2012-10-17\",\n"
+            + "    \"Statement\": [\n" + "        {\n" + "            \"Effect\": \"Allow\",\n"
+            + "            \"Action\": [\n" + "                \"s3:Get*\",\n" + "                \"s3:List*\"\n"
+            + "            ],\n" + "            \"Resource\": \"*\"\n" + "        }\n" + "    ]\n" + "}";
 
-    protected final Logger logger = LogManager.getLogger(this.getClass());
-    private static final Logger staticlogger = LogManager.getLogger(BaseE2ETestCase.class);
+    protected static final Logger logger = LogManager.getLogger(BaseE2ETestCase.class);
 
     private final static String testComponentSuffix = "_" + UUID.randomUUID().toString();
 
@@ -104,6 +123,9 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final AWSEvergreen cmsClient =
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, GAMMA_REGION.toString())).build();
+    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
+    protected S3Client s3Client;
+
     private static final PackageIdentifier[] testComponents = {
             createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
             createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
@@ -135,6 +157,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                     component.getName(), component.getVersion().toString());
             assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
         }
+        cleanUpTesRoleAndAlias();
     }
 
     protected BaseE2ETestCase() {
@@ -147,6 +170,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected void initKernel() throws IOException, DeviceConfigurationException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
+        setupTesRoleAndAlias();
+        s3Client = kernel.getContext().get(S3SdkClientFactory.class).getS3Client();
     }
 
     /**
@@ -195,7 +220,7 @@ public class BaseE2ETestCase implements AutoCloseable {
             }
         }
         if (!errors.isEmpty()) {
-            staticlogger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
+            logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
         }
     }
 
@@ -229,7 +254,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
         File[] artifactFiles = artifactDirPath.toFile().listFiles();
         if (artifactFiles == null) {
-            staticlogger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
+            logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
                     .log("Skip artifact upload. No artifacts found");
         } else {
             for (File artifact : artifactFiles) {
@@ -299,6 +324,31 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
+    protected void setupTesRoleAndAlias() {
+        try {
+            deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+            deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
+
+            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
+                    CreatePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME).policyDocument(TES_ROLE_POLICY_DOCUMENT)
+                            .description("Defines permissions to access AWS services for E2E test device TES role").build());
+            iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(createPolicyResponse.policy().arn()).build());
+        } catch (EntityAlreadyExistsException e) {
+            // No-op if resources already exist
+        }
+    }
+
+    protected static void cleanUpTesRoleAndAlias() {
+        try {
+            iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
+            iamClient.deleteRolePolicy(
+                    DeleteRolePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME).roleName(TES_ROLE_NAME).build());
+            iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
+        } catch (ResourceNotFoundException | NoSuchEntityException e) {
+            logger.atError().setCause(e).log("Could not clean up TES resources");
+        }
+    }
+
     @Override
     public void close() throws Exception {
         if (fcsClient != null) {
@@ -306,6 +356,8 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
         cmsClient.shutdown();
         iotClient.close();
+        iamClient.close();
+        s3Client.close();
     }
 
     private static PackageIdentifier createPackageIdentifier(String name, Semver version) {

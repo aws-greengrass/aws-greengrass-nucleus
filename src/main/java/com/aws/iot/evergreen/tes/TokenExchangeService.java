@@ -13,6 +13,8 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,7 +27,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 
 @SuppressWarnings("PMD.DataClass")
 @ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
-public class TokenExchangeService extends EvergreenService {
+public class TokenExchangeService extends EvergreenService implements AwsCredentialsProvider {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String PORT_TOPIC = "port";
     public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "TokenExchangeService";
@@ -54,14 +56,11 @@ public class TokenExchangeService extends EvergreenService {
                                 AuthorizationHandler authZHandler) {
         super(topics);
         // TODO: Add support for other params like role Aliases
-        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
-                .dflt(DEFAULT_PORT)
-                .subscribe((why, newv) ->
-                        port = Coerce.toInt(newv));
+        // TODO : Needs Fix - following subscriptions won't be effective if this service or
+        //  the http server doesn't restart when port/roleAlias changes
+        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
+                .subscribe((why, newv) -> port = Coerce.toInt(newv));
 
-        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
-                .subscribe((why, newv) ->
-                        iotRoleAlias = Coerce.toString(newv));
 
         // TODO: Add support for overriding this from config
         this.authZPolicy = getDefaultAuthZPolicy();
@@ -123,11 +122,13 @@ public class TokenExchangeService extends EvergreenService {
 
     List<AuthorizationPolicy> getDefaultAuthZPolicy() {
         String defaultPolicyDesc = "Default TokenExchangeService policy";
-        return Arrays.asList(AuthorizationPolicy.builder()
-                .policyId(UUID.randomUUID().toString())
-                .policyDescription(defaultPolicyDesc)
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
-                .build());
+        return Arrays.asList(AuthorizationPolicy.builder().policyId(UUID.randomUUID().toString())
+                .policyDescription(defaultPolicyDesc).principals(new HashSet(Arrays.asList("*")))
+                .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION))).build());
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+        return credentialRequestHandler.getAwsCredentials();
     }
 }
