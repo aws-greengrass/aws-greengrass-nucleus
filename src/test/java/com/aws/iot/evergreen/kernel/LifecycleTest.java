@@ -472,7 +472,7 @@ public class LifecycleTest {
         dependencyService.requestStart();
 
         // GIVEN service in state STARTING
-        assertTrue(serviceStarted.await(100, TimeUnit.MILLISECONDS));
+        assertTrue(serviceStarted.await(1500, TimeUnit.MILLISECONDS));
         assertEquals(State.STARTING, testService.getState());
 
         CountDownLatch serviceRestarted = new CountDownLatch(2);

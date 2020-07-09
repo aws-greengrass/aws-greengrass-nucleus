@@ -4,13 +4,6 @@ services:
     lifecycle:
       install:
         all: echo All installed
-      run: |-
-        echo $PATH
-        pwd
-        printenv
-        while true; do
-        date; sleep 5; echo RUNNING
-        done
     dependencies:
-      macos:
-      linux:
+      posix:
+      windows:

@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.util.platforms;
 
+import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
@@ -18,6 +19,27 @@ public class WindowsPlatform extends Platform {
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
 
-        pp.destroy(force);
+        try {
+            pp.destroy(force);
+        } catch (InvalidExitValueException e) {
+            // zeroturnaround executes `taskkill` to kill a process. Sometimes taskkill's exit code is not 0, signalling
+            // an error. One of reason is that the process is not there anymore. In such case, if the process is not
+            // alive anymore, we can just ignore the exception.
+            //
+            // In other words, we rethrow the exception if the process is still alive.
+            if (process.isAlive()) {
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public String[] getShellForCommand(String command) {
+        return new String[]{"cmd.exe", "/C", command};
+    }
+
+    @Override
+    public int exitCodeWhenCommandDoesNotExist() {
+        return 1;
     }
 }

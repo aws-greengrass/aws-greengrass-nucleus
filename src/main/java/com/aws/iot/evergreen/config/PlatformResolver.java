@@ -58,31 +58,33 @@ public final class PlatformResolver {
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
             ranks.put("fedora", 11);
         }
-        try {
-            String sysver = Exec.sh("uname -a").toLowerCase();
-            if (sysver.contains("ubuntu")) {
-                ranks.put("ubuntu", 20);
+        if (!Exec.isWindows) {
+            try {
+                String sysver = Exec.sh("uname -a").toLowerCase();
+                if (sysver.contains("ubuntu")) {
+                    ranks.put("ubuntu", 20);
+                }
+                if (sysver.contains("darwin")) {
+                    ranks.put("macos", 20);
+                }
+                if (sysver.contains("raspbian")) {
+                    ranks.put("raspbian", 22);
+                }
+                if (sysver.contains("qnx")) {
+                    ranks.put("qnx", 22);
+                }
+                if (sysver.contains("cygwin")) {
+                    ranks.put("cygwin", 22);
+                }
+                if (sysver.contains("freebsd")) {
+                    ranks.put("freebsd", 22);
+                }
+                if (sysver.contains("solaris") || sysver.contains("sunos")) {
+                    ranks.put("solaris", 22);
+                }
+            } catch (InterruptedException | IOException e) {
+                logger.atError().log("Error while running uname -a");
             }
-            if (sysver.contains("darwin")) {
-                ranks.put("macos", 20);
-            }
-            if (sysver.contains("raspbian")) {
-                ranks.put("raspbian", 22);
-            }
-            if (sysver.contains("qnx")) {
-                ranks.put("qnx", 22);
-            }
-            if (sysver.contains("cygwin")) {
-                ranks.put("cygwin", 22);
-            }
-            if (sysver.contains("freebsd")) {
-                ranks.put("freebsd", 22);
-            }
-            if (sysver.contains("solaris") || sysver.contains("sunos")) {
-                ranks.put("solaris", 22);
-            }
-        } catch (InterruptedException | IOException e) {
-            logger.atError().log("Error while running uname -a");
         }
         return ranks;
     }

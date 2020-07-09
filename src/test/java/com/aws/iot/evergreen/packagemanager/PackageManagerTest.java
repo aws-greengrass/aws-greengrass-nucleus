@@ -29,6 +29,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -61,8 +62,14 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 class PackageManagerTest {
 
-    private static final Path RECIPE_RESOURCE_PATH =
-            Paths.get(PackageManagerTest.class.getResource("recipes").getPath());
+    private static Path RECIPE_RESOURCE_PATH;
+
+    static {
+        try {
+            RECIPE_RESOURCE_PATH = Paths.get(PackageManagerTest.class.getResource("recipes").toURI());
+        } catch (URISyntaxException ignore) {
+        }
+    }
 
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final String ACTIVE_VERSION_STR = "2.0.0";
@@ -75,16 +82,12 @@ class PackageManagerTest {
 
     @Mock
     private GreengrassRepositoryDownloader artifactDownloader;
-
     @Mock
     private GreengrassPackageServiceHelper packageServiceHelper;
-
     @Mock
     private Kernel kernel;
-
     @Mock
     private PackageStore packageStore;
-
     @Mock
     private EvergreenService mockService;
 

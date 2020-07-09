@@ -305,7 +305,7 @@ public class ConfigurationTest {
 
     @Test
     public void GIVEN_config_file_path_WHEN_read_from_path_THEN_merge() throws Exception {
-        config.read(getClass().getResource("test.json").getPath());
+        config.read(getClass().getResource("test.json").toURI().toURL(), true);
         assertEquals("echo main service installed",
                 config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
     }

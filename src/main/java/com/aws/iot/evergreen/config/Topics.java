@@ -308,12 +308,12 @@ public class Topics extends Node implements Iterable<Node> {
      * @param n node to remove
      */
     public void remove(Node n) {
+        if (!children.remove(n.getName(), n)) {
+            logger.atError("config-node-child-remove-error").kv("thisNode", toString()).kv("childNode", n.getName())
+                    .log();
+            return;
+        }
         context.runOnPublishQueue(() -> {
-            if (!children.remove(n.getName(), n)) {
-                logger.atError("config-node-child-remove-error").kv("thisNode", toString()).kv("childNode", n.getName())
-                        .log();
-                return;
-            }
             n.fire(WhatHappened.removed);
             this.childChanged(WhatHappened.childRemoved, n);
         });
