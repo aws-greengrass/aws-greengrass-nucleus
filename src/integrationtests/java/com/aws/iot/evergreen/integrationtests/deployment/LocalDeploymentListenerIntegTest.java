@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,14 +35,14 @@ class LocalDeploymentListenerIntegTest {
     private static LocalDeploymentListener localDeploymentListener;
 
     @BeforeAll
-    static void setupKernel() throws IOException {
+    static void setupKernel() throws IOException, URISyntaxException {
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
         kernel.launch();
         localDeploymentListener = kernel.getContext().get(LocalDeploymentListener.class);
 
         Path localStoreContentPath = Paths.get(
-                LocalDeploymentListenerIntegTest.class.getResource("local_store_content").getPath());
+                LocalDeploymentListenerIntegTest.class.getResource("local_store_content").toURI());
         // pre-load contents to package store
         FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }

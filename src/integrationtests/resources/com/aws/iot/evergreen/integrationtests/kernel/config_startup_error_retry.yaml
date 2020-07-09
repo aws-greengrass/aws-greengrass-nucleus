@@ -1,24 +1,41 @@
 services:
   startupErrorRetry:
     lifecycle:
-      startup: |-
-        if [ -f "/tmp/egStartupErrorRetrySucceed" ]; then
-          echo "StartUp_SUCCEED"
-          rm /tmp/egStartupErrorRetrySucceed
-        else
-          echo "StartUp_FAIL"
-          touch /tmp/egStartupErrorRetrySucceed
-          exit 1
-        fi
+      posix:
+        startup: |-
+          if [ -f "/tmp/egStartupErrorRetrySucceed" ]; then
+            echo "StartUp_SUCCEED"
+            rm /tmp/egStartupErrorRetrySucceed
+          else
+            echo "StartUp_FAIL"
+            touch /tmp/egStartupErrorRetrySucceed
+            exit 1
+          fi
+      windows:
+        # DO NOT ADD INDENTATION BELOW
+        # Adding "helpful" indentation breaks the way yaml parses the string
+        startup: >-
+          powershell -command "& {if ([System.IO.File]::Exists(\"egStartupErrorRetrySucceed\")) {
+          echo StartUp_SUCCEED;
+          Remove-Item egStartupErrorRetrySucceed;
+          } else {
+          echo StartUp_FAIL;
+          New-Item egStartupErrorRetrySucceed;
+          exit 1;
+          }}"
 
   main:
     lifecycle:
       install:
         all: echo All installed
-      run: |-
-        echo main of config_startup_error_retry is running
-        while true; do
-        date; sleep 5;
-        done
+      posix:
+        run: |-
+          echo main of config_startup_error_retry is running
+          while true; do
+          date; sleep 5;
+          done
+      windows:
+        run: |-
+          powershell -command "& { echo \"main of config_startup_error_retry is running\"; while (1) { sleep 5 }}"
     dependencies:
       - startupErrorRetry

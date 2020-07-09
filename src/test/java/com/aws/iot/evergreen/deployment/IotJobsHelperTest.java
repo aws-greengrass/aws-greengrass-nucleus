@@ -65,31 +65,22 @@ public class IotJobsHelperTest {
 
     @Mock
     private IotJobsClient mockIotJobsClient;
-
     @Mock
     private MqttClientConnection mockMqttClientConnection;
-
     @Mock
     Consumer<JobExecutionsChangedEvent> eventConsumer;
-
     @Mock
     Consumer<DescribeJobExecutionResponse> describeJobConsumer;
-
     @Mock
     Consumer<RejectedError> rejectedErrorConsumer;
-
     @Mock
     DeviceConfiguration deviceConfiguration;
-
     @Mock
     IotJobsHelper.AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
-
     @Mock
     IotJobsHelper.IotJobsClientFactory mockIotJobsClientFactory;
-
     @Mock
     LinkedBlockingQueue<Deployment> mockDeploymentsQueue;
-
     @Mock
     DeploymentStatusKeeper deploymentStatusKeeper;
 
@@ -101,18 +92,14 @@ public class IotJobsHelperTest {
 
     @Captor
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorCaptor;
-
     @Captor
     ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> updateJobExecutionResponseCaptor;
-
     @Captor
     ArgumentCaptor<Consumer<DescribeJobExecutionResponse>> describeJobResponseCaptor;
-
     @Captor
     ArgumentCaptor<Consumer<JobExecutionsChangedEvent>> eventChangeResponseCaptor;
 
     private final ExecutorService executorService = TestUtils.synchronousExecutorService();
-
     private IotJobsHelper iotJobsHelper;
 
     @BeforeEach

@@ -5,9 +5,13 @@ Description: A service that just can't run
 Publisher: Me
 Version: '1.0.0'
 Lifecycle:
-  startup: |-
-    echo "Breaking service broke."
-    exit 1
+  posix:
+    startup: |-
+      echo "Breaking service broke."
+      exit 1
+  windows:
+    startup: |-
+      powershell -command echo "Breaking service broke."; exit 1
 Dependencies:
   Mosquitto:
     VersionRequirements: 1.0.0

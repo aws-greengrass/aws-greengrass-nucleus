@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.deployment.DeploymentTask;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -43,6 +44,7 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -114,7 +116,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() throws IOException {
+    static void setupKernel() throws IOException, URISyntaxException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
@@ -129,7 +131,7 @@ class DeploymentTaskIntegrationTest {
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
         // pre-load contents to package store
         Path localStoreContentPath =
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").getPath());
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
         copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
     }
 
@@ -161,7 +163,12 @@ class DeploymentTaskIntegrationTest {
         Consumer<EvergreenStructuredLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && listOfExpectedMessages.contains(messageOnStdout)) {
+            if (messageOnStdout == null) {
+                return;
+            }
+            // Windows has quotes in the echo, so strip them
+            messageOnStdout = messageOnStdout.replaceAll("\"", "");
+            if (listOfExpectedMessages.contains(messageOnStdout)) {
                 //TODO: Deduping is needed, as currently kernel is running the GreenSignal and Mosquitto dependencies
                 // multiple times before the CustomerApp runs. This should not be the expected behavior. Sim to
                 // capture this https://sim.amazon.com/issues/P34042537
@@ -195,7 +202,12 @@ class DeploymentTaskIntegrationTest {
         Consumer<EvergreenStructuredLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
+            if (messageOnStdout == null) {
+                return;
+            }
+            // Windows has quotes in the echo, so strip them
+            messageOnStdout = messageOnStdout.replaceAll("\"", "");
+            if (messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
                 outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
                 countDownLatch.countDown();
             }
@@ -230,7 +242,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
         //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
         assertEquals(5, services.size());
@@ -245,7 +257,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
         //"should contain main, YellowSignal, RedSignal"
         assertEquals(3, services.size());
@@ -272,7 +284,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
         // should contain main, YellowSignal and RedSignal
         assertEquals(3, services.size());
@@ -288,7 +300,7 @@ class DeploymentTaskIntegrationTest {
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
         // should contain main, RedSignal, BreakingService, Mosquitto and GreenSignal
         assertEquals(5, services.size());
@@ -320,7 +332,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
         // should contain main, YellowSignal and RedSignal
         assertEquals(3, services.size());
@@ -336,7 +348,7 @@ class DeploymentTaskIntegrationTest {
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
-                .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
+                .map(EvergreenService::getName).collect(Collectors.toList());
 
         // should contain main, YellowSignal, RedSignal
         assertEquals(3, services.size());
@@ -378,7 +390,7 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(),
                 System.currentTimeMillis());
 
-        assertTrue(cdlUpdateStarted.await(30, TimeUnit.SECONDS));
+        assertTrue(cdlUpdateStarted.await(40, TimeUnit.SECONDS));
         resultFuture.cancel(true);
 
         assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));

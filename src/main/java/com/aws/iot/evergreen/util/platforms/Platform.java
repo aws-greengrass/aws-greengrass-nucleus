@@ -36,4 +36,8 @@ public abstract class Platform {
 
     public abstract void killProcessAndChildren(Process process, boolean force)
             throws IOException, InterruptedException;
+
+    public abstract String[] getShellForCommand(String command);
+
+    public abstract int exitCodeWhenCommandDoesNotExist();
 }

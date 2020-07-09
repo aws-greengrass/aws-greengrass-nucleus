@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,7 @@ class ExecTest {
         List<String> stdoutMessages = new ArrayList<>();
         List<String> stderrMessages = new ArrayList<>();
 
-        new Exec().withShell("pwd")
+        new Exec().withShell("echo hello")
                 .withOut(str -> stdoutMessages.add(str.toString()))
                 .withErr(str -> stderrMessages.add(str.toString()))
                 .background(exc -> done.countDown());
@@ -52,7 +53,7 @@ class ExecTest {
         assertTrue(done.await(1, TimeUnit.SECONDS));
         assertEquals(0, stderrMessages.size());
         assertEquals(1, stdoutMessages.size());
-        assertTrue(stdoutMessages.get(0).startsWith("/"));
+        assertTrue(stdoutMessages.get(0).startsWith("hello"));
     }
 
     @Test
@@ -79,12 +80,12 @@ class ExecTest {
         String command = "echo " + expectedOutput;
         StringBuilder stdout = new StringBuilder();
         StringBuilder stderr = new StringBuilder();
-        Consumer<CharSequence> stdoutConsumer = c -> stdout.append(c);
-        Consumer<CharSequence> stderrConsumer = c -> stderr.append(c);
-        exec = exec.withShell(command).withOut(stdoutConsumer).withErr(stderrConsumer);
+        Consumer<CharSequence> stdoutConsumer = stdout::append;
+        Consumer<CharSequence> stderrConsumer = stderr::append;
+        exec.withShell(command).withOut(stdoutConsumer).withErr(stderrConsumer);
         assertTrue(exec.successful(false));
         // new line for shell
-        assertEquals(expectedOutput.length() + 1, stdout.length());
+        assertEquals(expectedOutput.length() + System.lineSeparator().length(), stdout.length());
         assertEquals(0, stderr.length());
 
         // reinit consumers
@@ -92,45 +93,46 @@ class ExecTest {
         stderr.setLength(0);
 
         String stdErrCommand = command + " 1>&2";
-        exec = exec.withShell(stdErrCommand);
+        exec.withShell(stdErrCommand);
         assertFalse(exec.successful(false));
         assertEquals(0, stdout.length());
-        // new line for shell
-        assertEquals(expectedOutput.length() + 1, stderr.length());
+        // new line for shell and 1 more for windows because it actually includes the trailing space before the 1>&2
+        assertEquals(expectedOutput.length() + System.lineSeparator().length() + (Exec.isWindows ? 1 : 0),
+                stderr.length());
         exec.close();
     }
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_changing_directories_THEN_success() throws InterruptedException, IOException {
-        Exec exec = new Exec();
-        final String getWorkingDirCmd = "pwd";
-        // By default Exec uses home current directory for exec
-        String expectedDir = System.getProperty("user.dir");
-        String defaultDir = exec.withExec(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, defaultDir);
+        final Exec exec = new Exec();
+        final String getWorkingDirCmd = Exec.isWindows ? "cd" : "pwd";
+
+        // By default Exec uses home as current directory for exec
+        Path expectedDir = Paths.get(System.getProperty("user.dir"));
+        String defaultDir = exec.withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(defaultDir)));
 
         // Now change it to some other directory
-        // TODO: Change this to a proper root to work on all platforms
-        expectedDir = "/";
-        String changedDir = exec.cd(new File(expectedDir)).withExec(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, changedDir);
+        expectedDir = Paths.get("/").toAbsolutePath();
+        String changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
 
         // Now use the file argument to change into another directory again
         // File argument would use the current directory ("/") as base
-        expectedDir = System.getProperty("user.home");
-        changedDir = exec.cd(expectedDir).withExec(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, changedDir);
+        expectedDir = Paths.get(System.getProperty("user.home")).toAbsolutePath();
+        changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
 
         // Now change it to root again
-        expectedDir = "/";
-        changedDir = exec.cd(new File(expectedDir)).withExec(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, changedDir);
+        expectedDir = Paths.get("/").toAbsolutePath();
+        changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
 
         // by default cd change to home directory
-        expectedDir = System.getProperty("user.home");
-        changedDir = exec.cd().withExec(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(expectedDir, changedDir);
+        expectedDir = Paths.get(System.getProperty("user.home"));
+        changedDir = exec.cd(/* no argument */).withShell(getWorkingDirCmd).execAndGetStringOutput();
+        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
         exec.close();
     }
 

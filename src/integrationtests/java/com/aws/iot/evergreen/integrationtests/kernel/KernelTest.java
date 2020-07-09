@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -103,8 +105,9 @@ class KernelTest extends BaseITCase {
         testGroup(0);
         System.out.println("Group 0 passed, now for the harder stuff");
 
-        kernel.findServiceTopic("main").find("lifecycle", "run")
-                .withValue("while true; do\ndate; sleep 5; echo NEWMAIN\ndone");
+        kernel.findServiceTopic("main")
+                .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC)
+                .withValue("echo NEWMAIN");
         testGroup(1);
 
         System.out.println("Group 1 passed");
@@ -139,7 +142,7 @@ class KernelTest extends BaseITCase {
     }
 
     private void testGroup(int group) throws Exception {
-        COUNT_DOWN_LATCHES.get(group).await(20, TimeUnit.SECONDS);
+        COUNT_DOWN_LATCHES.get(group).await(30, TimeUnit.SECONDS);
 
         for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
             if (pattern.count > 0 && pattern.group == group) {
@@ -187,7 +190,7 @@ class KernelTest extends BaseITCase {
                 serviceInstalled.countDown();
             }
         });
-        assertTrue(serviceInstalled.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceInstalled.await(15, TimeUnit.SECONDS));
     }
 
     @Test
@@ -203,7 +206,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(15, TimeUnit.SECONDS));
     }
 
     @Test
@@ -269,22 +272,23 @@ class KernelTest extends BaseITCase {
                 return;
             }
 
-            expectedStateTransitionList.stream().filter(x -> x.group == currentGroup.get() && !x.seen)
+            expectedStateTransitionList.stream()
+                    .filter(x -> x.group == currentGroup.get() && !x.seen)
                     .filter(expected -> service.getName().equals(expected.serviceName) && (oldState.equals(expected.was)
-                            || expected.was == null) && newState.equals(expected.current)).forEach(expected -> {
+                            || expected.was == null) && newState.equals(expected.current))
+                    .forEach(expected -> {
                 LogManager.getLogger(getClass())
                         .info("Just saw state event for service {}: {} => {}", expected.serviceName, expected.was,
                                 expected.current);
                 expected.seen = true;
-
-                if (expectedStateTransitionList.isEmpty()) {
-                    assertionLatch.countDown();
-                }
             });
             if (expectedStateTransitionList.stream().noneMatch(x -> x.group == currentGroup.get() && !x.seen)) {
                 currentGroup.getAndIncrement();
             }
             expectedStateTransitionList.removeIf(x -> x.seen);
+            if (expectedStateTransitionList.isEmpty()) {
+                assertionLatch.countDown();
+            }
         });
 
         kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());

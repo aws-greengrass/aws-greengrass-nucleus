@@ -568,10 +568,14 @@ public final class Utils {
      */
     public static void createPaths(Path... paths) throws IOException {
         for (Path p: paths) {
-            // This only supports POSIX compliant file permission right now. We will need to
-            // change this when trying to support Evergreen in Non-POSIX OS.
-            Files.createDirectories(p,
-                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+            if (Exec.isWindows) {
+                Files.createDirectories(p);
+            } else {
+                // This only supports POSIX compliant file permission right now. We will need to
+                // change this when trying to support Evergreen in Non-POSIX OS.
+                Files.createDirectories(p,
+                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+            }
         }
     }
 
