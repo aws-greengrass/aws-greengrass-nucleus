@@ -3,14 +3,21 @@ services:
     dependencies:
       - service_with_dynamic_config
     lifecycle:
-      run:
-        echo "Running main" && sleep 100
+      posix:
+        run:
+          echo "Running main" && sleep 100
+      windows:
+        run:
+          powershell -command echo \"Running main\"; sleep 1000
   service_with_dynamic_config:
     lifecycle:
       install:
         echo "Installing service_with_dynamic_config"
       run:
-        echo "Running service_with_dynamic_config" && sleep 1000
+        posix:
+          echo "Running service_with_dynamic_config" && sleep 1000
+        windows:
+          powershell -command echo \"Running service_with_dynamic_config\"; sleep 1000
     version: 1.0.0
     setenv:
       my_env_var: var1

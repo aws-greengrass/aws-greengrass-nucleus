@@ -57,17 +57,24 @@ services:
     lifecycle:
       install:
         all: echo All installed
-      run: |-
-        echo $PATH
-        pwd
-        printenv
-        while true; do
-        date; sleep 5; echo MAIN IS RUNNING
-        done
+      posix:
+        run: |-
+          echo $PATH
+          pwd
+          printenv
+          while true; do
+          date; sleep 5; echo MAIN IS RUNNING
+          done
+      windows:
+        run: >-
+          powershell -command "& { while(1) {echo ANSWER=$env:ANSWER; echo EVERGREEN_UID=$env:EVERGREEN_UID;
+          echo JUSTME=$env:JUSTME; sleep 5; echo \"MAIN IS RUNNING\"; } }"
     dependencies:
       macos:
         - git
         - hello-docker
+        - ticktock:SOFT
+      all:
         - ticktock:SOFT
       linux:
         - git

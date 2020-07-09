@@ -8,25 +8,14 @@ Platforms:
   - ubuntu
   - debian
   - macos
+  - windows
 Lifecycle:
   startup:
-    macos: echo "Hello this is mosquitto getting started"
-    ubuntu: echo "Hello this is mosquitto getting started"
-    debian: echo "Hello this is mosquitto getting started"
+    script: echo "Hello this is mosquitto getting started"
   install:
-    macos:
-      script: echo "Hello This is mosquitto being installed"
-    ubuntu:
-      script: echo "Hello This is mosquitto being installed"
-    debian:
-      script: echo "Hello This is mosquitto being installed"
+    script: echo "Hello This is mosquitto being installed"
   shutdown:
-    macos:
-      script: echo "By mosquitto signing off!"
-    ubuntu:
-      script: echo "By mosquitto signing off!"
-    debian:
-      script: echo "By mosquitto signing off!"
+    script: echo "By mosquitto signing off!"
 Dependencies:
   all:
     GreenSignal:
