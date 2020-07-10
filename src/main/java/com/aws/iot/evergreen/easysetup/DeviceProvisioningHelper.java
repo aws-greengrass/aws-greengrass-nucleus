@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 
@@ -297,7 +298,7 @@ public class DeviceProvisioningHelper {
      */
     public void updateKernelConfigWithTesRoleInfo(Kernel kernel, String roleAliasName) {
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
+        tesTopics.lookupTopics(PARAMETERS_CONFIG_KEY).createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
     }
 
     // TODO : Remove once global packages are supported

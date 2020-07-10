@@ -13,6 +13,8 @@ import com.aws.iot.evergreen.util.Coerce;
 import java.io.IOException;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+
 @ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
 public class TokenExchangeService extends EvergreenService {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
@@ -39,12 +41,12 @@ public class TokenExchangeService extends EvergreenService {
                                 CredentialsProviderBuilder credentialsProviderBuilder) {
         super(topics);
         // TODO: Add support for other params like role Aliases
-        topics.lookup(PORT_TOPIC)
+        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
                 .dflt(DEFAULT_PORT)
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
 
-        topics.lookup(IOT_ROLE_ALIAS_TOPIC)
+        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
                 .subscribe((why, newv) ->
                         iotRoleAlias = Coerce.toString(newv));
 

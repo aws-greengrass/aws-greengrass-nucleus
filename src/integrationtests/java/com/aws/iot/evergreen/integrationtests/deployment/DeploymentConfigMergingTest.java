@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_SAFE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -512,7 +512,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         Configuration config = kernel.getConfig();
-        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
                 .withNewerValue(System.currentTimeMillis(), "initialValue");
 
         // WHEN
@@ -532,7 +532,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("sleeperB")) {
                 if (newState.equals(State.ERRORED)) {
-                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
                             .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
                 }
                 if (newState.equals(State.BROKEN)) {
@@ -557,7 +557,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // Value set in listener should not have been rolled back
         assertEquals("setOnErrorValue",
-                config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", DEPLOYMENT_SAFE_NAMESPACE_TOPIC, "testKey")
+                config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
                         .getOnce());
         // remove listener
         kernel.getContext().removeGlobalStateChangeListener(listener);
