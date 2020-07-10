@@ -97,10 +97,10 @@ class AuthHandlerTest {
         Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
 
-        AuthHandler.registerAuthToken(new EvergreenService(
-                config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME)));
-        Object authToken = config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME, SERVICE_UNIQUE_ID_KEY)
-                .getOnce();
+        EvergreenService testService = new EvergreenService(
+                config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME));
+        AuthHandler.registerAuthToken(testService);
+        Object authToken = testService.getRuntimeConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce();
 
         assertNotNull(authToken);
         assertEquals(SERVICE_NAME, config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, AUTH_TOKEN_LOOKUP_KEY, (String) authToken)

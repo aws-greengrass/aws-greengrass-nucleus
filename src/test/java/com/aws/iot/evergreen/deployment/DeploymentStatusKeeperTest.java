@@ -4,9 +4,14 @@ import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
@@ -26,7 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith({MockitoExtension.class})
 public class DeploymentStatusKeeperTest {
+
+    @Mock
+    private DeploymentService deploymentService;
 
     private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
     private DeploymentStatusKeeper deploymentStatusKeeper;
@@ -36,8 +45,13 @@ public class DeploymentStatusKeeperTest {
     @BeforeEach
     public void setup() {
         context = new Context();
+        Configuration config = new Configuration(context);
+        Mockito.when(deploymentService.getRuntimeConfig()).thenReturn(
+                config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                        DeploymentService.DEPLOYMENT_SERVICE_TOPICS, EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC));
+
         deploymentStatusKeeper = new DeploymentStatusKeeper();
-        deploymentStatusKeeper.setConfig(new Configuration(context));
+        deploymentStatusKeeper.setDeploymentService(deploymentService);
         processedDeployments = deploymentStatusKeeper.getProcessedDeployments();
     }
 
