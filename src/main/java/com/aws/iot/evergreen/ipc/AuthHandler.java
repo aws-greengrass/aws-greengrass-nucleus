@@ -43,7 +43,7 @@ public class AuthHandler implements InjectionActions {
      * @param s service to generate an auth token for
      */
     public static void registerAuthToken(EvergreenService s) {
-        Topic uid = s.getServiceConfig().createLeafChild(SERVICE_UNIQUE_ID_KEY).withParentNeedsToKnow(false);
+        Topic uid = s.getRuntimeConfig().createLeafChild(SERVICE_UNIQUE_ID_KEY).withParentNeedsToKnow(false);
         String authToken = Utils.generateRandomString(16).toUpperCase();
         uid.withValue(authToken);
         Topic tokenTopic = s.getServiceConfig().parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken);

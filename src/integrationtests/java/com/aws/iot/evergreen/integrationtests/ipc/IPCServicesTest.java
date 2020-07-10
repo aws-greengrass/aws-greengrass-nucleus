@@ -21,6 +21,7 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotFoundException;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
@@ -114,14 +115,11 @@ class IPCServicesTest {
 
     @Test
     void registerResourceTest() throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("mqtt").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()).build();
+        KernelIPCClientConfig config = getIPCConfigForService("mqtt");
         client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
-        KernelIPCClientConfig config2 = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+        KernelIPCClientConfig config2 = getIPCConfigForService("ServiceName");
         IPCClient client2 = new IPCClientImpl(config2);
         try {
             ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
@@ -173,9 +171,7 @@ class IPCServicesTest {
 
     @Test
     void registerResourcePermissionTest() throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
@@ -188,9 +184,7 @@ class IPCServicesTest {
 
     @Test
     void lifecycleTest(ExtensionContext context) throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
 
@@ -209,9 +203,7 @@ class IPCServicesTest {
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed()
             throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -242,9 +234,7 @@ class IPCServicesTest {
     @Test
     void GIVEN_ConfigStoreClient_WHEN_read_THEN_value_returned()
             throws Exception {
-        KernelIPCClientConfig config = KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic("ServiceName").findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -264,5 +254,12 @@ class IPCServicesTest {
         } finally {
             custom.remove();
         }
+    }
+
+    private KernelIPCClientConfig getIPCConfigForService(String serviceName) {
+        return  KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.findServiceTopic(serviceName)
+                        .find(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC, SERVICE_UNIQUE_ID_KEY).getOnce())
+                .build();
     }
 }
