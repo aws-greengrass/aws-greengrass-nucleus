@@ -9,7 +9,11 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [Linux, Windows]
+    name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -26,22 +30,29 @@ jobs:
         continue-on-error: true
       - name: Build with Maven
         run: mvn -ntp -U clean verify
+        shell: cmd
+        if: matrix.os == 'Windows'
+      - name: Build with Maven
+        run: mvn -ntp -U clean verify
+        if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
         with:
-          name: Failed Test Report
+          name: Failed Test Report ${{ matrix.os }}
           path: target/surefire-reports
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
         if: always()
         with:
-          name: Coverage Report
+          name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
       - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
+        if: matrix.os == 'Linux'
       - name: Convert Jacoco interation test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
+        if: matrix.os == 'Linux'
       - name: cobertura-report-unit-test
         uses: shaguptashaikh/cobertura-action@master
         continue-on-error: true
@@ -84,9 +95,12 @@ jobs:
           report_name: Integration Tests Coverage Report
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
-        run: mvn -ntp install -DskipTests && mvn -ntp -f src/test/evergreen-kernel-benchmark install
+        run: |
+          mvn -ntp install -DskipTests
+          mvn -ntp -f src/test/evergreen-kernel-benchmark install
+        if: matrix.os == 'Linux'
   e2e-test:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     needs: build
     steps:
       - uses: actions/checkout@v2
@@ -120,7 +134,7 @@ jobs:
           path: target/surefire-reports
   publish:
     needs: build
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2

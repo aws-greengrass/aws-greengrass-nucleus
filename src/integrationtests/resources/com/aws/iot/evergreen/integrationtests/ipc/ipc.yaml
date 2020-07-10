@@ -6,8 +6,6 @@ services:
       - mqtt
       - ServiceName
     lifecycle:
-      run: |-
-        sleep 300
 
   mqtt:
     dependencies:
@@ -16,8 +14,6 @@ services:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
     lifecycle:
-      run:
-        exit 0
 
   ServiceName:
     dependencies:
@@ -26,4 +22,7 @@ services:
       - http-resource
     lifecycle:
       run:
-        sleep 60
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100

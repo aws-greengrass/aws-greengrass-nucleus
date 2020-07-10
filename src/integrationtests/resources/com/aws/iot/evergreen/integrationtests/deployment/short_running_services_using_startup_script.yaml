@@ -3,26 +3,22 @@ services:
   sleeperB:
     lifecycle:
       posix:
-        run: |-
-          while true; do
+        startup: |-
           date; echo sleeperB_running; sleep 5
-          done
       windows:
-        run: |-
-          powershell -command "& { while(1) { echo sleeperB_running; sleep 5 } }"
+        startup: >-
+          powershell -command "& date; echo sleeperB_running; sleep 5"
 
   sleeperA:
     dependencies:
       - sleeperB
     lifecycle:
       posix:
-        run: |-
-          while true; do
+        startup: |-
           date; echo sleeperA_running; sleep 5
-          done
       windows:
-        run: |-
-          powershell -command "& { while(1) { echo sleeperA_running; sleep 5 } }"
+        startup: >-
+          powershell -command "& date; echo sleeperB_running; sleep 5"
 
   main:
     dependencies:
@@ -35,5 +31,5 @@ services:
           sleep 5
           done
       windows:
-        run: |-
-          powershell -command while(1) { sleep 5 }
+        run: >-
+          powershell -command "& { while(1) { sleep 5 } }"

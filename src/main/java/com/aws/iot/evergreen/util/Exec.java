@@ -61,28 +61,31 @@ public final class Exec implements Closeable {
     static {
         addPathEntries(System.getenv("PATH"));
         try {
-            // This bit is gross: under some circumstances (like IDEs launched from the
-            // macos Dock) the PATH environment variable doesn't match the path one expects
-            // after the .profile script is executed.  Fire up a login shell, then grab it's
-            // path variable, but without using Exec shorthands to avoid initialization
-            // order paradoxes.
-            Process hack = Runtime.getRuntime().exec(new String[]{"sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'"});
-            StringBuilder path = new StringBuilder();
+            if (!isWindows) {
+                // This bit is gross: under some circumstances (like IDEs launched from the
+                // macos Dock) the PATH environment variable doesn't match the path one expects
+                // after the .profile script is executed.  Fire up a login shell, then grab it's
+                // path variable, but without using Exec shorthands to avoid initialization
+                // order paradoxes.
+                Process hack =
+                        Runtime.getRuntime().exec(new String[]{"sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'"});
+                StringBuilder path = new StringBuilder();
 
-            Thread bg = new Thread(() -> {
-                try (InputStream in = hack.getInputStream()) {
-                    for (int c = in.read(); c >= 0; c = in.read()) {
-                        path.append((char) c);
+                Thread bg = new Thread(() -> {
+                    try (InputStream in = hack.getInputStream()) {
+                        for (int c = in.read(); c >= 0; c = in.read()) {
+                            path.append((char) c);
+                        }
+                    } catch (Throwable ignore) {
                     }
-                } catch (Throwable ignore) {
-                }
-            });
-            bg.start();
-            // TODO: configurable timeout?
-            bg.join(2000);
-            addPathEntries(path.toString().trim());
-            // Ensure some level of sanity
-            ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
+                });
+                bg.start();
+                // TODO: configurable timeout?
+                bg.join(2000);
+                addPathEntries(path.toString().trim());
+                // Ensure some level of sanity
+                ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
+            }
         } catch (Throwable ex) {
             staticLogger.atError().log("Error while initializing PATH", ex);
         }
@@ -145,7 +148,7 @@ public final class Exec implements Closeable {
     }
 
     public static String sh(File dir, String command) throws InterruptedException, IOException {
-        return new Exec().cd(dir).withShell(command).execAndGetStringOutput();
+        return new Exec().cd(dir).withExec("sh", "-c", command).execAndGetStringOutput();
     }
 
     public static String sh(Path dir, String command) throws InterruptedException, IOException {
@@ -261,7 +264,7 @@ public final class Exec implements Closeable {
     }
 
     public Exec cd(String d) {
-        return cd(new File(dir, d));
+        return cd(dir.toPath().toAbsolutePath().resolve(Paths.get(d)).toAbsolutePath().toFile());
     }
 
     public Exec cd() {
@@ -283,7 +286,7 @@ public final class Exec implements Closeable {
     }
 
     public Exec withShell(String s) {
-        return withExec("sh", "-c", s);
+        return withExec(Platform.getInstance().getShellForCommand(s));
     }
 
     /**

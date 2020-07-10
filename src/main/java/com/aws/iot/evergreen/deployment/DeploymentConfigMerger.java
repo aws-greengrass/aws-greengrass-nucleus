@@ -45,8 +45,6 @@ public class DeploymentConfigMerger {
     private static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
 
-    public static final String DEPLOYMENT_SAFE_NAMESPACE_TOPIC = "notRolledBack";
-
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
     @Inject
@@ -114,7 +112,15 @@ public class DeploymentConfigMerger {
         // Get the timestamp before mergeMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
-        kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
+        // when deployment adds a new dependency (component B) to component A
+        // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
+        // executing mergeMap using publish thread ensures this
+        //TODO: runOnPublishQueueAndWait does not wait because updateActionForDeployment itself is run on the
+        // publish queue. There needs to be another mechanism to ensure that mergemap completes and
+        // all listeners trigger before rest of deployment work flow is executed.
+        kernel.getContext().runOnPublishQueueAndWait(() ->
+                kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig));
+
         // wait until topic listeners finished processing mergeMap changes.
         kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
@@ -170,7 +176,7 @@ public class DeploymentConfigMerger {
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
             ConfigurationReader.mergeTLogInto(kernel.getConfig(), getSnapshotFilePath(deploymentId), true,
-                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
+                    s -> !s.childOf(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
@@ -181,7 +187,7 @@ public class DeploymentConfigMerger {
             return;
         }
         // wait until topic listeners finished processing read changes.
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
             kernel.getContext().get(ExecutorService.class).execute(() -> {
                 // TODO: Add timeout
