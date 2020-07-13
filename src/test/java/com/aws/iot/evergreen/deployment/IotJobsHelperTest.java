@@ -192,6 +192,7 @@ public class IotJobsHelperTest {
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
         DeploymentTaskMetadata mockCurrentDeploymentTaskMetadata = mock(DeploymentTaskMetadata.class);
         when(mockCurrentDeploymentTaskMetadata.getDeploymentType()).thenReturn(IOT_JOBS);
+        when(mockCurrentDeploymentTaskMetadata.isCancellable()).thenReturn(true);
         when(mockDeploymentService.getCurrentDeploymentTaskMetadata()).thenReturn(mockCurrentDeploymentTaskMetadata);
         iotJobsHelper.subscribeToJobsTopics();
         verify(mockIotJobsClient, times(2)).SubscribeToDescribeJobExecutionAccepted(any(), eq(
@@ -232,6 +233,7 @@ public class IotJobsHelperTest {
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
         DeploymentTaskMetadata mockCurrentDeploymentTaskMetadata = mock(DeploymentTaskMetadata.class);
         when(mockCurrentDeploymentTaskMetadata.getDeploymentType()).thenReturn(IOT_JOBS);
+        when(mockCurrentDeploymentTaskMetadata.isCancellable()).thenReturn(true);
         when(mockDeploymentService.getCurrentDeploymentTaskMetadata()).thenReturn(mockCurrentDeploymentTaskMetadata);
         iotJobsHelper.subscribeToJobsTopics();
         verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), eq(
@@ -263,6 +265,7 @@ public class IotJobsHelperTest {
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
         DeploymentTaskMetadata mockCurrentDeploymentTaskMetadata = mock(DeploymentTaskMetadata.class);
         when(mockCurrentDeploymentTaskMetadata.getDeploymentType()).thenReturn(LOCAL);
+        when(mockCurrentDeploymentTaskMetadata.isCancellable()).thenReturn(true);
         when(mockDeploymentService.getCurrentDeploymentTaskMetadata()).thenReturn(mockCurrentDeploymentTaskMetadata);
         iotJobsHelper.subscribeToJobsTopics();
         verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), eq(

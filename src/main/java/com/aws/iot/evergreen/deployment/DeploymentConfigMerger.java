@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -231,7 +232,7 @@ public class DeploymentConfigMerger {
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
      */
-    public static void waitForServicesToStart(Set<EvergreenService> servicesToTrack, long mergeTime)
+    public static void waitForServicesToStart(Collection<EvergreenService> servicesToTrack, long mergeTime)
             throws InterruptedException, ServiceUpdateException {
         // Relying on the fact that all service lifecycle steps should have timeouts,
         // assuming this loop will not get stuck waiting forever
