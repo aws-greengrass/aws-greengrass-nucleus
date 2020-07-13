@@ -23,9 +23,9 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.DefaultConcurrentHashMap;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -39,7 +39,7 @@ import javax.inject.Inject;
  */
 public class PubSubIPCAgent {
     // Map from connection --> Function to call for each published message
-    private static final Map<String, List<Object>> listeners = new DefaultConcurrentHashMap<>(ArrayList::new);
+    private static final Map<String, Set<Object>> listeners = new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new);
     private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
@@ -54,11 +54,11 @@ public class PubSubIPCAgent {
      * @return response
      */
     public PubSubGenericResponse publish(PubSubPublishRequest publishRequest) {
-        if (listeners.containsKey(publishRequest.getTopic())) {
+        if (!listeners.containsKey(publishRequest.getTopic())) {
             // Still technically successful, just no one was subscribed
             return new PubSubGenericResponse(PubSubResponseStatus.Success, null);
         }
-        List<Object> contexts = listeners.get(publishRequest.getTopic());
+        Set<Object> contexts = listeners.get(publishRequest.getTopic());
 
         executor.execute(() -> {
             contexts.forEach(c -> {
@@ -80,10 +80,9 @@ public class PubSubIPCAgent {
         log.debug("Subscribing to topic {}, {}", subscribeRequest.getTopic(), context);
         listeners.get(subscribeRequest.getTopic()).add(context);
         context.onDisconnect(() -> {
-            log.debug("Client {} disconnected, removing subscription {}", context, subscribeRequest.getTopic());
-            List<Object> cbs = listeners.get(subscribeRequest.getTopic());
-            if (cbs != null) {
-                cbs.remove(context);
+            if (listeners.containsKey(subscribeRequest.getTopic()) && listeners.get(subscribeRequest.getTopic())
+                    .remove(context)) {
+                log.debug("Client {} disconnected, removing subscription {}", context, subscribeRequest.getTopic());
             }
         });
 
@@ -122,6 +121,7 @@ public class PubSubIPCAgent {
      * Unsubscribe from a topic.
      *
      * @param unsubscribeRequest request containing the topic to unsubscribe from
+     * @param cb                 callback to remove from subscription
      */
     public void unsubscribe(PubSubUnsubscribeRequest unsubscribeRequest, Consumer<MessagePublishedEvent> cb) {
         log.debug("Unsubscribing from topic {}", unsubscribeRequest.getTopic());
