@@ -2,34 +2,9 @@
 services:
   main:
     lifecycle:
-      install:
-        all: echo All installed
-      run: |-
-        echo $PATH
-        pwd
-        printenv
-        while true; do
-        date; sleep 5; echo RUNNING
-        done
-    dependencies:
-      - curl
-  TokenExchangeService:
-    port: 8000
-  curl:
     dependencies:
       - TokenExchangeService
+  TokenExchangeService:
+    parameters:
+      port: 2020
     lifecycle:
-      run: |-
-        echo "TES starting"
-        sleep 5
-        tes_url=$(printenv AWS_CONTAINER_CREDENTIALS_FULL_URI)
-        echo "TES got URI $tes_url"
-        tes_response=$(curl -s -o /dev/null -w "%{http_code}" $tes_url)
-        echo "TES got curl"
-        if [ $tes_response -ne 200 ]; then
-          echo "Failed: TES returned non 200 status"
-          exit 1
-        else
-          echo "Success: TES was success"
-          exit 0
-        fi

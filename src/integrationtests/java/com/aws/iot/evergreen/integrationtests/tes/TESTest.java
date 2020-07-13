@@ -1,28 +1,36 @@
 package com.aws.iot.evergreen.integrationtests.tes;
 
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
+import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.iot.evergreen.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
-import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(EGExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class TESIntegrationTest {
+@Tag("E2E")
+class TESTest {
 
     private static Kernel kernel;
     private ThingInfo thingInfo;
@@ -36,7 +44,7 @@ class TESIntegrationTest {
     @BeforeEach
     void setupKernel() throws IOException {
         kernel = new Kernel();
-        kernel.parseArgs("-i", TESIntegrationTest.class.getResource("tesExample.yaml").toString());
+        kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
         provision(kernel);
     }
@@ -45,17 +53,39 @@ class TESIntegrationTest {
     void tearDown() {
         kernel.shutdown();
         deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
-        deviceProvisioningHelper.cleanUpIotRoleForTest(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+        IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION),
+                IamSdkClientFactory.getIamClient(),
+                TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
     }
 
     @Test
     void GIVEN_iot_role_alias_WHEN_tes_is_queried_THEN_valid_credentials_are_returned() throws Exception {
+        CountDownLatch tesRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals(TOKEN_EXCHANGE_SERVICE_TOPICS) && newState.equals(State.RUNNING)) {
+                tesRunning.countDown();
+            }
+        });
         kernel.launch();
+        assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
         Thread.sleep(5000);
-        String url = kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, "AWS_CONTAINER_CREDENTIALS_FULL_URI").getOnce().toString();
-        assertNotNull(url);
-        String credentials = Exec.sh(String.format("curl -s -o /dev/stdout %s", url));
-        assertThat(credentials, matchesPattern(
+        String urlString = kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).getOnce().toString();
+        assertNotNull(urlString);
+        URL url = new URL(urlString);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        int status = con.getResponseCode();
+        assertEquals(status, 200);
+        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+        StringBuilder response = new StringBuilder();
+        String responseLine = in.readLine();
+        while (responseLine != null) {
+            response.append(responseLine);
+            responseLine = in.readLine();
+        }
+        in.close();
+        con.disconnect();
+        assertThat(response.toString(), matchesPattern(
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
 
@@ -65,10 +95,8 @@ class TESIntegrationTest {
         deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        if (tesTopics != null) {
-            System.err.println(tesTopics);
-        }
         tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(TES_ROLE_ALIAS_NAME);
+        deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
 
     }
 }
