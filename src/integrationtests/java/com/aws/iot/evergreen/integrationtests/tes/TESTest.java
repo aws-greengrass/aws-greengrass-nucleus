@@ -80,14 +80,15 @@ class TESTest {
         con.setRequestMethod("GET");
         int status = con.getResponseCode();
         assertEquals(status, 200);
-        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
         StringBuilder response = new StringBuilder();
-        String responseLine = in.readLine();
-        while (responseLine != null) {
-            response.append(responseLine);
-            responseLine = in.readLine();
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+            String responseLine = in.readLine();
+            while (responseLine != null) {
+                response.append(responseLine);
+                responseLine = in.readLine();
+            }
+
         }
-        in.close();
         con.disconnect();
         assertThat(response.toString(), matchesPattern(
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
