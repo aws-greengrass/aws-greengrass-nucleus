@@ -94,9 +94,11 @@ public enum State {
     }
 
     /**
-     * Gets the user-friendly name for a state
+     * Gets the user-friendly name for a state.
      */
-    public String getName() { return name;}
+    public String getName() {
+        return name;
+    }
 
     public boolean preceeds(State other) {
         return ordinal() < other.ordinal();
