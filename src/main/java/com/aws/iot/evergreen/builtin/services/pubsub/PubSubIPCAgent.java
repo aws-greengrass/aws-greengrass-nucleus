@@ -1,0 +1,163 @@
+/*
+ * Copyright Amazon.com Inc. or its affiliates.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package com.aws.iot.evergreen.builtin.services.pubsub;
+
+import com.aws.iot.evergreen.ipc.ConnectionContext;
+import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
+import com.aws.iot.evergreen.ipc.common.FrameReader;
+import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
+import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
+import com.aws.iot.evergreen.ipc.services.pubsub.MessagePublishedEvent;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubGenericResponse;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubImpl;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubPublishRequest;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubResponseStatus;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubServiceOpCodes;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.DefaultConcurrentHashMap;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import javax.inject.Inject;
+
+/**
+ * Class to handle business logic for all PubSub requests over IPC.
+ */
+public class PubSubIPCAgent {
+    // Map from connection --> Function to call for each published message
+    private static final Map<String, List<Object>> listeners = new DefaultConcurrentHashMap<>(ArrayList::new);
+    private static final int TIMEOUT_SECONDS = 30;
+
+    @Inject
+    private ExecutorService executor;
+
+    private static final Logger log = LogManager.getLogger(PubSubIPCAgent.class);
+
+    /**
+     * Publish a message to all subscribers.
+     *
+     * @param publishRequest publish request
+     * @return response
+     */
+    public PubSubGenericResponse publish(PubSubPublishRequest publishRequest) {
+        if (listeners.containsKey(publishRequest.getTopic())) {
+            // Still technically successful, just no one was subscribed
+            return new PubSubGenericResponse(PubSubResponseStatus.Success, null);
+        }
+        List<Object> contexts = listeners.get(publishRequest.getTopic());
+
+        executor.execute(() -> {
+            contexts.forEach(c -> {
+                publishToTopic(new MessagePublishedEvent(publishRequest.getTopic(), publishRequest.getPayload()), c);
+            });
+        });
+        return new PubSubGenericResponse(PubSubResponseStatus.Success, null);
+    }
+
+    /**
+     * Handle the subscription request from the user.
+     *
+     * @param subscribeRequest subscribe request
+     * @param context          connection context
+     * @return response code Success if all went well
+     */
+    public PubSubGenericResponse subscribe(PubSubSubscribeRequest subscribeRequest, ConnectionContext context) {
+        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        log.debug("Subscribing to topic {}, {}", subscribeRequest.getTopic(), context);
+        listeners.get(subscribeRequest.getTopic()).add(context);
+        context.onDisconnect(() -> {
+            log.debug("Client {} disconnected, removing subscription {}", context, subscribeRequest.getTopic());
+            List<Object> cbs = listeners.get(subscribeRequest.getTopic());
+            if (cbs != null) {
+                cbs.remove(context);
+            }
+        });
+
+        return new PubSubGenericResponse(PubSubResponseStatus.Success, null);
+    }
+
+    /**
+     * Handle the subscription request from the user.
+     *
+     * @param subscribeRequest subscribe request
+     * @param cb               callback to be called for each published message
+     */
+    public void subscribe(PubSubSubscribeRequest subscribeRequest, Consumer<MessagePublishedEvent> cb) {
+        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        log.debug("Subscribing to topic {}", subscribeRequest.getTopic());
+        listeners.get(subscribeRequest.getTopic()).add(cb);
+    }
+
+    /**
+     * Unsubscribe a client from a topic.
+     *
+     * @param unsubscribeRequest request containing the topic to unsubscribe from
+     * @param context            client to unsubscribe
+     * @return response
+     */
+    public PubSubGenericResponse unsubscribe(PubSubUnsubscribeRequest unsubscribeRequest, ConnectionContext context) {
+        log.debug("Unsubscribing from topic {}, {}", unsubscribeRequest.getTopic(), context);
+        if (listeners.containsKey(unsubscribeRequest.getTopic())) {
+            listeners.get(unsubscribeRequest.getTopic()).remove(context);
+            return new PubSubGenericResponse(PubSubResponseStatus.Success, null);
+        }
+        return new PubSubGenericResponse(PubSubResponseStatus.TopicNotFound, "Topic not found");
+    }
+
+    /**
+     * Unsubscribe from a topic.
+     *
+     * @param unsubscribeRequest request containing the topic to unsubscribe from
+     */
+    public void unsubscribe(PubSubUnsubscribeRequest unsubscribeRequest, Consumer<MessagePublishedEvent> cb) {
+        log.debug("Unsubscribing from topic {}", unsubscribeRequest.getTopic());
+        if (listeners.containsKey(unsubscribeRequest.getTopic())) {
+            listeners.get(unsubscribeRequest.getTopic()).remove(cb);
+        }
+    }
+
+    private void publishToTopic(MessagePublishedEvent event, Object sendTo) {
+        if (sendTo instanceof ConnectionContext) {
+            ConnectionContext context = (ConnectionContext) sendTo;
+
+            log.atDebug().log("Sending publish event {} to {}", event, context);
+
+            try {
+                ApplicationMessage applicationMessage = ApplicationMessage.builder().version(PubSubImpl.API_VERSION)
+                        .opCode(PubSubServiceOpCodes.PUBLISHED.ordinal()).payload(IPCUtil.encode(event)).build();
+                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
+                Future<FrameReader.Message> fut = context.serverPush(BuiltInServiceDestinationCode.PUBSUB.getValue(),
+                        new FrameReader.Message(applicationMessage.toByteArray()));
+
+                try {
+                    fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                    // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    // Log
+                    log.atError("error-sending-pubsub-update").kv("context", context)
+                            .log("Error sending pubsub update to client", e);
+                }
+            } catch (IOException e) {
+                // Log
+                log.atError("error-sending-pubsub-update").kv("context", context)
+                        .log("Error sending pubsub update to client", e);
+            }
+        } else if (sendTo instanceof Consumer) {
+            ((Consumer<MessagePublishedEvent>) sendTo).accept(event);
+        }
+    }
+}

@@ -19,6 +19,7 @@ import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.DefaultConcurrentHashMap;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,7 +39,7 @@ import javax.inject.Inject;
 public class LifecycleIPCAgent implements InjectionActions {
     // Map from service that is listened to --> Map of connection --> Function to call when service state changes
     private static final Map<String, Map<ConnectionContext, BiConsumer<State, State>>> listeners =
-            new ConcurrentHashMap<>();
+            new DefaultConcurrentHashMap<>(ConcurrentHashMap::new);
     private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
@@ -50,9 +51,8 @@ public class LifecycleIPCAgent implements InjectionActions {
     private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
 
     private final GlobalStateChangeListener onServiceChange = (service, oldState, newState) -> {
-        Map<ConnectionContext, BiConsumer<State, State>> callbacks = listeners.get(service.getName());
-        if (callbacks != null) {
-            callbacks.values().forEach(x -> x.accept(oldState, newState));
+        if (listeners.containsKey(service.getName())) {
+            listeners.get(service.getName()).values().forEach(x -> x.accept(oldState, newState));
         }
     };
 
@@ -98,14 +98,9 @@ public class LifecycleIPCAgent implements InjectionActions {
     public LifecycleGenericResponse listenToStateChanges(LifecycleListenRequest lifecycleListenRequest,
                                                          ConnectionContext context) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
-        listeners.compute(lifecycleListenRequest.getServiceName(), (key, old) -> {
-            if (old == null) {
-                old = new ConcurrentHashMap<>();
-            }
-            context.onDisconnect(() -> listeners.values().forEach(map -> map.remove(context)));
-            old.put(context, sendStateUpdateToListener(lifecycleListenRequest, context));
-            return old;
-        });
+        listeners.get(lifecycleListenRequest.getServiceName())
+                .put(context, sendStateUpdateToListener(lifecycleListenRequest, context));
+        context.onDisconnect(() -> listeners.values().forEach(map -> map.remove(context)));
 
         return LifecycleGenericResponse.builder().status(LifecycleResponseStatus.Success).build();
     }
@@ -117,17 +112,15 @@ public class LifecycleIPCAgent implements InjectionActions {
                     StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
                             .service(listenRequest.getServiceName()).build();
 
-            log.info("Pushing state change notification to {} from {} to {}",
-                    listenRequest.getServiceName(), oldState, newState);
+            log.info("Pushing state change notification to {} from {} to {}", listenRequest.getServiceName(), oldState,
+                    newState);
             try {
-                ApplicationMessage applicationMessage =
-                        ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
-                                .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
-                                .payload(IPCUtil.encode(stateTransitionEvent)).build();
+                ApplicationMessage applicationMessage = ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
+                        .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
+                        .payload(IPCUtil.encode(stateTransitionEvent)).build();
                 // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
-                Future<FrameReader.Message> fut =
-                        context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
-                                new FrameReader.Message(applicationMessage.toByteArray()));
+                Future<FrameReader.Message> fut = context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
+                        new FrameReader.Message(applicationMessage.toByteArray()));
 
                 // call the blocking "get" in a separate thread so we don't block the publish queue
                 executor.execute(() -> {
@@ -136,16 +129,14 @@ public class LifecycleIPCAgent implements InjectionActions {
                         // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
                     } catch (InterruptedException | ExecutionException | TimeoutException e) {
                         // Log
-                        log.atError("error-sending-lifecycle-update")
-                                .kv("context", context)
+                        log.atError("error-sending-lifecycle-update").kv("context", context)
                                 .log("Error sending lifecycle update to client", e);
                     }
                 });
 
             } catch (IOException e) {
                 // Log
-                log.atError("error-sending-lifecycle-update")
-                        .kv("context", context)
+                log.atError("error-sending-lifecycle-update").kv("context", context)
                         .log("Error sending lifecycle update to client", e);
             }
         };
