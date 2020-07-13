@@ -40,7 +40,7 @@ public class ConfigurationReaderTest {
         // Create this topic with temp value
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                       SKIP_MERGE_NAMESPACE_KEY, "testTopic").withValue("Test");
-        Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true,
                                                 s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
          // block until all changes are merged in
@@ -57,7 +57,7 @@ public class ConfigurationReaderTest {
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                       SKIP_MERGE_NAMESPACE_KEY, "testTopic")
                                 .withValue("Test");
-        Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
         // block until all changes are merged in
         config.context.runOnPublishQueueAndWait(() -> {});
@@ -74,7 +74,7 @@ public class ConfigurationReaderTest {
                 .withNewerValue(Long.MAX_VALUE, "Test");
         assertEquals("Test", config.find(topicPathToRemove).getOnce());
 
-        Path tlogPath = Paths.get(ConfigurationReaderTest.class.getResource("test.tlog").toURI());
+        Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
 
         // block until all changes are merged in
@@ -137,6 +137,8 @@ public class ConfigurationReaderTest {
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
         config.lookup(ArrayUtils.add(topicPath, "script"))
                 .withNewerValue(Long.MAX_VALUE, "Test");
+        config.context.runOnPublishQueueAndWait(() -> {});
+        assertEquals(Long.MAX_VALUE, config.findNode(topicPath).modtime);
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
