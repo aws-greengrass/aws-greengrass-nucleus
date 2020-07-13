@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.WAIT_SVC_START_POLL_INTERVAL_MILLISEC;
@@ -17,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -25,16 +28,23 @@ import static org.mockito.Mockito.verify;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -49,6 +59,11 @@ public class DeploymentConfigMergerTest {
 
     @Mock
     public Context context;
+
+    @BeforeEach
+    public void beforeEach() {
+        lenient().when(kernel.getContext()).thenReturn(context);
+    }
 
     @AfterEach
     public void afterEach() throws Exception {
@@ -103,11 +118,9 @@ public class DeploymentConfigMergerTest {
         verify(existingService, times(1)).requestReinstall();
     }
 
-        @Test
+    @Test
     public void GIVEN_AggregateServicesChangeManager_WHEN_removeObsoleteService_THEN_obsolete_services_are_removed()
             throws Exception {
-        when(kernel.getContext()).thenReturn(context);
-
         // GIVEN
         EvergreenService oldService = createMockEvergreenService("oldService", kernel);
         when(oldService.isAutostart()).thenReturn(false);
@@ -204,6 +217,75 @@ public class DeploymentConfigMergerTest {
         assertThrows(ServiceUpdateException.class, () -> {
             DeploymentConfigMerger.waitForServicesToStart(newHashSet(mockService), mergeTime);
         });
+    }
+
+    @Test
+    public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() {
+        UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
+        when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+
+        DeploymentDocument doc = new DeploymentDocument();
+        doc.setDeploymentId("NoSafetyCheckDeploy");
+        doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK);
+
+        merger.mergeInNewConfig(doc, new HashMap<>());
+        verify(updateSystemSafelyService, times(0)).addUpdateAction(any(), any());
+
+        doc.setDeploymentId("DeploymentId");
+        doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY);
+
+        merger.mergeInNewConfig(doc, new HashMap<>());
+
+        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), any());
+    }
+
+    @Test
+    public void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
+        ArgumentCaptor<Crashable> cancelledTaskCaptor = ArgumentCaptor.forClass(Crashable.class);
+        UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
+        when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+
+        // GIVEN
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
+
+        Future<DeploymentResult> fut = merger.mergeInNewConfig(doc, new HashMap<>());
+
+        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), cancelledTaskCaptor.capture());
+
+        // WHEN
+        fut.cancel(true);
+        cancelledTaskCaptor.getValue().run();
+
+        // THEN
+        verify(doc, times(0)).getFailureHandlingPolicy();
+    }
+
+    @Test
+    public void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
+        ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
+        UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
+        when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+
+        // GIVEN
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
+
+        merger.mergeInNewConfig(doc, new HashMap<>());
+
+        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), taskCaptor.capture());
+
+        // WHEN
+        taskCaptor.getValue().run();
+
+        // THEN
+        verify(doc).getFailureHandlingPolicy();
     }
 
     private EvergreenService createMockEvergreenService(String name) {

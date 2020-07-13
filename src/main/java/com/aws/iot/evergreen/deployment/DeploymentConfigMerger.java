@@ -27,6 +27,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -63,12 +64,6 @@ public class DeploymentConfigMerger {
     public Future<DeploymentResult> mergeInNewConfig(DeploymentDocument deploymentDocument,
                                                      Map<Object, Object> newConfig) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
-
-        if (newConfig.get(SERVICES_NAMESPACE_TOPIC) == null) {
-            kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
-            totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
-            return totallyCompleteFuture;
-        }
 
         if (DeploymentSafetyPolicy.CHECK_SAFETY.equals(deploymentDocument.getDeploymentSafetyPolicy())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
@@ -108,9 +103,14 @@ public class DeploymentConfigMerger {
             }
         }
 
-        Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-        AggregateServicesChangeManager servicesChangeManager =
-                new AggregateServicesChangeManager(kernel, serviceConfig);
+        final AggregateServicesChangeManager servicesChangeManager;
+        if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
+            servicesChangeManager =
+                    new AggregateServicesChangeManager(kernel, serviceConfig);
+        } else {
+            servicesChangeManager = new AggregateServicesChangeManager(kernel, new HashMap<>());
+        }
 
         // Get the timestamp before mergeMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();

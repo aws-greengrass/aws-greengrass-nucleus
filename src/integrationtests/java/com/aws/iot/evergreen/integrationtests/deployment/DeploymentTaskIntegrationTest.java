@@ -425,7 +425,7 @@ class DeploymentTaskIntegrationTest {
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
 
         // should contain main, NonDisruptableService 1.0.1
-        assertEquals(2, services.size(), "Existing services: " + services.toString());
+        assertEquals(2, services.size(), "Existing services: " + services);
         assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService")
                 .find("version").getOnce());
