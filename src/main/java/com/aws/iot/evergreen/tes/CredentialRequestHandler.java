@@ -71,7 +71,7 @@ public class CredentialRequestHandler implements HttpHandler {
         try {
             final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
                     iotCredentialsPath,
-                    IOT_CREDENTIALS_HTTP_VERB);
+                    IOT_CREDENTIALS_HTTP_VERB, null);
             response = translateToAwsSdkFormat(credentials);
         } catch (AWSIotException e) {
             // TODO: Generate 4xx, 5xx responses for all error scenarios

@@ -35,7 +35,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
 
     @Test
     public void GIVEN_Token_Exchange_Service_Test_WHEN_Started_THEN_Server_Starts() throws InterruptedException {
-        //TOOD: add more tests
+        //TODO: add more tests
         Topic mockTopic = mock(Topic.class);
         when(mockTopic.dflt(anyInt())).thenReturn(mockTopic);
         when(mockTopic.subscribe(any())).thenAnswer((a) -> {

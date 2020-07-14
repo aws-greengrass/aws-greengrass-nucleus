@@ -43,7 +43,7 @@ public class IotConnectionManager implements Closeable {
      * @throws DeviceConfigurationException When unable to initialize this manager.
      */
     @Inject
-    IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
         this.connManager = initConnectionManager(deviceConfiguration);
     }
 
