@@ -74,7 +74,7 @@ public class CredentialRequestHandler implements HttpHandler {
                     IOT_CREDENTIALS_HTTP_VERB);
             response = translateToAwsSdkFormat(credentials);
         } catch (AWSIotException e) {
-            // TODO: Generate 4xx, 5xx responses for all error scnearios
+            // TODO: Generate 4xx, 5xx responses for all error scenarios
             LOGGER.error("Encountered error while fetching credentials", e);
         }
         return response;

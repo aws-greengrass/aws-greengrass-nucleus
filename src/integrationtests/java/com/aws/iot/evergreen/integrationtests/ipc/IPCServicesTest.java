@@ -12,6 +12,8 @@ import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSub;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
@@ -38,6 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +57,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESP
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
@@ -210,7 +214,7 @@ class IPCServicesTest {
         Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
 
         AtomicInteger numCalls = new AtomicInteger();
-        Pair<CompletableFuture<Void>, Consumer<String>> p = TestUtils.asyncAssertOnConsumer((a) -> {
+        Pair<CompletableFuture<Void>, Consumer<String>> p = asyncAssertOnConsumer((a) -> {
             int callNum = numCalls.incrementAndGet();
 
             if (callNum == 1) {
@@ -253,6 +257,37 @@ class IPCServicesTest {
             assertThat(val.get("A"), is("C"));
         } finally {
             custom.remove();
+        }
+    }
+
+    @Test
+    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_THEN_called_with_message()
+            throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        client = new IPCClientImpl(config);
+        PubSub c = new PubSubImpl(client);
+        IPCClientImpl client2 = new IPCClientImpl(config);
+        try {
+            PubSub c2 = new PubSubImpl(client2);
+
+            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+                assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+            });
+            c.subscribeToTopic("a", cb.getRight());
+            c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
+            cb.getLeft().get(2, TimeUnit.SECONDS);
+
+            // Now unsubscribe and make sure that we only got the first message in the first client
+            c.unsubscribeFromTopic("a");
+            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb2 = asyncAssertOnConsumer((m) -> {
+                assertEquals("second message", new String(m, StandardCharsets.UTF_8));
+            });
+            c2.subscribeToTopic("a", cb2.getRight());
+            c2.publishToTopic("a", "second message".getBytes(StandardCharsets.UTF_8));
+            cb2.getLeft().get(2, TimeUnit.SECONDS);
+            cb.getLeft().get(2, TimeUnit.SECONDS);
+        } finally {
+            client2.disconnect();
         }
     }
 
