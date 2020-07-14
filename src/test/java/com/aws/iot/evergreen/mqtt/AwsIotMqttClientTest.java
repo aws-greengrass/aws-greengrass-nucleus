@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,30 +35,46 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith({EGExtension.class, MockitoExtension.class})
 class AwsIotMqttClientTest {
+
     @Mock
     AwsIotMqttConnectionBuilder builder;
 
     @Mock
     MqttClientConnection connection;
 
+    @Mock
+    MqttClientConnectionEvents mockCallback1;
+
+    @Mock
+    MqttClientConnectionEvents mockCallback2;
+
     @Captor
     ArgumentCaptor<MqttClientConnectionEvents> events;
 
+    String client_id_1 = "client_1";
+    String client_id_2 = "client_2";
+    CallbackEventManager callbackEventManager;
+    Topics mockTopic;
+
     @BeforeEach
     void beforeEach() {
-        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
-        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
-        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+        callbackEventManager = spy(new CallbackEventManager());
+        callbackEventManager.addToCallbackEvents(mockCallback1);
+        callbackEventManager.addToCallbackEvents(mockCallback2);
+        mockTopic = mock(Topics.class);
     }
 
     @Test
     void GIVEN_individual_client_THEN_it_tracks_connection_state_correctly()
             throws ExecutionException, InterruptedException, TimeoutException {
-        Topics mockTopic = mock(Topics.class);
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
-        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic);
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic, 
+                callbackEventManager);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -81,5 +98,62 @@ class AwsIotMqttClientTest {
         assertFalse(client.connected());
         verify(connection, times(2)).disconnect();
         verify(connection, times(2)).close();
+    }
+
+    @Test
+    public void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
+
+        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager);
+        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
+                callbackEventManager);
+        boolean sessionPresent = false;
+        // callbackEventManager.hasCallBacked is originally set as False
+        assertFalse(callbackEventManager.hasCallbacked());
+
+        client1.getConnectionEventCallback().onConnectionResumed(sessionPresent);
+        // the callbackEvent has been finished when it was called by the first AwsIotMqttClient
+        assertTrue(callbackEventManager.hasCallbacked());
+        verify(callbackEventManager, times(1)).runOnConnectionResumed(sessionPresent);
+        verify(mockCallback1, times(1)).onConnectionResumed(sessionPresent);
+        verify(mockCallback2, times(1)).onConnectionResumed(sessionPresent);
+
+        client2.getConnectionEventCallback().onConnectionResumed(sessionPresent);
+        // if a mqttClient has [n]*AwsIotMqttClient, the callbackEventManager.runOnConnectionResumed would
+        // be called [n] times but the callbacks in the callbackEventManager.oneTimeCallbackEvents would be
+        // executed once.
+        verify(callbackEventManager, times(2)).runOnConnectionResumed(sessionPresent);
+        verify(mockCallback1, times(1)).onConnectionResumed(sessionPresent);
+        verify(mockCallback2, times(1)).onConnectionResumed(sessionPresent);
+        assertTrue(callbackEventManager.hasCallbacked());
+    }
+
+    @Test
+    public void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
+
+        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager);
+        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
+                callbackEventManager);
+        callbackEventManager.runOnConnectionResumed(false);
+        assertTrue(callbackEventManager.hasCallbacked());
+        int errorCode = 0;
+
+        client1.getConnectionEventCallback().onConnectionInterrupted(errorCode);
+        verify(callbackEventManager, times(1)).runOnConnectionInterrupted(errorCode);
+        verify(mockCallback1, times(1)).onConnectionInterrupted(errorCode);
+        verify(mockCallback2, times(1)).onConnectionInterrupted(errorCode);
+
+        client2.getConnectionEventCallback().onConnectionInterrupted(errorCode);
+        // if a mqttClient has [n]*AwsIotMqttClient, the callbackEventManager.runOnConnectionInterrupted would
+        // be called [n] times but the callbacks in the callbackEventManager.oneTimeCallbackEvents would be
+        // executed once.
+        verify(callbackEventManager, times(2)).runOnConnectionInterrupted(errorCode);
+        verify(mockCallback1, times(1)).onConnectionInterrupted(errorCode);
+        verify(mockCallback2, times(1)).onConnectionInterrupted(errorCode);
+
+        // When the connections are interrupted, callbackEventManager.hasCallBacked was set back to False,
+        // meaning the oneTimeCallbackEvent is needed to executed when the connection back online.
+        assertFalse(callbackEventManager.hasCallbacked());
     }
 }

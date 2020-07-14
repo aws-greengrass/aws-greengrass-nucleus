@@ -16,6 +16,7 @@ import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
@@ -80,6 +81,7 @@ public class MqttClient implements Closeable {
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
     private final ClientBootstrap clientBootstrap;
+    private final CallbackEventManager callbackEventManager = new CallbackEventManager();
 
     //
     // TODO: Handle timeouts and retries
@@ -338,7 +340,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics);
+                clientId, mqttTopics, callbackEventManager);
     }
 
     public boolean connected() {
@@ -351,5 +353,9 @@ public class MqttClient implements Closeable {
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
+    }
+
+    public void addToCallbackEvents(MqttClientConnectionEvents callbacks) {
+        callbackEventManager.addToCallbackEvents(callbacks);
     }
 }

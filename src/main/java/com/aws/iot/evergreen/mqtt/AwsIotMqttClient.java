@@ -52,7 +52,9 @@ class AwsIotMqttClient implements Closeable {
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
+    private final CallbackEventManager callbackEventManager;
 
+    @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
@@ -64,16 +66,20 @@ class AwsIotMqttClient implements Closeable {
                 //TODO: Detect this using secondary mechanisms like checking if internet is available
                 // instead of using ping to Mqtt server. Mqtt ping is expensive and should be used as the last resort.
             }
+            // To run the callbacks shared by the different AwsIotMqttClient.
+            callbackEventManager.runOnConnectionInterrupted(errorCode);
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             currentlyConnected.set(true);
+            logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
             // If we didn't reconnect using the same session, then resubscribe to all the topics
             if (!sessionPresent) {
                 resubscribe();
             }
-            logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
+            // To run the callbacks shared by the different AwsIotMqttClient.
+            callbackEventManager.runOnConnectionResumed(sessionPresent);
         }
     };
 
@@ -84,11 +90,13 @@ class AwsIotMqttClient implements Closeable {
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
-                     String clientId, Topics mqttTopics) {
+                     String clientId, Topics mqttTopics,
+                     CallbackEventManager callbackEventManager) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
+        this.callbackEventManager = callbackEventManager;
     }
 
     void subscribe(String topic, QualityOfService qos)
