@@ -127,6 +127,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertThat(deploymentError, StringContains.containsString("SomeOldService-v0.9.0==0.9.0"));
     }
 
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
@@ -160,6 +161,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertEquals(State.RUNNING, kernel.locate("CustomerApp").getState());
     }
 
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_failure_policy_is_rollback_THEN_deployment_is_rolled_back_and_job_fails(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
