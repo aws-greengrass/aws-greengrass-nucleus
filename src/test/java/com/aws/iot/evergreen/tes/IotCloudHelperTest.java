@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.iot.IotCloudHelper;
+import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

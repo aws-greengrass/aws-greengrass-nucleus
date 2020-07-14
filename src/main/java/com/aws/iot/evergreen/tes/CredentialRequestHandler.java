@@ -4,6 +4,8 @@
 package com.aws.iot.evergreen.tes;
 
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
+import com.aws.iot.evergreen.iot.IotCloudHelper;
+import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
