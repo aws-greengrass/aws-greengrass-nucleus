@@ -70,7 +70,7 @@ public class DeviceProvisioningHelper {
             "https://3w5ajog718.execute-api.us-east-1.amazonaws.com/Beta/";
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
             .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"RecipeTemplateVersion\": \"2020-01-25\",\n"
-                    + "\t\"PackageName\": \"TokenExchangeService\",\n"
+                    + "\t\"ComponentName\": \"TokenExchangeService\",\n"
                     + "\t\"Description\": \"Enable Evergreen devices to interact with AWS services using certs\",\n"
                     + "\t\"Publisher\": \"Evergreen\",\n\t\"Version\": \"1.0.0\"\n}");
     private final PrintStream outStream;
@@ -263,6 +263,7 @@ public class DeviceProvisioningHelper {
                                 + "      \"Principal\": {\n        \"Service\": \"credentials.iot.amazonaws.com\"\n"
                                 + "      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
+                //TODO: Attach role policy that is passed in by customer
             }
 
             CreateRoleAliasRequest createRoleAliasRequest =
