@@ -109,11 +109,11 @@ public enum State {
     }
 
     public boolean isStartable() {
-        return this.equals(INSTALLED) || this.equals(ERRORED) || this.equals(FINISHED);
+        return this.equals(NEW) || this.equals(INSTALLED) || this.equals(ERRORED) || this.equals(FINISHED);
     }
 
     public boolean isStoppable() {
-        return this.equals(RUNNING);
+        return this.equals(NEW) || this.equals(STARTING) || this.equals(RUNNING);
     }
 
     public boolean isClosable() {
