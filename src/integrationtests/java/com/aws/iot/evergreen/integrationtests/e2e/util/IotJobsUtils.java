@@ -6,6 +6,8 @@
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
 import com.amazonaws.arn.Arn;
+import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AddThingToThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CancelJobRequest;
@@ -13,13 +15,17 @@ import software.amazon.awssdk.services.iot.model.CreateJobRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.DeleteJobRequest;
+import software.amazon.awssdk.services.iot.model.DeletePolicyRequest;
+import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
+import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.TargetSelection;
 import software.amazon.awssdk.services.iot.model.TimeoutConfig;
+
 
 import java.time.Duration;
 import java.time.Instant;
@@ -110,5 +116,40 @@ public final class IotJobsUtils {
     public static String generateMockConfigurationArn(String resourceIdVersion) {
         return Arn.builder().withPartition("aws").withAccountId("1234567890").withRegion("test-region").withService(
                 "gg").withResource(String.format("configuration:%s", resourceIdVersion)).build().toString();
+    }
+
+    /**
+     * Clean Up IoT/IAM roles for using TES.
+     *
+     * @param roleName IAM role Name
+     * @param roleAliasName IOT roleAlias name
+     * @param certArn IOT certificate Arn
+     */
+    public static void cleanUpIotRoleForTest(IotClient iotClient, IamClient iamClient, String roleName, String roleAliasName, String certArn) {
+        try {
+            DeleteRoleAliasRequest deleteRoleAliasRequest = DeleteRoleAliasRequest.builder()
+                    .roleAlias(roleAliasName).build();
+            iotClient.deleteRoleAlias(deleteRoleAliasRequest);
+        } catch (ResourceNotFoundException e) {
+            // Ignore as role alias does not exist
+        }
+        try {
+            DeleteRoleRequest deleteRoleRequest = DeleteRoleRequest.builder()
+                    .roleName(roleName).build();
+            iamClient.deleteRole(deleteRoleRequest);
+        } catch (ResourceNotFoundException e) {
+            // Ignore as role alias does not exist
+        }
+        String iotRolePolicyName = "EvergreenTESCertificatePolicy" + roleAliasName;
+        try {
+            DetachPolicyRequest detachPolicyRequest = DetachPolicyRequest.builder()
+                    .policyName(iotRolePolicyName).target(certArn).build();
+            iotClient.detachPolicy(detachPolicyRequest);
+            DeletePolicyRequest deletePolicyRequest = DeletePolicyRequest.builder()
+                    .policyName(iotRolePolicyName).build();
+            iotClient.deletePolicy(deletePolicyRequest);
+        } catch (ResourceNotFoundException e) {
+            // Ignore as policy does not exist
+        }
     }
 }
