@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -55,7 +56,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
     protected static final String FCS_BETA_ENDPOINT = "https://aqzw8qdn5l.execute-api.us-east-1.amazonaws.com/Beta";
-    protected static final String CMS_BETA_ENDPOINT = "https://3w5ajog718.execute-api.us-east-1.amazonaws.com/Beta";
     protected static final Region BETA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
 
@@ -79,7 +79,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     private static AWSEvergreen fcsClient;
     protected static final AWSEvergreen cmsClient =
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(CMS_BETA_ENDPOINT, BETA_REGION.toString())).build();
+            new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, BETA_REGION.toString())).build();
     private static final PackageIdentifier[] testComponents = {
             new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
             new PackageIdentifier("CustomerApp", new Semver("0.9.0")),
