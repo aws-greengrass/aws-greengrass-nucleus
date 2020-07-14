@@ -11,17 +11,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.crt.auth.credentials.Credentials;
 
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,31 +32,23 @@ public class CredentialRequestHandlerTest {
     private static final String SECRET_ACCESS_KEY = "rLJt$$%RNDom";
     private static final String SESSION_TOKEN = "ABCDEFGHI";
     private static final String EXPIRATION = "2020-05-19T07:35:15Z";
+    private static final String RESPONSE_STR = "{\"credentials\":" +
+            "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," +
+            "\"secretAccessKey\":\"" + SECRET_ACCESS_KEY + "\"," +
+            "\"sessionToken\":\"" + SESSION_TOKEN + "\"," +
+            "\"expiration\":\"" + EXPIRATION + "\"}}";
     private static final String ROLE_ALIAS = "ROLE_ALIAS";
-    private static final Credentials CREDENTIALS = new Credentials(
-            ACCESS_KEY_ID.getBytes(StandardCharsets.UTF_8),
-            SECRET_ACCESS_KEY.getBytes(StandardCharsets.UTF_8),
-            SESSION_TOKEN.getBytes(StandardCharsets.UTF_8));
-    private static final Date EXPIRATION_DATE;
-
-    static {
-        Date expiration_date = null;
-        try {
-            expiration_date = new SimpleDateFormat(CredentialRequestHandler.DATE_PATTERN, Locale.getDefault()).parse(EXPIRATION);
-        } catch (ParseException e) {
-        }
-        EXPIRATION_DATE = expiration_date;
-    }
+    @Mock
+    IotConnectionManager mockConnectionManager;
 
     @Mock
-    CredentialsProviderBuilder mockCredentialsProviderBuilder;
+    IotCloudHelper mockCloudHelper;
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
-        when(mockCredentialsProviderBuilder.getCredentials()).thenReturn(CREDENTIALS);
-        when(mockCredentialsProviderBuilder.getCredentialsExpiration()).thenReturn(EXPIRATION_DATE);
-        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCredentialsProviderBuilder);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any())).thenReturn(RESPONSE_STR);
+        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         HttpExchange mockExchange = mock(HttpExchange.class);
         OutputStream mockStream = mock(OutputStream.class);
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
@@ -82,11 +69,12 @@ public class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_get_credentials_THEN_returns_success() throws Exception {
-        when(mockCredentialsProviderBuilder.getCredentials()).thenReturn(CREDENTIALS);
-        when(mockCredentialsProviderBuilder.getCredentialsExpiration()).thenReturn(EXPIRATION_DATE);
-        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCredentialsProviderBuilder);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any())).thenReturn(RESPONSE_STR);
+        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         final byte[] creds = handler.getCredentials();
-        verify(mockCredentialsProviderBuilder).getCredentials();
+        final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
+        final String expectedVerb = "GET";
+        verify(mockCloudHelper).sendHttpRequest(mockConnectionManager, expectedPath, expectedVerb);
         Map<String, String> resp = OBJECT_MAPPER.readValue(creds, new TypeReference<Map<String,String>>(){});
         assertThat(ACCESS_KEY_ID, is(resp.get("AccessKeyId")));
         assertThat(SECRET_ACCESS_KEY, is(resp.get("SecretAccessKey")));
