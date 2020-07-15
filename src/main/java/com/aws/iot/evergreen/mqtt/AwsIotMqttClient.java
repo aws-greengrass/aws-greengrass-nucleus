@@ -21,6 +21,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -99,41 +100,46 @@ class AwsIotMqttClient implements Closeable {
         this.callbackEventManager = callbackEventManager;
     }
 
-    void subscribe(String topic, QualityOfService qos)
-            throws ExecutionException, InterruptedException, TimeoutException {
-        connect();
-        logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
-        connection.subscribe(topic, qos).get(getTimeout(), TimeUnit.MILLISECONDS);
-        subscriptionTopics.put(topic, qos);
+    CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
+        return connect().thenCompose((b) -> {
+            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
+            return connection.subscribe(topic, qos).thenApply((i) -> {
+                subscriptionTopics.put(topic, qos);
+                return i;
+            });
+        });
     }
 
-    void unsubscribe(String topic) throws ExecutionException, InterruptedException, TimeoutException {
-        connect();
-        logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-        connection.unsubscribe(topic).get(getTimeout(), TimeUnit.MILLISECONDS);
-        subscriptionTopics.remove(topic);
+    CompletableFuture<Integer> unsubscribe(String topic) {
+        return connect().thenCompose((b) -> {
+            logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
+            return connection.unsubscribe(topic).thenApply((i) -> {
+                subscriptionTopics.remove(topic);
+                return i;
+            });
+        });
     }
 
-    void publish(MqttMessage message, QualityOfService qos, boolean retain)
-            throws ExecutionException, InterruptedException, TimeoutException {
-        connect();
-        logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
-                .log("Publishing message");
-        connection.publish(message, qos, retain).get(getTimeout(), TimeUnit.MILLISECONDS);
+    CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
+        return connect().thenCompose((b) -> {
+            logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
+                    .log("Publishing message");
+            return connection.publish(message, qos, retain);
+        });
     }
 
-    void reconnect() throws ExecutionException, InterruptedException, TimeoutException {
+    void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
         // Synchronize here instead of method signature to make mockito work without deadlocking
         synchronized (this) {
             logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
             disconnect();
-            connect();
+            connect().get(getTimeout(), TimeUnit.SECONDS);
         }
     }
 
-    private synchronized boolean connect() throws ExecutionException, InterruptedException, TimeoutException {
-        if (connected()) {
-            return true;
+    private synchronized CompletableFuture<Boolean> connect() {
+        if (connection != null) {
+            return CompletableFuture.completedFuture(true);
         }
 
         // Always use the builder provider here so that the builder is updated with whatever
@@ -147,14 +153,15 @@ class AwsIotMqttClient implements Closeable {
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
             logger.atDebug().log("Connecting to AWS IoT Core");
-            boolean sessionPresent = connection.connect().get(getTimeout(), TimeUnit.MILLISECONDS);
-            currentlyConnected.set(true);
-            logger.atDebug().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
+            return connection.connect().thenApply((sessionPresent) -> {
+                currentlyConnected.set(true);
+                logger.atDebug().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
 
-            if (!sessionPresent) {
-                resubscribe();
-            }
-            return sessionPresent;
+                if (!sessionPresent) {
+                    resubscribe();
+                }
+                return sessionPresent;
+            });
         }
     }
 
@@ -165,7 +172,7 @@ class AwsIotMqttClient implements Closeable {
     private void resubscribe() {
         subscriptionTopics.forEach((key, value) -> {
             try {
-                subscribe(key, value);
+                subscribe(key, value).get(getTimeout(), TimeUnit.SECONDS);
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
             }
@@ -193,6 +200,7 @@ class AwsIotMqttClient implements Closeable {
                     connection.disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
                 } finally {
                     connection.close();
+                    connection = null;
                 }
                 logger.atDebug().log("Successfully disconnected from AWS IoT Core");
             }

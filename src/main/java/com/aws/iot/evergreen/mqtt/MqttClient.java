@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.LockScope;
+import lombok.Lombok;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -165,43 +167,44 @@ public class MqttClient implements Closeable {
      * Subscribe to a MQTT topic.
      *
      * @param request subscribe request
-     * @throws ExecutionException   if an error occurs
-     * @throws InterruptedException if the thread is interrupted while subscribing
-     * @throws TimeoutException     if the request times out
      */
     @SuppressWarnings("PMD.CloseResource")
-    public synchronized void subscribe(SubscribeRequest request)
-            throws ExecutionException, InterruptedException, TimeoutException {
-        try {
-            AwsIotMqttClient connection = null;
-            // Use the write scope when identifying the subscriptionTopics that exist
-            try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-                // TODO: Handle subscriptions with differing QoS (Upgrade 0->1->2)
+    public synchronized CompletableFuture<Integer> subscribe(SubscribeRequest request) {
+        AwsIotMqttClient connection = null;
+        // Use the write scope when identifying the subscriptionTopics that exist
+        try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
+            // TODO: Handle subscriptions with differing QoS (Upgrade 0->1->2)
 
-                // If none of our existing subscriptions include (through wildcards) the new topic, then
-                // go ahead and subscribe to it
-                Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> existingConnection =
-                        findExistingSubscriberForTopic(request.getTopic());
-                if (existingConnection.isPresent()) {
-                    subscriptions.put(request, existingConnection.get().getValue());
-                } else {
-                    connection = getConnection(true);
-                    subscriptions.put(request, connection);
-                }
+            // If none of our existing subscriptions include (through wildcards) the new topic, then
+            // go ahead and subscribe to it
+            Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> existingConnection =
+                    findExistingSubscriberForTopic(request.getTopic());
+            if (existingConnection.isPresent()) {
+                subscriptions.put(request, existingConnection.get().getValue());
+            } else {
+                connection = getConnection(true);
+                subscriptions.put(request, connection);
             }
-
-            try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-                // Connection isn't null, so we should subscribe to the topic
-                if (connection != null) {
-                    connection.subscribe(request.getTopic(), request.getQos());
-                    subscriptionTopics.put(new MqttTopic(request.getTopic()), connection);
-                }
-            }
-        } catch (ExecutionException | InterruptedException | TimeoutException e) {
-            // If subscribing failed, then clean up the failed subscription callback
-            subscriptions.remove(request);
-            throw e;
         }
+
+        try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
+            // Connection isn't null, so we should subscribe to the topic
+            if (connection != null) {
+                AwsIotMqttClient finalConnection = connection;
+                return connection.subscribe(request.getTopic(), request.getQos()).thenApply((i) -> {
+                    synchronized (this) {
+                        subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
+                    }
+                    return i;
+                }).exceptionally((t) -> {
+                    synchronized (this) {
+                        subscriptions.remove(request);
+                    }
+                    throw Lombok.sneakyThrow(t);
+                });
+            }
+        }
+        return CompletableFuture.completedFuture(0);
     }
 
     private Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> findExistingSubscriberForTopic(String topic) {
@@ -213,12 +216,10 @@ public class MqttClient implements Closeable {
      * Unsubscribe from a MQTT topic.
      *
      * @param request unsubscribe request
-     * @throws ExecutionException   if an error occurs
-     * @throws InterruptedException if the thread is interrupted while unsubscribing
-     * @throws TimeoutException     if the request times out
      */
-    public synchronized void unsubscribe(UnsubscribeRequest request)
-            throws ExecutionException, InterruptedException, TimeoutException {
+    public synchronized CompletableFuture<Integer> unsubscribe(UnsubscribeRequest request) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        future.complete(0);
         // Use the write lock because we're modifying the subscriptions and trying to consolidate them
         try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
             Set<Map.Entry<MqttTopic, AwsIotMqttClient>> deadSubscriptionTopics;
@@ -235,38 +236,40 @@ public class MqttClient implements Closeable {
                     .collect(Collectors.toSet());
             if (!deadSubscriptionTopics.isEmpty()) {
                 for (Map.Entry<MqttTopic, AwsIotMqttClient> sub : deadSubscriptionTopics) {
-                    sub.getValue().unsubscribe(sub.getKey().getTopic());
-                    subscriptionTopics.remove(sub.getKey());
+                    future = future.thenCombine(sub.getValue().unsubscribe(sub.getKey().getTopic()).thenApply((i) -> {
+                        synchronized (this) {
+                            subscriptionTopics.remove(sub.getKey());
 
-                    // Since we changed the cloud subscriptions, we need to recalculate the client to use for each
-                    // subscription, since it may have changed
-                    subscriptions.entrySet().stream()
-                            // if the cloud clients are the same, and the removed topic covered the topic
-                            // that we're looking at, then recalculate that topic's client
-                            .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
-                                    .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
-                        // recalculate and replace the client
-                        Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
-                                findExistingSubscriberForTopic(e.getKey().getTopic());
-                        if (subscriberForTopic.isPresent()) {
-                            subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
+                            // Since we changed the cloud subscriptions, we need to recalculate the client to use for each
+                            // subscription, since it may have changed
+                            subscriptions.entrySet().stream()
+                                    // if the cloud clients are the same, and the removed topic covered the topic
+                                    // that we're looking at, then recalculate that topic's client
+                                    .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
+                                            .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
+                                // recalculate and replace the client
+                                Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
+                                        findExistingSubscriberForTopic(e.getKey().getTopic());
+                                if (subscriberForTopic.isPresent()) {
+                                    subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
+                                }
+                            });
                         }
-                    });
+                        return i;
+                    }), (i, i2) -> i2);
                 }
             }
         }
+        return future;
     }
 
     /**
      * Publish to a MQTT topic.
      *
      * @param request publish request
-     * @throws ExecutionException   if an error occurs
-     * @throws InterruptedException if the thread is interrupted while publishing
-     * @throws TimeoutException     if the request times out
      */
-    public void publish(PublishRequest request) throws ExecutionException, InterruptedException, TimeoutException {
-        getConnection(false).publish(new MqttMessage(request.getTopic(), request.getPayload()), request.getQos(),
+    public CompletableFuture<Integer> publish(PublishRequest request) {
+        return getConnection(false).publish(new MqttMessage(request.getTopic(), request.getPayload()), request.getQos(),
                 request.isRetain());
     }
 

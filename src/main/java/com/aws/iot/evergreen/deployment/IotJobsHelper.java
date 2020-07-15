@@ -287,10 +287,6 @@ public class IotJobsHelper implements InjectionActions {
                 logger.atWarn().setCause(e).kv(STATUS_LOG_KEY_NAME, status)
                         .log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                 return false;
-            } else if (e.getCause() instanceof TimeoutException) {
-                // assuming this is due to network issue
-                logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
-                return false;
             }
             // This happens when job status update gets rejected from the Iot Cloud
             // Want to remove this job from the list and continue updating others
