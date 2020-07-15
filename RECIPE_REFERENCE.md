@@ -173,4 +173,6 @@ Dependencies:
 #### Version Requirement
 Specify dependency version requirements, the requirements support NPM-style syntax.
 #### Dependency Type
+Specify if dependency is `HARD` or `SOFT` dependency. `HARD` dependency means dependent service will be bounced if
+ dependency service got refreshed. In the opposite, `SOFT` dependency will not bounce dependent service.
 
