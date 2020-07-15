@@ -1,10 +1,10 @@
-#Component Recipe Reference
-##Reference and guidelines
+# Component Recipe Reference
+## Reference and guidelines
 This reference describes version 1 of component recipe file format.
 
 Component recipe is a single yaml/json file for component author to define component deployment and runtime
  characteristics in AWS greengrass ecosystem.
-##Recipe file structure and examples
+## Recipe file structure and examples
 Here is a sample recipe file in yaml format which defines a simple HelloWorld application can run on AWS greengrass
  managed devices.
 ```yaml
@@ -36,37 +36,37 @@ Dependencies:
 The topics on this reference are organized by top-level keys grouped by functions, such as providing metadata, or
  defining deployment and/or runtime behaviors. Top-level keys can have options that support them as sub-topics. This
   maps to the `<key>: <options>: <value>` indent structure of recipe file.
-##Component metadata
+## Component metadata
 Keys in this group provides component metadata, which are usually used for processing components in greengrass
  environment. The metadata is often used for indexing and filtering as well.
-###RECIPE TEMPLATE VERSION
+### RECIPE TEMPLATE VERSION
 Define the version of recipe itself
 ```yaml
 RecipeTemplateVersion: '2020-01-25'
 ```
-###COMPONENT NAME
+### COMPONENT NAME
 Component name identifier, reverse DNS notation is recommended. Component name is unique private component registry
 . Private component which has same name occludes public available component.
 > note: component name is also used as service name, since component to service is 1:1 mapping.
 ```yaml
 ComponentName: com.aws.greengrass.HelloWorld
 ```
-###VERSION
+### VERSION
 Component verison, use [semantic versioning](https://semver.org/) standard
 ```yaml
 Version: 1.6.1
 ```
-###DESCRIPTION
+### DESCRIPTION
 Text description of component
 ```yaml
 Description: Hello World App for Evergreen
 ```
-###PUBLISHER
+### PUBLISHER
 Publisher of component
 ```yaml
 Publisher: Amazon
 ```
-###Platforms
+### Platforms
 A list of platforms component declaring support. Greengrass will apply the constrains before provisioning component
  on device.
  > note: the platform constraints only support OS with text match now, no CPU architecture constraints support yet.
@@ -75,9 +75,9 @@ Platforms:
   - debian
   - android
 ```
-##Service configuration
+## Service configuration
 Keys in this group are mostly used for defining component runtime characteristics.
-###LIFECYCLE
+### LIFECYCLE
 Specify lifecycle management scripts for component represented service
 ```yaml
 Lifecycle:
@@ -128,7 +128,7 @@ Lifecycle:
   updatesCompleted:
     script:
 ```
-###PARAMETERS
+### PARAMETERS
 Component author specifies configuration parameters used in lifecycle management scripts, and/or accessible by
  service runtime, which can both read and write configuration values.
 ```yaml
@@ -137,19 +137,19 @@ Parameters:
     value: 'World'
     type: STRING
 ```
-####name
+#### name
 name of parameter
-####value
+#### value
 default value of parameter
-####type
+#### type
 type of parameter. Current supported types includes:
 * String
 * Number
 * Boolean
-##Dependencies
+## Dependencies
 Keys in the group are used for describing component deployment dependencies. The dependencies could be
  component necessary artifacts or the other components.
-###ARTIFACTS
+### ARTIFACTS
 A list of artifacts component relies on as resources, such as binary, scripts, images etc. The section supports platform
  hierarchy.
 ```yaml
@@ -160,7 +160,7 @@ Artifacts:
 ```
 Artifacts are referenced by artifact URIs. Currently greengrass supports greengrass repository and s3 as artifact
  storage location.
-###DEPENDENCIES
+### DEPENDENCIES
 Describe component dependencies, the versions of dependencies will be resolved during deployment.
 > note: Services represented by components will be started/stopped with respect to dependency order.
 ```yaml
@@ -170,7 +170,7 @@ Dependencies:
       VersionRequirement: ~3.6
       DependencyType: HARD
 ```
-####Version Requirement
+#### Version Requirement
 Specify dependency version requirements, the requirements support NPM-style syntax.
-####Dependency Type
+#### Dependency Type
 
