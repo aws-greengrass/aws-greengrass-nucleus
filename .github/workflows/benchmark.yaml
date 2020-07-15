@@ -7,7 +7,7 @@ on:
 
 jobs:
   benchmark:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, greengrass]
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -42,6 +42,8 @@ jobs:
           name: JMH Report
           path: jmh-result.json
       - name: Upload to CloudWatch
+        env:
+          AWS_DEFAULT_REGION: us-west-2
         run: >-
           pip3 -q install boto3 setuptools wheel &&
           pip3 -q install retryable agithub &&
