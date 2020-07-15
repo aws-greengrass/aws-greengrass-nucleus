@@ -1,5 +1,27 @@
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.Crashable;
+import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,30 +46,8 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
-
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.Crashable;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.when;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -230,7 +230,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() {
+    public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
 

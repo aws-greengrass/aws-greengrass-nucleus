@@ -17,6 +17,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
+import com.aws.iot.evergreen.util.DependencyOrder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -168,21 +169,9 @@ public class Kernel {
 
         final HashSet<EvergreenService> pendingDependencyServices = new LinkedHashSet<>();
         getMain().putDependenciesIntoSet(pendingDependencyServices);
-        final HashSet<EvergreenService> dependencyFoundServices = new LinkedHashSet<>();
-        while (!pendingDependencyServices.isEmpty()) {
-            int sz = pendingDependencyServices.size();
-            pendingDependencyServices.removeIf(pendingService -> {
-                if (dependencyFoundServices.containsAll(pendingService.getDependencies().keySet())) {
-                    dependencyFoundServices.add(pendingService);
-                    return true;
-                }
-                return false;
-            });
-            if (sz == pendingDependencyServices.size()) {
-                // didn't find anything to remove, there must be a cycle
-                break;
-            }
-        }
+        final LinkedHashSet<EvergreenService> dependencyFoundServices = new DependencyOrder<EvergreenService>()
+                .computeOrderedDependencies(pendingDependencyServices, s -> s.getDependencies().keySet());
+
         return cachedOD = dependencyFoundServices;
     }
 
