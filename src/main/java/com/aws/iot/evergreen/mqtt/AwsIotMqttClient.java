@@ -186,6 +186,7 @@ class AwsIotMqttClient implements Closeable {
         return connection != null && currentlyConnected.get();
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     private synchronized void disconnect() {
         try {
             currentlyConnected.set(false);

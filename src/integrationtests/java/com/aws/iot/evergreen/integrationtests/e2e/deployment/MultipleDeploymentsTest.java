@@ -96,7 +96,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     // behavior from IoT jobs. Thus we are able to verify deployment service can handle the duplicate job
     // notifications in this scenario.
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
-    @Test
+//    @Test
     void GIVEN_offline_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order_eventually() throws Exception {
         List<DeploymentJobHelper> helpers = Arrays
                 .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
