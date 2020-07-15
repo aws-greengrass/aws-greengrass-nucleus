@@ -52,7 +52,7 @@ public class MqttTest extends BaseE2ETestCase {
         CountDownLatch cdl = new CountDownLatch(NUM_MESSAGES);
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback((m) -> {
             cdl.countDown();
-        }).build()).get(2, TimeUnit.SECONDS);
+        }).build());
 
         for (int i = 0; i < NUM_MESSAGES; i++) {
             client.publish(PublishRequest.builder().topic("A/B/C").payload("What's up".getBytes(StandardCharsets.UTF_8))

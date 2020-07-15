@@ -100,24 +100,19 @@ class AwsIotMqttClient implements Closeable {
         this.callbackEventManager = callbackEventManager;
     }
 
-    CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
-        return connect().thenCompose((b) -> {
-            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
-            return connection.subscribe(topic, qos).thenApply((i) -> {
-                subscriptionTopics.put(topic, qos);
-                return i;
-            });
-        });
+    void subscribe(String topic, QualityOfService qos)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
+        connection.subscribe(topic, qos).get(getTimeout(), TimeUnit.MILLISECONDS);
+        subscriptionTopics.put(topic, qos);
     }
 
-    CompletableFuture<Integer> unsubscribe(String topic) {
-        return connect().thenCompose((b) -> {
-            logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-            return connection.unsubscribe(topic).thenApply((i) -> {
-                subscriptionTopics.remove(topic);
-                return i;
-            });
-        });
+    void unsubscribe(String topic) throws ExecutionException, InterruptedException, TimeoutException {
+        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
+        connection.unsubscribe(topic).get(getTimeout(), TimeUnit.MILLISECONDS);
+        subscriptionTopics.remove(topic);
     }
 
     CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
@@ -133,7 +128,7 @@ class AwsIotMqttClient implements Closeable {
         synchronized (this) {
             logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
             disconnect();
-            connect().get(getTimeout(), TimeUnit.SECONDS);
+            connect().get(getTimeout(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -172,7 +167,7 @@ class AwsIotMqttClient implements Closeable {
     private void resubscribe() {
         subscriptionTopics.forEach((key, value) -> {
             try {
-                subscribe(key, value).get(getTimeout(), TimeUnit.SECONDS);
+                subscribe(key, value);
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
             }

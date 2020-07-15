@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.mqtt;
 
-import lombok.Lombok;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
@@ -18,6 +17,8 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 
@@ -63,14 +64,22 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
 
     @Override
     public CompletableFuture<Integer> subscribe(String topic, QualityOfService qos, Consumer<MqttMessage> handler) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
         SubscribeRequest request = SubscribeRequest.builder().topic(topic).qos(qos).callback(handler).build();
         UnsubscribeRequest unsubscribeRequest =
                 UnsubscribeRequest.builder().topic(request.getTopic()).callback(request.getCallback()).build();
         unsubscriptions.put(request.getTopic(), unsubscribeRequest);
-        return mqttClient.subscribe(request).exceptionally((t) -> {
+        try {
+            mqttClient.subscribe(request);
+            future.complete(0);
+        } catch (InterruptedException | TimeoutException e) {
             unsubscriptions.remove(request.getTopic());
-            throw Lombok.sneakyThrow(t);
-        });
+            future.completeExceptionally(e);
+        } catch (ExecutionException e) {
+            unsubscriptions.remove(request.getTopic());
+            future.completeExceptionally(e.getCause());
+        }
+        return future;
     }
 
     @Override
@@ -80,25 +89,31 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
 
     @Override
     public CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
-        String topic = message.getTopic();
-        byte[] payload = message.getPayload();
-        PublishRequest publishRequest =
-                PublishRequest.builder().topic(topic).retain(retain).payload(payload).qos(qos).build();
-        return mqttClient.publish(publishRequest);
+            String topic = message.getTopic();
+            byte[] payload = message.getPayload();
+            PublishRequest publishRequest =
+                    PublishRequest.builder().topic(topic).retain(retain).payload(payload).qos(qos).build();
+            return mqttClient.publish(publishRequest);
     }
 
     @Override
     public CompletableFuture<Integer> unsubscribe(String topic) {
         CompletableFuture<Integer> future = new CompletableFuture<>();
         UnsubscribeRequest request = getUnsubscribeRequest(topic);
-        if (request == null) {
-            future.completeExceptionally(new MqttException("No subscription to unsubscribe from"));
-            return future;
-        }
-        return mqttClient.unsubscribe(request).thenApply((i) -> {
+        try {
+            if (request == null) {
+                future.completeExceptionally(new MqttException("No subscription to unsubscribe from"));
+                return future;
+            }
+            mqttClient.unsubscribe(request);
             unsubscriptions.remove(topic);
-            return i;
-        });
+            future.complete(0);
+        } catch (InterruptedException | TimeoutException e) {
+            future.completeExceptionally(e);
+        } catch (ExecutionException e) {
+            future.completeExceptionally(e.getCause());
+        }
+        return future;
     }
 
     @Override
