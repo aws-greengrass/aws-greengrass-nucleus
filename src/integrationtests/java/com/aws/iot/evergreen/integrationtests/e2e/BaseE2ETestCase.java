@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -54,8 +55,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    protected static final String GREENGRASS_SERVICE_ENDPOINT =
-            "https://corl1ybge2.execute-api.us-east-1.amazonaws.com/Beta/";
     protected static final Region BETA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
 
