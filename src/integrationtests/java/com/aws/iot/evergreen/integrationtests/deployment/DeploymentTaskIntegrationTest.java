@@ -345,7 +345,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
+        DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(EvergreenService::getName).collect(Collectors.toList());
@@ -371,7 +371,7 @@ class DeploymentTaskIntegrationTest {
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
 
         // should contain main, NonDisruptableService 1.0.0
-        assertEquals(2, services.size());
+        assertEquals(2, services.size(), "Actual services: " + services);
         assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
 
         CountDownLatch cdlUpdateStarted = new CountDownLatch(1);
@@ -425,7 +425,7 @@ class DeploymentTaskIntegrationTest {
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
 
         // should contain main, NonDisruptableService 1.0.1
-        assertEquals(2, services.size());
+        assertEquals(2, services.size(), "Existing services: " + services);
         assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService")
                 .find("version").getOnce());
