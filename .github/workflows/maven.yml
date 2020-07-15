@@ -114,12 +114,6 @@ jobs:
           # Only restore maven cache for this exact commit. If we start incrementing the version
           # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
-          aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
-          aws-region: us-west-2
       - name: Build Tests
         run: mvn -ntp generate-test-sources generate-test-resources test-compile -DskipTests
       - name: Run E2E Tests in parallel
@@ -142,13 +136,6 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      # explicitly setting aws creds to prevent aws-maven plugin from picking up wrong creds.
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.evergreen_dev_snapshot_access_key_id }}
-          aws-secret-access-key: ${{ secrets.evergreen_dev_snapshot_access_key_secret }}
-          aws-region: us-west-2
       - name: Publish with Maven
         run: mvn -ntp --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
       - run: sudo apt-get install -y awscli
