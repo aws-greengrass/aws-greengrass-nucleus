@@ -9,7 +9,10 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on:
+      - self-hosted
+      - ${{ matrix.os }}
+      - greengrass
     strategy:
       matrix:
         os: [Linux, Windows]
@@ -100,7 +103,7 @@ jobs:
           mvn -ntp -f src/test/evergreen-kernel-benchmark install
         if: matrix.os == 'Linux'
   e2e-test:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, greengrass]
     needs: build
     steps:
       - uses: actions/checkout@v2
@@ -128,7 +131,7 @@ jobs:
           path: target/surefire-reports
   publish:
     needs: build
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, greengrass]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2
