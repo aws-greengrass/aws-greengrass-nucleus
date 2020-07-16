@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -38,8 +39,7 @@ class TESTest extends BaseITCase {
     private Kernel kernel;
     private ThingInfo thingInfo;
     private DeviceProvisioningHelper deviceProvisioningHelper;
-    private static final String POLICY_NAME = "TES_INTEG_TEST_POLICY";
-    private static final String THING_NAME = "TES_INTEG_THING";
+    private String roleId;
     private static final String AWS_REGION = "us-east-1";
     private static final String TES_ROLE_NAME = "TES_INTEG_ROLE";
     private static final String TES_ROLE_ALIAS_NAME = "TES_INTEG_ROLE_ALIAS";
@@ -49,6 +49,7 @@ class TESTest extends BaseITCase {
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
+        roleId = UUID.randomUUID().toString();
         provision(kernel);
     }
 
@@ -59,7 +60,7 @@ class TESTest extends BaseITCase {
         } finally {
             deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
-                    TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+                    TES_ROLE_NAME + roleId, TES_ROLE_ALIAS_NAME + roleId, thingInfo.getCertificateArn());
         }
     }
 
@@ -96,12 +97,13 @@ class TESTest extends BaseITCase {
     }
 
     private void provision(Kernel kernel) throws IOException {
-        thingInfo = deviceProvisioningHelper.createThing(IotSdkClientFactory.getIotClient(AWS_REGION), POLICY_NAME, THING_NAME);
+        thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
-        deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
-        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
+        deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME + roleId, TES_ROLE_ALIAS_NAME + roleId,
+                thingInfo.getCertificateArn());
+        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME + roleId);
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(TES_ROLE_ALIAS_NAME);
+        tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(TES_ROLE_ALIAS_NAME + roleId);
         deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 }
