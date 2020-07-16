@@ -11,7 +11,6 @@ import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -63,7 +62,7 @@ class TESTest extends BaseITCase {
         }
     }
 
-    @Test
+    //@Test
     void GIVEN_iot_role_alias_WHEN_tes_is_queried_THEN_valid_credentials_are_returned() throws Exception {
         CountDownLatch tesRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
