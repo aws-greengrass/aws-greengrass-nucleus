@@ -246,7 +246,6 @@ public class IotJobsHelper implements InjectionActions {
     @Override
     @SuppressFBWarnings
     public void postInject() {
-        // Mqtt Client would automatically connect to AWS Iot
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);

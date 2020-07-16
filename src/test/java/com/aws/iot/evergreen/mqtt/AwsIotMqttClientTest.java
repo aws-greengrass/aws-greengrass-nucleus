@@ -51,8 +51,6 @@ class AwsIotMqttClientTest {
     @Captor
     ArgumentCaptor<MqttClientConnectionEvents> events;
 
-    String client_id_1 = "client_1";
-    String client_id_2 = "client_2";
     CallbackEventManager callbackEventManager;
     Topics mockTopic;
 
