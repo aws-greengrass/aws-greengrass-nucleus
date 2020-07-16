@@ -140,16 +140,5 @@ public final class IotJobsUtils {
         } catch (ResourceNotFoundException e) {
             // Ignore as role alias does not exist
         }
-        String iotRolePolicyName = "EvergreenTESCertificatePolicy" + roleAliasName;
-        try {
-            DetachPolicyRequest detachPolicyRequest = DetachPolicyRequest.builder()
-                    .policyName(iotRolePolicyName).target(certArn).build();
-            iotClient.detachPolicy(detachPolicyRequest);
-            DeletePolicyRequest deletePolicyRequest = DeletePolicyRequest.builder()
-                    .policyName(iotRolePolicyName).build();
-            iotClient.deletePolicy(deletePolicyRequest);
-        } catch (ResourceNotFoundException e) {
-            // Ignore as policy does not exist
-        }
     }
 }

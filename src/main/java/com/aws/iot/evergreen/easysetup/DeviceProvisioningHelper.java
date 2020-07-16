@@ -28,12 +28,17 @@ import software.amazon.awssdk.services.iot.model.CreatePolicyRequest;
 import software.amazon.awssdk.services.iot.model.CreateRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingRequest;
 import software.amazon.awssdk.services.iot.model.DeleteCertificateRequest;
+import software.amazon.awssdk.services.iot.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingRequest;
 import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
 import software.amazon.awssdk.services.iot.model.DescribeRoleAliasRequest;
+import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
+import software.amazon.awssdk.services.iot.model.GetEffectivePoliciesRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
 import software.amazon.awssdk.services.iot.model.KeyPair;
+import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
+import software.amazon.awssdk.services.iot.model.Policy;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 
@@ -180,6 +185,12 @@ public class DeviceProvisioningHelper {
         client.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build());
         client.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
                 .newStatus(CertificateStatus.INACTIVE).build());
+        for (Policy p: client.listAttachedPolicies(
+                        ListAttachedPoliciesRequest.builder().target(thing.certificateArn).build()).policies()){
+            client.detachPolicy(
+                    DetachPolicyRequest.builder().policyName(p.policyName()).target(thing.certificateArn).build());
+            client.deletePolicy(DeletePolicyRequest.builder().policyName(p.policyName()).build());
+        }
         client.deleteCertificate(
                 DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build());
     }
