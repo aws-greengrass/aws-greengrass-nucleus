@@ -4,6 +4,8 @@
 package com.aws.iot.evergreen.tes;
 
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
+import com.aws.iot.evergreen.iot.IotCloudHelper;
+import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -71,7 +73,7 @@ public class CredentialRequestHandler implements HttpHandler {
         try {
             final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
                     iotCredentialsPath,
-                    IOT_CREDENTIALS_HTTP_VERB);
+                    IOT_CREDENTIALS_HTTP_VERB, null);
             response = translateToAwsSdkFormat(credentials);
         } catch (AWSIotException e) {
             // TODO: Generate 4xx, 5xx responses for all error scenarios
