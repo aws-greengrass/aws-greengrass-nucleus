@@ -44,4 +44,8 @@ public class HttpServerImpl implements Server {
     public void stop() {
         httpImpl.stop(TIME_TO_WAIT_BEFORE_SHUTDOWN_IN_SECONDS);
     }
+
+    int getServerPort() {
+        return httpImpl.getAddress().getPort();
+    }
 }
