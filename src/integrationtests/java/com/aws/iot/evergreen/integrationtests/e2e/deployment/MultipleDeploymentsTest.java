@@ -86,6 +86,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
             assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
+
             IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         }
@@ -97,10 +98,11 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     // notifications in this scenario.
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_offline_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order_eventually() throws Exception {
+    void GIVEN_offline_device_WHEN_create_multiple_deployments_for_same_group_THEN_last_deployment_execute_successfully() throws Exception {
+        DeploymentJobHelper mostRecentJobHelper = new DeploymentJobHelper(3, "CustomerApp");
         List<DeploymentJobHelper> helpers = Arrays
                 .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
-                        new DeploymentJobHelper(3, "CustomerApp"));
+                        mostRecentJobHelper);
 
         // Create multiple jobs
         for (DeploymentJobHelper helper : helpers) {
@@ -115,20 +117,25 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
 
             IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
-            logger.atWarn().kv("jobId", helper.jobId).log("Created IoT Job");
+            logger.atWarn().kv("jobId", helper.jobId).kv("index", helper.index).log("Created IoT Job");
         }
-
-        subscribeToLocalDeploymentStatus(kernel, helpers);
+        // Only the last job should execute
+        subscribeToLocalDeploymentStatus(kernel, Arrays.asList(mostRecentJobHelper));
 
         // Start kernel and connect IoT cloud
         kernel.launch();
 
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
-            assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
+            if (helper.index == 3) {
+                assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
 
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
-                    Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
+                        Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+            } else {
+                IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
+                        Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.CANCELED));
+            }
         }
     }
 
