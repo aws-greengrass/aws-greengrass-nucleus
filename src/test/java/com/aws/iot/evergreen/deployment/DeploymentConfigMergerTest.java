@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -88,22 +88,22 @@ public class DeploymentConfigMergerTest {
         DeploymentConfigMerger.AggregateServicesChangeManager manager =
                 new DeploymentConfigMerger.AggregateServicesChangeManager(kernel, newConfig);
 
-        assertEquals(newHashSet("newService"), manager.getServicesToAdd());
-        assertEquals(newHashSet("oldService"), manager.getServicesToRemove());
-        assertEquals(newHashSet("existingService"), manager.getServicesToUpdate());
+        assertEquals(newOrderedSet("newService"), manager.getServicesToAdd());
+        assertEquals(newOrderedSet("oldService"), manager.getServicesToRemove());
+        assertEquals(newOrderedSet("existingService"), manager.getServicesToUpdate());
 
         // test createRollbackManager()
         DeploymentConfigMerger.AggregateServicesChangeManager toRollback = manager.createRollbackManager();
 
-        assertEquals(newHashSet("newService"), toRollback.getServicesToRemove());
-        assertEquals(newHashSet("oldService"), toRollback.getServicesToAdd());
-        assertEquals(newHashSet("existingService"), toRollback.getServicesToUpdate());
+        assertEquals(newOrderedSet("newService"), toRollback.getServicesToRemove());
+        assertEquals(newOrderedSet("oldService"), toRollback.getServicesToAdd());
+        assertEquals(newOrderedSet("existingService"), toRollback.getServicesToUpdate());
 
         // test servicesToTrack()
         when(kernel.locate("existingService")).thenReturn(existingService);
         EvergreenService newService = mock(EvergreenService.class);
         when(kernel.locate("newService")).thenReturn(newService);
-        assertEquals(newHashSet(newService, existingService), manager.servicesToTrack());
+        assertEquals(newOrderedSet(newService, existingService), manager.servicesToTrack());
 
         // test startNewServices()
         manager.startNewServices();
@@ -187,7 +187,7 @@ public class DeploymentConfigMergerTest {
         CountDownLatch serviceStarted = new CountDownLatch(1);
         new Thread(() -> {
             try {
-                DeploymentConfigMerger.waitForServicesToStart(newHashSet(mockService), System.currentTimeMillis());
+                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis());
                 serviceStarted.countDown();
             } catch (ServiceUpdateException | InterruptedException e) {
                 logger.error("Fail in waitForServicesToStart", e);
@@ -195,7 +195,7 @@ public class DeploymentConfigMergerTest {
         }).start();
 
         // assert waitForServicesToStart didn't finish
-        assertFalse(serviceStarted.await(2*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertFalse(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
 
         // WHEN
         // use doReturn() here: https://stackoverflow.com/questions/11121772
@@ -203,7 +203,7 @@ public class DeploymentConfigMergerTest {
         doReturn(true).when(mockService).reachedDesiredState();
 
         // THEN
-        assertTrue(serviceStarted.await(2*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertTrue(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -212,12 +212,20 @@ public class DeploymentConfigMergerTest {
         long stateModTime = 10;
         long mergeTime = 1;
 
-        EvergreenService mockService = mock(EvergreenService.class);
-        when(mockService.getState()).thenReturn(State.BROKEN);
-        when(mockService.getStateModTime()).thenReturn(stateModTime);
+        EvergreenService normalService = mock(EvergreenService.class);
+        when(normalService.getState()).thenReturn(State.INSTALLED);
+        when(normalService.reachedDesiredState()).thenReturn(false);
+
+        EvergreenService brokenService = mock(EvergreenService.class);
+        when(brokenService.getState()).thenReturn(State.BROKEN);
+        when(brokenService.getStateModTime()).thenReturn(stateModTime);
 
         assertThrows(ServiceUpdateException.class, () -> {
-            DeploymentConfigMerger.waitForServicesToStart(newHashSet(mockService), mergeTime);
+            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime);
+        });
+
+        assertThrows(ServiceUpdateException.class, () -> {
+            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime);
         });
     }
 
@@ -303,8 +311,8 @@ public class DeploymentConfigMergerTest {
         return service;
     }
 
-    private static <T> Set<T> newHashSet(T... objs) {
-        Set<T> set = new HashSet<>();
+    private static <T> Set<T> newOrderedSet(T... objs) {
+        Set<T> set = new LinkedHashSet<>();
         Collections.addAll(set, objs);
         return set;
     }

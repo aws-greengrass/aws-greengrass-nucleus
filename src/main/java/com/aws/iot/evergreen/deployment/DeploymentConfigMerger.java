@@ -250,7 +250,7 @@ public class DeploymentConfigMerger {
                 }
                 if (!service.reachedDesiredState()) {
                     allServicesRunning = false;
-                    break;
+                    continue;
                 }
                 if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
                     continue;
