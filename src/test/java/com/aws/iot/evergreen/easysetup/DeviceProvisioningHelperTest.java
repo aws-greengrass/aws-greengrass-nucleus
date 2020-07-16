@@ -31,15 +31,20 @@ import software.amazon.awssdk.services.iot.model.CreateRoleAliasResponse;
 import software.amazon.awssdk.services.iot.model.CreateThingRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingResponse;
 import software.amazon.awssdk.services.iot.model.DeleteCertificateRequest;
+import software.amazon.awssdk.services.iot.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingRequest;
 import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
 import software.amazon.awssdk.services.iot.model.DescribeEndpointResponse;
 import software.amazon.awssdk.services.iot.model.DescribeRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.DescribeRoleAliasResponse;
+import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyResponse;
 import software.amazon.awssdk.services.iot.model.KeyPair;
+import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
+import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesResponse;
+import software.amazon.awssdk.services.iot.model.Policy;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.RoleAliasDescription;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
@@ -90,6 +95,8 @@ public class DeviceProvisioningHelperTest {
     private CreateRoleResponse createRoleResponse;
     @Mock
     private CreateComponentResult createComponentResult;
+    @Mock
+    private ListAttachedPoliciesResponse listAttachedPoliciesResponse;
     private DeviceProvisioningHelper deviceProvisioningHelper;
 
     @BeforeEach
@@ -175,14 +182,17 @@ public class DeviceProvisioningHelperTest {
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, "roleAliasName");
-        assertEquals("roleAliasName",
-                kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS,
-                        PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
-                        .getOnce());
+        assertEquals("roleAliasName", kernel.getConfig()
+                .lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY,
+                        IOT_ROLE_ALIAS_TOPIC).getOnce());
     }
 
     @Test
     public void GIVEN_test_clean_thing_WHEN_thing_info_and_cert_and_things_deleted() {
+        when(iotClient.listAttachedPolicies(any(ListAttachedPoliciesRequest.class)))
+                .thenReturn(listAttachedPoliciesResponse);
+        when(listAttachedPoliciesResponse.policies()).thenReturn(
+                Collections.singletonList(Policy.builder().policyName("policyName").policyArn("policyArn").build()));
         deviceProvisioningHelper.cleanThing(iotClient,
                 new DeviceProvisioningHelper.ThingInfo("thingarn", "thingname", "certarn", "certid", "certpem",
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
@@ -191,6 +201,9 @@ public class DeviceProvisioningHelperTest {
         verify(iotClient, times(1)).updateCertificate(any(UpdateCertificateRequest.class));
         verify(iotClient, times(1)).deleteCertificate(any(DeleteCertificateRequest.class));
         verify(iotClient, times(1)).deleteThing(any(DeleteThingRequest.class));
+        verify(iotClient, times(1)).listAttachedPolicies(any(ListAttachedPoliciesRequest.class));
+        verify(iotClient, times(1)).detachPolicy(any(DetachPolicyRequest.class));
+        verify(iotClient, times(1)).deletePolicy(any(DeletePolicyRequest.class));
     }
 
     @Test
