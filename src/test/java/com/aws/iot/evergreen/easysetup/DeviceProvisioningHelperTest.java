@@ -50,6 +50,7 @@ import java.util.Collections;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -175,7 +176,8 @@ public class DeviceProvisioningHelperTest {
 
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, "roleAliasName");
         assertEquals("roleAliasName",
-                kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS, IOT_ROLE_ALIAS_TOPIC)
+                kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS,
+                        PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
                         .getOnce());
     }
 

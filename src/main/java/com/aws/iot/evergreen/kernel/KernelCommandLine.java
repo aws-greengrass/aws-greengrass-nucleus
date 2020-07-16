@@ -119,15 +119,15 @@ public class KernelCommandLine {
 
     private void initPaths(String rootAbsolutePath) {
         // init all paths
-        kernel.setRootPath(Paths.get(rootAbsolutePath));
+        kernel.setRootPath(Paths.get(rootAbsolutePath).toAbsolutePath());
         Exec.setDefaultEnv("EVERGREEN_HOME", kernel.getRootPath().toString());
-        kernel.setConfigPath(Paths.get(deTilde(configPathName)));
+        kernel.setConfigPath(Paths.get(deTilde(configPathName)).toAbsolutePath());
         Exec.removePath(kernel.getClitoolPath());
-        kernel.setClitoolPath(Paths.get(deTilde(clitoolPathName)));
+        kernel.setClitoolPath(Paths.get(deTilde(clitoolPathName)).toAbsolutePath());
         Exec.addFirstPath(kernel.getClitoolPath());
-        kernel.setWorkPath(Paths.get(deTilde(workPathName)));
+        kernel.setWorkPath(Paths.get(deTilde(workPathName)).toAbsolutePath());
         Exec.setDefaultEnv("HOME", kernel.getWorkPath().toString());
-        kernel.setPackageStorePath(Paths.get(deTilde(packageStorePathName)));
+        kernel.setPackageStorePath(Paths.get(deTilde(packageStorePathName)).toAbsolutePath());
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
                     kernel.getWorkPath(), kernel.getPackageStorePath());
@@ -157,7 +157,9 @@ public class KernelCommandLine {
             try (InputStream is = resource.openStream()) {
                 Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
             }
-            Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
+            if (!Exec.isWindows) {
+                Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("r-xr-x---"));
+            }
         } catch (IOException t) {
             logger.atError().setEventType("cli-install-error").setCause(t).log();
         }

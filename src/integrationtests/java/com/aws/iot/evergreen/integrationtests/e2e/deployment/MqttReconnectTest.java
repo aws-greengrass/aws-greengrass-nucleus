@@ -44,6 +44,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG;
 import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG;
+import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -105,7 +106,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         // Subscribe to persisted deployment status
         Topics deploymentServiceTopics = kernel.getConfig()
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
-        Topics processedDeployments = deploymentServiceTopics.createInteriorChild(PROCESSED_DEPLOYMENTS_TOPICS);
+        Topics processedDeployments = deploymentServiceTopics.lookupTopics(
+                RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
             if (!(newValue instanceof Topic)) {
                 return;
@@ -125,6 +127,9 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         kernel.launch();
 
         assertTrue(jobInProgress.await(5, TimeUnit.MINUTES));
+        // sleep to let IoT cloud accept the jobInProgress request.
+        // TODO: A more proper fix is at https://sim.amazon.com/issues/P37649819
+        Thread.sleep(3000);
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();

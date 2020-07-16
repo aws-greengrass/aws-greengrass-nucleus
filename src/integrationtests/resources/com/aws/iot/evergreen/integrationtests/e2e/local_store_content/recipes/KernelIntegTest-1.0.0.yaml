@@ -8,11 +8,9 @@ Platforms:
   - ubuntu
   - debian
   - macos
+  - windows
 Lifecycle:
   install:
-    ubuntu:
-      skipif: onpath git
-      script: sudo apt-get install git
     debian:
       skipif: onpath git
       script: sudo apt-get install git

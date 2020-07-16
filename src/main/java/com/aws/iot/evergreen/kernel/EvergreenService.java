@@ -39,6 +39,7 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
+    public static final String RUNTIME_STORE_NAMESPACE_TOPIC = "runtime";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_DEPENDENCIES_NAMESPACE_TOPIC = "dependencies";
     public static final String SERVICE_NAME_KEY = "serviceName";
@@ -446,6 +447,15 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     public Topics getServiceConfig() {
         return config;
+    }
+
+    /**
+     * Get the config topics for service local data-store during runtime.
+     * content under runtimeConfig will not be affected by DeploymentService or DeploymentService roll-back.
+     * @return
+     */
+    public Topics getRuntimeConfig() {
+        return config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC);
     }
 
     protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)

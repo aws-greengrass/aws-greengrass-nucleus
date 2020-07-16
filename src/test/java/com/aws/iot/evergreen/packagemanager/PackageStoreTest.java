@@ -20,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,7 +56,14 @@ class PackageStoreTest {
     private static final PackageIdentifier MONITORING_SERVICE_PKG_ID =
             new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
 
-    private static final Path RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipes").getPath());
+    private static Path RECIPE_RESOURCE_PATH;
+
+    static {
+        try {
+            RECIPE_RESOURCE_PATH = Paths.get(PackageStoreTest.class.getResource("recipes").toURI());
+        } catch (URISyntaxException ignore) {
+        }
+    }
 
     private PackageStore packageStore;
 

@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.ConfigurationReader;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -26,6 +27,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_NAME_KEY;
 
 @AllArgsConstructor
 public class DeploymentConfigMerger {
@@ -44,8 +47,7 @@ public class DeploymentConfigMerger {
     private static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     private static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
-
-    public static final String DEPLOYMENT_SAFE_NAMESPACE_TOPIC = "notRolledBack";
+    protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
@@ -62,12 +64,6 @@ public class DeploymentConfigMerger {
     public Future<DeploymentResult> mergeInNewConfig(DeploymentDocument deploymentDocument,
                                                      Map<Object, Object> newConfig) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
-
-        if (newConfig.get(SERVICES_NAMESPACE_TOPIC) == null) {
-            kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
-            totallyCompleteFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
-            return totallyCompleteFuture;
-        }
 
         if (DeploymentSafetyPolicy.CHECK_SAFETY.equals(deploymentDocument.getDeploymentSafetyPolicy())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
@@ -107,14 +103,27 @@ public class DeploymentConfigMerger {
             }
         }
 
-        Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-        AggregateServicesChangeManager servicesChangeManager =
-                new AggregateServicesChangeManager(kernel, serviceConfig);
+        final AggregateServicesChangeManager servicesChangeManager;
+        if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
+            servicesChangeManager =
+                    new AggregateServicesChangeManager(kernel, serviceConfig);
+        } else {
+            servicesChangeManager = new AggregateServicesChangeManager(kernel, new HashMap<>());
+        }
 
         // Get the timestamp before mergeMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
-        kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
+        // when deployment adds a new dependency (component B) to component A
+        // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
+        // executing mergeMap using publish thread ensures this
+        //TODO: runOnPublishQueueAndWait does not wait because updateActionForDeployment itself is run on the
+        // publish queue. There needs to be another mechanism to ensure that mergemap completes and
+        // all listeners trigger before rest of deployment work flow is executed.
+        kernel.getContext().runOnPublishQueueAndWait(() ->
+                kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig));
+
         // wait until topic listeners finished processing mergeMap changes.
         kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
@@ -143,7 +152,7 @@ public class DeploymentConfigMerger {
                     logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
                             .log("Deployment failed");
                     if (isAutoRollbackRequested(failureHandlingPolicy)) {
-                        rollback(deploymentId, totallyCompleteFuture, e, servicesChangeManager.toRollback());
+                        rollback(deploymentId, totallyCompleteFuture, e, servicesChangeManager.createRollbackManager());
                     } else {
                         totallyCompleteFuture
                                 .complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, e));
@@ -170,7 +179,7 @@ public class DeploymentConfigMerger {
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
             ConfigurationReader.mergeTLogInto(kernel.getConfig(), getSnapshotFilePath(deploymentId), true,
-                    s -> !s.childOf(DEPLOYMENT_SAFE_NAMESPACE_TOPIC));
+                    s -> !s.childOf(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC));
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
@@ -181,7 +190,7 @@ public class DeploymentConfigMerger {
             return;
         }
         // wait until topic listeners finished processing read changes.
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
             kernel.getContext().get(ExecutorService.class).execute(() -> {
                 // TODO: Add timeout
@@ -241,6 +250,7 @@ public class DeploymentConfigMerger {
                 }
                 if (!service.reachedDesiredState()) {
                     allServicesRunning = false;
+                    continue;
                 }
                 if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
                     continue;
@@ -250,7 +260,7 @@ public class DeploymentConfigMerger {
             if (allServicesRunning) {
                 return;
             }
-            Thread.sleep(1000); // hardcoded
+            Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
         }
     }
 
@@ -294,7 +304,7 @@ public class DeploymentConfigMerger {
 
     @Getter
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
-    private class AggregateServicesChangeManager {
+    protected static class AggregateServicesChangeManager {
         private Kernel kernel;
         private Set<String> servicesToAdd;
         private Set<String> servicesToUpdate;
@@ -306,7 +316,7 @@ public class DeploymentConfigMerger {
          * @param kernel           evergreen kernel
          * @param newServiceConfig new config to be merged for deployment
          */
-        public AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
+        AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
             Set<String> runningUserServices = kernel.orderedDependencies().stream()
                     .map(EvergreenService::getName).collect(Collectors.toSet());
 
@@ -331,7 +341,7 @@ public class DeploymentConfigMerger {
          *
          * @return An instance of service change manager to be used for rollback
          */
-        public AggregateServicesChangeManager toRollback() {
+        AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
             return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd);
@@ -342,7 +352,7 @@ public class DeploymentConfigMerger {
          *
          * @throws ServiceLoadException when any service to be started could not be located
          */
-        public void startNewServices() throws ServiceLoadException {
+        void startNewServices() throws ServiceLoadException {
             for (String serviceName : servicesToAdd) {
                 EvergreenService service = kernel.locate(serviceName);
                 service.requestStart();
@@ -354,7 +364,7 @@ public class DeploymentConfigMerger {
          *
          * @throws ServiceLoadException when any service to be started could not be located
          */
-        public void reinstallBrokenServices() throws ServiceLoadException {
+        void reinstallBrokenServices() throws ServiceLoadException {
             for (String serviceName : servicesToUpdate) {
                 EvergreenService service = kernel.locate(serviceName);
                 if (service.currentOrReportedStateIs(State.BROKEN)) {
@@ -369,7 +379,7 @@ public class DeploymentConfigMerger {
          * @throws InterruptedException when the merge is interrupted
          * @throws ExecutionException   when error is encountered while trying to close any service
          */
-        public void removeObsoleteServices() throws InterruptedException, ExecutionException {
+        void removeObsoleteServices() throws InterruptedException, ExecutionException {
             Set<Future<Void>> serviceClosedFutures = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
@@ -397,7 +407,12 @@ public class DeploymentConfigMerger {
             }
             servicesToRemove.forEach(serviceName -> {
                 kernel.getContext().remove(serviceName);
-                kernel.findServiceTopic(serviceName).remove();
+                Topics serviceTopic = kernel.findServiceTopic(serviceName);
+                if (serviceTopic == null) {
+                    logger.atWarn().kv(SERVICE_NAME_KEY, serviceName).log("Service topics node doesn't exist.");
+                    return;
+                }
+                serviceTopic.remove();
             });
         }
 
@@ -407,7 +422,7 @@ public class DeploymentConfigMerger {
          * @return set of services to track state change for
          * @throws ServiceLoadException when any service whose state change needs to be tracked cannot be located
          */
-        public Set<EvergreenService> servicesToTrack() throws ServiceLoadException {
+        Set<EvergreenService> servicesToTrack() throws ServiceLoadException {
             Set<String> serviceNames = new HashSet<>(servicesToAdd);
             serviceNames.addAll(servicesToUpdate);
 

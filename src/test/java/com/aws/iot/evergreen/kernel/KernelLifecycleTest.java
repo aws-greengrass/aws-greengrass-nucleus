@@ -20,6 +20,7 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -90,6 +91,11 @@ class KernelLifecycleTest {
         kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine);
         mockKernel.setKernelLifecycle(kernelLifecycle);
         mockKernel.setKernelCommandLine(mockKernelCommandLine);
+    }
+
+    @AfterEach
+    void afterEach() {
+        kernelLifecycle.shutdown();
     }
 
     @Test
@@ -183,6 +189,13 @@ class KernelLifecycleTest {
         doNothing().when(service2).requestStart();
         doNothing().when(service3).requestStart();
         doNothing().when(service4).requestStart();
+
+        CompletableFuture<Void> fut = new CompletableFuture<>();
+        fut.complete(null);
+        doReturn(fut).when(service1).close();
+        doReturn(fut).when(service2).close();
+        doReturn(fut).when(service3).close();
+        doReturn(fut).when(service4).close();
 
         doReturn(Arrays.asList(service1, service2, service3, service4)).when(mockKernel).orderedDependencies();
 

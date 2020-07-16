@@ -57,7 +57,7 @@ class KernelShutdownTest extends BaseITCase {
             }
         });
 
-        //wait for main to run
+        // wait for main to run
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
         kernel.shutdown(60);
         assertTrue(sleeperBClosed.get());

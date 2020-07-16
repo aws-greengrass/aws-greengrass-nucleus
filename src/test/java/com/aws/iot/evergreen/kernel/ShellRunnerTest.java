@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.aws.iot.evergreen.util.Exec;
+import com.aws.iot.evergreen.util.platforms.Platform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,6 +21,7 @@ import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ShellRunnerTest extends EGServiceTestUtil {
@@ -38,7 +40,10 @@ class ShellRunnerTest extends EGServiceTestUtil {
     @BeforeEach
     void beforeEach() {
         Topics config = initializeMockedConfig();
-        when(config.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
+        Topics serviceRuntimeTopics = mock(Topics.class);
+
+        when(config.lookupTopics(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC)).thenReturn(serviceRuntimeTopics);
+        when(serviceRuntimeTopics.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
         when(kernel.getWorkPath()).thenReturn(tempDir);
         evergreenService = new EvergreenService(config);
     }
@@ -80,7 +85,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
         try (Context context = new Context()) {
             context.put(Kernel.class, kernel);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
-            try (Exec exec = shellRunner.setup("note", "sleep 0", evergreenService)) {
+            try (Exec exec = shellRunner.setup("note", "echo 0", evergreenService)) {
                 boolean ok = shellRunner.successful(exec, "note", background, evergreenService);
                 assertTrue(ok);
                 assertTrue(latch.await(2, TimeUnit.SECONDS));
@@ -119,7 +124,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
                 boolean ok = shellRunner.successful(exec, "note", background, evergreenService);
                 assertTrue(ok); // when runs in background, always return true
                 assertTrue(latch.await(2, TimeUnit.SECONDS));
-                assertEquals(127, exitCode.get());
+                assertEquals(Platform.getInstance().exitCodeWhenCommandDoesNotExist(), exitCode.get());
                 assertFalse(exec.isRunning());
             }
         }

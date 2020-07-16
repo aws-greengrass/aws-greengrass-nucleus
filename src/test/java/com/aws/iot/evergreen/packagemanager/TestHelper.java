@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -68,8 +69,8 @@ public final class TestHelper {
 
     public static String getPackageRecipeForTestPackage(String testPackageName, String testPackageVersion)
             throws IOException, URISyntaxException {
-        Path rootPath = Paths.get(TestHelper.class.getResource("test_packages").toURI());
-        Path path = rootPath.resolve(testPackageName + "-" + testPackageVersion).resolve("recipe.yaml");
+        URI rootPath = TestHelper.class.getResource("test_packages").toURI();
+        Path path = Paths.get(rootPath).resolve(testPackageName + "-" + testPackageVersion).resolve("recipe.yaml");
         String recipeFmt = new String(Files.readAllBytes(path));
         return String.format(recipeFmt, rootPath.toString());
     }

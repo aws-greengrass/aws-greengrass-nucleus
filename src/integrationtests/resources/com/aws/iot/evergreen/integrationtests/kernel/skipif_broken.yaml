@@ -2,12 +2,12 @@ services:
   test:
     lifecycle:
       run:
-        debian:
+        posix:
           skipif: This is broken
           script: echo "Running test" && sleep 10
-        macos:
+        windows:
           skipif: This is broken
-          script: echo "Running test" && sleep 10
+          script: echo "Running test"
   main:
     lifecycle:
       run:
