@@ -34,7 +34,6 @@ import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
 import software.amazon.awssdk.services.iot.model.DescribeRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
-import software.amazon.awssdk.services.iot.model.GetEffectivePoliciesRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
 import software.amazon.awssdk.services.iot.model.KeyPair;
 import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
@@ -186,7 +185,7 @@ public class DeviceProvisioningHelper {
         client.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
                 .newStatus(CertificateStatus.INACTIVE).build());
         for (Policy p: client.listAttachedPolicies(
-                        ListAttachedPoliciesRequest.builder().target(thing.certificateArn).build()).policies()){
+                        ListAttachedPoliciesRequest.builder().target(thing.certificateArn).build()).policies()) {
             client.detachPolicy(
                     DetachPolicyRequest.builder().policyName(p.policyName()).target(thing.certificateArn).build());
             client.deletePolicy(DeletePolicyRequest.builder().policyName(p.policyName()).build());
