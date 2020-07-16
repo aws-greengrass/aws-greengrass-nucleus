@@ -7,6 +7,8 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.iot.IotCloudHelper;
+import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Coerce;
 
