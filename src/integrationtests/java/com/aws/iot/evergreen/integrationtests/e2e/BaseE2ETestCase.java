@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
+    protected static final String FCS_BETA_ENDPOINT = "https://aqzw8qdn5l.execute-api.us-east-1.amazonaws.com/Beta";
     protected static final Region BETA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
 
@@ -193,7 +194,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                    GREENGRASS_SERVICE_ENDPOINT, BETA_REGION.toString());
+                    FCS_BETA_ENDPOINT, BETA_REGION.toString());
             fcsClient = AWSEvergreenClientBuilder.standard()
                     .withEndpointConfiguration(endpointConfiguration).build();
         }

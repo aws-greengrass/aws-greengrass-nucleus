@@ -3,17 +3,15 @@ package com.aws.iot.evergreen.integrationtests.tes;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,24 +24,25 @@ import java.util.concurrent.TimeUnit;
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.iot.evergreen.tes.TokenExchangeService.*;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(EGExtension.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Tag("E2E")
-class TESTest {
-
-    private static Kernel kernel;
+class TESTest extends BaseITCase {
+    private Kernel kernel;
     private ThingInfo thingInfo;
     private DeviceProvisioningHelper deviceProvisioningHelper;
-    private final static String POLICY_NAME = "TES_INTEG_TEST_POLICY";
-    private final static String THING_NAME = "TES_INTEG_THING";
-    private final static String AWS_REGION = "us-east-1";
-    private final static String TES_ROLE_NAME = "TES_INTEG_ROLE";
-    private final static String TES_ROLE_ALIAS_NAME = "TES_INTEG_ROLE_ALIAS";
+    private static final String POLICY_NAME = "TES_INTEG_TEST_POLICY";
+    private static final String THING_NAME = "TES_INTEG_THING";
+    private static final String AWS_REGION = "us-east-1";
+    private static final String TES_ROLE_NAME = "TES_INTEG_ROLE";
+    private static final String TES_ROLE_ALIAS_NAME = "TES_INTEG_ROLE_ALIAS";
 
     @BeforeEach
     void setupKernel() throws IOException {
@@ -55,11 +54,13 @@ class TESTest {
 
     @AfterEach
     void tearDown() {
-        kernel.shutdown();
-        deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
-        IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION),
-                IamSdkClientFactory.getIamClient(),
-                TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+        try {
+            kernel.shutdown();
+        } finally {
+            deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
+            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
+                    TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+        }
     }
 
     @Test
@@ -94,7 +95,7 @@ class TESTest {
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
 
-    void provision(Kernel kernel) throws IOException {
+    private void provision(Kernel kernel) throws IOException {
         thingInfo = deviceProvisioningHelper.createThing(IotSdkClientFactory.getIotClient(AWS_REGION), POLICY_NAME, THING_NAME);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
@@ -102,6 +103,5 @@ class TESTest {
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
         tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(TES_ROLE_ALIAS_NAME);
         deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
-
     }
 }
