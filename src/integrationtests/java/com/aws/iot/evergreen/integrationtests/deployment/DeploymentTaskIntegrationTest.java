@@ -345,7 +345,7 @@ class DeploymentTaskIntegrationTest {
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result = resultFuture.get(90, TimeUnit.SECONDS);
+        DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(EvergreenService::getName).collect(Collectors.toList());
