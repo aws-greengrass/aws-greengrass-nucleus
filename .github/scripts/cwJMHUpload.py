@@ -144,7 +144,7 @@ def main():
 
         width = 12
         height = 8
-        region = os.getenv("AWS_REGION")
+        region = os.getenv("AWS_DEFAULT_REGION")
         period = 300
         dashboard_data = {
             "start": "-P7D",  # Set default time range to 1 week
