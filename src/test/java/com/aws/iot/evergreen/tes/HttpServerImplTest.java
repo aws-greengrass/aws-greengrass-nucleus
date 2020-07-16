@@ -53,34 +53,37 @@ public class HttpServerImplTest {
     @ValueSource(ints = {0, 1025, 65355})
     public void GIVEN_port_WHEN_server_started_THEN_requests_are_successful(int port) throws Exception {
         HttpServerImpl server = startServer(port);
-        doAnswer(invocationArgs -> {
-                HttpExchange args = (HttpExchange)invocationArgs.getArguments()[0];
+        try {
+            doAnswer(invocationArgs -> {
+                HttpExchange args = (HttpExchange) invocationArgs.getArguments()[0];
                 args.sendResponseHeaders(HttpURLConnection.HTTP_OK, mockResponse.length());
                 args.getResponseBody().write(mockResponse.getBytes());
                 args.close();
                 return null; //void method
-        }).when(mockHttpHandler).handle(any());
-        if (port == 0) {
-            port = server.getServerPort();
-        }
-        URL url = new URL("http://localhost:" + port + HttpServerImpl.URL);
-        HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        con.setRequestMethod("GET");
-        con.setDoOutput(true);
-        OutputStream out = con.getOutputStream();
-        out.flush();
-        out.close();
+            }).when(mockHttpHandler).handle(any());
+            if (port == 0) {
+                port = server.getServerPort();
+            }
+            URL url = new URL("http://localhost:" + port + HttpServerImpl.URL);
+            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+            con.setDoOutput(true);
+            OutputStream out = con.getOutputStream();
+            out.flush();
+            out.close();
 
-        InputStream ip = con.getInputStream();
-        BufferedReader br = new BufferedReader(new InputStreamReader(ip));
+            InputStream ip = con.getInputStream();
+            BufferedReader br = new BufferedReader(new InputStreamReader(ip));
 
-        StringBuilder response = new StringBuilder();
-        String responseSingle = br.readLine();
-        while (responseSingle != null) {
-            response.append(responseSingle);
-            responseSingle = br.readLine();
+            StringBuilder response = new StringBuilder();
+            String responseSingle = br.readLine();
+            while (responseSingle != null) {
+                response.append(responseSingle);
+                responseSingle = br.readLine();
+            }
+            assertEquals(mockResponse, response.toString());
+        } finally {
+            stopServer(server);
         }
-        assertEquals(mockResponse, response.toString());
-        server.stop();
     }
 }

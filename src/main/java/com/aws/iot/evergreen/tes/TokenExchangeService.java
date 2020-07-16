@@ -68,7 +68,8 @@ public class TokenExchangeService extends EvergreenService {
             server = new HttpServerImpl(port,
                     new CredentialRequestHandler(iotRoleAlias, cloudHelper, iotConnectionManager));
             server.start();
-            setEnvVariablesForDependencies();
+            // Get port from the server, in case no port was specified and server started on a random port
+            setEnvVariablesForDependencies(server.getServerPort());
         } catch (IOException | IllegalArgumentException e) {
             serviceErrored(e.toString());
         }
@@ -83,9 +84,9 @@ public class TokenExchangeService extends EvergreenService {
         logger.atInfo().log("Stopped Server at port {}", port);
     }
 
-    private void setEnvVariablesForDependencies() {
+    private void setEnvVariablesForDependencies(final int serverPort) {
         Topic tesUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME);
-        final String tesUriValue = "http://localhost:" + getServerPort() + HttpServerImpl.URL;
+        final String tesUriValue = "http://localhost:" + serverPort + HttpServerImpl.URL;
         tesUri.withValue(tesUriValue);
         Topic tesAuth = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, TES_AUTH_ENV_VARIABLE_NAME);
         // TODO: Add auth support
@@ -93,15 +94,10 @@ public class TokenExchangeService extends EvergreenService {
         tesAuth.withValue(tesAuthValue);
     }
 
-    private void validateConfig() throws IllegalArgumentException {
+    private void validateConfig() {
         // Validate roleAlias
         if (Utils.isEmpty(iotRoleAlias)) {
             throw new IllegalArgumentException(String.format(TES_CONFIG_ERROR_STR, IOT_ROLE_ALIAS_TOPIC));
         }
-    }
-
-    private int getServerPort() {
-        // Get port from the server, in case no port was specified and server started on a random port
-        return server.getServerPort();
     }
 }
