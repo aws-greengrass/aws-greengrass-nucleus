@@ -40,9 +40,11 @@ class TESTest extends BaseITCase {
     private ThingInfo thingInfo;
     private DeviceProvisioningHelper deviceProvisioningHelper;
     private String roleId;
+    private String roleName;
+    private String roleAliasName;
     private static final String AWS_REGION = "us-east-1";
-    private static final String TES_ROLE_NAME = "TES_INTEG_ROLE";
-    private static final String TES_ROLE_ALIAS_NAME = "TES_INTEG_ROLE_ALIAS";
+    private static final String TES_ROLE_NAME = "e2etest-TES_INTEG_ROLE";
+    private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
 
     @BeforeEach
     void setupKernel() throws IOException {
@@ -50,6 +52,8 @@ class TESTest extends BaseITCase {
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
         roleId = UUID.randomUUID().toString();
+        roleName = TES_ROLE_NAME + roleId;
+        roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
         provision(kernel);
     }
 
@@ -60,7 +64,7 @@ class TESTest extends BaseITCase {
         } finally {
             deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
-                    TES_ROLE_NAME + roleId, TES_ROLE_ALIAS_NAME + roleId, thingInfo.getCertificateArn());
+                    roleName, roleAliasName, thingInfo.getCertificateArn());
         }
     }
 
@@ -99,11 +103,11 @@ class TESTest extends BaseITCase {
     private void provision(Kernel kernel) throws IOException {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
-        deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME + roleId, TES_ROLE_ALIAS_NAME + roleId,
+        deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName,
                 thingInfo.getCertificateArn());
-        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME + roleId);
+        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, roleAliasName);
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(TES_ROLE_ALIAS_NAME + roleId);
+        tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
         deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 }
