@@ -386,4 +386,238 @@ public class ConfigurationTest {
         assertEquals(1, leafNodeUpdated.get());
         assertFalse(nodeUnchangedNotified.get());
     }
+
+    @Test
+    public void test() throws Exception {
+        // GIVEN
+        // set up initial config and listeners
+        String initConfig = "---\n"
+                + "foo:\n"
+                + "  nodeToBeRemoved:\n"
+                + "    key1: val1\n"
+                + "  nodeToBeMerged:\n"
+                + "    key1: val1\n"
+                + "  leafToBeUpdated: val2\n"
+                + "  nodeUnchanged: unchanged\n"
+                + "  leafToBeRemoved: dummy";
+
+        String updateConfig = "---\n"
+                + "foo:\n"
+                + "  nodeAdded: val1\n"
+                + "  nodeToBeMerged:\n"
+                + "    key2: val2\n"
+                + "  nodeUnchanged: unchanged\n"
+                + "  leafToBeUpdated: updatedValue";
+
+        Map<Object, Object> initConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
+            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        config.mergeMap(System.currentTimeMillis(), initConfigMap);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        AtomicInteger nodeMerged = new AtomicInteger(0);
+        config.findTopics("foo", "nodeToBeMerged").subscribe((what, c) -> {
+            if (WhatHappened.childChanged == what && c.getName().equals("key2")) {
+                nodeMerged.incrementAndGet();
+            }
+        });
+
+        // WHEN
+        Map<Object, Object> updateConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+
+        MergeBehavior mergeBehavior = new MergeBehavior(MergeBehavior.UpdateBehaviorEnum.REPLACE,
+            new HashMap<String, MergeBehavior>() {{
+                put("foo", new MergeBehavior(
+                    MergeBehavior.UpdateBehaviorEnum.REPLACE,
+                    new HashMap<String, MergeBehavior>(){{
+                        put("nodeToBeMerged", MergeBehavior.MERGE_ALL);
+                    }}
+                ));
+            }}
+        );
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        Map<Object, Object> expectedConfig = new HashMap<>(updateConfigMap);
+
+        ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
+        // THEN
+        assertEquals(updateConfigMap, config.toPOJO());
+
+        assertEquals(1, nodeMerged.get());
+    }
+
+    @Test
+    public void GIVEN_FOO_THEN_BAR() throws Exception {
+        // GIVEN
+        // set up initial config and listeners
+        String initConfig = "---\n"
+                + "foo:\n"
+                + "  nodeToBeReplaced:\n"
+                + "    key1: val1\n"
+                + "  nodeToBeMerged:\n"
+                + "    key1: val1\n"
+                + "  nodeUnchanged:\n"
+                + "    key1: val1\n";
+
+        String updateConfig = "---\n"
+                + "foo:\n"
+                + "  nodeToBeReplaced:\n"
+                + "    key2: val2\n"
+                + "  nodeToBeMerged:\n"
+                + "    key2: val2\n"
+                + "  nodeUnchanged:\n"
+                + "    key1: val1\n";
+
+        String expectedResult = "---\n"
+                + "foo:\n"
+                + "  nodeToBeReplaced:\n"
+                + "    key2: val2\n"
+                + "  nodeToBeMerged:\n"
+                + "    key1: val1\n"
+                + "    key2: val2\n"
+                + "  nodeUnchanged:\n"
+                + "    key1: val1\n";
+
+        Map<Object, Object> initConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
+            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        config.mergeMap(System.currentTimeMillis(), initConfigMap);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        AtomicInteger nodeMerged = new AtomicInteger(0);
+        config.findTopics("foo", "nodeToBeMerged").subscribe((what, c) -> {
+            if (WhatHappened.childChanged == what && c.getName().equals("key2")) {
+                nodeMerged.incrementAndGet();
+            }
+        });
+
+
+        AtomicInteger nodeUnchangedCount = new AtomicInteger(0);
+        config.findTopics("foo", "nodeUnchanged").subscribe((what, c) -> {
+            if (WhatHappened.initialized != what) {
+                nodeUnchangedCount.incrementAndGet();
+            }
+        });
+
+        // WHEN
+        Map<Object, Object> updateConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+
+        MergeBehavior mergeBehavior = new MergeBehavior(MergeBehavior.UpdateBehaviorEnum.REPLACE,
+            new HashMap<String, MergeBehavior>() {{
+                put("foo", new MergeBehavior(
+                    MergeBehavior.UpdateBehaviorEnum.MERGE,
+                    new HashMap<String, MergeBehavior>(){{
+                        put("nodeToBeReplaced", MergeBehavior.REPLACE_ALL);
+                    }}
+                ));
+            }}
+        );
+
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        // THEN
+        Map<Object, Object> expectedConfig;
+        try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
+            expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        assertEquals(expectedConfig, config.toPOJO());
+
+        assertEquals(1, nodeMerged.get());
+        assertEquals(0, nodeUnchangedCount.get());
+    }
+
+    @Test
+    public void Test_wild_card() throws Exception {
+        // GIVEN
+        // set up initial config and listeners
+        String initConfig = "---\n"
+                + "foo:\n"
+                + "  nodeToBeReplaced:\n"
+                + "    key1: val1\n"
+                + "  nodeToBeMerged:\n"
+                + "    key1: val1\n"
+                + "  nodeUnchanged:\n"
+                + "    key1: val1\n";
+
+        String updateConfig = "---\n"
+                + "foo:\n"
+                + "  nodeToBeReplaced:\n"
+                + "    key2: val2\n"
+                + "  nodeToBeMerged:\n"
+                + "    key2: val2\n"
+                + "  nodeUnchanged:\n"
+                + "    key1: val1\n";
+
+        String expectedResult = "---\n"
+                + "foo:\n"
+                + "  nodeToBeReplaced:\n"
+                + "    key2: val2\n"
+                + "  nodeToBeMerged:\n"
+                + "    key1: val1\n"
+                + "    key2: val2\n"
+                + "  nodeUnchanged:\n"
+                + "    key1: val1\n";
+
+        Map<Object, Object> initConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
+            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        config.mergeMap(System.currentTimeMillis(), initConfigMap);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        AtomicInteger nodeMerged = new AtomicInteger(0);
+        config.findTopics("foo", "nodeToBeMerged").subscribe((what, c) -> {
+            if (WhatHappened.childChanged == what && c.getName().equals("key2")) {
+                nodeMerged.incrementAndGet();
+            }
+        });
+
+
+        AtomicInteger nodeUnchangedCount = new AtomicInteger(0);
+        config.findTopics("foo", "nodeUnchanged").subscribe((what, c) -> {
+            if (WhatHappened.initialized != what) {
+                nodeUnchangedCount.incrementAndGet();
+            }
+        });
+
+        // WHEN
+        Map<Object, Object> updateConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+
+        MergeBehavior mergeBehavior = new MergeBehavior(MergeBehavior.UpdateBehaviorEnum.REPLACE,
+            new HashMap<String, MergeBehavior>() {{
+                put("foo", new MergeBehavior(
+                    MergeBehavior.UpdateBehaviorEnum.MERGE,
+                    new HashMap<String, MergeBehavior>(){{
+                        put("nodeToBeReplaced", MergeBehavior.REPLACE_ALL);
+                    }}
+                ));
+            }}
+        );
+
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        // THEN
+        Map<Object, Object> expectedConfig;
+        try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
+            expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        assertEquals(expectedConfig, config.toPOJO());
+
+        assertEquals(1, nodeMerged.get());
+        assertEquals(0, nodeUnchangedCount.get());
+    }
 }

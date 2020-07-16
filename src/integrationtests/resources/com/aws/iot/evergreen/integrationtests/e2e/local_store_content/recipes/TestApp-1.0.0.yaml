@@ -1,0 +1,25 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: TestApp
+Description: A test app
+Publisher: Me
+Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
+  - all
+Parameters:
+  - name: param1
+    value: val1
+    type: STRING
+Lifecycle:
+  all:
+    startup:
+      script:
+        echo "Startup called"
+    shutdown:
+      script:
+        echo "Shutdown called"
+Dependencies:
+

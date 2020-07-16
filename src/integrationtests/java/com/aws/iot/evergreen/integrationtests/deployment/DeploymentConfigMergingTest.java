@@ -135,7 +135,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -153,9 +153,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
         assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-        assertThat((String) kernel.findServiceTopic("main")
-                        .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC).getOnce(),
-                containsString("echo \"Running main\""));
         assertTrue(safeUpdateRegistered.get());
 
         Slf4jLogAdapter.removeGlobalListener(listener);
@@ -186,7 +183,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
+            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.FINISHED)
                     && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
@@ -247,7 +244,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 newServiceStarted.countDown();
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.RUNNING)
+            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.FINISHED)
                     && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
@@ -337,7 +334,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 newServiceStarted.set(true);
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.get() && service.getName().equals("main") && newState.equals(State.RUNNING)
+            if (newServiceStarted.get() && service.getName().equals("main") && newState.equals(State.FINISHED)
                     && oldState.equals(State.STARTING)) {
                 mainRestarted.set(true);
             }
@@ -348,7 +345,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig).get(60, TimeUnit.SECONDS);
 
         // Verify that first merge succeeded.
-        assertEquals(State.RUNNING, main.getState());
+        assertEquals(State.FINISHED, main.getState());
         assertTrue(newService2Started.get());
         assertTrue(newServiceStarted.get());
         assertTrue(mainRestarted.get());
@@ -371,8 +368,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // merge shouldn't block
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig).get(60, TimeUnit.SECONDS);
 
-        // main and sleeperB should be running
-        assertEquals(State.RUNNING, main.getState());
+        // main should be finished
+        assertEquals(State.FINISHED, main.getState());
 
         assertFalse(stateChanged.get(), "State shouldn't change in merging the same config.");
 
@@ -581,7 +578,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
                 mainRestarted.countDown();
             }
         });
@@ -607,9 +604,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // THEN
         assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
         assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-        assertThat((String) kernel.findServiceTopic("main")
-                        .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC).getOnce(),
-                containsString("echo \"Running main\""));
         assertTrue(safeUpdateSkipped.get());
 
         Slf4jLogAdapter.removeGlobalListener(listener);

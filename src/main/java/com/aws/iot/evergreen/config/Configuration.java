@@ -138,6 +138,21 @@ public class Configuration {
         root.mergeMap(timestamp, (Map<Object, Object>) resolvedPlatformMap);
     }
 
+    /**
+     * Merges a Map into this configuration. The merge will resolve platform.
+     *
+     * @param timestamp     last modified time for the configuration values
+     * @param map           map to merge
+     * @param mergeBehavior the mergeBehavior of each node to be merged in
+     */
+    public void updateMap(long timestamp, Map<Object, Object> map, MergeBehavior mergeBehavior) {
+        Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
+        if (!(resolvedPlatformMap instanceof Map)) {
+            throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
+        }
+        root.updateFromMap(timestamp, (Map<Object, Object>) resolvedPlatformMap, mergeBehavior);
+    }
+
     public Map<String, Object> toPOJO() {
         return root.toPOJO();
     }

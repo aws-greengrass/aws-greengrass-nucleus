@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
@@ -210,20 +211,37 @@ public class Topics extends Node implements Iterable<Node> {
      * @param lastModified last modified time
      * @param map          map to merge in
      */
-    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
     public void mergeMap(long lastModified, Map<Object, Object> map) {
-        if (map == null) {
-            logger.atInfo().kv("node", getFullName()).log("Null map received in mergeMap(), ignoring.");
-            return;
+        updateFromMap(lastModified, map, MergeBehavior.MERGE_ALL);
+    }
+
+    private void updateChild(long lastModified, String key, Object value, @NonNull MergeBehavior mergeBehavior) {
+        MergeBehavior childMergeBehavior = mergeBehavior.getChildOverride().get(key);
+        if (childMergeBehavior == null) {
+            childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehavior.WILD_CARD);
         }
-        map.forEach((okey, value) -> {
-            String key = okey.toString();
-            if (value instanceof Map) {
-                createInteriorChild(key).mergeMap(lastModified, (Map) value);
-            } else {
-                createLeafChild(key).withNewerValue(lastModified, value);
-            }
-        });
+
+        if (childMergeBehavior == null) {
+            childMergeBehavior = mergeBehavior;
+        }
+
+        switch (childMergeBehavior.getDefaultBehavior()) {
+            case MERGE:
+                mergeChild(lastModified, key, value, childMergeBehavior);
+                break;
+            case REPLACE:
+                replaceChild(lastModified, key, value, childMergeBehavior);
+                break;
+            default:
+        }
+    }
+
+    private void mergeChild(long lastModified, String key, Object value, @NonNull MergeBehavior mergeBehavior) {
+        if (value instanceof Map) {
+            createInteriorChild(key).updateFromMap(lastModified, (Map) value, mergeBehavior);
+        } else {
+            createLeafChild(key).withNewerValue(lastModified, value);
+        }
     }
 
     /**
@@ -232,10 +250,21 @@ public class Topics extends Node implements Iterable<Node> {
      * @param lastModified last modified time
      * @param map          map to merge in
      */
+    void replaceMap(long lastModified, Map<Object, Object> map) {
+        updateFromMap(lastModified, map, MergeBehavior.REPLACE_ALL);
+    }
+
+    /**
+     * Add the given map to this Topics tree.
+     *
+     * @param lastModified last modified time
+     * @param map          map to merge in
+     * @param mergeBehavior mergeBehavior
+     */
     @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
-    public void replaceMap(long lastModified, Map<Object, Object> map) {
+    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull MergeBehavior mergeBehavior) {
         if (map == null) {
-            logger.atInfo().kv("node", getFullName()).log("Null map received in mergeMap(), ignoring.");
+            logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
             return;
         }
         Set<String> childToRemove = new HashSet<>(children.keySet());
@@ -243,28 +272,47 @@ public class Topics extends Node implements Iterable<Node> {
         map.forEach((okey, value) -> {
             String key = okey.toString();
             childToRemove.remove(key);
-            Node existingChild = children.get(key);
-            // if new node is a container node
-            if (value instanceof Map) {
-                // if existing child is a leaf node
-                // TODO: handle node type change between container/leaf node
-                if (existingChild != null && !(existingChild instanceof Topics)) {
-                    remove(existingChild);
-                }
-                createInteriorChild(key).replaceMap(lastModified, (Map) value);
-            // if new node is a leaf node
-            } else {
-                // if existing child is a container node
-                if (existingChild != null && !(existingChild instanceof Topic)) {
-                    remove(existingChild);
-                }
-                createLeafChild(key).withNewerValue(lastModified, value);
-            }
+            updateChild(lastModified, key, value, mergeBehavior);
         });
 
         childToRemove.forEach(child -> {
-            remove(children.get(child));
+            MergeBehavior childMergeBehavior = mergeBehavior.getChildOverride().get(child);
+            if (childMergeBehavior == null) {
+                childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehavior.WILD_CARD);
+            }
+
+            if (childMergeBehavior == null
+                    && mergeBehavior.getDefaultBehavior() == MergeBehavior.UpdateBehaviorEnum.REPLACE) {
+                remove(children.get(child));
+                return;
+            }
+
+            // remove the existing child only if its merge behavior is not present or is REPLACE
+            if (childMergeBehavior != null
+                    && childMergeBehavior.getDefaultBehavior() == MergeBehavior.UpdateBehaviorEnum.REPLACE) {
+                remove(children.get(child));
+            }
         });
+    }
+
+    private void replaceChild(long lastModified, String key, Object value, @Nonnull MergeBehavior childMergeBehavior) {
+        Node existingChild = children.get(key);
+        // if new node is a container node
+        if (value instanceof Map) {
+            // if existing child is a leaf node
+            // TODO: handle node type change between container/leaf node
+            if (existingChild != null && !(existingChild instanceof Topics)) {
+                remove(existingChild);
+            }
+            createInteriorChild(key).updateFromMap(lastModified, (Map) value, childMergeBehavior);
+        // if new node is a leaf node
+        } else {
+            // if existing child is a container node
+            if (existingChild != null && !(existingChild instanceof Topic)) {
+                remove(existingChild);
+            }
+            createLeafChild(key).withNewerValue(lastModified, value);
+        }
     }
 
     @Override

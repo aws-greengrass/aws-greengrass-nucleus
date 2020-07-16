@@ -14,6 +14,7 @@ Lifecycle:
       sleep 2
       echo "CustomerApp succeeds."
       exit 0
+
 Dependencies:
   all:
     Mosquitto:
