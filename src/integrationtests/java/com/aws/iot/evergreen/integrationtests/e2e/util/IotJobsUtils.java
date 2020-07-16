@@ -55,8 +55,9 @@ public final class IotJobsUtils {
         ResourceNotFoundException lastException = null;
         while (deadline.isAfter(Instant.now())) {
             try {
-                status = client.describeJobExecution(DescribeJobExecutionRequest.builder()
-                        .jobId(jobId).thingName(thingName).build()).execution().status();
+                status = client.describeJobExecution(
+                        DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingName).build()).execution()
+                        .status();
                 if (condition.test(status)) {
                     return;
                 }
@@ -69,8 +70,8 @@ public final class IotJobsUtils {
             } catch (InterruptedException ignored) {
             }
         }
-        throw new TimeoutException(status == null && lastException != null ? lastException.getMessage() :
-                "Job execution status is " + status);
+        throw new TimeoutException(status == null && lastException != null ? lastException.getMessage()
+                : "Job execution status is " + status);
     }
 
     public static CreateThingGroupResponse createThingGroupAndAddThing(IotClient client, ThingInfo thingInfo) {
@@ -112,28 +113,29 @@ public final class IotJobsUtils {
      * @return String formatted ARN
      */
     public static String generateMockConfigurationArn(String resourceIdVersion) {
-        return Arn.builder().withPartition("aws").withAccountId("1234567890").withRegion("test-region").withService(
-                "gg").withResource(String.format("configuration:%s", resourceIdVersion)).build().toString();
+        return Arn.builder().withPartition("aws").withAccountId("1234567890").withRegion("test-region")
+                .withService("gg").withResource(String.format("configuration:%s", resourceIdVersion)).build()
+                .toString();
     }
 
     /**
      * Clean Up IoT/IAM roles for using TES.
      *
-     * @param roleName IAM role Name
+     * @param roleName      IAM role Name
      * @param roleAliasName IOT roleAlias name
-     * @param certArn IOT certificate Arn
+     * @param certArn       IOT certificate Arn
      */
-    public static void cleanUpIotRoleForTest(IotClient iotClient, IamClient iamClient, String roleName, String roleAliasName, String certArn) {
+    public static void cleanUpIotRoleForTest(IotClient iotClient, IamClient iamClient, String roleName,
+                                             String roleAliasName, String certArn) {
         try {
-            DeleteRoleAliasRequest deleteRoleAliasRequest = DeleteRoleAliasRequest.builder()
-                    .roleAlias(roleAliasName).build();
+            DeleteRoleAliasRequest deleteRoleAliasRequest =
+                    DeleteRoleAliasRequest.builder().roleAlias(roleAliasName).build();
             iotClient.deleteRoleAlias(deleteRoleAliasRequest);
         } catch (ResourceNotFoundException e) {
             // Ignore as role alias does not exist
         }
         try {
-            DeleteRoleRequest deleteRoleRequest = DeleteRoleRequest.builder()
-                    .roleName(roleName).build();
+            DeleteRoleRequest deleteRoleRequest = DeleteRoleRequest.builder().roleName(roleName).build();
             iamClient.deleteRole(deleteRoleRequest);
         } catch (ResourceNotFoundException e) {
             // Ignore as role alias does not exist

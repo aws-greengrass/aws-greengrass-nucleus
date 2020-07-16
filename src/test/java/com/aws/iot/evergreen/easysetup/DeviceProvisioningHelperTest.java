@@ -182,15 +182,15 @@ public class DeviceProvisioningHelperTest {
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, "roleAliasName");
-        assertEquals("roleAliasName",
-                kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS,
-                        PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
-                        .getOnce());
+        assertEquals("roleAliasName", kernel.getConfig()
+                .lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY,
+                        IOT_ROLE_ALIAS_TOPIC).getOnce());
     }
 
     @Test
     public void GIVEN_test_clean_thing_WHEN_thing_info_and_cert_and_things_deleted() {
-        when(iotClient.listAttachedPolicies(any(ListAttachedPoliciesRequest.class))).thenReturn(listAttachedPoliciesResponse);
+        when(iotClient.listAttachedPolicies(any(ListAttachedPoliciesRequest.class)))
+                .thenReturn(listAttachedPoliciesResponse);
         when(listAttachedPoliciesResponse.policies()).thenReturn(
                 Collections.singletonList(Policy.builder().policyName("policyName").policyArn("policyArn").build()));
         deviceProvisioningHelper.cleanThing(iotClient,

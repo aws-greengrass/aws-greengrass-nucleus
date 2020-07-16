@@ -105,8 +105,7 @@ public class DeviceProvisioningHelper {
      * @param iamClient iam client
      * @param cmsClient cms client
      */
-    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient,
-                             AWSEvergreen cmsClient) {
+    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient, AWSEvergreen cmsClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
@@ -184,8 +183,9 @@ public class DeviceProvisioningHelper {
         client.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build());
         client.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
                 .newStatus(CertificateStatus.INACTIVE).build());
-        for (Policy p: client.listAttachedPolicies(
-                        ListAttachedPoliciesRequest.builder().target(thing.certificateArn).build()).policies()) {
+        for (Policy p : client
+                .listAttachedPolicies(ListAttachedPoliciesRequest.builder().target(thing.certificateArn).build())
+                .policies()) {
             client.detachPolicy(
                     DetachPolicyRequest.builder().policyName(p.policyName()).target(thing.certificateArn).build());
             client.deletePolicy(DeletePolicyRequest.builder().policyName(p.policyName()).build());
