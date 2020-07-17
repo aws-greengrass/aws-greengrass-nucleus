@@ -92,6 +92,17 @@ public class Configuration {
         return root.findTopics(path);
     }
 
+    /**
+     * Find, but do not create if missing, a node in the
+     * config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find the Topics
+     */
+    @Nullable
+    public Node findNode(String... path) {
+        return root.findNode(path);
+    }
+
     public Topics getRoot() {
         return root;
     }

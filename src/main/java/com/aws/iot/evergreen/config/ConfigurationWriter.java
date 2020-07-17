@@ -98,25 +98,25 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (closed.get()) {
             return;
         }
-        if ((what == WhatHappened.childChanged || what == WhatHappened.childRemoved)  && n instanceof Topic) {
-            Topic t = (Topic) n;
-            try {
-                if (n.getName().startsWith("_")) {
-                    return;  // Don't log entries whose name starts in '_'
-                }
-                WhatHappened action;
-                if (what == WhatHappened.childChanged) {
-                    action = WhatHappened.changed;
-                } else {
-                    action = WhatHappened.removed;
-                }
-
-                Tlogline tlogline = new Tlogline(t.getModtime(), t.getFullName(), action, t.getOnce());
-                tlogline.outputTo(out);
-            } catch (IOException ex) {
-                logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
-                        .setCause(ex).log();
+        Tlogline tlogline;
+        if (what == WhatHappened.childChanged && n instanceof Topic) {
+            if (n.getName().startsWith("_")) {
+                return;  // Don't log entries whose name starts in '_'
             }
+            Topic t = (Topic) n;
+
+            tlogline = new Tlogline(t.getModtime(), t.getFullName(), WhatHappened.changed, t.getOnce());
+        } else if (what == WhatHappened.childRemoved) {
+            tlogline = new Tlogline(n.getModtime(), n.getFullName(), WhatHappened.removed, null);
+        } else {
+            return;
+        }
+
+        try {
+            tlogline.outputTo(out);
+        } catch (IOException ex) {
+             logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
+                    .setCause(ex).log();
         }
         if (flushImmediately) {
             flush(out);
