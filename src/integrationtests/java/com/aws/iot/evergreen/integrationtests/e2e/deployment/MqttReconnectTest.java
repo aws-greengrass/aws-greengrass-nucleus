@@ -143,7 +143,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
             networkUtils.disconnectMqtt();
 
             // Wait for the deployment to finish offline
-            assertTrue(jobCompleted.await(5, TimeUnit.MINUTES));
+            assertTrue(jobCompleted.await(3, TimeUnit.MINUTES));
             assertTrue(connectionInterrupted.await(2, TimeUnit.MINUTES));
         } finally {
             networkUtils.recoverMqtt();
