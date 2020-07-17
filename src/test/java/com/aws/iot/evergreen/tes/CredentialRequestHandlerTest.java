@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.tes;
 
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +41,7 @@ public class CredentialRequestHandlerTest {
             "\"sessionToken\":\"" + SESSION_TOKEN + "\"," +
             "\"expiration\":\"" + EXPIRATION + "\"}}";
     private static final String ROLE_ALIAS = "ROLE_ALIAS";
+    private static final IotCloudResponse CLOUD_RESPONSE= new IotCloudResponse(RESPONSE_STR, 200);
     @Mock
     IotConnectionManager mockConnectionManager;
 
@@ -49,7 +51,7 @@ public class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
         CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         HttpExchange mockExchange = mock(HttpExchange.class);
         OutputStream mockStream = mock(OutputStream.class);
@@ -71,7 +73,7 @@ public class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_get_credentials_THEN_returns_success() throws Exception {
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
         CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         final byte[] creds = handler.getCredentials();
         final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";

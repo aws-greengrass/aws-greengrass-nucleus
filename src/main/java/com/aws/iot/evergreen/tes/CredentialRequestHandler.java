@@ -71,12 +71,12 @@ public class CredentialRequestHandler implements HttpHandler {
         LOGGER.debug("Got request for credentials");
         // TODO: Add cache
         try {
-            final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
-                    iotCredentialsPath,
-                    IOT_CREDENTIALS_HTTP_VERB, null);
+            final String credentials = iotCloudHelper
+                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null)
+                    .getResponseBody();
+            // TODO: Negative caching given 4xx and 5xx cloud error
             response = translateToAwsSdkFormat(credentials);
         } catch (AWSIotException e) {
-            // TODO: Generate 4xx, 5xx responses for all error scenarios
             LOGGER.error("Encountered error while fetching credentials", e);
         }
         return response;
