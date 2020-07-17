@@ -6,15 +6,13 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Consumer;
 
 public class Topic extends Node {
-    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for modtime to be sync")
-    private long modtime;
+
     private Object value;
 
     private static final Logger logger = LogManager.getLogger(Topic.class);
@@ -57,10 +55,6 @@ public class Topic extends Node {
             value = validator.validate(value, null);
         }
         return this;
-    }
-
-    public long getModtime() {
-        return modtime;
     }
 
     /**
@@ -118,26 +112,13 @@ public class Topic extends Node {
         return this;
     }
 
-    /**
-     * Remove with timestamp check.
-     * @param timestamp timestamp
-     */
-    public void remove(long timestamp) {
-        if (timestamp < this.modtime) {
-            return;
-        }
-        remove();
-    }
-
     @Override
     protected void fire(WhatHappened what) {
         logger.atDebug().setEventType("config-node-update").addKeyValue("configNode", getFullName())
                 .addKeyValue("reason", what.name()).log();
-        if (watchers != null) {
-            for (Watcher s : watchers) {
-                if (s instanceof Subscriber) {
-                    ((Subscriber) s).published(what, this);
-                }
+        for (Watcher s : watchers) {
+            if (s instanceof Subscriber) {
+                ((Subscriber) s).published(what, this);
             }
         }
 
@@ -147,7 +128,7 @@ public class Topic extends Node {
         }
 
         // in the case of 'changed' event
-        if (parent != null && parentNeedsToKnow()) {
+        if (parentNeedsToKnow()) {
             parent.childChanged(WhatHappened.childChanged, this);
         }
     }
