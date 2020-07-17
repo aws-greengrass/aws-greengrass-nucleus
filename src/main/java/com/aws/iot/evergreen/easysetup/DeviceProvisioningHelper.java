@@ -9,6 +9,7 @@ import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.util.BaseRetryableAccessor;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -35,6 +36,7 @@ import software.amazon.awssdk.services.iot.model.DescribeRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
+import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.KeyPair;
 import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
 import software.amazon.awssdk.services.iot.model.Policy;
@@ -51,7 +53,9 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 
@@ -69,6 +73,8 @@ public class DeviceProvisioningHelper {
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "EvergreenTESCertificatePolicy";
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
+    private static final int RETRY_COUNT = 3;
+    private static final int BACKOFF_MILLIS = 100;
     // TODO : Remove once global components are implemented
     public static final String GREENGRASS_SERVICE_ENDPOINT =
             "https://corl1ybge2.execute-api.us-east-1.amazonaws.com/Beta";
@@ -180,7 +186,12 @@ public class DeviceProvisioningHelper {
         client.detachThingPrincipal(
                 DetachThingPrincipalRequest.builder().thingName(thing.thingName).principal(thing.certificateArn)
                         .build());
-        client.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build());
+        // Retry deleteThing when getting "still attached to one or more principals" InvalidRequestException
+        // as the detachThingPrincipal call is async
+        BaseRetryableAccessor accessor = new BaseRetryableAccessor();
+        accessor.retry(RETRY_COUNT, BACKOFF_MILLIS,
+                () -> client.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build()),
+                new HashSet<>(Arrays.asList(InvalidRequestException.class)));
         client.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
                 .newStatus(CertificateStatus.INACTIVE).build());
         for (Policy p : client
