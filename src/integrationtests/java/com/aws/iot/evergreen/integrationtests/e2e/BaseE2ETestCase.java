@@ -35,12 +35,14 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
+import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -75,7 +77,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected Kernel kernel;
 
-    protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(BETA_REGION.toString());
+    protected static final IotClient iotClient = IotSdkClientFactory
+            .getIotClient(BETA_REGION.toString(), Collections.singleton(InvalidRequestException.class));
     private static AWSEvergreen fcsClient;
     protected static final AWSEvergreen cmsClient =
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
