@@ -17,6 +17,11 @@ import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,11 +39,21 @@ public class CredentialRequestHandler implements HttpHandler {
     private static final String EXPIRATION_DOWNSTREAM_STR = "Expiration";
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
+
     private final String iotCredentialsPath;
 
     private final IotCloudHelper iotCloudHelper;
 
     private final IotConnectionManager iotConnectionManager;
+
+    private Clock clock = Clock.systemUTC();
+
+    private Instant cacheExpiry = Instant.now(clock);
+
+    private byte[] cachedCredentials;
+
+    private int cachedResponseCode;
 
     /**
      * Constructor.
@@ -57,7 +72,7 @@ public class CredentialRequestHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final byte[] credentials = getCredentials();
-        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, credentials.length);
+        exchange.sendResponseHeaders(cachedResponseCode, credentials.length);
         exchange.getResponseBody().write(credentials);
         exchange.close();
     }
@@ -67,18 +82,49 @@ public class CredentialRequestHandler implements HttpHandler {
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
-        byte[] response = {};
         LOGGER.debug("Got request for credentials");
-        // TODO: Add cache
+
+        if (areCredentialsValid()) {
+            return Arrays.copyOf(cachedCredentials, cachedCredentials.length);
+        }
+        
+        byte[] response = {};
+        Instant newExpiry = cacheExpiry;
+
         try {
             final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
                     iotCredentialsPath,
                     IOT_CREDENTIALS_HTTP_VERB, null);
             response = translateToAwsSdkFormat(credentials);
+
+            String expiryString = parseExpiryFromResponse(credentials);
+            Instant expiry = Instant.parse(expiryString);
+
+            if (expiry.isBefore(Instant.now(clock))) {
+                String responseString = "TES responded with expired credentials: " + credentials;
+                response = responseString.getBytes(StandardCharsets.UTF_8);
+                cachedResponseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+                LOGGER.error("Unable to cache expired credentials which expired at {}", expiry.toString());
+            } else {
+                newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
+                cachedResponseCode = HttpURLConnection.HTTP_OK;
+
+                if (newExpiry.isBefore(Instant.now(clock))) {
+                    LOGGER.warn("Can't cache credentials as new credentials {} will expire in less than {} minutes",
+                            newExpiry.toString(),
+                            TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                } else {
+                    LOGGER.info("Received IAM credentials that will be cached until {}", newExpiry.toString());
+                }
+            }
         } catch (AWSIotException e) {
             // TODO: Generate 4xx, 5xx responses for all error scenarios
             LOGGER.error("Encountered error while fetching credentials", e);
         }
+
+        cacheExpiry = newExpiry;
+        cachedCredentials = response;
+
         return response;
     }
 
@@ -96,5 +142,29 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.error("Received malformed credential input", e);
             throw new AWSIotException(e);
         }
+    }
+
+    private String parseExpiryFromResponse(final String credentials) throws AWSIotException {
+        try {
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
+            return jsonNode.get(EXPIRATION_UPSTREAM_STR).asText();
+        } catch (JsonProcessingException e) {
+            LOGGER.error("Received malformed credential input", e);
+            throw new AWSIotException(e);
+        }
+    }
+
+    private boolean areCredentialsValid() {
+        Instant now = Instant.now(clock);
+        return now.isBefore(cacheExpiry);
+    }
+
+    /**
+     * Inject clock for controlled testing.
+     *
+     * @param clock fixed time clock
+     */
+    public void setClock(Clock clock) {
+        this.clock = clock;
     }
 }
