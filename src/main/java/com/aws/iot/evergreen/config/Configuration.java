@@ -145,7 +145,7 @@ public class Configuration {
      * @param map           map to merge
      * @param mergeBehavior the mergeBehavior of each node to be merged in
      */
-    public void updateMap(long timestamp, Map<Object, Object> map, MergeBehavior mergeBehavior) {
+    public void updateMap(long timestamp, Map<Object, Object> map, MergeBehaviorTree mergeBehavior) {
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);

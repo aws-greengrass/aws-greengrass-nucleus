@@ -351,8 +351,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void test() throws Exception {
-        // First Deployment to have some services running in Kernel
+    void GIVEN_component_updated_WHEN_component_recipe_remove_a_field_THEN_kernel_config_remove_the_corresponding_field() throws Exception {
+        // CustomerApp 0.9.1 has 'startup' key in lifecycle
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
@@ -368,7 +368,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // update with some local data
         customerApp.getRuntimeConfig().lookup("runtimeKey").withValue("val");
-        // Second deployment to update CustomerApp with removed 'startup' key.
+
+        // Second deployment to update CustomerApp, replace 'startup' key with 'run' key.
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
@@ -382,7 +383,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         customerApp = kernel.locate("CustomerApp");
+        // assert local data is not affected
         assertEquals("val", customerApp.getRuntimeConfig().findLeafChild("runtimeKey").getOnce());
+        // assert updated service have 'startup' key removed.
         assertNotNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("run"));
         assertNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("startup"));
         assertThat(customerApp::getState, eventuallyEval(is(State.FINISHED)));

@@ -19,6 +19,7 @@ import java.util.Map;
  *   *: [REPLACE]
  *     subkey1: [MERGE]
  *       subkey2: [REPLACE]
+ * <p>
  * Original config:
  * --
  * key1:
@@ -29,13 +30,14 @@ import java.util.Map;
  *       leafKey2:val2
  * foo:
  *   otherKey: otherVal
- *   leafKey1:val1
  *   subKey1:
  *     leafKey1:val1
  *     subKey2:
  *       leafKey2:val2
  * bar:
  *   key1:val1
+ * </p>
+ * <p>
  * Config to merge in:
  * --
  * key1:
@@ -48,36 +50,48 @@ import java.util.Map;
  *       updatedLeafKey2: updatedVal2
  * baz:
  *   key1:val1
+ * </p>
+ * <p>
  * Resulting config:
  * --
  * key1:
- * foo:
- * bar:
+ *   otherKey: otherVal (merged from original config)
+ *   subKey1: (leafKey1 removed)
+ *     subKey2:
+ *       leafKey2:val2 (merged from original config)
+ *       updatedLeafKey2: updatedVal2
+ * foo: (otherKey removed)
+ *   subKey1:
+ *     leafKey1:val1 (merged from original config)
+ *     subKey2: (leafKey2 removed)
+ *       updatedLeafKey2: updatedVal2
+ * bar: (merged from original config)
  *   key1:val1
- * baz:
+ * baz: (merged from new config)
  *   key1:val1
+ * </p>
  */
 @AllArgsConstructor
 @Getter
 @Data
-public class MergeBehavior {
-    public static final String WILD_CARD = "*";
-    public static final MergeBehavior MERGE_ALL;
-    public static final MergeBehavior REPLACE_ALL;
+public class MergeBehaviorTree {
+    public static final String WILDCARD = "*";
+    public static final MergeBehaviorTree MERGE_ALL;
+    public static final MergeBehaviorTree REPLACE_ALL;
 
     static {
-        MERGE_ALL = new MergeBehavior(UpdateBehaviorEnum.MERGE, new HashMap<>());
-        REPLACE_ALL = new MergeBehavior(UpdateBehaviorEnum.REPLACE, new HashMap<>());
+        MERGE_ALL = new MergeBehaviorTree(MergeBehavior.MERGE);
+        REPLACE_ALL = new MergeBehaviorTree(MergeBehavior.REPLACE);
     }
 
-    public enum UpdateBehaviorEnum {
+    public enum MergeBehavior {
         MERGE, REPLACE;
     }
 
-    private UpdateBehaviorEnum defaultBehavior;
-    private Map<String, MergeBehavior> childOverride;
+    private MergeBehavior defaultBehavior;
+    private Map<String, MergeBehaviorTree> childOverride;
 
-    public MergeBehavior(UpdateBehaviorEnum defaultBehavior) {
+    public MergeBehaviorTree(MergeBehavior defaultBehavior) {
         this.defaultBehavior = defaultBehavior;
         this.childOverride = new HashMap<>();
     }

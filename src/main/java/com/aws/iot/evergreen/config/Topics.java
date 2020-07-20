@@ -212,13 +212,64 @@ public class Topics extends Node implements Iterable<Node> {
      * @param map          map to merge in
      */
     public void mergeMap(long lastModified, Map<Object, Object> map) {
-        updateFromMap(lastModified, map, MergeBehavior.MERGE_ALL);
+        updateFromMap(lastModified, map, MergeBehaviorTree.MERGE_ALL);
     }
 
-    private void updateChild(long lastModified, String key, Object value, @NonNull MergeBehavior mergeBehavior) {
-        MergeBehavior childMergeBehavior = mergeBehavior.getChildOverride().get(key);
+    /**
+     * Replace the given map to this Topics tree.
+     *
+     * @param lastModified last modified time
+     * @param map          map to merge in
+     */
+    void replaceMap(long lastModified, Map<Object, Object> map) {
+        updateFromMap(lastModified, map, MergeBehaviorTree.REPLACE_ALL);
+    }
+
+    /**
+     * Add the given map to this Topics tree.
+     *
+     * @param lastModified  last modified time
+     * @param map           map to merge in
+     * @param mergeBehavior mergeBehavior
+     */
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
+    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull MergeBehaviorTree mergeBehavior) {
+        if (map == null) {
+            logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
+            return;
+        }
+        Set<String> childToRemove = new HashSet<>(children.keySet());
+
+        map.forEach((okey, value) -> {
+            String key = okey.toString();
+            childToRemove.remove(key);
+            updateChild(lastModified, key, value, mergeBehavior);
+        });
+
+        childToRemove.forEach(child -> {
+            MergeBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(child);
+            if (childMergeBehavior == null) {
+                childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehaviorTree.WILDCARD);
+            }
+
+            if (childMergeBehavior == null
+                    && mergeBehavior.getDefaultBehavior() == MergeBehaviorTree.MergeBehavior.REPLACE) {
+                remove(children.get(child));
+                return;
+            }
+
+            // remove the existing child only if its merge behavior is not present or is REPLACE
+            if (childMergeBehavior != null
+                    && childMergeBehavior.getDefaultBehavior() == MergeBehaviorTree.MergeBehavior.REPLACE) {
+                remove(children.get(child));
+            }
+        });
+    }
+
+    private void updateChild(long lastModified, String key, Object value, @NonNull MergeBehaviorTree mergeBehavior) {
+        MergeBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key);
         if (childMergeBehavior == null) {
-            childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehavior.WILD_CARD);
+            childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehaviorTree.WILDCARD);
         }
 
         if (childMergeBehavior == null) {
@@ -236,7 +287,7 @@ public class Topics extends Node implements Iterable<Node> {
         }
     }
 
-    private void mergeChild(long lastModified, String key, Object value, @NonNull MergeBehavior mergeBehavior) {
+    private void mergeChild(long lastModified, String key, Object value, @NonNull MergeBehaviorTree mergeBehavior) {
         if (value instanceof Map) {
             createInteriorChild(key).updateFromMap(lastModified, (Map) value, mergeBehavior);
         } else {
@@ -244,58 +295,8 @@ public class Topics extends Node implements Iterable<Node> {
         }
     }
 
-    /**
-     * Replace the given map to this Topics tree.
-     *
-     * @param lastModified last modified time
-     * @param map          map to merge in
-     */
-    void replaceMap(long lastModified, Map<Object, Object> map) {
-        updateFromMap(lastModified, map, MergeBehavior.REPLACE_ALL);
-    }
-
-    /**
-     * Add the given map to this Topics tree.
-     *
-     * @param lastModified last modified time
-     * @param map          map to merge in
-     * @param mergeBehavior mergeBehavior
-     */
-    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
-    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull MergeBehavior mergeBehavior) {
-        if (map == null) {
-            logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
-            return;
-        }
-        Set<String> childToRemove = new HashSet<>(children.keySet());
-
-        map.forEach((okey, value) -> {
-            String key = okey.toString();
-            childToRemove.remove(key);
-            updateChild(lastModified, key, value, mergeBehavior);
-        });
-
-        childToRemove.forEach(child -> {
-            MergeBehavior childMergeBehavior = mergeBehavior.getChildOverride().get(child);
-            if (childMergeBehavior == null) {
-                childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehavior.WILD_CARD);
-            }
-
-            if (childMergeBehavior == null
-                    && mergeBehavior.getDefaultBehavior() == MergeBehavior.UpdateBehaviorEnum.REPLACE) {
-                remove(children.get(child));
-                return;
-            }
-
-            // remove the existing child only if its merge behavior is not present or is REPLACE
-            if (childMergeBehavior != null
-                    && childMergeBehavior.getDefaultBehavior() == MergeBehavior.UpdateBehaviorEnum.REPLACE) {
-                remove(children.get(child));
-            }
-        });
-    }
-
-    private void replaceChild(long lastModified, String key, Object value, @Nonnull MergeBehavior childMergeBehavior) {
+    private void replaceChild(long lastModified, String key, Object value,
+                              @Nonnull MergeBehaviorTree childMergeBehavior) {
         Node existingChild = children.get(key);
         // if new node is a container node
         if (value instanceof Map) {
