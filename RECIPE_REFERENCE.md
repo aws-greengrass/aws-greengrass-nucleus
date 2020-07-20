@@ -2,10 +2,10 @@
 ## Reference and guidelines
 This reference describes version 1 of component recipe file format.
 
-Component recipe is a single yaml/json file for component author to define component deployment and runtime
- characteristics in AWS greengrass ecosystem.
+Component recipe is a single yaml/json file for the component author to define component deployment and runtime
+ characteristics in the AWS Greengrass ecosystem.
 ## Recipe file structure and examples
-Here is a sample recipe file in yaml format which defines a simple HelloWorld application can run on AWS greengrass
+Here is a sample recipe file in yaml format which defines a simple HelloWorld application can run on AWS Greengrass
  managed devices.
 ```yaml
 ---
@@ -22,8 +22,8 @@ Parameters:
     type: STRING
 Lifecycle:
   run:
-    debian: python3 {{artifacts:path}}/hello_world.py '{{params:Message.value}}'
-      done
+    debian:
+      python3 {{artifacts:path}}/hello_world.py '{{params:Message.value}}'
 Artifacts:
   debian:
     - "greengrass:hello_world.py"
@@ -37,7 +37,7 @@ The topics on this reference are organized by top-level keys grouped by function
  defining deployment and/or runtime behaviors. Top-level keys can have options that support them as sub-topics. This
   maps to the `<key>: <options>: <value>` indent structure of recipe file.
 ## Component metadata
-Keys in this group provides component metadata, which are usually used for processing components in greengrass
+Keys in this group provide component metadata, which are usually used for processing components in the AWS Greengrass
  environment. The metadata is often used for indexing and filtering as well.
 ### RECIPE TEMPLATE VERSION
 Define the version of recipe itself
@@ -45,8 +45,8 @@ Define the version of recipe itself
 RecipeTemplateVersion: '2020-01-25'
 ```
 ### COMPONENT NAME
-Component name identifier, reverse DNS notation is recommended. Component name is unique private component registry
-. Private component which has same name occludes public available component.
+Component name identifier, reverse DNS notation is recommended. Component name is unique within a private component
+ registry. A private component which has same name occludes public available component.
 > note: component name is also used as service name, since component to service is 1:1 mapping.
 ```yaml
 ComponentName: com.aws.greengrass.HelloWorld
@@ -66,7 +66,7 @@ Publisher of component
 ```yaml
 Publisher: Amazon
 ```
-### Platforms
+### PLATFORMS
 A list of platforms component declaring support. Greengrass will apply the constrains before provisioning component
  on device.
  > note: the platform constraints only support OS with text match now, no CPU architecture constraints support yet.
@@ -81,7 +81,7 @@ Keys in this group are mostly used for defining component runtime characteristic
 Specify lifecycle management scripts for component represented service
 ```yaml
 Lifecycle:
-  environment: # apply to all commands to the service.
+  setenv: # apply to all commands to the service.
     <key>: <defaultValue>
         
   install:
@@ -129,7 +129,7 @@ Lifecycle:
     script:
 ```
 ### PARAMETERS
-Component author specifies configuration parameters used in lifecycle management scripts, and/or accessible by
+Component author specifies configuration parameters used in lifecycle management scripts, and/or are accessible by
  service runtime, which can both read and write configuration values.
 ```yaml
 Parameters:
@@ -142,11 +142,11 @@ name of parameter
 #### value
 default value of parameter
 #### type
-type of parameter. Current supported types includes:
+type of parameter. Current supported types include:
 * String
 * Number
 * Boolean
-## Dependencies
+## Dependency Configuration
 Keys in the group are used for describing component deployment dependencies. The dependencies could be
  component necessary artifacts or the other components.
 ### ARTIFACTS
@@ -158,7 +158,7 @@ Artifacts:
     - greengrass:hello_world.py
     - s3://example-bucket/path/to/object
 ```
-Artifacts are referenced by artifact URIs. Currently greengrass supports greengrass repository and s3 as artifact
+Artifacts are referenced by artifact URIs. Currently Greengrass supports Greengrass repository and s3 as artifact
  storage location.
 ### DEPENDENCIES
 Describe component dependencies, the versions of dependencies will be resolved during deployment.
@@ -173,6 +173,7 @@ Dependencies:
 #### Version Requirement
 Specify dependency version requirements, the requirements support NPM-style syntax.
 #### Dependency Type
-Specify if dependency is `HARD` or `SOFT` dependency. `HARD` dependency means dependent service will be bounced if
- dependency service got refreshed. In the opposite, `SOFT` dependency will not bounce dependent service.
+Specify if dependency is `HARD` or `SOFT` dependency. `HARD` means dependent service will be restarted if the dependency
+ service changes state. In the opposite, `SOFT` means the service will wait the dependency to start when first
+  starting, but will not be restarted if the dependency changes state.
 
