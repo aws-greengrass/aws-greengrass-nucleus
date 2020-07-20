@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -197,8 +198,9 @@ public class DeploymentConfigMergerTest {
         assertFalse(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
 
         // WHEN
-        when(mockService.getState()).thenReturn(State.RUNNING);
-        when(mockService.reachedDesiredState()).thenReturn(true);
+        // use doReturn() here: https://stackoverflow.com/questions/11121772
+        doReturn(State.RUNNING).when(mockService).getState();
+        doReturn(true).when(mockService).reachedDesiredState();
 
         // THEN
         assertTrue(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
