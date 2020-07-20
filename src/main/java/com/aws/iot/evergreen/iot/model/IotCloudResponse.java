@@ -1,16 +1,20 @@
 package com.aws.iot.evergreen.iot.model;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Getter
+import java.nio.charset.StandardCharsets;
+
 @NoArgsConstructor
 @AllArgsConstructor
-@Setter
+@Data
 public class IotCloudResponse {
-    private String responseBody;
+    private byte[] responseBody;
     private int statusCode;
 
+    @Override
+    public String toString() {
+        return new String(responseBody, StandardCharsets.UTF_8);
+    }
 }

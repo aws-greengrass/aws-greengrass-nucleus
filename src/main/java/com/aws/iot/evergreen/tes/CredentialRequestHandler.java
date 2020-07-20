@@ -73,7 +73,7 @@ public class CredentialRequestHandler implements HttpHandler {
         try {
             final String credentials = iotCloudHelper
                     .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null)
-                    .getResponseBody();
+                    .toString();
             // TODO: Negative caching given 4xx and 5xx cloud error
             response = translateToAwsSdkFormat(credentials);
         } catch (AWSIotException e) {

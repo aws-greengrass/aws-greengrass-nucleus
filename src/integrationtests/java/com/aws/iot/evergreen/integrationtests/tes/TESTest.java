@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.integrationtests.tes;
 
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
@@ -23,9 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.iot.evergreen.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -93,7 +90,6 @@ class TESTest extends BaseITCase {
                 response.append(responseLine);
                 responseLine = in.readLine();
             }
-
         }
         con.disconnect();
         assertThat(response.toString(), matchesPattern(
@@ -106,8 +102,6 @@ class TESTest extends BaseITCase {
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName,
                 thingInfo.getCertificateArn());
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, roleAliasName);
-        Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        tesTopics.createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
         deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 }

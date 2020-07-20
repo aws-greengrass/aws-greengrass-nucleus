@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,7 +42,8 @@ public class CredentialRequestHandlerTest {
             "\"sessionToken\":\"" + SESSION_TOKEN + "\"," +
             "\"expiration\":\"" + EXPIRATION + "\"}}";
     private static final String ROLE_ALIAS = "ROLE_ALIAS";
-    private static final IotCloudResponse CLOUD_RESPONSE= new IotCloudResponse(RESPONSE_STR, 200);
+    private static final IotCloudResponse CLOUD_RESPONSE =
+            new IotCloudResponse(RESPONSE_STR.getBytes(StandardCharsets.UTF_8), 200);
     @Mock
     IotConnectionManager mockConnectionManager;
 

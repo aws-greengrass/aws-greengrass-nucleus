@@ -7,6 +7,8 @@ import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.BaseRetryableAccessor;
+import com.aws.iot.evergreen.util.CrashableSupplier;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.http.HttpClientConnection;
 import software.amazon.awssdk.crt.http.HttpHeader;
@@ -16,10 +18,10 @@ import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.crt.http.HttpStreamResponseHandler;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -37,6 +39,8 @@ public class IotCloudHelper {
     // TODO: revisit all timeout values
     // Max wait time for device to receive HTTP response from IOT CLOUD
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = (long) Duration.ofSeconds(30).getSeconds();
+    private static final int RETRY_COUNT = 3;
+    private static final int BACKOFF_MILLIS = 100;
 
     /**
      * Sends Http request to Iot Cloud.
@@ -55,16 +59,12 @@ public class IotCloudHelper {
         final HttpRequestBodyStream httpRequestBodyStream = body == null ? null : createHttpRequestBodyStream(body);
         final HttpRequest request = new HttpRequest(verb, path, headers, httpRequestBodyStream);
 
-        IotCloudResponse response;
         try (HttpClientConnection conn = connManager.getConnection()) {
-            // TODO: Make it exponential backoff, create backoff util for common use.
-            int numAttempts = 0;
-            do {
-                numAttempts++;
-                response = getHttpResponse(conn, request);
-            } while (numAttempts < 1);
+            BaseRetryableAccessor accessor = new BaseRetryableAccessor();
+            CrashableSupplier<IotCloudResponse, AWSIotException> getHttpResponse = () -> getHttpResponse(conn, request);
+            return accessor.retry(RETRY_COUNT, BACKOFF_MILLIS, getHttpResponse,
+                    new HashSet<>(Arrays.asList(AWSIotException.class)));
         }
-        return response;
     }
 
     private HttpRequestBodyStream createHttpRequestBodyStream(byte[] bytes) {
@@ -84,7 +84,7 @@ public class IotCloudHelper {
 
     private HttpStreamResponseHandler createResponseHandler(CompletableFuture<Integer> reqCompleted,
                                                             Map<String, String> responseHeaders,
-                                                            StringBuilder responseBody, IotCloudResponse response) {
+                                                            IotCloudResponse response) {
         return new HttpStreamResponseHandler() {
             @Override
             public void onResponseHeaders(HttpStream httpStream, int i, int i1, HttpHeader[] httpHeaders) {
@@ -95,8 +95,7 @@ public class IotCloudHelper {
 
             @Override
             public int onResponseBody(HttpStream stream, byte[] bodyBytes) {
-                responseBody.append(new String(bodyBytes, StandardCharsets.UTF_8));
-                response.setResponseBody(responseBody.toString());
+                response.setResponseBody(bodyBytes);
                 return bodyBytes.length;
             }
 
@@ -112,12 +111,10 @@ public class IotCloudHelper {
     private IotCloudResponse getHttpResponse(HttpClientConnection conn, HttpRequest request) throws AWSIotException {
         final CompletableFuture<Integer> reqCompleted = new CompletableFuture<>();
         final Map<String, String> responseHeaders = new HashMap<>();
-        final StringBuilder responseBody = new StringBuilder();
         final IotCloudResponse response = new IotCloudResponse();
         // Give the request up to N seconds to complete, otherwise throw a TimeoutException
         try {
-            conn.makeRequest(request, createResponseHandler(reqCompleted, responseHeaders, responseBody, response))
-                    .activate();
+            conn.makeRequest(request, createResponseHandler(reqCompleted, responseHeaders, response)).activate();
             int error = reqCompleted.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
             if (error != 0) {
                 throw new AWSIotException(String.format("Error %s(%d); RequestId: %s", HTTP_HEADER_ERROR_TYPE, error,
