@@ -1,7 +1,7 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.tes;
+package com.aws.iot.evergreen.iot;
 
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
@@ -43,7 +43,7 @@ public class IotConnectionManager implements Closeable {
      * @throws DeviceConfigurationException When unable to initialize this manager.
      */
     @Inject
-    IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
         this.connManager = initConnectionManager(deviceConfiguration);
     }
 
