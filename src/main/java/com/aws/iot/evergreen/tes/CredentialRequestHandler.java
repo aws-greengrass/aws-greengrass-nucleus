@@ -48,13 +48,12 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private Clock clock = Clock.systemUTC();
 
-    private Instant cacheExpiry = Instant.now(clock);
-
     private final Map<String, TESCache> tesCache = new HashMap<>();
 
     private static class TESCache {
         private byte[] credentials;
         private int responseCode;
+        private Instant expiry;
     }
 
     /**
@@ -70,6 +69,7 @@ public class CredentialRequestHandler implements HttpHandler {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
         this.tesCache.put(this.iotCredentialsPath, new TESCache());
+        this.tesCache.get(iotCredentialsPath).expiry = Instant.now(clock);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class CredentialRequestHandler implements HttpHandler {
             return response;
         }
         
-        Instant newExpiry = cacheExpiry;
+        Instant newExpiry = tesCache.get(iotCredentialsPath).expiry;
 
         try {
             final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
@@ -134,7 +134,7 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.error("Encountered error while fetching credentials", e);
         }
 
-        cacheExpiry = newExpiry;
+        tesCache.get(iotCredentialsPath).expiry = newExpiry;
         tesCache.get(iotCredentialsPath).credentials = response;
 
         return response;
@@ -168,7 +168,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private boolean areCredentialsValid() {
         Instant now = Instant.now(clock);
-        return now.isBefore(cacheExpiry);
+        return now.isBefore(tesCache.get(iotCredentialsPath).expiry);
     }
 
     /**
