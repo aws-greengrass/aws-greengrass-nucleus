@@ -7,14 +7,14 @@ import lombok.Builder;
 import lombok.NonNull;
 import lombok.Value;
 
-import java.util.List;
+import java.util.Set;
 
 @Value
 @Builder
 public class AuthZPolicy {
     @NonNull String policyId;
     String policyDescription;
-    @NonNull List<String> sources;
-    @NonNull List<String> operations;
-    List<String> resources;
+    @NonNull Set<String> sources;
+    @NonNull Set<String> operations;
+    Set<String> resources;
 }

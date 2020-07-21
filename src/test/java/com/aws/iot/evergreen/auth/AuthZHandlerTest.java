@@ -11,7 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,8 +32,8 @@ public class AuthZHandlerTest {
         return AuthZPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .sources(Arrays.asList("compA", "compB"))
-                .operations(Arrays.asList("OpA", "OpB", "OpC"))
+                .sources(new HashSet(Arrays.asList("compA", "compB")))
+                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -40,8 +41,8 @@ public class AuthZHandlerTest {
         return AuthZPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .sources(Arrays.asList("ServiceC", "ServiceD"))
-                .operations(Arrays.asList("OpD", "OpE"))
+                .sources(new HashSet(Arrays.asList("ServiceC", "ServiceD")))
+                .operations(new HashSet(Arrays.asList("OpD", "OpE")))
                 .build();
     }
 
@@ -49,8 +50,8 @@ public class AuthZHandlerTest {
         return AuthZPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .sources(Arrays.asList("compA", "compB"))
-                .operations(Arrays.asList("*"))
+                .sources(new HashSet(Arrays.asList("compA", "compB")))
+                .operations(new HashSet(Arrays.asList("*")))
                 .build();
     }
 
@@ -58,19 +59,19 @@ public class AuthZHandlerTest {
         return AuthZPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .sources(Arrays.asList("*"))
-                .operations(Arrays.asList("OpA", "OpB", "OpC"))
+                .sources(new HashSet(Arrays.asList("*")))
+                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
     @Test
     void GIVEN_AuthZ_manager_WHEN_service_registered_twice_THEN_errors() throws AuthZException {
         AuthZHandler authZHandler = new AuthZHandler(mockKernel);
-        final List<String> serviceOps = Arrays.asList("OpA", "OpB", "OpC");
+        final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authZHandler.registerService("ServiceA", serviceOps);
 
         assertThrows(AuthZException.class, () -> authZHandler.registerService("ServiceA", serviceOps));
-        final List<String> serviceOps_2 = Arrays.asList("OpA");
+        final Set<String> serviceOps_2 = new HashSet<>(Arrays.asList("OpA"));
         assertThrows(AuthZException.class, () -> authZHandler.registerService("ServiceA", serviceOps_2));
 
         // Another service can be registered
@@ -83,10 +84,10 @@ public class AuthZHandlerTest {
     void GIVEN_AuthZ_manager_WHEN_service_registered_THEN_auth_works() throws Exception {
         AuthZHandler authZHandler = new AuthZHandler(mockKernel);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
-        List<String> serviceOps = Arrays.asList("OpA", "OpB", "OpC");
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authZHandler.registerService("ServiceA", serviceOps);
 
-        List<String> serviceOpsB = Arrays.asList("OpD", "OpE");
+        Set<String> serviceOpsB = new HashSet<>(Arrays.asList("OpD", "OpE"));
         authZHandler.registerService("ServiceB", serviceOpsB);
 
         authZHandler.loadAuthZConfig("ServiceA", Collections.singletonList(getAuthZPolicy()));
@@ -151,7 +152,7 @@ public class AuthZHandlerTest {
     void GIVEN_AuthZ_manager_WHEN_service_registered_THEN_auth_lookup_for_star_operation_works() throws Exception {
         AuthZHandler authZHandler = new AuthZHandler(mockKernel);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
-        List<String> serviceOps = Arrays.asList("OpA", "OpB", "OpC");
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authZHandler.registerService("ServiceA", serviceOps);
         authZHandler.registerService("ServiceB", serviceOps);
 
@@ -193,7 +194,7 @@ public class AuthZHandlerTest {
     @Test
     void GIVEN_AuthZ_manager_WHEN_service_registered_THEN_auth_lookup_for_star_source_works() throws Exception {
         AuthZHandler authZHandler = new AuthZHandler(mockKernel);
-        List<String> serviceOps = Arrays.asList("OpA", "OpB", "OpC");
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authZHandler.registerService("ServiceA", serviceOps);
         authZHandler.registerService("ServiceB", serviceOps);
 
