@@ -21,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,9 +50,12 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private Instant cacheExpiry = Instant.now(clock);
 
-    private byte[] cachedCredentials;
+    private final Map<String, TESCache> tesCache = new HashMap<>();
 
-    private int cachedResponseCode;
+    private static class TESCache {
+        private byte[] credentials;
+        private int responseCode;
+    }
 
     /**
      * Constructor.
@@ -67,12 +69,13 @@ public class CredentialRequestHandler implements HttpHandler {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
+        this.tesCache.put(this.iotCredentialsPath, new TESCache());
     }
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final byte[] credentials = getCredentials();
-        exchange.sendResponseHeaders(cachedResponseCode, credentials.length);
+        exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);
         exchange.getResponseBody().write(credentials);
         exchange.close();
     }
@@ -82,48 +85,57 @@ public class CredentialRequestHandler implements HttpHandler {
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
+        byte[] response = {};
         LOGGER.debug("Got request for credentials");
 
         if (areCredentialsValid()) {
-            return Arrays.copyOf(cachedCredentials, cachedCredentials.length);
+            response = tesCache.get(iotCredentialsPath).credentials;
+            return response;
         }
         
-        byte[] response = {};
         Instant newExpiry = cacheExpiry;
 
         try {
             final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
                     iotCredentialsPath,
                     IOT_CREDENTIALS_HTTP_VERB, null);
-            response = translateToAwsSdkFormat(credentials);
 
-            String expiryString = parseExpiryFromResponse(credentials);
-            Instant expiry = Instant.parse(expiryString);
+            try {
+                response = translateToAwsSdkFormat(credentials);
+                String expiryString = parseExpiryFromResponse(credentials);
+                Instant expiry = Instant.parse(expiryString);
 
-            if (expiry.isBefore(Instant.now(clock))) {
-                String responseString = "TES responded with expired credentials: " + credentials;
-                response = responseString.getBytes(StandardCharsets.UTF_8);
-                cachedResponseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
-                LOGGER.error("Unable to cache expired credentials which expired at {}", expiry.toString());
-            } else {
-                newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
-                cachedResponseCode = HttpURLConnection.HTTP_OK;
-
-                if (newExpiry.isBefore(Instant.now(clock))) {
-                    LOGGER.warn("Can't cache credentials as new credentials {} will expire in less than {} minutes",
-                            newExpiry.toString(),
-                            TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                if (expiry.isBefore(Instant.now(clock))) {
+                    String responseString = "TES responded with expired credentials: " + credentials;
+                    response = responseString.getBytes(StandardCharsets.UTF_8);
+                    tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+                    LOGGER.error("Unable to cache expired credentials which expired at {}", expiry.toString());
                 } else {
-                    LOGGER.info("Received IAM credentials that will be cached until {}", newExpiry.toString());
+                    newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
+                    tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
+
+                    if (newExpiry.isBefore(Instant.now(clock))) {
+                        LOGGER.warn("Can't cache credentials as new credentials {} will expire in less than {} minutes",
+                                expiry.toString(),
+                                TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                    } else {
+                        LOGGER.info("Received IAM credentials that will be cached until {}", newExpiry.toString());
+                    }
                 }
+            } catch (AWSIotException e) {
+                String responseString = "Bad TES response: " + credentials;
+                response = responseString.getBytes(StandardCharsets.UTF_8);
+                tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+                LOGGER.error("Unable to parse response body", e);
             }
+
         } catch (AWSIotException e) {
             // TODO: Generate 4xx, 5xx responses for all error scenarios
             LOGGER.error("Encountered error while fetching credentials", e);
         }
 
         cacheExpiry = newExpiry;
-        cachedCredentials = response;
+        tesCache.get(iotCredentialsPath).credentials = response;
 
         return response;
     }

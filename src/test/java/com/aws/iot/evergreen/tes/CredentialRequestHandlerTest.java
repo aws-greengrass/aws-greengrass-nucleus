@@ -3,13 +3,16 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,6 +25,7 @@ import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.tes.CredentialRequestHandler.TIME_BEFORE_CACHE_EXPIRE_IN_MIN;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -143,6 +147,28 @@ public class CredentialRequestHandlerTest {
         handler.handle(mockExchange);
         verify(mockCloudHelper, times(4)).sendHttpRequest(any(), any(), any(), any());
 
+        mockStream.close();
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_unparsable_response_WHEN_called_handle_THEN_returns_error(
+            ExtensionContext context) 
+            throws Exception {
+        ignoreExceptionOfType(context, AWSIotException.class);
+        ignoreExceptionOfType(context, JsonParseException.class);
+
+        String responseStr = "invalid_response_body";
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(responseStr);
+        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        OutputStream mockStream = mock(OutputStream.class);
+        when(mockExchange.getResponseBody()).thenReturn(mockStream);
+        handler.handle(mockExchange);
+        byte[] expectedReponse = ("Bad TES response: " + responseStr).getBytes();
+        int expectedStatus = 500;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedReponse.length);
+        verify(mockStream, times(1)).write(expectedReponse);
         mockStream.close();
     }
 }
