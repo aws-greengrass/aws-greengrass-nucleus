@@ -20,7 +20,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.ROLLBACK_S
  * This class will be replaced with deployment directory manager.
  * @Deprecated
  */
-final class ConfigSnapshotUtils {
+public final class ConfigSnapshotUtils {
     private ConfigSnapshotUtils() {
     }
 
@@ -29,8 +29,9 @@ final class ConfigSnapshotUtils {
      *
      * @param kernel Kernel instance
      * @param filepath File path to the config snapshot
+     * @throws IOException if write fails
      */
-    static void takeSnapshot(Kernel kernel, Path filepath) throws IOException {
+    public static void takeSnapshot(Kernel kernel, Path filepath) throws IOException {
         kernel.writeEffectiveConfigAsTransactionLog(filepath);
     }
 
@@ -40,7 +41,7 @@ final class ConfigSnapshotUtils {
      * @param filepath File path to the config snapshot
      * @param logger Logger instance
      */
-    static void cleanUpSnapshot(Path filepath, Logger logger) {
+    public static void cleanUpSnapshot(Path filepath, Logger logger) {
         try {
             Files.delete(filepath);
         } catch (IOException e) {
@@ -56,7 +57,7 @@ final class ConfigSnapshotUtils {
      * @param deploymentId Deployment Identifier
      * @return Path to snapshot file
      */
-    static Path getSnapshotFilePath(Kernel kernel, String deploymentId) {
+    public static Path getSnapshotFilePath(Kernel kernel, String deploymentId) {
         return kernel.getConfigPath().resolve(String
                 .format(ROLLBACK_SNAPSHOT_PATH_FORMAT, deploymentId.replace(':', '.').replace('/', '+')));
     }

@@ -10,8 +10,10 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.deployment.BootstrapManager;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -107,6 +109,8 @@ public class Kernel {
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
+        context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
+        context.put(BootstrapManager.class, new BootstrapManager(this));
         context.put(Clock.class, Clock.systemUTC());
     }
 

@@ -7,6 +7,7 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
@@ -35,9 +36,9 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_NAME_KEY;
 
 @AllArgsConstructor
 public class DeploymentConfigMerger {
-    static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
-    static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
-    static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
+    public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
+    public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
+    public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
 
@@ -81,8 +82,8 @@ public class DeploymentConfigMerger {
         }
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes, deployment cannot be cancelled now");
-        DeploymentConfigActivation.getActivationManager(kernel, deploymentDocument, newConfig)
-                .activate(totallyCompleteFuture);
+        kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig)
+                .activate(newConfig, deploymentDocument, totallyCompleteFuture);
     }
 
     /**
@@ -128,7 +129,7 @@ public class DeploymentConfigMerger {
 
     @Getter
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
-    static class AggregateServicesChangeManager {
+    public static class AggregateServicesChangeManager {
         private Kernel kernel;
         private Set<String> servicesToAdd;
         private Set<String> servicesToUpdate;
@@ -140,7 +141,7 @@ public class DeploymentConfigMerger {
          * @param kernel           evergreen kernel
          * @param newServiceConfig new config to be merged for deployment
          */
-        AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
+        public AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
             Set<String> runningUserServices = kernel.orderedDependencies().stream()
                     .map(EvergreenService::getName).collect(Collectors.toSet());
 
@@ -165,7 +166,7 @@ public class DeploymentConfigMerger {
          *
          * @return An instance of service change manager to be used for rollback
          */
-        AggregateServicesChangeManager createRollbackManager() {
+        public AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
             return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd);
@@ -176,7 +177,7 @@ public class DeploymentConfigMerger {
          *
          * @throws ServiceLoadException when any service to be started could not be located
          */
-        void startNewServices() throws ServiceLoadException {
+        public void startNewServices() throws ServiceLoadException {
             for (String serviceName : servicesToAdd) {
                 EvergreenService service = kernel.locate(serviceName);
                 service.requestStart();
@@ -188,7 +189,7 @@ public class DeploymentConfigMerger {
          *
          * @throws ServiceLoadException when any service to be started could not be located
          */
-        void reinstallBrokenServices() throws ServiceLoadException {
+        public void reinstallBrokenServices() throws ServiceLoadException {
             for (String serviceName : servicesToUpdate) {
                 EvergreenService service = kernel.locate(serviceName);
                 if (service.currentOrReportedStateIs(State.BROKEN)) {
@@ -203,7 +204,7 @@ public class DeploymentConfigMerger {
          * @throws InterruptedException when the merge is interrupted
          * @throws ExecutionException   when error is encountered while trying to close any service
          */
-        void removeObsoleteServices() throws InterruptedException, ExecutionException {
+        public void removeObsoleteServices() throws InterruptedException, ExecutionException {
             Set<Future<Void>> serviceClosedFutures = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
@@ -246,7 +247,7 @@ public class DeploymentConfigMerger {
          * @return set of services to track state change for
          * @throws ServiceLoadException when any service whose state change needs to be tracked cannot be located
          */
-        Set<EvergreenService> servicesToTrack() throws ServiceLoadException {
+        public Set<EvergreenService> servicesToTrack() throws ServiceLoadException {
             Set<String> serviceNames = new HashSet<>(servicesToAdd);
             serviceNames.addAll(servicesToUpdate);
 

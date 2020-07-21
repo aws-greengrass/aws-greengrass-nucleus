@@ -57,32 +57,34 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_bootstrap_task_list_WHEN_check_isBootstrapRequired_THEN_return_true() {
-        BootstrapManager bootstrapManager = new BootstrapManager();
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapManager.BootstrapTaskStatus(componentA)));
-        assertTrue(bootstrapManager.isBootstrapRequired());
+        assertTrue(bootstrapManager.isBootstrapRequired(null));
     }
 
     @Test
     void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() {
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel, Collections.emptyMap());
-        assertFalse(bootstrapManager.isBootstrapRequired());
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
+        assertFalse(bootstrapManager.isBootstrapRequired(Collections.emptyMap()));
     }
 
     @Test
     void GIVEN_new_config_without_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_false() {
-        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel, new HashMap<Object, Object>() {{
+        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
+        doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(componentA, Collections.emptyMap());
                 put(componentB, Collections.emptyMap());
             }});
         }}));
-        doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
-        assertFalse(bootstrapManager.isBootstrapRequired());
     }
 
     @Test
     void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_true() {
-        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel, new HashMap<Object, Object>() {{
+        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
+        doReturn(true).when(bootstrapManager).serviceBootstrapRequired(any(), any());
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(componentA, new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("componentB", "componentC:hard"));
@@ -92,8 +94,6 @@ public class BootstrapManagerTest {
                 }});
             }});
         }}));
-        doReturn(true).when(bootstrapManager).serviceBootstrapRequired(any(), any());
-        assertTrue(bootstrapManager.isBootstrapRequired());
         assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(
                 new BootstrapManager.BootstrapTaskStatus(componentB),
                 new BootstrapManager.BootstrapTaskStatus(componentA)));
@@ -101,7 +101,7 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_false() {
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel, Collections.emptyMap());
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, Collections.emptyMap()));
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -118,7 +118,7 @@ public class BootstrapManagerTest {
     @Test
     void GIVEN_new_component_with_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_true() throws Exception {
         when(kernel.locate(componentA)).thenThrow(new ServiceLoadException("mock error"));
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel, Collections.emptyMap());
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
         assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -135,7 +135,7 @@ public class BootstrapManagerTest {
         EvergreenService serviceA = mock(EvergreenService.class);
         when(serviceA.getConfig()).thenReturn(serviceAConfig);
         when(kernel.locate(componentA)).thenReturn(serviceA);
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel, Collections.emptyMap());
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
         assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(VERSION_CONFIG_KEY, "1.0.1");
@@ -158,7 +158,7 @@ public class BootstrapManagerTest {
         EvergreenService serviceA = mock(EvergreenService.class);
         when(serviceA.getConfig()).thenReturn(serviceAConfig);
         when(kernel.locate(componentA)).thenReturn(serviceA);
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel, Collections.emptyMap());
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
         assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(VERSION_CONFIG_KEY, "1.0.0");
@@ -173,7 +173,7 @@ public class BootstrapManagerTest {
         List<BootstrapManager.BootstrapTaskStatus> pendingTasks = Arrays.asList(
                 new BootstrapManager.BootstrapTaskStatus(componentA),
                 new BootstrapManager.BootstrapTaskStatus(componentB));
-        BootstrapManager bootstrapManager = spy(new BootstrapManager());
+        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(101).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
         doNothing().when(bootstrapManager).persistBootstrapTaskList();
@@ -188,7 +188,7 @@ public class BootstrapManagerTest {
         List<BootstrapManager.BootstrapTaskStatus> pendingTasks = Arrays.asList(
                 new BootstrapManager.BootstrapTaskStatus(componentA),
                 new BootstrapManager.BootstrapTaskStatus(componentB));
-        BootstrapManager bootstrapManager = spy(new BootstrapManager());
+        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(99).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
 
         bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
@@ -203,7 +203,7 @@ public class BootstrapManagerTest {
         List<BootstrapManager.BootstrapTaskStatus> pendingTasks = Arrays.asList(
                 new BootstrapManager.BootstrapTaskStatus(componentA),
                 new BootstrapManager.BootstrapTaskStatus(componentB));
-        BootstrapManager bootstrapManager = spy(new BootstrapManager());
+        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
 
@@ -214,7 +214,7 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_pending_bootstrap_tasks_WHEN_check_hasNext_THEN_return_true() {
-        BootstrapManager bootstrapManager = new BootstrapManager();
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapManager.BootstrapTaskStatus(componentA,
                         BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE, 0),
                 new BootstrapManager.BootstrapTaskStatus(componentB,
@@ -225,7 +225,7 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_all_bootstrap_tasks_done_WHEN_check_hasNext_THEN_return_false() {
-        BootstrapManager bootstrapManager = new BootstrapManager();
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapManager.BootstrapTaskStatus(componentA,
                         BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE, 0),
                 new BootstrapManager.BootstrapTaskStatus(componentB,

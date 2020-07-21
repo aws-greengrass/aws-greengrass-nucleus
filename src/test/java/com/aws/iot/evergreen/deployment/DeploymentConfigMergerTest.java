@@ -4,6 +4,9 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.activator.DefaultActivator;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
@@ -233,6 +236,10 @@ public class DeploymentConfigMergerTest {
     public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
 
@@ -280,6 +287,13 @@ public class DeploymentConfigMergerTest {
         ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+
+        DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        when(bootstrapManager.isBootstrapRequired(any())).thenReturn(false);
+        when(context.get(BootstrapManager.class)).thenReturn(bootstrapManager);
+        when(context.get(DefaultActivator.class)).thenReturn(new DefaultActivator(kernel));
 
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);

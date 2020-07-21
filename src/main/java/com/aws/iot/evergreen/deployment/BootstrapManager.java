@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.deployment.BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -43,38 +44,32 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
     private List<BootstrapTaskStatus> bootstrapTaskStatusList = new ArrayList<>();
-    private Kernel kernel;
-    private Map<Object, Object> newConfig;
+    private final Kernel kernel;
     private int cursor;
 
     /**
      * Constructor for BootstrapManager to process bootstrap tasks from deployments.
      *
      * @param kernel Kernel instance
-     * @param newConfig New kernel config map
      */
-    public BootstrapManager(Kernel kernel, Map<Object, Object> newConfig) {
+    @Inject
+    public BootstrapManager(Kernel kernel) {
         this.kernel = kernel;
-        this.newConfig = newConfig;
-        this.cursor = 0;
-    }
-
-    /**
-     * Constructor for BootstrapManager. Bootstrap tasks need to be loaded from disk with loadBootstrapTaskList().
-     */
-    public BootstrapManager() {
         this.cursor = 0;
     }
 
     /**
      * Check if any bootstrap tasks are pending. Meanwhile resolve a list of bootstrap tasks if not done already.
      *
+     * @param newConfig new configuration from deployment
      * @return true if there are bootstrap tasks, false otherwise
      */
-    public boolean isBootstrapRequired() {
-        if (!bootstrapTaskStatusList.isEmpty()) {
+    public boolean isBootstrapRequired(Map<Object, Object> newConfig) {
+        if (hasNext()) {
             return true;
         }
+        bootstrapTaskStatusList.clear();
+
         if (newConfig == null || !newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             logger.atError().log(
                     "No bootstrap tasks found: Deployment configuration is missing or has no service changes");
