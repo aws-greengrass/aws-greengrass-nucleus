@@ -34,7 +34,7 @@ public final class ConfigurationReader {
     public static void mergeTLogInto(Configuration config,
                                      Reader reader,
                                      boolean forceTimestamp,
-                                     Predicate<Topic> mergeCondition) throws IOException {
+                                     Predicate<Node> mergeCondition) throws IOException {
         try (BufferedReader in = reader instanceof BufferedReader
                 ? (BufferedReader) reader : new BufferedReader(reader)) {
             String l;
@@ -42,19 +42,27 @@ public final class ConfigurationReader {
             for (l = in.readLine(); l != null; l = in.readLine()) {
                 try {
                     Tlogline tlogline = Tlogline.fromStringInput(l);
-                    Topic targetTopic = config.lookup(seperator.split(tlogline.topicString));
-                    if (mergeCondition != null && !mergeCondition.test(targetTopic)) {
-                        continue;
-                    }
                     if (WhatHappened.changed.equals(tlogline.action)) {
+                        Topic targetTopic = config.lookup(seperator.split(tlogline.topicString));
+                        if (mergeCondition != null && !mergeCondition.test(targetTopic)) {
+                            continue;
+                        }
                         targetTopic.withNewerValue(tlogline.timestamp, tlogline.value, forceTimestamp);
                     } else if (WhatHappened.removed.equals(tlogline.action)) {
+                        Node n = config.findNode(seperator.split(tlogline.topicString));
+                        if (n == null) {
+                            continue;
+                        }
+                        if (mergeCondition != null && !mergeCondition.test(n)) {
+                            continue;
+                        }
                         if (forceTimestamp) {
-                            targetTopic.remove();
+                            n.remove();
                         } else {
-                            targetTopic.remove(tlogline.timestamp);
+                            n.remove(tlogline.timestamp);
                         }
                     }
+
                 } catch (Tlogline.InvalidLogException e) {
                     logger.atError().setCause(e).log("Fail to parse log line");
                 }
@@ -73,7 +81,7 @@ public final class ConfigurationReader {
      * @throws IOException if reading fails
      */
     public static void mergeTLogInto(Configuration config, Path tlogPath, boolean forceTimestamp,
-                                     Predicate<Topic> mergeCondition)
+                                     Predicate<Node> mergeCondition)
             throws IOException {
         mergeTLogInto(config, Files.newBufferedReader(tlogPath), forceTimestamp, mergeCondition);
     }
