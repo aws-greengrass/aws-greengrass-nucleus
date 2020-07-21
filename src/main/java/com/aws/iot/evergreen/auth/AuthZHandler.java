@@ -9,8 +9,10 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
 
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -28,11 +30,10 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class AuthZHandler {
-    public static final String AUTHZ_TOPIC = "accessControl";
     private static final String ANY_REGEX = "*";
     private static final Logger logger = LogManager.getLogger(AuthZHandler.class);
     private final AuthZModule authModule;
-    private final ConcurrentHashMap<String, List<String>> serviceToOperationsMap;
+    private final ConcurrentHashMap<String, Set<String>> serviceToOperationsMap;
     private final ConcurrentHashMap<String, List<AuthZPolicy>> serviceToAuthZConfig;
     private final Kernel kernel;
 
@@ -104,23 +105,21 @@ public class AuthZHandler {
      * and operations are strings which the service intends to match for incoming requests by calling
      * {@link #isFlowAuthorized(Permission) isFlowAuthorized} method
      * @param serviceName Name of the service to be registered.
-     * @param operations List of operations the service needs to register with AuthZ.
+     * @param operations Set of operations the service needs to register with AuthZ.
      * @throws AuthZException If service is already registered.
      */
-    public void registerService(String serviceName, List<String> operations)
+    public void registerService(String serviceName, Set<String> operations)
             throws AuthZException {
-        if (operations.isEmpty()) {
+        if (Utils.isEmpty(operations)) {
             throw new AuthZException("operations is empty");
         }
         if (serviceToOperationsMap.containsKey(serviceName)) {
             throw new AuthZException("Service already registered: " + serviceName);
         }
 
-        List<String> operationsCopy = new ArrayList<>(operations);
-        if (!operationsCopy.contains(ANY_REGEX)) {
-            operationsCopy.add(ANY_REGEX);
-        }
-        serviceToOperationsMap.put(serviceName, operationsCopy);
+        operations.add(ANY_REGEX);
+        Set<String> operationsCopy = Collections.unmodifiableSet(new HashSet<>(operations));
+        serviceToOperationsMap.putIfAbsent(serviceName, operationsCopy);
     }
 
     /**
@@ -177,12 +176,12 @@ public class AuthZHandler {
     }
 
     private void validateOperations(String serviceName, AuthZPolicy policy) throws AuthZException {
-        List<String> operations = policy.getOperations();
+        Set<String> operations = policy.getOperations();
         if (Utils.isEmpty(operations)) {
             throw new AuthZException("Malformed policy with invalid/empty operations: "
                     + policy.getPolicyId());
         }
-        List<String> supportedOps = serviceToOperationsMap.get(serviceName);
+        Set<String> supportedOps = serviceToOperationsMap.get(serviceName);
         // check if operations are valid and registered.
         if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {
             throw new AuthZException(String.format("Operation not registered with service %s", serviceName));
@@ -190,7 +189,7 @@ public class AuthZHandler {
     }
 
     private void validateSources(AuthZPolicy policy) throws AuthZException {
-        List<String> sources = policy.getSources();
+        Set<String> sources = policy.getSources();
         if (Utils.isEmpty(sources)) {
             throw new AuthZException("Malformed policy with invalid/empty source: " + policy.getPolicyId());
         }
@@ -204,9 +203,9 @@ public class AuthZHandler {
     }
 
     private void addPermission(String destination,
-                               List<String> sources,
-                               List<String> operations,
-                               List<String> resources) throws AuthZException {
+                               Set<String> sources,
+                               Set<String> operations,
+                               Set<String> resources) throws AuthZException {
         // Method assumes that all inputs are valid now
         for (String source: sources) {
             for (String operation: operations) {
