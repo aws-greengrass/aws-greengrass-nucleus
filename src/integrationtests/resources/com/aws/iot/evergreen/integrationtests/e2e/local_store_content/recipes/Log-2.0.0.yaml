@@ -5,6 +5,7 @@ Description: A test app
 Publisher: Me
 Version: '2.0.0'
 Platforms:
+  - ubuntu
   - debian
   - macos
   - windows

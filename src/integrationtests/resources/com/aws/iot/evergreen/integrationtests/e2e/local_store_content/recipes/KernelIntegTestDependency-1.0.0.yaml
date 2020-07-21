@@ -5,6 +5,7 @@ Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
 Platforms:
+  - ubuntu
   - debian
   - macos
   - windows
