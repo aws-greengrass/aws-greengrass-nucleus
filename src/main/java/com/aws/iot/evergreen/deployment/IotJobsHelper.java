@@ -6,7 +6,6 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableException;
-import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
 import com.aws.iot.evergreen.deployment.model.DeploymentTaskMetadata;
@@ -15,21 +14,18 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.mqtt.MqttClient;
+import com.aws.iot.evergreen.mqtt.WrapperMqttClientConnection;
 import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import software.amazon.awssdk.crt.CRT;
-import software.amazon.awssdk.crt.io.ClientBootstrap;
-import software.amazon.awssdk.crt.io.EventLoopGroup;
-import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
-import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.DescribeJobExecutionResponse;
@@ -81,9 +77,6 @@ public class IotJobsHelper implements InjectionActions {
     public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
 
-    private static final int MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
-    private static final int MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
-    private static final int INITIAL_CONNECT_RETRY_FREQUENCY = (int) Duration.ofSeconds(30).toMillis();
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofMinutes(5).getSeconds();
@@ -105,10 +98,10 @@ public class IotJobsHelper implements InjectionActions {
     private DeviceConfiguration deviceConfiguration;
 
     @Inject
-    private AWSIotMqttConnectionFactory awsIotMqttConnectionFactory;
+    private IotJobsClientFactory iotJobsClientFactory;
 
     @Inject
-    private IotJobsClientFactory iotJobsClientFactory;
+    private WrapperMqttConnectionFactory wrapperMqttConnectionFactory;
 
     @Inject
     private ExecutorService executorService;
@@ -118,6 +111,9 @@ public class IotJobsHelper implements InjectionActions {
 
     @Inject
     private Kernel kernel;
+
+    @Inject
+    private MqttClient mqttClient;
 
     @Setter
     @Inject
@@ -209,23 +205,16 @@ public class IotJobsHelper implements InjectionActions {
         }
     };
 
+
     @Getter
-    private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+    public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
-            //TODO: what about error code 0
-            if (errorCode != 0) {
-                logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
-                //TODO: Detect this using secondary mechanisms like checking if internet is availalble
-                // instead of using ping to Mqtt server. Mqtt ping is expensive and should be used as the last resort.
-            }
         }
 
         @Override
-        @SuppressFBWarnings
         public void onConnectionResumed(boolean sessionPresent) {
-            logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
-            executorService.submit(() -> {
+            executorService.execute(() -> {
                 subscribeToJobsTopics();
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
             });
@@ -237,107 +226,40 @@ public class IotJobsHelper implements InjectionActions {
      *
      */
     IotJobsHelper(DeviceConfiguration deviceConfiguration,
-                  AWSIotMqttConnectionFactory awsIotMqttConnectionFactory,
                   IotJobsClientFactory iotJobsClientFactory,
                   LinkedBlockingQueue<Deployment> deploymentsQueue,
                   DeploymentStatusKeeper deploymentStatusKeeper,
                   ExecutorService executorService,
-                  Kernel kernel) {
+                  Kernel kernel,
+                  WrapperMqttConnectionFactory wrapperMqttConnectionFactory,
+                  MqttClient mqttClient) {
         this.deviceConfiguration = deviceConfiguration;
-        this.awsIotMqttConnectionFactory = awsIotMqttConnectionFactory;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentsQueue = deploymentsQueue;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.executorService = executorService;
         this.kernel = kernel;
+        this.wrapperMqttConnectionFactory = wrapperMqttConnectionFactory;
+        this.mqttClient = mqttClient;
     }
 
     @Override
     @SuppressFBWarnings
     public void postInject() {
-
-        //TODO: once connectToAWSIot and closeConnection is removed from post inject
-        // this check should be removed
-        if (postInjectInProgress.get()) {
-            return;
-        }
-        postInjectInProgress.set(true);
-
-        //TODO: remove establishing mqtt connection logic when when MQTT proxy is implemented.
-        executorService.submit(() -> {
-            try {
-                connectToAWSIot();
-            } catch (InterruptedException e) {
-               //TODO: re-evaluate the retry strategy,
-               // re-connection attempts are made only for ConnectionUnavailableException
-               logger.error("Failed to connect to IoT cloud");
-            }
-        });
-
-        //TODO: remove closing mqtt connection logic from iot jobs handler when MQTT proxy is implemented.
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                closeConnection();
-            } catch (ExecutionException | InterruptedException e) {
-                logger.atError().log("Error while closing IoT client", e);
-            }
-        }));
-
+        mqttClient.addToCallbackEvents(callbacks);
+        this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
+        this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
+        logger.dfltKv("ThingName", (Supplier<String>) () ->
+                Coerce.toString(deviceConfiguration.getThingName()));
+        subscribeToJobsTopics();
+        logger.atInfo().log("Connection established to Iot cloud");
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
                 this::deploymentStatusChanged);
     }
 
-    private void connectToAWSIot() throws InterruptedException {
-        // If a device is unable to connect to AWS Iot upon starting due to network availability,
-        // the device will retry connecting to AWS Iot cloud. Retry frequency used is the same as frequency
-        // used by deployment service to poll for new deployments.
-        boolean shouldRetry = true;
-        while (shouldRetry && !receivedShutdown.get()) {
-            shouldRetry = false;
-            try {
-                //TODO: Separate out making MQTT connection and IotJobs helper when MQTT proxy is used.
-                connect();
-            } catch (DeviceConfigurationException e) {
-                //Since there is no device configuration, device should still be able to perform local deploymentsQueue
-                logger.atWarn().setCause(e).log("Device not configured to communicate with AWS Iot Cloud "
-                        + "Device will now operate in offline mode");
-            } catch (ConnectionUnavailableException e) {
-                logger.atWarn().setCause(e).log("Fail to connect to IoT cloud due to connectivity issue,"
-                        + " will retry later. Device will now operate in offline mode");
-                shouldRetry = true;
-                Thread.sleep(INITIAL_CONNECT_RETRY_FREQUENCY);
-            } catch (AWSIotException e) {
-                //This is a non transient exception and might require customer's attention
-                logger.atError().setCause(e).log("Caught an exception from AWS Iot cloud");
-                //TODO: Revisit if we should error the service in this case
-            }
-        }
-    }
-
-    public static class AWSIotMqttConnectionFactory {
-        /**
-         * Get the mqtt connection from device configuration.
-         *
-         * @param deviceConfiguration The device configuration {@link DeviceConfiguration}
-         * @param callbacks           Mqtt callbacks invoked on connection events
-         * @return {@link MqttClientConnection}
-         */
-        public MqttClientConnection getAwsIotMqttConnection(DeviceConfiguration deviceConfiguration,
-                                                            MqttClientConnectionEvents callbacks) {
-            try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
-                 HostResolver resolver = new HostResolver(eventLoopGroup);
-                 ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-                 AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
-                         .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                                 Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))) {
-                builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
-                        //TODO: With MQTT proxy this will change
-                        .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
-                        .withClientId(UUID.randomUUID().toString()).withCleanSession(true)
-                        .withBootstrap(clientBootstrap).withConnectionEventCallbacks(callbacks)
-                        .withKeepAliveMs(MQTT_KEEP_ALIVE_TIMEOUT).withPingTimeoutMs(MQTT_PING_TIMEOUT);
-                return builder.build();
-            }
+    public static class WrapperMqttConnectionFactory {
+        public WrapperMqttClientConnection getAwsIotMqttConnection(MqttClient mqttClient) {
+            return new WrapperMqttClientConnection(mqttClient);
         }
     }
 
@@ -346,60 +268,6 @@ public class IotJobsHelper implements InjectionActions {
             return new IotJobsClient(connection);
         }
     }
-
-    /**
-     * Connects to AWS Iot Cloud. This method should be used to create the connection prior to sending any requests
-     * to AWS Iot cloud using any other methods provided by this class.
-     *
-     * @throws InterruptedException           if interrupted while connecting
-     * @throws DeviceConfigurationException   if the device is not configured to communicate with AWS Iot cloud
-     * @throws AWSIotException                when an exception occurs in AWS Iot mqtt broker
-     * @throws ConnectionUnavailableException if the connection to AWS Iot cloud is not available
-     */
-    public void connect()
-            throws InterruptedException, DeviceConfigurationException, AWSIotException, ConnectionUnavailableException {
-
-        DeviceConfiguration deviceConfiguration = this.deviceConfiguration;
-        connection = awsIotMqttConnectionFactory.getAwsIotMqttConnection(deviceConfiguration, this.callbacks);
-        try {
-            //TODO: Add retry for Throttling, Limit exceed exception
-            logger.atDebug().kv("ThingName", deviceConfiguration.getThingName())
-                    .kv("RootCAFilepath", deviceConfiguration.getRootCAFilePath())
-                    .kv("PrivateKeyFilepath", deviceConfiguration.getPrivateKeyFilePath())
-                    .kv("DeviceCertificateFilepath", deviceConfiguration.getCertificateFilePath())
-                    .kv("IoTDataEndpoint", deviceConfiguration.getIotDataEndpoint())
-                    .log("Connecting to AWS Iot");
-            connection.connect().get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            throw new ConnectionUnavailableException(e);
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof MqttException) {
-                throw new ConnectionUnavailableException(e);
-            }
-            throw new AWSIotException(e);
-        }
-        this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
-        logger.dfltKv("ThingName", (Supplier<String>) () -> Coerce.toString(deviceConfiguration.getThingName()));
-        subscribeToJobsTopics();
-        logger.atInfo().log("Connection established to Iot cloud");
-    }
-
-    /**
-     * Closes the Mqtt connection.
-     *
-     * @throws ExecutionException   if disconnecting fails
-     * @throws InterruptedException if the thread gets interrupted
-     */
-    public void closeConnection() throws ExecutionException, InterruptedException {
-        receivedShutdown.set(true);
-        if (connection != null && !connection.isNull()) {
-            logger.atInfo().log("Closing connection to Iot cloud");
-            connection.disconnect().get();
-            connection.close();
-            logger.atInfo().log("Connection to Iot cloud is closed");
-        }
-    }
-
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
@@ -419,13 +287,13 @@ public class IotJobsHelper implements InjectionActions {
                         .log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                 return false;
             }
-            //This happens when job status update gets rejected from the Iot Cloud
-            //Want to remove this job from the list and continue updating others
+            // This happens when job status update gets rejected from the Iot Cloud
+            // Want to remove this job from the list and continue updating others
             logger.atError().kv(STATUS_LOG_KEY_NAME, status).kv(JOB_ID_LOG_KEY_NAME, jobId).setCause(e)
                     .log("Job status update rejected");
             return true;
         } catch (TimeoutException e) {
-            //assuming this is due to network issue
+            // assuming this is due to network issue
             logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
         } catch (InterruptedException e) {
             logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
@@ -457,9 +325,6 @@ public class IotJobsHelper implements InjectionActions {
                 (response) -> {
                     logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                             .log(UPDATE_DEPLOYMENT_STATUS_ACCEPTED);
-                    String acceptTopicForJobId = UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName)
-                            .replace("{jobId}", jobId);
-                    connection.unsubscribe(acceptTopicForJobId);
                     gotResponse.complete(null);
                 });
 
@@ -467,9 +332,6 @@ public class IotJobsHelper implements InjectionActions {
                 (response) -> {
                     logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                             .log("Job status updated rejected");
-                    String rejectTopicForJobId = UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName)
-                            .replace("{jobId}", jobId);
-                    connection.unsubscribe(rejectTopicForJobId);
                     //TODO: Can this be due to duplicate messages being sent for the job?
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
@@ -484,7 +346,18 @@ public class IotJobsHelper implements InjectionActions {
         } catch (ExecutionException e) {
             gotResponse.completeExceptionally(e.getCause());
         }
-        gotResponse.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
+
+        try {
+            gotResponse.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
+        } finally {
+            // Either got response, or timed out, so unsubscribe from the job topics now
+            String rejectTopicForJobId =
+                    UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName).replace("{jobId}", jobId);
+            connection.unsubscribe(rejectTopicForJobId);
+            String acceptTopicForJobId =
+                    UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName).replace("{jobId}", jobId);
+            connection.unsubscribe(acceptTopicForJobId);
+        }
     }
 
     /**
