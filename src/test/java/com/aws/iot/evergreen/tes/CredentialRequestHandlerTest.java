@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.iot.IotCloudHelper;
+import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,7 +49,7 @@ public class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any())).thenReturn(RESPONSE_STR);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
         CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         HttpExchange mockExchange = mock(HttpExchange.class);
         OutputStream mockStream = mock(OutputStream.class);
@@ -69,12 +71,12 @@ public class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_get_credentials_THEN_returns_success() throws Exception {
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any())).thenReturn(RESPONSE_STR);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
         CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         final byte[] creds = handler.getCredentials();
         final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
         final String expectedVerb = "GET";
-        verify(mockCloudHelper).sendHttpRequest(mockConnectionManager, expectedPath, expectedVerb);
+        verify(mockCloudHelper).sendHttpRequest(mockConnectionManager, expectedPath, expectedVerb, null);
         Map<String, String> resp = OBJECT_MAPPER.readValue(creds, new TypeReference<Map<String,String>>(){});
         assertThat(ACCESS_KEY_ID, is(resp.get("AccessKeyId")));
         assertThat(SECRET_ACCESS_KEY, is(resp.get("SecretAccessKey")));

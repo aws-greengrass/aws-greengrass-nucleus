@@ -79,6 +79,10 @@ class ConfigurationWriterTest {
             Topic t = config.lookup("a", "toBeRemoved").withValue("Some Val2");
             t.remove();
 
+            Topics containerNode = config.lookupTopics("a", "containerToBeRemoved");
+            containerNode.lookup("foo", "bar").withValue("dummy");
+            containerNode.remove();
+
             context.runOnPublishQueueAndWait(() -> {
             }); // Block until publish queue is empty to ensure all changes have
             // been processed
@@ -91,6 +95,7 @@ class ConfigurationWriterTest {
 
             assertThat(readConfig.toPOJO(), is(config.toPOJO()));
             assertNull(readConfig.find("a", "toBeRemoved"));
+            assertNull(readConfig.find("a", "containerToBeRemoved"));
         }
     }
 }

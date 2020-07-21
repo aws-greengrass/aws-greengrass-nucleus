@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.dependency.Context;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,6 +21,9 @@ public abstract class Node {
     protected final CopyOnWriteArraySet<Watcher> watchers = new CopyOnWriteArraySet<>();
     private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
     private List<String> path;
+
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for modtime to be sync")
+    protected long modtime;
 
     protected Node(Context c, String n, Topics p) {
         context = c;
@@ -118,6 +122,18 @@ public abstract class Node {
         }
     }
 
+    /**
+     * Remove with timestamp check.
+     * @param timestamp timestamp
+     */
+    public void remove(long timestamp) {
+        if (timestamp < this.modtime) {
+            return;
+        }
+        this.modtime = timestamp;
+        remove();
+    }
+
     protected Object validate(Object newValue, Object oldValue) {
         boolean rewrite = true;
         // Try to make all the validators happy, but not infinitely
@@ -175,7 +191,7 @@ public abstract class Node {
      *     (ie. it's completely handled locally)
      */
     public boolean parentNeedsToKnow() {
-        return parentNeedsToKnow;
+        return parent != null && parentNeedsToKnow;
     }
 
     /**
@@ -189,5 +205,9 @@ public abstract class Node {
             p = p.parent;
         }
         return p;
+    }
+
+    public long getModtime() {
+        return modtime;
     }
 }
