@@ -56,7 +56,7 @@ public class MqttTest extends BaseE2ETestCase {
 
         for (int i = 0; i < NUM_MESSAGES; i++) {
             client.publish(PublishRequest.builder().topic("A/B/C").payload("What's up".getBytes(StandardCharsets.UTF_8))
-                    .build());
+                    .build()).get(1, TimeUnit.SECONDS);
         }
 
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
