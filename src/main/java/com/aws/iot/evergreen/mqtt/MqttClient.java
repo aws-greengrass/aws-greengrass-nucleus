@@ -16,6 +16,7 @@ import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -80,6 +82,7 @@ public class MqttClient implements Closeable {
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
     private final ClientBootstrap clientBootstrap;
+    private final CallbackEventManager callbackEventManager = new CallbackEventManager();
 
     //
     // TODO: Handle timeouts and retries
@@ -259,12 +262,9 @@ public class MqttClient implements Closeable {
      * Publish to a MQTT topic.
      *
      * @param request publish request
-     * @throws ExecutionException   if an error occurs
-     * @throws InterruptedException if the thread is interrupted while publishing
-     * @throws TimeoutException     if the request times out
      */
-    public void publish(PublishRequest request) throws ExecutionException, InterruptedException, TimeoutException {
-        getConnection(false).publish(new MqttMessage(request.getTopic(), request.getPayload()), request.getQos(),
+    public CompletableFuture<Integer> publish(PublishRequest request) {
+        return getConnection(false).publish(new MqttMessage(request.getTopic(), request.getPayload()), request.getQos(),
                 request.isRetain());
     }
 
@@ -338,7 +338,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics);
+                clientId, mqttTopics, callbackEventManager);
     }
 
     public boolean connected() {
@@ -351,5 +351,9 @@ public class MqttClient implements Closeable {
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
+    }
+
+    public void addToCallbackEvents(MqttClientConnectionEvents callbacks) {
+        callbackEventManager.addToCallbackEvents(callbacks);
     }
 }
