@@ -49,21 +49,21 @@ the instruction from CLI to create a deployment. Upon getting such instruction *
 to update the status of the job. Currently *DeploymentStatusKeeper* does not do anything for LOCAL deployment types
     
 ## Multiple Group Deployments
-An Iot device can belong to mutiple Iot ThingGroups. When a configuration is set and published for any such group, 
+An Iot device can belong to multiple Iot ThingGroups. When a configuration is set and published for any such group, 
 that results in a deployment on every device in that group. As device can belong to multiple groups, the device needs
  to maintain a status of what components are being deployed as part of which groups. This is needed so that a 
  deployment for one group does not remove the components deployed previously as part of another group. Any 
  deployments done outside of ThingGroup are treated as belonging to DEFAULT group. This would include individual 
- device deployment (done via Iot Device shadows), local deployment (wthout mentioning any group).
+ device deployment (done via Iot Device shadows), local deployment (without mentioning any group).
  1. [***DeploymentService***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentService.java) maintains a 
- mapping of groupName to the root components and their version constraints ,deployed as 
- part of that group.This 
+ mapping of groupName to the root components and their version constraints, deployed as 
+ part of that group. This 
  mapping is stored in the DeploymentService's [***Configuration***](/src/main/java/com/aws/iot/evergreen/config/Configuration.java).
  2. Upon receiving a new deployment from the *DeploymentsQueue*, when constructing the new configuration for the 
  kernel, the [***DeploymentTask***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentTask.java) uses the 
  saved mapping to calculate the set of root components. For the group that is being deployed, it takes the root 
  components from the deployment document. For all other groups it takes the root components from the saved mapping.
- 3. [***DependencyResolver***](/src/main/java/com/aws/iot/evergreen/deployment/) uses the saved mapping to calculate 
+ 3. [***DependencyResolver***](/src/main/java/com/aws/iot/evergreen/packagemanager/DependencyResolver.java) uses the saved mapping to calculate 
  version constraints on all components. For the group being deployed it takes the version constraints from the 
  deployment document and for other groups it takes the version constraints from the saved mapping.
  4. Upon successful completion of deployment, the DeploymentService replaces the entry of deployed group with the 
