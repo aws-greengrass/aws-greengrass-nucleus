@@ -364,6 +364,7 @@
                         <exclude>**/*Exception*</exclude>
                     </excludes>
                     <propertyName>surefire.argLine</propertyName>
+                    <skip>${skipTests}</skip>
                 </configuration>
                 <executions>
                     <execution>
