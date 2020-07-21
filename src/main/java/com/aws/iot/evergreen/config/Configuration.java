@@ -131,11 +131,7 @@ public class Configuration {
      * @param map       map to merge
      */
     public void mergeMap(long timestamp, Map<Object, Object> map) {
-        Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
-        if (!(resolvedPlatformMap instanceof Map)) {
-            throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
-        }
-        root.mergeMap(timestamp, (Map<Object, Object>) resolvedPlatformMap);
+        this.updateMap(timestamp, map, MergeBehaviorTree.MERGE_ALL);
     }
 
     /**

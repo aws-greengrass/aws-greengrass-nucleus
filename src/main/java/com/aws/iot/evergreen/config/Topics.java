@@ -208,26 +208,6 @@ public class Topics extends Node implements Iterable<Node> {
     /**
      * Add the given map to this Topics tree.
      *
-     * @param lastModified last modified time
-     * @param map          map to merge in
-     */
-    public void mergeMap(long lastModified, Map<Object, Object> map) {
-        updateFromMap(lastModified, map, MergeBehaviorTree.MERGE_ALL);
-    }
-
-    /**
-     * Replace the given map to this Topics tree.
-     *
-     * @param lastModified last modified time
-     * @param map          map to merge in
-     */
-    void replaceMap(long lastModified, Map<Object, Object> map) {
-        updateFromMap(lastModified, map, MergeBehaviorTree.REPLACE_ALL);
-    }
-
-    /**
-     * Add the given map to this Topics tree.
-     *
      * @param lastModified  last modified time
      * @param map           map to merge in
      * @param mergeBehavior mergeBehavior
@@ -238,30 +218,31 @@ public class Topics extends Node implements Iterable<Node> {
             logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
             return;
         }
-        Set<String> childToRemove = new HashSet<>(children.keySet());
+        Set<String> childrenToRemove = new HashSet<>(children.keySet());
 
         map.forEach((okey, value) -> {
             String key = okey.toString();
-            childToRemove.remove(key);
+            childrenToRemove.remove(key);
             updateChild(lastModified, key, value, mergeBehavior);
         });
 
-        childToRemove.forEach(child -> {
-            MergeBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(child);
+        childrenToRemove.forEach(childName -> {
+            MergeBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName);
             if (childMergeBehavior == null) {
                 childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehaviorTree.WILDCARD);
             }
 
+            // remove the existing child if its merge behavior is not present and root merge behavior is REPLACE
             if (childMergeBehavior == null
                     && mergeBehavior.getDefaultBehavior() == MergeBehaviorTree.MergeBehavior.REPLACE) {
-                remove(children.get(child));
+                remove(children.get(childName));
                 return;
             }
 
-            // remove the existing child only if its merge behavior is not present or is REPLACE
+            // remove the existing child if its merge behavior is REPLACE
             if (childMergeBehavior != null
                     && childMergeBehavior.getDefaultBehavior() == MergeBehaviorTree.MergeBehavior.REPLACE) {
-                remove(children.get(child));
+                remove(children.get(childName));
             }
         });
     }
@@ -373,13 +354,8 @@ public class Topics extends Node implements Iterable<Node> {
      * @param newValue Map of new values for this topics
      */
     public void replaceAndWait(Map<Object, Object> newValue) {
-        context.runOnPublishQueueAndWait(() -> replaceNode(newValue));
-    }
-
-    private void replaceNode(Map<Object, Object> newValue) {
-        children.clear();
-        mergeMap(System.currentTimeMillis(), newValue);
-        this.fire(WhatHappened.changed);
+        context.runOnPublishQueueAndWait(() ->
+                updateFromMap(System.currentTimeMillis(), newValue, MergeBehaviorTree.REPLACE_ALL));
     }
 
     protected void childChanged(WhatHappened what, Node child) {

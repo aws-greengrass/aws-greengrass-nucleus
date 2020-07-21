@@ -375,11 +375,13 @@ public class ConfigurationTest {
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
-        config.root.replaceMap(System.currentTimeMillis(), updateConfigMap);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, MergeBehaviorTree.REPLACE_ALL);
 
         // THEN
         assertEquals(updateConfigMap, config.toPOJO());
+
+        // block until all subscribers are notified
+        config.context.runOnPublishQueueAndWait(() -> {});
 
         assertEquals(1, leafNodeRemoved.get());
         assertEquals(1, containerNodeRemoved.get());
@@ -430,25 +432,21 @@ public class ConfigurationTest {
         }
 
         MergeBehaviorTree mergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE,
-            new HashMap<String, MergeBehaviorTree>() {{
-                put("foo", new MergeBehaviorTree(
+            createNewMap("foo", new MergeBehaviorTree(
                     MergeBehaviorTree.MergeBehavior.REPLACE,
-                    new HashMap<String, MergeBehaviorTree>(){{
-                        put("nodeToBeMerged", MergeBehaviorTree.MERGE_ALL);
-                    }}
-                ));
-            }}
+                    createNewMap("nodeToBeMerged", MergeBehaviorTree.MERGE_ALL)
+            ))
         );
         config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
-        config.context.runOnPublishQueueAndWait(() -> {});
 
         Map<Object, Object> expectedConfig = new HashMap<>(updateConfigMap);
-
         ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
 
         // THEN
         assertEquals(expectedConfig, config.toPOJO());
 
+        // block until all subscribers are notified
+        config.context.runOnPublishQueueAndWait(() -> {});
         assertEquals(1, nodeMerged.get());
     }
 
@@ -513,18 +511,13 @@ public class ConfigurationTest {
         }
 
         MergeBehaviorTree mergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE,
-            new HashMap<String, MergeBehaviorTree>() {{
-                put("foo", new MergeBehaviorTree(
+            createNewMap("*", new MergeBehaviorTree(
                     MergeBehaviorTree.MergeBehavior.MERGE,
-                    new HashMap<String, MergeBehaviorTree>(){{
-                        put("nodeToBeReplaced", MergeBehaviorTree.REPLACE_ALL);
-                    }}
-                ));
-            }}
+                    createNewMap("nodeToBeReplaced", MergeBehaviorTree.REPLACE_ALL)
+            ))
         );
 
         config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
-        config.context.runOnPublishQueueAndWait(() -> {});
 
         // THEN
         Map<Object, Object> expectedConfig;
@@ -533,7 +526,79 @@ public class ConfigurationTest {
         }
         assertEquals(expectedConfig, config.toPOJO());
 
+        // block until all subscribers are notified
+        config.context.runOnPublishQueueAndWait(() -> {});
         assertEquals(1, nodeMerged.get());
         assertEquals(0, nodeUnchangedCount.get());
+    }
+
+    @Test
+    public void GIVEN_config_update_WHEN_merge_update_interleave_THEN_expect_merge_correct() throws Exception {
+        // GIVEN
+        // set up initial config and listeners
+        String initConfig = "---\n"
+                + "nodeToBeMerged:\n"
+                + "  key1: val1\n"
+                + "  nodeToBeReplaced:\n"
+                + "    subNodeToBeRemoved: val\n"
+                + "    subNodeToBeMerged:\n"
+                + "      subKey1: subVal1\n"
+                + "nodeToBeRemoved: val\n";
+
+        String updateConfig = "---\n"
+                + "nodeToBeMerged:\n"
+                + "  key2: val2\n"
+                + "  nodeToBeReplaced:\n"
+                + "    subNodeToBeMerged:\n"
+                + "      subKey2: subVal2\n"
+                + "nodeToBeAdded: val\n";
+
+        String expectedResult = "---\n"
+                + "nodeToBeMerged:\n"
+                + "  key1: val1\n"
+                + "  key2: val2\n"
+                + "  nodeToBeReplaced:\n"
+                + "    subNodeToBeMerged:\n"
+                + "      subKey1: subVal1\n"
+                + "      subKey2: subVal2\n"
+                + "nodeToBeAdded: val\n";
+
+        Map<Object, Object> initConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
+            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        config.mergeMap(System.currentTimeMillis(), initConfigMap);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
+        // WHEN
+        Map<Object, Object> updateConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+
+        MergeBehaviorTree mergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE,
+            createNewMap("nodeToBeMerged", new MergeBehaviorTree(
+                    MergeBehaviorTree.MergeBehavior.MERGE,
+                    createNewMap("nodeToBeReplaced", new MergeBehaviorTree(
+                            MergeBehaviorTree.MergeBehavior.REPLACE,
+                            createNewMap("subNodeToBeMerged", MergeBehaviorTree.MERGE_ALL)
+                    ))
+            ))
+        );
+
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+
+        // THEN
+        Map<Object, Object> expectedConfig;
+        try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
+            expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+        }
+        assertEquals(expectedConfig, config.toPOJO());
+    }
+
+    private <T> Map<String, T> createNewMap(String key, T value) {
+        Map<String, T> result = new HashMap<>();
+        result.put(key, value);
+        return result;
     }
 }

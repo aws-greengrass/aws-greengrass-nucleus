@@ -351,7 +351,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_component_updated_WHEN_component_recipe_remove_a_field_THEN_kernel_config_remove_the_corresponding_field() throws Exception {
+    void GIVEN_updating_Component_WHEN_removing_field_from_recipe_THEN_kernel_config_remove_corresponding_field() throws Exception {
         // CustomerApp 0.9.1 has 'startup' key in lifecycle
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
