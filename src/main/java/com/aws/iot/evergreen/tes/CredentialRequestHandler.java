@@ -17,6 +17,10 @@ import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,11 +38,23 @@ public class CredentialRequestHandler implements HttpHandler {
     private static final String EXPIRATION_DOWNSTREAM_STR = "Expiration";
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
+
     private final String iotCredentialsPath;
 
     private final IotCloudHelper iotCloudHelper;
 
     private final IotConnectionManager iotConnectionManager;
+
+    private Clock clock = Clock.systemUTC();
+
+    private final Map<String, TESCache> tesCache = new HashMap<>();
+
+    private static class TESCache {
+        private byte[] credentials;
+        private int responseCode;
+        private Instant expiry;
+    }
 
     /**
      * Constructor.
@@ -52,12 +68,14 @@ public class CredentialRequestHandler implements HttpHandler {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
+        this.tesCache.put(this.iotCredentialsPath, new TESCache());
+        this.tesCache.get(iotCredentialsPath).expiry = Instant.now(clock);
     }
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final byte[] credentials = getCredentials();
-        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, credentials.length);
+        exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);
         exchange.getResponseBody().write(credentials);
         exchange.close();
     }
@@ -69,16 +87,56 @@ public class CredentialRequestHandler implements HttpHandler {
     public byte[] getCredentials() {
         byte[] response = {};
         LOGGER.debug("Got request for credentials");
-        // TODO: Add cache
+
+        if (areCredentialsValid()) {
+            response = tesCache.get(iotCredentialsPath).credentials;
+            return response;
+        }
+        
+        Instant newExpiry = tesCache.get(iotCredentialsPath).expiry;
+
         try {
             final String credentials = iotCloudHelper.sendHttpRequest(iotConnectionManager,
                     iotCredentialsPath,
                     IOT_CREDENTIALS_HTTP_VERB, null);
-            response = translateToAwsSdkFormat(credentials);
+
+            try {
+                response = translateToAwsSdkFormat(credentials);
+                String expiryString = parseExpiryFromResponse(credentials);
+                Instant expiry = Instant.parse(expiryString);
+
+                if (expiry.isBefore(Instant.now(clock))) {
+                    String responseString = "TES responded with expired credentials: " + credentials;
+                    response = responseString.getBytes(StandardCharsets.UTF_8);
+                    tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+                    LOGGER.error("Unable to cache expired credentials which expired at {}", expiry.toString());
+                } else {
+                    newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
+                    tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
+
+                    if (newExpiry.isBefore(Instant.now(clock))) {
+                        LOGGER.warn("Can't cache credentials as new credentials {} will expire in less than {} minutes",
+                                expiry.toString(),
+                                TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                    } else {
+                        LOGGER.info("Received IAM credentials that will be cached until {}", newExpiry.toString());
+                    }
+                }
+            } catch (AWSIotException e) {
+                String responseString = "Bad TES response: " + credentials;
+                response = responseString.getBytes(StandardCharsets.UTF_8);
+                tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+                LOGGER.error("Unable to parse response body", e);
+            }
+
         } catch (AWSIotException e) {
             // TODO: Generate 4xx, 5xx responses for all error scenarios
             LOGGER.error("Encountered error while fetching credentials", e);
         }
+
+        tesCache.get(iotCredentialsPath).expiry = newExpiry;
+        tesCache.get(iotCredentialsPath).credentials = response;
+
         return response;
     }
 
@@ -96,5 +154,29 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.error("Received malformed credential input", e);
             throw new AWSIotException(e);
         }
+    }
+
+    private String parseExpiryFromResponse(final String credentials) throws AWSIotException {
+        try {
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
+            return jsonNode.get(EXPIRATION_UPSTREAM_STR).asText();
+        } catch (JsonProcessingException e) {
+            LOGGER.error("Received malformed credential input", e);
+            throw new AWSIotException(e);
+        }
+    }
+
+    private boolean areCredentialsValid() {
+        Instant now = Instant.now(clock);
+        return now.isBefore(tesCache.get(iotCredentialsPath).expiry);
+    }
+
+    /**
+     * Inject clock for controlled testing.
+     *
+     * @param clock fixed time clock
+     */
+    public void setClock(Clock clock) {
+        this.clock = clock;
     }
 }
