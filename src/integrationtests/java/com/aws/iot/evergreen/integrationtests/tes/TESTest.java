@@ -11,12 +11,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +61,8 @@ class TESTest extends BaseITCase {
         try {
             kernel.shutdown();
         } finally {
-            deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
+            deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION,
+                    Collections.singleton(InvalidRequestException.class)), thingInfo);
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
                     roleName, roleAliasName, thingInfo.getCertificateArn());
         }
