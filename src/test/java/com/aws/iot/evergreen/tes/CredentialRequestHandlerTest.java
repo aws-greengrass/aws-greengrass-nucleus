@@ -3,23 +3,32 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.iot.evergreen.tes.CredentialRequestHandler.TIME_BEFORE_CACHE_EXPIRE_IN_MIN;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -35,7 +44,7 @@ public class CredentialRequestHandlerTest {
     private static final String ACCESS_KEY_ID = "ASIA";
     private static final String SECRET_ACCESS_KEY = "rLJt$$%RNDom";
     private static final String SESSION_TOKEN = "ABCDEFGHI";
-    private static final String EXPIRATION = "2020-05-19T07:35:15Z";
+    private static final String EXPIRATION = "2020-08-19T07:35:15Z";
     private static final String RESPONSE_STR = "{\"credentials\":" +
             "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," +
             "\"secretAccessKey\":\"" + SECRET_ACCESS_KEY + "\"," +
@@ -86,5 +95,84 @@ public class CredentialRequestHandlerTest {
         assertThat(SECRET_ACCESS_KEY, is(resp.get("SecretAccessKey")));
         assertThat(SESSION_TOKEN, is(resp.get("Token")));
         assertThat(EXPIRATION, is(resp.get("Expiration")));
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_called_handle_THEN_caches_creds() throws Exception {
+        // Expiry time in the past will give 500 error, no caching
+        Instant expirationTime = Instant.now().minus(Duration.ofMinutes(1));
+        String responseStr = "{\"credentials\":" +
+            "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," +
+            "\"secretAccessKey\":\"" + SECRET_ACCESS_KEY + "\"," +
+            "\"sessionToken\":\"" + SESSION_TOKEN + "\"," +
+            "\"expiration\":\"" + expirationTime.toString() + "\"}}";
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(responseStr);
+        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        OutputStream mockStream = mock(OutputStream.class);
+        when(mockExchange.getResponseBody()).thenReturn(mockStream);
+        handler.handle(mockExchange);
+        byte[] expectedReponse = ("TES responded with expired credentials: " + responseStr).getBytes();
+        int expectedStatus = 500;
+        verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any());
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedReponse.length);
+        verify(mockStream, times(1)).write(expectedReponse);
+
+        // Expiry time in recent future won't give error but there wil be no caching
+        expirationTime = Instant.now().plus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN-1));
+        responseStr = "{\"credentials\":" +
+            "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," +
+            "\"secretAccessKey\":\"" + SECRET_ACCESS_KEY + "\"," +
+            "\"sessionToken\":\"" + SESSION_TOKEN + "\"," +
+            "\"expiration\":\"" + expirationTime.toString() + "\"}}";
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(responseStr);
+        handler.handle(mockExchange);
+        verify(mockCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any());
+
+        // Expiry time in future will result in credentials being cached
+        expirationTime = Instant.now().plus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN+1));
+        responseStr = "{\"credentials\":" +
+            "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," +
+            "\"secretAccessKey\":\"" + SECRET_ACCESS_KEY + "\"," +
+            "\"sessionToken\":\"" + SESSION_TOKEN + "\"," +
+            "\"expiration\":\"" + expirationTime.toString() + "\"}}";
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(responseStr);
+        handler.handle(mockExchange);
+        verify(mockCloudHelper, times(3)).sendHttpRequest(any(), any(), any(), any());
+
+        // Credentials were cached
+        handler.handle(mockExchange);
+        verify(mockCloudHelper, times(3)).sendHttpRequest(any(), any(), any(), any());
+
+        // Cached credentials expired
+        Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
+        handler.setClock(mockClock);
+        handler.handle(mockExchange);
+        verify(mockCloudHelper, times(4)).sendHttpRequest(any(), any(), any(), any());
+
+        mockStream.close();
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_unparsable_response_WHEN_called_handle_THEN_returns_error(
+            ExtensionContext context) 
+            throws Exception {
+        ignoreExceptionOfType(context, AWSIotException.class);
+        ignoreExceptionOfType(context, JsonParseException.class);
+
+        String responseStr = "invalid_response_body";
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(responseStr);
+        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        OutputStream mockStream = mock(OutputStream.class);
+        when(mockExchange.getResponseBody()).thenReturn(mockStream);
+        handler.handle(mockExchange);
+        byte[] expectedReponse = ("Bad TES response: " + responseStr).getBytes();
+        int expectedStatus = 500;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedReponse.length);
+        verify(mockStream, times(1)).write(expectedReponse);
+        mockStream.close();
     }
 }
