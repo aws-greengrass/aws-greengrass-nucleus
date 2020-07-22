@@ -22,8 +22,7 @@ public class AuthZModule {
     }
 
     /**
-     * Add permission for the given input set. Permission is internal implementation to
-     * the module, caller only deals with 4 entities.
+     * Add permission for the given input set.
      * @param destination destination entity
      * @param permission set of source, operation, resource.
      * @throws AuthZException when arguments are invalid
