@@ -140,7 +140,7 @@ public class KernelAlternatives {
      */
     public Deployment loadPersistedDeployment() {
         // TODO: read deployment directory
-        // return new Deployment(DeploymentType deploymentType, String id, DeploymentStage subtype)
+        // return new Deployment(DeploymentType deploymentType, String id, DeploymentStage stage)
         return null;
     }
 }

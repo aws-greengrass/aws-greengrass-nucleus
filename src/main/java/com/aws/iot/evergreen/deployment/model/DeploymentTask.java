@@ -10,7 +10,7 @@ import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailur
 
 import java.util.concurrent.Callable;
 
-public interface BaseDeploymentTask extends Callable<DeploymentResult> {
+public interface DeploymentTask extends Callable<DeploymentResult> {
     @Override
     DeploymentResult call() throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException;
 }

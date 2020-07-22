@@ -6,9 +6,9 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
-import com.aws.iot.evergreen.deployment.model.BaseDeploymentTask;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentTask;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import lombok.AllArgsConstructor;
@@ -17,22 +17,22 @@ import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 
 @AllArgsConstructor
-public class KernelUpdateDeploymentTask implements BaseDeploymentTask {
+public class KernelUpdateDeploymentTask implements DeploymentTask {
     private Kernel kernel;
     private final Logger logger;
     private Deployment deployment;
 
     @Override
     public DeploymentResult call() {
-        Deployment.DeploymentStage subtype = deployment.getDeploymentStage();
+        Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         try {
             DeploymentConfigMerger.waitForServicesToStart(kernel.orderedDependencies(),
                     kernel.getConfig().lookup().getModtime());
 
             DeploymentResult result = null;
-            if (KERNEL_ACTIVATION.equals(subtype)) {
+            if (KERNEL_ACTIVATION.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
-            } else if (KERNEL_ROLLBACK.equals(subtype)) {
+            } else if (KERNEL_ROLLBACK.equals(stage)) {
                 // TODO: add failure causes
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, null);
             }
@@ -43,10 +43,10 @@ public class KernelUpdateDeploymentTask implements BaseDeploymentTask {
             return null;
         } catch (ServiceUpdateException e) {
             logger.atError("deployment-errored", e).kv("deployment", deployment).log();
-            if (KERNEL_ACTIVATION.equals(subtype)) {
+            if (KERNEL_ACTIVATION.equals(stage)) {
                 // TODO: rollback workflow. Flip symlinks and restart
                 return null;
-            } else if (KERNEL_ROLLBACK.equals(subtype)) {
+            } else if (KERNEL_ROLLBACK.equals(stage)) {
                 // TODO: add failure causes
                 return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, null);
             }

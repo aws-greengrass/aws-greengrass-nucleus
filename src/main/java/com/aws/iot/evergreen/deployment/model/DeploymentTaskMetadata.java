@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @AllArgsConstructor
 public class DeploymentTaskMetadata {
     @NonNull @Getter
-    private BaseDeploymentTask deploymentTask;
+    private DeploymentTask deploymentTask;
     @NonNull
     private Future<DeploymentResult> deploymentResultFuture;
     @NonNull @Getter

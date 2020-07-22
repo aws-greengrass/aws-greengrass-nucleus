@@ -13,10 +13,10 @@ import com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter;
 import com.aws.iot.evergreen.deployment.exceptions.InvalidRequestException;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
-import com.aws.iot.evergreen.deployment.model.BaseDeploymentTask;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentTask;
 import com.aws.iot.evergreen.deployment.model.DeploymentTaskMetadata;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
@@ -288,7 +288,7 @@ public class DeploymentService extends EvergreenService {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
-                        ((DeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask())
+                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask())
                                 .getDeploymentDocument().getDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
@@ -319,7 +319,7 @@ public class DeploymentService extends EvergreenService {
         logger.atInfo().kv("DeploymentId", deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
-        BaseDeploymentTask deploymentTask;
+        DeploymentTask deploymentTask;
         boolean cancellable = true;
         if (Deployment.DeploymentStage.DEFAULT.equals(deployment.getDeploymentStage())) {
             deploymentTask = createDefaultNewDeployment(deployment);
@@ -344,7 +344,7 @@ public class DeploymentService extends EvergreenService {
         return new KernelUpdateDeploymentTask(kernel, logger, deployment);
     }
 
-    private DeploymentTask createDefaultNewDeployment(Deployment deployment) {
+    private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
@@ -359,8 +359,8 @@ public class DeploymentService extends EvergreenService {
                     JobStatus.FAILED, statusDetails);
             return null;
         }
-        return new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
-                        logger, deployment.getDeploymentDocumentObj(), config);
+        return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
+                deploymentConfigMerger, logger, deployment.getDeploymentDocumentObj(), config);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

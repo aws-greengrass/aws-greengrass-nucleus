@@ -3,9 +3,9 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
-import com.aws.iot.evergreen.deployment.model.BaseDeploymentTask;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentTask;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
@@ -30,7 +30,7 @@ import java.util.concurrent.Future;
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 @AllArgsConstructor
-public class DeploymentTask implements BaseDeploymentTask {
+public class DefaultDeploymentTask implements DeploymentTask {
     private static final String DEPLOYMENT_ID_LOGGING_KEY = "deploymentId";
     private final DependencyResolver dependencyResolver;
     private final PackageManager packageManager;

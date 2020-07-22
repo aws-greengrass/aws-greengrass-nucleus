@@ -9,7 +9,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeploymentService;
-import com.aws.iot.evergreen.deployment.DeploymentTask;
+import com.aws.iot.evergreen.deployment.DefaultDeploymentTask;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
@@ -437,8 +437,8 @@ class DeploymentTaskIntegrationTest {
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
-        DeploymentTask deploymentTask =
-                new DeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
+        DefaultDeploymentTask deploymentTask =
+                new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
                         logger, sampleJobDocument, deploymentServiceTopics);
         return executorService.submit(deploymentTask);
     }
