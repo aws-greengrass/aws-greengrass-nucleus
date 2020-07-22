@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -55,12 +56,40 @@ public class AuthZHandlerTest {
                 .build();
     }
 
+    private AuthZPolicy getStarResourceAuthZPolicy() {
+        return AuthZPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .sources(new HashSet(Arrays.asList("compA")))
+                .operations(new HashSet(Arrays.asList("OpA")))
+                .resources(new HashSet(Arrays.asList("*")))
+                .build();
+    }
+
     private AuthZPolicy getStarSourcesAuthZPolicy() {
         return AuthZPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
                 .sources(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .build();
+    }
+
+    private AuthZPolicy getAuthZPolicyWithEmptySources() {
+        return AuthZPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .sources(new HashSet())
+                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .build();
+    }
+
+    private AuthZPolicy getAuthZPolicyWithEmptyOp() {
+        return AuthZPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .sources(new HashSet(Arrays.asList("*")))
+                .operations(new HashSet())
                 .build();
     }
 
@@ -192,6 +221,27 @@ public class AuthZHandlerTest {
     }
 
     @Test
+    void GIVEN_AuthZ_manager_WHEN_service_registered_THEN_auth_lookup_for_star_resource_works() throws Exception {
+        AuthZHandler authZHandler = new AuthZHandler(mockKernel);
+        when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
+        authZHandler.registerService("ServiceA", serviceOps);
+
+        AuthZPolicy policy = getStarResourceAuthZPolicy();
+        authZHandler.loadAuthZConfig("ServiceA", Collections.singletonList(policy));
+        assertTrue(authZHandler.isFlowAuthorized("ServiceA",
+                Permission.builder().source("compA").operation("OpA").resource("*").build()));
+
+        // A random string works
+        assertTrue(authZHandler.isFlowAuthorized("ServiceA",
+                Permission.builder().source("compA").operation("OpA").resource("randomString").build()));
+
+        // null resource be allowed as it will pass * check
+        assertTrue(authZHandler.isFlowAuthorized("ServiceA",
+                Permission.builder().source("compA").operation("OpA").resource(null).build()));
+    }
+
+    @Test
     void GIVEN_AuthZ_manager_WHEN_service_registered_THEN_auth_lookup_for_star_source_works() throws Exception {
         AuthZHandler authZHandler = new AuthZHandler(mockKernel);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
@@ -231,5 +281,31 @@ public class AuthZHandlerTest {
                 Permission.builder().source("compB").operation("OpB").resource(null).build()));
         assertThrows(AuthZException.class, () -> authZHandler.isFlowAuthorized("ServiceB",
                 Permission.builder().source("*").operation("*").resource(null).build()));
+    }
+
+    @Test
+    void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails() throws Exception {
+        AuthZHandler authZHandler = new AuthZHandler(mockKernel);
+
+        // invalid service fails
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig("",
+                Collections.singletonList(getAuthZPolicy())));
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig(null,
+                Collections.singletonList(getAuthZPolicy())));
+        // adding null config fails
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig("ServiceA", null));
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig("ServiceA", new ArrayList<>()));
+
+        // When kernel cannot identify a source service then load fails
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig("ServiceA",
+                Collections.singletonList(getAuthZPolicy())));
+
+        // Empty source should fail to load
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig("ServiceA",
+                Collections.singletonList(getAuthZPolicyWithEmptySources())));
+
+        // Empty operations should fail to load
+        assertThrows(AuthZException.class, () -> authZHandler.loadAuthZConfig("ServiceA",
+                Collections.singletonList(getAuthZPolicyWithEmptyOp())));
     }
 }
