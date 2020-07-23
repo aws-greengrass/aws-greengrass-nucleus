@@ -15,7 +15,8 @@ Parameters:
     type: STRING
 Lifecycle:
   all:
-    run:
+    run: |-
+      sleep 2
       echo "Hello evergreen. {{params:sampleText.value}}"
 Dependencies:
   all:

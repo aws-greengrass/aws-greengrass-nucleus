@@ -11,6 +11,7 @@ import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.InvalidInputException;
+import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
@@ -19,7 +20,9 @@ import com.amazonaws.services.evergreen.model.SetConfigurationResult;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
@@ -29,6 +32,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,13 +44,20 @@ import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,6 +76,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected final Logger logger = LogManager.getLogger(this.getClass());
     private static final Logger staticlogger = LogManager.getLogger(BaseE2ETestCase.class);
 
+    private final static String testComponentSuffix = "_" + UUID.randomUUID().toString();
+
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
@@ -76,6 +89,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     @TempDir
     protected Path tempRootDir;
 
+    @TempDir
+    protected static Path e2eTestPkgStoreDir;
+
+    protected static PackageStore e2eTestPackageStore;
+
     protected Kernel kernel;
 
     protected static final IotClient iotClient = IotSdkClientFactory
@@ -85,21 +103,21 @@ public class BaseE2ETestCase implements AutoCloseable {
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, BETA_REGION.toString())).build();
     private static final PackageIdentifier[] testComponents = {
-            new PackageIdentifier("CustomerApp", new Semver("1.0.0")),
-            new PackageIdentifier("CustomerApp", new Semver("0.9.0")),
-            new PackageIdentifier("CustomerApp", new Semver("0.9.1")),
-            new PackageIdentifier("SomeService", new Semver("1.0.0")),
-            new PackageIdentifier("SomeOldService", new Semver("0.9.0")),
-            new PackageIdentifier("GreenSignal", new Semver("1.0.0")),
-            new PackageIdentifier("RedSignal", new Semver("1.0.0")),
-            new PackageIdentifier("YellowSignal", new Semver("1.0.0")),
-            new PackageIdentifier("Mosquitto", new Semver("1.0.0")),
-            new PackageIdentifier("Mosquitto", new Semver("0.9.0")),
-            new PackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
-            new PackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
-            new PackageIdentifier("Log", new Semver("2.0.0")),
-            new PackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
-            new PackageIdentifier("NonDisruptableService", new Semver("1.0.1"))
+            createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
+            createPackageIdentifier("SomeService", new Semver("1.0.0")),
+            createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
+            createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
+            createPackageIdentifier("RedSignal", new Semver("1.0.0")),
+            createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
+            createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
+            createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
+            createPackageIdentifier("Log", new Semver("2.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))
     };
 
     @BeforeAll
@@ -147,6 +165,13 @@ public class BaseE2ETestCase implements AutoCloseable {
      */
     private static void uploadTestComponentsToCms(boolean commit, PackageIdentifier... pkgIds)
             throws IOException, PackagingException {
+        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
+
+        // copy to tmp directory
+        FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
+
+        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
+
         List<String> errors = new ArrayList<>();
         for (PackageIdentifier pkgId : pkgIds) {
             try {
@@ -171,26 +196,41 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    private static void draftComponent(PackageIdentifier pkgId) throws PackagingException, IOException {
-        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
-        PackageStore e2eTestPackageStore = new PackageStore(localStoreContentPath);
+    private static void draftComponent(PackageIdentifier pkgIdCloud) throws IOException {
 
-        Path testRecipePath = e2eTestPackageStore.resolveRecipePath(pkgId);
+        PackageIdentifier pkgIdLocal = new PackageIdentifier(removeTestComponentNameCloudSuffix(pkgIdCloud.getName()),
+                pkgIdCloud.getVersion(), pkgIdCloud.getScope());
+
+        Path testRecipePath = e2eTestPackageStore.resolveRecipePath(pkgIdLocal);
+
+        // update recipe
+        String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
+        Set<String> componentNameSet = Arrays.stream(testComponents)
+                .map(component -> component.getName()).collect(Collectors.toSet());
+
+        for (String cloudPkgName: componentNameSet) {
+            String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
+            content = content.replaceAll(localPkgName + "\n", cloudPkgName + "\n");
+            content = content.replaceAll(localPkgName + ":", cloudPkgName + ":");
+        }
+
+        Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
+
         CreateComponentResult createComponentResult = GreengrassPackageServiceHelper.createComponent(cmsClient,
                 testRecipePath);
         assertEquals("DRAFT", createComponentResult.getStatus());
-        assertEquals(pkgId.getName(), createComponentResult.getComponentName());
-        assertEquals(pkgId.getVersion().toString(), createComponentResult.getComponentVersion());
+        assertEquals(pkgIdCloud.getName(), createComponentResult.getComponentName(), createComponentResult.toString());
+        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
 
-        Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgId);
+        Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
         File[] artifactFiles = artifactDirPath.toFile().listFiles();
         if (artifactFiles == null) {
-            staticlogger.atInfo().kv("component", pkgId).kv("artifactPath", artifactDirPath.toAbsolutePath())
+            staticlogger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
                     .log("Skip artifact upload. No artifacts found");
         } else {
             for (File artifact : artifactFiles) {
-                GreengrassPackageServiceHelper.createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
-                        pkgId.getVersion().toString());
+                GreengrassPackageServiceHelper.createAndUploadComponentArtifact(
+                        cmsClient, artifact, pkgIdCloud.getName(), pkgIdCloud.getVersion().toString());
             }
         }
     }
@@ -208,6 +248,12 @@ public class BaseE2ETestCase implements AutoCloseable {
     @SuppressWarnings("PMD.LinguisticNaming")
     protected PublishConfigurationResult setAndPublishFleetConfiguration(SetConfigurationRequest setRequest) {
         AWSEvergreen client = getFcsClient();
+        Map<String, PackageMetaData> updatedPkgMetadata = new HashMap<>();
+        setRequest.getPackages().forEach((key, val) -> {
+            updatedPkgMetadata.put(getTestComponentNameInCloud(key), val);
+        });
+        setRequest.setPackages(updatedPkgMetadata);
+
         logger.atInfo().kv("setRequest", setRequest).log();
         SetConfigurationResult setResult = client.setConfiguration(setRequest);
         logger.atInfo().kv("setResult", setResult).log();
@@ -229,6 +275,15 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.clear();
         createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
         createdIotJobIds.clear();
+        if (kernel == null || kernel.getConfigPath() == null) {
+            return;
+        }
+        for (File subFile : kernel.getConfigPath().toFile().listFiles()) {
+            boolean result = subFile.delete();
+            if (!result) {
+                logger.atWarn().kv("fileName", subFile.toString()).log("Fail to delete file in cleanup.");
+            }
+        }
     }
 
     @Override
@@ -239,4 +294,28 @@ public class BaseE2ETestCase implements AutoCloseable {
         cmsClient.shutdown();
         iotClient.close();
     }
+
+    private static PackageIdentifier createPackageIdentifier(String name, Semver version) {
+        return new PackageIdentifier(getTestComponentNameInCloud(name), version, "private");
+    }
+
+    protected static String getTestComponentNameInCloud(String name) {
+        if (name.endsWith(testComponentSuffix)) {
+            return name;
+        }
+        return name + testComponentSuffix;
+    }
+
+    protected static String removeTestComponentNameCloudSuffix(String name) {
+        int index = name.lastIndexOf(testComponentSuffix);
+        if (index > 0) {
+            return name.substring(0, index);
+        }
+        return name;
+    }
+
+    public EvergreenService getCloudDeployedComponent(String name) throws ServiceLoadException {
+        return kernel.locate(getTestComponentNameInCloud(name));
+    }
+
 }
