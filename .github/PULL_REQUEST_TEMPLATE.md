@@ -8,8 +8,10 @@
 
 **Any additional information or context required to review the change:**
 
-**Updated the README:**
-- [ ] Yes
-- [ ] Not Applicable
+**Checklist:**
+ - [ ] Updated the README if applicable
+ - [ ] Updated or added new unit tests
+ - [ ] Updated or added new integration tests
+ - [ ] Updated or added new end-to-end tests
 
 By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of your choice.

@@ -104,7 +104,7 @@ public class DeploymentConfigMerger {
     /**
      * Completes the provided future when all of the listed services are running.
      *
-     * @param servicesToTrack       service to track
+     * @param servicesToTrack       services to track
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
