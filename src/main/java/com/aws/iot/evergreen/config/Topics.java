@@ -213,7 +213,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @param mergeBehavior mergeBehavior
      */
     @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
-    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull MergeBehaviorTree mergeBehavior) {
+    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull UpdateBehaviorTree mergeBehavior) {
         if (map == null) {
             logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
             return;
@@ -227,30 +227,30 @@ public class Topics extends Node implements Iterable<Node> {
         });
 
         childrenToRemove.forEach(childName -> {
-            MergeBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName);
+            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName);
             if (childMergeBehavior == null) {
-                childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehaviorTree.WILDCARD);
+                childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
             }
 
             // remove the existing child if its merge behavior is not present and root merge behavior is REPLACE
             if (childMergeBehavior == null
-                    && mergeBehavior.getDefaultBehavior() == MergeBehaviorTree.MergeBehavior.REPLACE) {
+                    && mergeBehavior.getDefaultBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
                 remove(children.get(childName));
                 return;
             }
 
             // remove the existing child if its merge behavior is REPLACE
             if (childMergeBehavior != null
-                    && childMergeBehavior.getDefaultBehavior() == MergeBehaviorTree.MergeBehavior.REPLACE) {
+                    && childMergeBehavior.getDefaultBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
                 remove(children.get(childName));
             }
         });
     }
 
-    private void updateChild(long lastModified, String key, Object value, @NonNull MergeBehaviorTree mergeBehavior) {
-        MergeBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key);
+    private void updateChild(long lastModified, String key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
+        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key);
         if (childMergeBehavior == null) {
-            childMergeBehavior = mergeBehavior.getChildOverride().get(MergeBehaviorTree.WILDCARD);
+            childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
         }
 
         if (childMergeBehavior == null) {
@@ -268,7 +268,7 @@ public class Topics extends Node implements Iterable<Node> {
         }
     }
 
-    private void mergeChild(long lastModified, String key, Object value, @NonNull MergeBehaviorTree mergeBehavior) {
+    private void mergeChild(long lastModified, String key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
         if (value instanceof Map) {
             createInteriorChild(key).updateFromMap(lastModified, (Map) value, mergeBehavior);
         } else {
@@ -277,7 +277,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     private void replaceChild(long lastModified, String key, Object value,
-                              @Nonnull MergeBehaviorTree childMergeBehavior) {
+                              @Nonnull UpdateBehaviorTree childMergeBehavior) {
         Node existingChild = children.get(key);
         // if new node is a container node
         if (value instanceof Map) {
@@ -355,7 +355,9 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public void replaceAndWait(Map<Object, Object> newValue) {
         context.runOnPublishQueueAndWait(() ->
-                updateFromMap(System.currentTimeMillis(), newValue, MergeBehaviorTree.REPLACE_ALL));
+                updateFromMap(System.currentTimeMillis(), newValue,
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))
+        );
     }
 
     protected void childChanged(WhatHappened what, Node child) {

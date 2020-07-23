@@ -375,7 +375,8 @@ public class ConfigurationTest {
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, MergeBehaviorTree.REPLACE_ALL);
+        config.updateMap(System.currentTimeMillis(), updateConfigMap,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE));
 
         // THEN
         assertEquals(updateConfigMap, config.toPOJO());
@@ -431,13 +432,13 @@ public class ConfigurationTest {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
 
-        MergeBehaviorTree mergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE,
-            createNewMap("foo", new MergeBehaviorTree(
-                    MergeBehaviorTree.MergeBehavior.REPLACE,
-                    createNewMap("nodeToBeMerged", MergeBehaviorTree.MERGE_ALL)
+        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+            createNewMap("foo", new UpdateBehaviorTree(
+                    UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                    createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE))
             ))
         );
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         Map<Object, Object> expectedConfig = new HashMap<>(updateConfigMap);
         ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
@@ -510,14 +511,15 @@ public class ConfigurationTest {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
 
-        MergeBehaviorTree mergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE,
-            createNewMap("*", new MergeBehaviorTree(
-                    MergeBehaviorTree.MergeBehavior.MERGE,
-                    createNewMap("nodeToBeReplaced", MergeBehaviorTree.REPLACE_ALL)
+        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+            createNewMap("*", new UpdateBehaviorTree(
+                    UpdateBehaviorTree.UpdateBehavior.MERGE,
+                    createNewMap("nodeToBeReplaced",
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))
             ))
         );
 
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         // THEN
         Map<Object, Object> expectedConfig;
@@ -576,17 +578,18 @@ public class ConfigurationTest {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
 
-        MergeBehaviorTree mergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE,
-            createNewMap("nodeToBeMerged", new MergeBehaviorTree(
-                    MergeBehaviorTree.MergeBehavior.MERGE,
-                    createNewMap("nodeToBeReplaced", new MergeBehaviorTree(
-                            MergeBehaviorTree.MergeBehavior.REPLACE,
-                            createNewMap("subNodeToBeMerged", MergeBehaviorTree.MERGE_ALL)
+        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+            createNewMap("nodeToBeMerged", new UpdateBehaviorTree(
+                    UpdateBehaviorTree.UpdateBehavior.MERGE,
+                    createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
+                            UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                            createNewMap("subNodeToBeMerged",
+                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE))
                     ))
             ))
         );
 
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, mergeBehavior);
+        config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         // THEN
         Map<Object, Object> expectedConfig;

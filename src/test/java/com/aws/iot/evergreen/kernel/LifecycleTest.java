@@ -1,7 +1,7 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.MergeBehaviorTree;
+import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
@@ -90,7 +90,7 @@ public class LifecycleTest {
                 .createInteriorChild("MockService");
         try (InputStream inputStream = new ByteArrayInputStream(BLANK_CONFIG_YAML_WITH_TIMEOUT.getBytes())) {
             config.updateFromMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream),
-                    MergeBehaviorTree.MERGE_ALL);
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
         } catch (IOException e) {
             fail(e);
         }

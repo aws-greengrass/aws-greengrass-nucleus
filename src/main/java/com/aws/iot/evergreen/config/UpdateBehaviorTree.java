@@ -74,24 +74,17 @@ import java.util.Map;
 @AllArgsConstructor
 @Getter
 @Data
-public class MergeBehaviorTree {
+public class UpdateBehaviorTree {
     public static final String WILDCARD = "*";
-    public static final MergeBehaviorTree MERGE_ALL;
-    public static final MergeBehaviorTree REPLACE_ALL;
 
-    static {
-        MERGE_ALL = new MergeBehaviorTree(MergeBehavior.MERGE);
-        REPLACE_ALL = new MergeBehaviorTree(MergeBehavior.REPLACE);
-    }
-
-    public enum MergeBehavior {
+    public enum UpdateBehavior {
         MERGE, REPLACE;
     }
 
-    private MergeBehavior defaultBehavior;
-    private Map<String, MergeBehaviorTree> childOverride;
+    private UpdateBehavior defaultBehavior;
+    private Map<String, UpdateBehaviorTree> childOverride;
 
-    public MergeBehaviorTree(MergeBehavior defaultBehavior) {
+    public UpdateBehaviorTree(UpdateBehavior defaultBehavior) {
         this.defaultBehavior = defaultBehavior;
         this.childOverride = new HashMap<>();
     }

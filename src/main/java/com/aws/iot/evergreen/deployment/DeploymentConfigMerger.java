@@ -6,8 +6,8 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.ConfigurationReader;
-import com.aws.iot.evergreen.config.MergeBehaviorTree;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -50,7 +50,7 @@ public class DeploymentConfigMerger {
     private static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
-    protected static final MergeBehaviorTree DEPLOYMENT_MERGE_BEHAVIOR = createDeploymentMergeBehavior();
+    protected static final UpdateBehaviorTree DEPLOYMENT_MERGE_BEHAVIOR = createDeploymentMergeBehavior();
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
@@ -439,21 +439,24 @@ public class DeploymentConfigMerger {
 
     }
 
-    private static MergeBehaviorTree createDeploymentMergeBehavior() {
+    private static UpdateBehaviorTree createDeploymentMergeBehavior() {
         // root: MERGE
         //   services: MERGE
         //     *: REPLACE
         //       runtime: MERGE
         //     AUTH_TOKEN: MERGE
 
-        MergeBehaviorTree rootMergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.MERGE);
-        MergeBehaviorTree servicesMergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.MERGE);
-        MergeBehaviorTree insideServiceMergeBehavior = new MergeBehaviorTree(MergeBehaviorTree.MergeBehavior.REPLACE);
-        MergeBehaviorTree serviceRuntimeMergeBehavior = MergeBehaviorTree.MERGE_ALL;
+        UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
+        UpdateBehaviorTree servicesMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
+        UpdateBehaviorTree insideServiceMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE);
+        UpdateBehaviorTree serviceRuntimeMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
 
         rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(MergeBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTH_TOKEN_LOOKUP_KEY, MergeBehaviorTree.MERGE_ALL);
+        servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
+        servicesMergeBehavior.getChildOverride().put(AUTH_TOKEN_LOOKUP_KEY,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
         insideServiceMergeBehavior.getChildOverride().put(
                 EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
 
