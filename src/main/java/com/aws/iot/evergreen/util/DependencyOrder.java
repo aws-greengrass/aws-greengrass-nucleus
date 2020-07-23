@@ -5,13 +5,18 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class DependencyOrder<T> {
+    private static final Logger logger = LogManager.getLogger(DependencyOrder.class);
+
     @FunctionalInterface
-    public interface DependencyGetter<E> {
-        Set<E> getDependencies(E elem);
+    public interface DependencyGetter<T> {
+        Set<T> getDependencies(T elem);
     }
 
     /**
@@ -36,6 +41,8 @@ public class DependencyOrder<T> {
             });
             if (sz == pendingDependencies.size()) {
                 // didn't find anything to remove, there must be a cycle
+                logger.atError().kv("pendingItems", pendingDependencies).log(
+                        "Found potential circular dependencies. Ignoring all pending items");
                 break;
             }
         }

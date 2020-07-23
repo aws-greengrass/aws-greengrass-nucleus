@@ -5,8 +5,8 @@
 
 package com.aws.iot.evergreen.deployment.activator;
 
-import com.aws.iot.evergreen.deployment.BootstrapManager;
 import com.aws.iot.evergreen.deployment.ConfigSnapshotUtils;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
@@ -69,10 +69,13 @@ public class KernelUpdateActivator extends DeploymentActivator {
                 // TODO: flip symlinks, new to current
                 logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
             }
+            // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
+            // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
             logger.atInfo().log((exitCode == 101 ? "device reboot" : "kernel restart")
                     + " requested to complete bootstrap task");
             // TODO: Kernel shutdown supports exit code
             // System.exit(exitCode == 101 ? 101 : 100);
+
         } catch (ServiceUpdateException e) {
             rollback(deploymentDocument, totallyCompleteFuture, e);
             return;

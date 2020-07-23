@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.deployment;
+package com.aws.iot.evergreen.deployment.bootstrap;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
@@ -15,9 +15,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.DependencyOrder;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -30,16 +27,24 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.deployment.BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapTaskStatus.ExecutionStatus.DONE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
-public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTaskStatus>  {
+/**
+ * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
+ */
+@NotThreadSafe
+public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -63,15 +68,18 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
      *
      * @param newConfig new configuration from deployment
      * @return true if there are bootstrap tasks, false otherwise
+     * @throws ServiceUpdateException if parsing bootstrap tasks from new configuration fails
      */
-    public boolean isBootstrapRequired(Map<Object, Object> newConfig) {
+    @SuppressWarnings("PMD.PrematureDeclaration")
+    public boolean isBootstrapRequired(Map<Object, Object> newConfig) throws ServiceUpdateException {
         if (hasNext()) {
             return true;
         }
         bootstrapTaskStatusList.clear();
+        cursor = 0;
 
         if (newConfig == null || !newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
-            logger.atError().log(
+            logger.atInfo().log(
                     "No bootstrap tasks found: Deployment configuration is missing or has no service changes");
             return false;
         }
@@ -86,11 +94,15 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
         if (componentsRequiresBootstrapTask.isEmpty()) {
             return false;
         }
+        List<String> errors = new ArrayList<>();
         // Figure out the dependency order within the subset of components which require changes
-        final LinkedHashSet<String> dependencyFound =
+        LinkedHashSet<String> dependencyFound =
                 new DependencyOrder<String>().computeOrderedDependencies(componentsRequiresBootstrapTask,
-                        name -> getRelevantDependencies(name, componentsRequiresBootstrapTask,
-                                (Map<String, Object>) serviceConfig.get(name)));
+                        name -> getDependenciesWithinSubset(name, componentsRequiresBootstrapTask,
+                                (Map<String, Object>) serviceConfig.get(name), errors));
+        if (!errors.isEmpty()) {
+            throw new ServiceUpdateException(errors.toString());
+        }
         logger.atInfo().kv("list", dependencyFound).log("Found a list of bootstrap tasks in dependency order");
         dependencyFound.forEach(name -> bootstrapTaskStatusList.add(new BootstrapTaskStatus(name)));
 
@@ -105,8 +117,8 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
      * @param componentConfig config of the component
      * @return
      */
-    private Set<String> getRelevantDependencies(String componentName, Set<String> subset,
-                                                Map<String, Object> componentConfig) {
+    private Set<String> getDependenciesWithinSubset(String componentName, Set<String> subset,
+                                                    Map<String, Object> componentConfig, List<String> errors) {
         Set<String> relevantDependencies = new HashSet<>();
         if (!componentConfig.containsKey(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)) {
             return relevantDependencies;
@@ -121,6 +133,7 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
             } catch (InputValidationException e) {
                 logger.atError().kv("componentName", componentName).setCause(e).log(
                         "Ignore component with invalid dependency setting");
+                errors.add(e.getMessage());
             }
         }
         return relevantDependencies;
@@ -138,10 +151,10 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
         if (!newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
             return false;
         }
-        Map<String, Object> serviceLifecycle =
+        Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        if (!serviceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
-                || serviceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
+        if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
+                || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
             return false;
         }
         EvergreenService service;
@@ -155,10 +168,10 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
             return true;
         }
         // TODO: Support bootstrap node to be Topics
-        Topic serviceBootstrap = service.getConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+        Topic serviceOldBootstrap = service.getConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
-        return serviceBootstrap == null
-                || !serviceBootstrap.toPOJO().equals(serviceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+        return serviceOldBootstrap == null
+                || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
     }
 
     public void persistBootstrapTaskList() {
@@ -196,16 +209,17 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
         int exitCode;
         while (hasNext()) {
             BootstrapTaskStatus next = next();
-            logger.atInfo().kv("componentName", next.componentName).log("Execute component bootstrap step");
+            logger.atInfo().kv("componentName", next.getComponentName()).log("Execute component bootstrap step");
             exitCode = executeOneBootstrapTask(next);
+
             switch (exitCode) {
-                case 0:
-                case 100:
-                case 101:
+                case NO_OP:
+                case REQUEST_RESTART:
+                case REQUEST_REBOOT:
                     persistBootstrapTaskList();
                     break;
                 default:
-                    throw new ServiceUpdateException("Fail to execute bootstrap step for " + next.componentName);
+                    throw new ServiceUpdateException("Fail to execute bootstrap step for " + next.getComponentName());
             }
             if (exitCode != 0) {
                 return exitCode;
@@ -217,7 +231,7 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
     @Override
     public boolean hasNext() {
         while (cursor < bootstrapTaskStatusList.size()) {
-            if (!DONE.equals(bootstrapTaskStatusList.get(cursor).status)) {
+            if (!DONE.equals(bootstrapTaskStatusList.get(cursor).getStatus())) {
                 return true;
             }
             cursor++;
@@ -232,23 +246,5 @@ public class BootstrapManager implements Iterator<BootstrapManager.BootstrapTask
         }
         cursor++;
         return bootstrapTaskStatusList.get(cursor - 1);
-    }
-
-    @Data
-    @EqualsAndHashCode
-    @AllArgsConstructor(access = AccessLevel.PACKAGE)
-    public static class BootstrapTaskStatus {
-        private String componentName;
-        private ExecutionStatus status;
-        private int exitCode;
-
-        public BootstrapTaskStatus(String name) {
-            this.componentName = name;
-            this.status = ExecutionStatus.PENDING;
-        }
-
-        public enum ExecutionStatus {
-            PENDING, DONE
-        }
     }
 }

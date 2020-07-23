@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.deployment;
+package com.aws.iot.evergreen.deployment.bootstrap;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -56,20 +56,20 @@ public class BootstrapManagerTest {
     Context context;
 
     @Test
-    void GIVEN_bootstrap_task_list_WHEN_check_isBootstrapRequired_THEN_return_true() {
+    void GIVEN_bootstrap_task_list_WHEN_check_isBootstrapRequired_THEN_return_true() throws Exception {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapManager.BootstrapTaskStatus(componentA)));
+        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapTaskStatus(componentA)));
         assertTrue(bootstrapManager.isBootstrapRequired(null));
     }
 
     @Test
-    void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() {
+    void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertFalse(bootstrapManager.isBootstrapRequired(Collections.emptyMap()));
     }
 
     @Test
-    void GIVEN_new_config_without_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_false() {
+    void GIVEN_new_config_without_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<Object, Object>() {{
@@ -81,7 +81,7 @@ public class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_true() {
+    void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_true() throws Exception {
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(true).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<Object, Object>() {{
@@ -95,12 +95,12 @@ public class BootstrapManagerTest {
             }});
         }}));
         assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(
-                new BootstrapManager.BootstrapTaskStatus(componentB),
-                new BootstrapManager.BootstrapTaskStatus(componentA)));
+                new BootstrapTaskStatus(componentB),
+                new BootstrapTaskStatus(componentA)));
     }
 
     @Test
-    void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_false() {
+    void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_false() throws Exception {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, Collections.emptyMap()));
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
@@ -170,9 +170,9 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_bootstrap_task_requires_reboot_WHEN_executeAllBootstrapTasksSequentially_THEN_request_reboot() throws Exception {
-        List<BootstrapManager.BootstrapTaskStatus> pendingTasks = Arrays.asList(
-                new BootstrapManager.BootstrapTaskStatus(componentA),
-                new BootstrapManager.BootstrapTaskStatus(componentB));
+        List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
+                new BootstrapTaskStatus(componentA),
+                new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(101).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
@@ -185,9 +185,9 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_bootstrap_task_errors_WHEN_executeAllBootstrapTasksSequentially_THEN_throws_error() throws Exception {
-        List<BootstrapManager.BootstrapTaskStatus> pendingTasks = Arrays.asList(
-                new BootstrapManager.BootstrapTaskStatus(componentA),
-                new BootstrapManager.BootstrapTaskStatus(componentB));
+        List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
+                new BootstrapTaskStatus(componentA),
+                new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(99).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
 
@@ -200,9 +200,9 @@ public class BootstrapManagerTest {
 
     @Test
     void GIVEN_bootstrap_task_list_WHEN_executeAllBootstrapTasksSequentially_THEN_completes_with_restart_request() throws Exception {
-        List<BootstrapManager.BootstrapTaskStatus> pendingTasks = Arrays.asList(
-                new BootstrapManager.BootstrapTaskStatus(componentA),
-                new BootstrapManager.BootstrapTaskStatus(componentB));
+        List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
+                new BootstrapTaskStatus(componentA),
+                new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
@@ -215,10 +215,10 @@ public class BootstrapManagerTest {
     @Test
     void GIVEN_pending_bootstrap_tasks_WHEN_check_hasNext_THEN_return_true() {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapManager.BootstrapTaskStatus(componentA,
-                        BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE, 0),
-                new BootstrapManager.BootstrapTaskStatus(componentB,
-                        BootstrapManager.BootstrapTaskStatus.ExecutionStatus.PENDING, 0)
+        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapTaskStatus(componentA,
+                        BootstrapTaskStatus.ExecutionStatus.DONE, 0),
+                new BootstrapTaskStatus(componentB,
+                        BootstrapTaskStatus.ExecutionStatus.PENDING, 0)
                 ));
         assertTrue(bootstrapManager.hasNext());
     }
@@ -226,10 +226,10 @@ public class BootstrapManagerTest {
     @Test
     void GIVEN_all_bootstrap_tasks_done_WHEN_check_hasNext_THEN_return_false() {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapManager.BootstrapTaskStatus(componentA,
-                        BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE, 0),
-                new BootstrapManager.BootstrapTaskStatus(componentB,
-                        BootstrapManager.BootstrapTaskStatus.ExecutionStatus.DONE, 100)
+        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapTaskStatus(componentA,
+                        BootstrapTaskStatus.ExecutionStatus.DONE, 0),
+                new BootstrapTaskStatus(componentB,
+                        BootstrapTaskStatus.ExecutionStatus.DONE, 100)
         ));
         assertFalse(bootstrapManager.hasNext());
     }

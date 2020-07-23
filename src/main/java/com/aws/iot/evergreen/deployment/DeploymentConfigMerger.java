@@ -7,6 +7,7 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -82,8 +83,18 @@ public class DeploymentConfigMerger {
         }
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes, deployment cannot be cancelled now");
-        kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig)
-                .activate(newConfig, deploymentDocument, totallyCompleteFuture);
+        DeploymentActivator activator;
+        try {
+            activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
+        } catch (ServiceUpdateException e) {
+            // Failed to pre-process new config, no rollback needed
+            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                    .log("Failed to process new configuration for activation");
+            totallyCompleteFuture.complete(new DeploymentResult(
+                    DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+            return;
+        }
+        activator.activate(newConfig, deploymentDocument, totallyCompleteFuture);
     }
 
     /**

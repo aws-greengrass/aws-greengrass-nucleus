@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.activator.DefaultActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
