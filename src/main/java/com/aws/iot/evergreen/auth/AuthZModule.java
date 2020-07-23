@@ -3,7 +3,7 @@
 
 package com.aws.iot.evergreen.auth;
 
-import com.aws.iot.evergreen.auth.exceptions.AuthZException;
+import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.util.Utils;
 
 import java.util.ArrayList;
@@ -12,48 +12,44 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Simple permission table which stores permissions. A permission is a
- * 4 value set of destination,source,operation,resource.
+ * 4 value set of destination,principal,operation,resource.
  */
 public class AuthZModule {
-    ConcurrentHashMap<String, List<Permission>> permissions;
-
-    AuthZModule() {
-        permissions = new ConcurrentHashMap<>();
-    }
+    ConcurrentHashMap<String, List<Permission>> permissions = new ConcurrentHashMap<>();
 
     /**
      * Add permission for the given input set.
      * @param destination destination entity
-     * @param permission set of source, operation, resource.
-     * @throws AuthZException when arguments are invalid
+     * @param permission set of principal, operation, resource.
+     * @throws AuthorizationException when arguments are invalid
      */
-    public void addPermission(final String destination, Permission permission) throws AuthZException {
+    public void addPermission(final String destination, Permission permission) throws AuthorizationException {
         // resource is allowed to be null
-        if (Utils.isEmpty(permission.getSource())
+        if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
-            throw new AuthZException("Either one parameter is empty");
+            throw new AuthorizationException("Either one parameter is empty");
         }
         // resource as null is ok, but it should not be empty
         String resource = permission.getResource();
         if (resource != null && Utils.isEmpty(resource)) {
-            throw new AuthZException("Resource cannot be empty");
+            throw new AuthorizationException("Resource cannot be empty");
         }
         permissions.computeIfAbsent(destination, a -> new ArrayList<>()).add(permission);
     }
 
     /**
-     * Check if the combination of destination,source,operation,resource exists in the table.
+     * Check if the combination of destination,principal,operation,resource exists in the table.
      * @param destination destination value
-     * @param permission set of source, operation and resource.
+     * @param permission set of principal, operation and resource.
      * @return true if the input combination is present.
-     * @throws AuthZException when arguments are invalid
+     * @throws AuthorizationException when arguments are invalid
      */
-    public boolean isPresent(final String destination, Permission permission) throws AuthZException {
-        if (Utils.isEmpty(permission.getSource())
+    public boolean isPresent(final String destination, Permission permission) throws AuthorizationException {
+        if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
-            throw new AuthZException("Either one parameter is empty");
+            throw new AuthorizationException("Either one parameter is empty");
         }
         if (!permissions.containsKey(destination)) {
             return false;
