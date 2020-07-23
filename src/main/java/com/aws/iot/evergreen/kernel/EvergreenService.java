@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.fss.FleetStatusService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -509,6 +510,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
             });
             context.get(Kernel.class).clearODcache();
+            context.get(FleetStatusService.class).updateRemovedDependencies(removedDependencies);
         }
 
         AtomicBoolean hasNewService = new AtomicBoolean(false);

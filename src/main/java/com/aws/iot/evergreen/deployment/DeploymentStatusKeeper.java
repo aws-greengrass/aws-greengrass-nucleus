@@ -33,26 +33,32 @@ public class DeploymentStatusKeeper {
 
     private Topics processedDeployments;
 
-    private final Map<DeploymentType, Function<Map<String, Object>, Boolean>> deploymentStatusConsumer
+    private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap
             = new ConcurrentHashMap<>();
 
     /**
      * Register call backs for receiving deployment status updates for a particular deployment type .
-     * @param type determines which deployment type the call back consumes
-     * @param consumer deployment status details
+     *
+     * @param type        determines which deployment type the call back consumes
+     * @param consumer    deployment status details
+     * @param serviceName subscribing service name
      * @return true if call back is registered.
      */
     public boolean registerDeploymentStatusConsumer(DeploymentType type, Function<Map<String, Object>,
-            Boolean> consumer) {
-        return deploymentStatusConsumer.putIfAbsent(type, consumer) == null;
+            Boolean> consumer, String serviceName) {
+        Map<String, Function<Map<String, Object>, Boolean>> map =
+                deploymentStatusConsumerMap.getOrDefault(type, new ConcurrentHashMap<>());
+        map.putIfAbsent(serviceName, consumer);
+        return deploymentStatusConsumerMap.put(type, map) == null;
     }
 
     /**
      * Persist deployment status in kernel config.
-     * @param jobId id for the deployment.
+     *
+     * @param jobId          id for the deployment.
      * @param deploymentType type of deployment.
-     * @param status status of deployment.
-     * @param statusDetails other details of deployment status.
+     * @param status         status of deployment.
+     * @param statusDetails  other details of deployment status.
      */
     public void persistAndPublishDeploymentStatus(String jobId, DeploymentType deploymentType,
                                                   JobStatus status, Map<String, String> statusDetails) {
@@ -83,6 +89,7 @@ public class DeploymentStatusKeeper {
      * Invokes the call-backs with persisted deployment status updates for deployments with specified type.
      * This is called by IotJobsHelper/MqttJobsHelper when connection is re-established to update cloud of all
      * all deployments the device performed when offline
+     *
      * @param type deployment type
      */
     public void publishPersistedStatusUpdates(DeploymentType type) {
@@ -118,7 +125,10 @@ public class DeploymentStatusKeeper {
                 DeploymentType deploymentType = (DeploymentType)
                         deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE);
 
-                if (!getConsumerForDeploymentType(deploymentType).apply(deploymentDetails)) {
+                boolean allConsumersUpdated = getConsumersForDeploymentType(deploymentType).stream()
+                        .map(consumer -> consumer.apply(deploymentDetails))
+                        .reduce(true, (a, b) -> a && b);
+                if (!allConsumersUpdated) {
                     // If one deployment update fails, exit the loop to ensure the update order.
                     logger.atDebug().log("Unable to update status of persisted deployments. Retry later");
                     break;
@@ -128,12 +138,14 @@ public class DeploymentStatusKeeper {
         }
     }
 
-    protected Function<Map<String, Object>, Boolean> getConsumerForDeploymentType(DeploymentType type) {
-        return deploymentStatusConsumer.computeIfAbsent(type, deploymentType -> {
-            logger.atDebug().kv("DeploymentType", deploymentType)
-                    .log("Consumer for type not found, dropping status update");
-            return (status) -> true;
+    protected List<Function<Map<String, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
+        List<Function<Map<String, Object>, Boolean>> callbacks = new ArrayList<>();
+        deploymentStatusConsumerMap.forEach((deploymentType, stringFunctionMap) -> {
+            if (deploymentType == type) {
+                stringFunctionMap.forEach((s, mapBooleanFunction) -> callbacks.add(mapBooleanFunction));
+            }
         });
+        return callbacks;
     }
 
     /**

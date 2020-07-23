@@ -284,7 +284,7 @@ public class IotJobsHelper implements InjectionActions {
         }));
 
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
-                this::deploymentStatusChanged);
+                this::deploymentStatusChanged, IotJobsHelper.class.getName());
     }
 
     private void connectToAWSIot() throws InterruptedException {

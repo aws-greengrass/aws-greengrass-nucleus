@@ -86,17 +86,20 @@ public final class DeploymentDocumentConverter {
                 .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
                 .build();
 
-        String groupName = null;
+        String groupName;
+        String groupVersion = null;
         try {
             // Resource name formats:
             // configuration:thing/<thing-name>:version
             // configuration:thinggroup/<thing-group-name>:version
-            groupName = Arn.fromString(config.getConfigurationArn())
-                    .getResource().getResource();
+            Arn configArn = Arn.fromString(config.getConfigurationArn());
+            groupName = configArn.getResource().getResource();
+            groupVersion = configArn.getResource().getQualifier();
         } catch (IllegalArgumentException e) {
             groupName = config.getConfigurationArn();
         }
         deploymentDocument.setGroupName(groupName);
+        deploymentDocument.setGroupVersion(groupVersion);
 
         if (config.getPackages() == null) {
             return deploymentDocument;

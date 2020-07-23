@@ -57,6 +57,7 @@ public class DeploymentService extends EvergreenService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
+    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY = "groupVersion";
 
     protected static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -208,6 +209,7 @@ public class DeploymentService extends EvergreenService {
             DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
                 DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
+
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("detailed-deployment-status", deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
@@ -215,16 +217,19 @@ public class DeploymentService extends EvergreenService {
                     DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
                     Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
                             deploymentDocument.getGroupName());
+
                     Map<Object, Object> deploymentGroupToRootPackages = new HashMap<>();
                     // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
                     //  removed from a thing group. Empty configuration is treated as a valid config for a group but
                     //  not treated as removal.
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
-                        if (pkgConfig.isRootComponent()) {
-                            Map<Object, Object> pkgDetails = new HashMap<>();
-                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                            deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
-                        }
+                        //if (pkgConfig.isRootComponent()) {
+                        //}
+                        Map<Object, Object> pkgDetails = new HashMap<>();
+                        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
+                        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY,
+                                deploymentDocument.getGroupVersion());
+                        deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
                     });
                     deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);
                     deploymentStatusKeeper
