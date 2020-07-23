@@ -11,10 +11,10 @@ import java.util.Set;
 
 @Value
 @Builder
-public class AuthZPolicy {
+public class AuthorizationPolicy {
     @NonNull String policyId;
     String policyDescription;
-    @NonNull Set<String> sources;
+    @NonNull Set<String> principals;
     @NonNull Set<String> operations;
     Set<String> resources;
 }
