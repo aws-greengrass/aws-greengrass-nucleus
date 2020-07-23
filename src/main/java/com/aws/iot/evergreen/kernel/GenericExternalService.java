@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 import static com.aws.iot.evergreen.kernel.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
-public class GenericExternalService extends EvergreenService {
+public class GenericExternalService extends MultiInstanceEvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
     public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
@@ -55,7 +55,11 @@ public class GenericExternalService extends EvergreenService {
      * @param c root topic for this service.
      */
     public GenericExternalService(Topics c) {
-        super(c);
+        this(c, BASE_INSTANCE_ID);
+    }
+
+    private GenericExternalService(Topics c, int instanceId) {
+        super(c, instanceId);
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {

@@ -81,8 +81,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         // TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
-        this.logger = LogManager.getLogger(getName());
-        logger.dfltKv(SERVICE_NAME_KEY, getName());
+        this.logger = LogManager.getLogger(getServiceName()).createChild();
+        logger.dfltKv(SERVICE_NAME_KEY, getServiceName());
         logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
 
         this.externalDependenciesTopic =
@@ -442,6 +442,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     public String getName() {
+        return getServiceName();
+    }
+
+    private String getServiceName() {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 

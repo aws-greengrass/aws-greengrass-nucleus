@@ -126,7 +126,7 @@ public class Lifecycle {
      */
     public Lifecycle(EvergreenService evergreenService, Logger logger) {
         this.evergreenService = evergreenService;
-        this.stateTopic = initStateTopic(evergreenService.getConfig());
+        this.stateTopic = initStateTopic(evergreenService.getRuntimeConfig());
         this.logger = logger;
     }
 
