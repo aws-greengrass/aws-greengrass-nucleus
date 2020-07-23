@@ -12,11 +12,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.STATE_TOPIC_NAME;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class EGServiceTestUtil {
@@ -36,15 +38,19 @@ public class EGServiceTestUtil {
     protected Topic requiresTopic;
 
     @Mock
+    protected Topics runtimeStoreTopic;
+
+    @Mock
     protected Context context;
 
     public Topics initializeMockedConfig() {
-        Mockito.when(config.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
-        Mockito.when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(requiresTopic);
-        Mockito.when(config.getName()).thenReturn(serviceFullName);
-        Mockito.when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
-        Mockito.when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
-        Mockito.when(config.getContext()).thenReturn(context);
+        when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC))).thenReturn(runtimeStoreTopic);
+        lenient().when(runtimeStoreTopic.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
+        when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(requiresTopic);
+        when(config.getName()).thenReturn(serviceFullName);
+        when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
+        when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
+        when(config.getContext()).thenReturn(context);
         lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
         lenient().when(context.get(eq(UpdateSystemSafelyService.class))).thenReturn(mockSafeUpdateService);
 

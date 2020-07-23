@@ -39,6 +39,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -96,6 +97,7 @@ public class LifecycleTest {
         }
 
         lenient().when(evergreenService.getConfig()).thenReturn(config);
+        lenient().when(evergreenService.getRuntimeConfig()).thenReturn(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC));
         lenient().when(evergreenService.getContext()).thenReturn(context);
         lenient().when(evergreenService.dependencyReady()).thenReturn(true);
     }

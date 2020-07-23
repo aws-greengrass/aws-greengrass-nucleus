@@ -33,12 +33,12 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -52,6 +52,7 @@ class KernelTest {
             + "    lifecycle:\n"
             + "      run:\n"
             + "        script: \"test script\"\n"
+            + "    runtime: {}\n"
             + "  main:\n"
             + "    dependencies:\n"
             + "    - \"service1\"\n";
@@ -177,12 +178,12 @@ class KernelTest {
 
         StringWriter writer = new StringWriter();
         kernel.writeConfig(writer);
-        assertTrue(writer.toString().contains(EXPECTED_CONFIG_OUTPUT));
+        assertThat(writer.toString(), containsString(EXPECTED_CONFIG_OUTPUT));
 
         kernel.writeEffectiveConfig();
         String readFile = new String(Files.readAllBytes(kernel.getConfigPath().resolve("effectiveConfig.evg")),
                 StandardCharsets.UTF_8);
-        assertTrue(readFile.contains(EXPECTED_CONFIG_OUTPUT));
+        assertThat(readFile, containsString(EXPECTED_CONFIG_OUTPUT));
     }
 
     @Test
