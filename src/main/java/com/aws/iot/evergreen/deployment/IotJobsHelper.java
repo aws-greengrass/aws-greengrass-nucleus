@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableException;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
 import com.aws.iot.evergreen.deployment.model.DeploymentTaskMetadata;
@@ -246,6 +247,14 @@ public class IotJobsHelper implements InjectionActions {
     @Override
     @SuppressFBWarnings
     public void postInject() {
+        try {
+            deviceConfiguration.validate();
+        } catch (DeviceConfigurationException e) {
+            // TODO: If the device configurations are updated later, while the kernel is running,
+            //  then device should attempt to connect to AWS Iot cloud again
+            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
+            return;
+        }
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);

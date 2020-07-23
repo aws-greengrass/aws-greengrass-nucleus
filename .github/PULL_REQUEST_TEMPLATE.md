@@ -8,7 +8,8 @@
 
 **Any additional information or context required to review the change:**
 
-**Checklist:**
-- [ ] Updated the README
+**Updated the README:**
+- [ ] Yes
+- [ ] Not Applicable
 
 By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of your choice.
