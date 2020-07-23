@@ -5,7 +5,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.ipc.exceptions.UnAuthenticatedException;
 import com.aws.iot.evergreen.ipc.services.auth.AuthRequest;
 import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
@@ -26,11 +26,11 @@ import static com.aws.iot.evergreen.ipc.common.ResponseHelper.sendResponse;
 
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthHandler implements InjectionActions {
+public class AuthNHandler implements InjectionActions {
     public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
     public static final String SERVICE_UNIQUE_ID_KEY = "_UID";
     public static final int AUTH_API_VERSION = 1;
-    private static final Logger logger = LogManager.getLogger(AuthHandler.class);
+    private static final Logger logger = LogManager.getLogger(AuthNHandler.class);
 
     @Inject
     private Configuration config;
@@ -63,28 +63,35 @@ public class AuthHandler implements InjectionActions {
      * @param message       incoming message frame to be validated.
      * @param remoteAddress remote address the client is connected from
      * @return RequestContext containing the server name if validated.
-     * @throws IPCClientNotAuthorizedException thrown if not authorized, or any other error happens.
+     * @throws UnAuthenticatedException thrown if not authorized, or any other error happens.
      */
     public ConnectionContext doAuth(FrameReader.Message message, SocketAddress remoteAddress)
-            throws IPCClientNotAuthorizedException {
+            throws UnAuthenticatedException {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         AuthRequest authRequest;
         try {
             authRequest = IPCUtil.decode(applicationMessage.getPayload(), AuthRequest.class);
         } catch (IOException e) {
-            throw new IPCClientNotAuthorizedException("Fail to decode Auth message", e);
+            throw new UnAuthenticatedException("Fail to decode Auth message", e);
         }
+        String serviceName = doAuthN(authRequest.getAuthToken());
+        return new ConnectionContext(serviceName, remoteAddress, router);
+    }
 
-        String authToken = authRequest.getAuthToken();
-        // Lookup the provided auth token to associate it with a service (or reject it)
+    /**
+     * Lookup the provided auth token to associate it with a service (or reject it).
+     * @param authToken token to be looked up.
+     * @return service name to which the token is associated.
+     * @throws UnAuthenticatedException if token is invalid or unassociated.
+     */
+    public String doAuthN(String authToken) throws UnAuthenticatedException {
         String serviceName = (String) config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                 AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
-
         if (serviceName == null) {
-            throw new IPCClientNotAuthorizedException("Auth token not found");
+            throw new UnAuthenticatedException("Auth token not found");
         }
-        return new ConnectionContext(serviceName, remoteAddress, router);
+        return serviceName;
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")

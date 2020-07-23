@@ -1,11 +1,14 @@
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.auth.AuthZHandler;
 import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.ipc.AuthNHandler;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
@@ -37,6 +40,11 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     @Mock
     IotConnectionManager mockIotConnectionManager;
 
+    @Mock
+    AuthNHandler mockAuthNHandler;
+
+    @Mock
+    AuthZHandler mockAuthZHandler;
 
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
 
@@ -60,20 +68,25 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
         when(mockTopic.getOnce()).thenReturn(port);
 
         Topic mockUriTopic = mock(Topic.class);
-        Topic mockAuthTopic = mock(Topic.class);
         Topics mockConfig = mock(Topics.class);
         when(config.getRoot()).thenReturn(mockConfig);
         when(config.lookup(any())).thenReturn(mockTopic);
         when(mockConfig.lookup(EvergreenService.SETENV_CONFIG_NAMESPACE, TokenExchangeService.TES_URI_ENV_VARIABLE_NAME)).thenReturn(mockUriTopic);
-        when(mockConfig.lookup(EvergreenService.SETENV_CONFIG_NAMESPACE, TokenExchangeService.TES_AUTH_ENV_VARIABLE_NAME)).thenReturn(mockAuthTopic);
 
+        CredentialRequestHandler credentialRequestHandler = new CredentialRequestHandler(
+                new IotCloudHelper(),
+                mockIotConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        credentialRequestHandler.setIotCredentialsPath("TEST");
+        TokenExchangeService tes = new TokenExchangeService(config,
+                credentialRequestHandler,
+                mockAuthZHandler);
 
-        TokenExchangeService tes = new TokenExchangeService(config, mockIotConnectionManager);
         tes.startup();
         Thread.sleep(5000L);
         tes.shutdown();
 
-        verify(mockAuthTopic).withValue("Basic auth_not_supported");
         verify(mockUriTopic).withValue(stringArgumentCaptor.capture());
         String tesUrl = stringArgumentCaptor.getValue();
         URI uri = new URI(tesUrl);
@@ -111,7 +124,16 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
         when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
         when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.PORT_TOPIC)).thenReturn(portTopic);
 
-        TokenExchangeService tes = spy(new TokenExchangeService(config, mockIotConnectionManager));
+
+        CredentialRequestHandler credentialRequestHandler = new CredentialRequestHandler(
+                new IotCloudHelper(),
+                mockIotConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        credentialRequestHandler.setIotCredentialsPath("TEST");
+        TokenExchangeService tes = spy(new TokenExchangeService(config,
+                credentialRequestHandler,
+                mockAuthZHandler));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();

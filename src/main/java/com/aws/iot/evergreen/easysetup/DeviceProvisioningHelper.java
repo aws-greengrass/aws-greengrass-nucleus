@@ -3,9 +3,6 @@ package com.aws.iot.evergreen.easysetup;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
-import com.amazonaws.services.evergreen.model.CommitComponentRequest;
-import com.amazonaws.services.evergreen.model.CreateComponentRequest;
-import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -46,7 +43,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URL;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -318,30 +314,7 @@ public class DeviceProvisioningHelper {
      * Create empty packages in customer's account for first party services.
      */
     public void setUpEmptyPackagesForFirstPartyServices() {
-        createEmptyComponent(cmsClient, TOKEN_EXCHANGE_SERVICE_TOPICS);
-    }
-
-    // TODO : Remove once global packages are supported
-
-    /*
-     * Create and commit an empty component.
-     */
-    private void createEmptyComponent(AWSEvergreen cmsClient, String componentName) {
-        outStream.println("Creating empty component " + componentName);
-        ByteBuffer recipe =
-                ByteBuffer.wrap(FIRST_PARTY_COMPONENT_RECIPES.get(componentName).getBytes(StandardCharsets.UTF_8));
-        CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipe);
-        try {
-            cmsClient.createComponent(createComponentRequest);
-
-            CommitComponentRequest commitComponentRequest =
-                    new CommitComponentRequest().withComponentName(componentName).withComponentVersion("1.0.0");
-            cmsClient.commitComponent(commitComponentRequest);
-        } catch (ResourceAlreadyExistException e) {
-            // No need to replace the component if it exists
-            outStream.println(
-                    String.format("Component \"%s\" already exists, skipping re-creating component", componentName));
-        }
+        //createEmptyComponent(cmsClient, TOKEN_EXCHANGE_SERVICE_TOPICS);
     }
 
     @AllArgsConstructor

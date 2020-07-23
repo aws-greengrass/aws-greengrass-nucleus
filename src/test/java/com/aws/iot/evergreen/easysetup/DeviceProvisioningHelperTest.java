@@ -1,8 +1,6 @@
 package com.aws.iot.evergreen.easysetup;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.CreateComponentResult;
-import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
@@ -93,8 +91,6 @@ public class DeviceProvisioningHelperTest {
     private GetRoleResponse getRoleResponse;
     @Mock
     private CreateRoleResponse createRoleResponse;
-    @Mock
-    private CreateComponentResult createComponentResult;
     @Mock
     private ListAttachedPoliciesResponse listAttachedPoliciesResponse;
     private DeviceProvisioningHelper deviceProvisioningHelper;
@@ -204,18 +200,6 @@ public class DeviceProvisioningHelperTest {
         verify(iotClient, times(1)).listAttachedPolicies(any(ListAttachedPoliciesRequest.class));
         verify(iotClient, times(1)).detachPolicy(any(DetachPolicyRequest.class));
         verify(iotClient, times(1)).deletePolicy(any(DeletePolicyRequest.class));
-    }
-
-    @Test
-    public void GIVEN_test_create_empty_components_WHEN_component_exists_THEN_skip_create() {
-        when(cmsClient.createComponent(any())).thenThrow(ResourceAlreadyExistException.class);
-        deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
-    }
-
-    @Test
-    public void GIVEN_test_create_empty_components_WHEN_component_doesnt_exist_THEN_create_component() {
-        when(cmsClient.createComponent(any())).thenReturn(createComponentResult);
-        deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 
     @Test

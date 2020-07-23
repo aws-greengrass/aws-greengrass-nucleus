@@ -8,7 +8,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.ipc.AuthHandler;
+import com.aws.iot.evergreen.ipc.AuthNHandler;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
@@ -82,7 +82,7 @@ public class GenericExternalService extends EvergreenService {
             }
         });
 
-        AuthHandler.registerAuthToken(this);
+        AuthNHandler.registerAuthToken(this);
     }
 
     public static String exit2String(int exitCode) {

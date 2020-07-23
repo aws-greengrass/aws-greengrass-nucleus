@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.AuthHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.AuthNHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {
@@ -44,6 +44,9 @@ public interface ShellRunner {
                             onBehalfOf.logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
                                     .kv("stderr", ss).log();
                         })
+                        .setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN",
+                                String.valueOf(onBehalfOf.getRuntimeConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
+                                        .getOnce()))
                         .setenv("SVCUID",
                                 String.valueOf(onBehalfOf.getRuntimeConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))

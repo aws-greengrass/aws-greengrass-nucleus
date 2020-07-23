@@ -3,11 +3,16 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.auth.AuthZHandler;
+import com.aws.iot.evergreen.auth.exceptions.AuthZException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.ipc.AuthNHandler;
+import com.aws.iot.evergreen.ipc.exceptions.UnAuthenticatedException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +23,7 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -30,6 +36,7 @@ import static org.hamcrest.core.Is.is;
 public class CredentialRequestHandlerTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String AUTHN_TOKEN = "random authN token";
     private static final String ACCESS_KEY_ID = "ASIA";
     private static final String SECRET_ACCESS_KEY = "rLJt$$%RNDom";
     private static final String SESSION_TOKEN = "ABCDEFGHI";
@@ -46,22 +53,41 @@ public class CredentialRequestHandlerTest {
     @Mock
     IotCloudHelper mockCloudHelper;
 
-    @Test
-    @SuppressWarnings("PMD.CloseResource")
-    public void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
-        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
-        HttpExchange mockExchange = mock(HttpExchange.class);
-        OutputStream mockStream = mock(OutputStream.class);
-        when(mockExchange.getResponseBody()).thenReturn(mockStream);
-        handler.handle(mockExchange);
-        int expectedStatus = 200;
+    @Mock
+    AuthNHandler mockAuthNHandler;
+
+    @Mock
+    AuthZHandler mockAuthZHandler;
+
+    private byte[] getExpectedResponse() throws Exception {
         Map<String, String> expectedReponse = new HashMap<>();
         expectedReponse.put("AccessKeyId", ACCESS_KEY_ID);
         expectedReponse.put("SecretAccessKey", SECRET_ACCESS_KEY);
         expectedReponse.put("Token", SESSION_TOKEN);
         expectedReponse.put("Expiration", EXPIRATION);
-        byte[] serializedResponse = OBJECT_MAPPER.writeValueAsBytes(expectedReponse);
+        return OBJECT_MAPPER.writeValueAsBytes(expectedReponse);
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        when(mockAuthNHandler.doAuthN(anyString())).thenReturn("ServiceA");
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        OutputStream mockStream = mock(OutputStream.class);
+        Headers mockHeaders = mock(Headers.class);
+        when(mockHeaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
+        when(mockExchange.getResponseBody()).thenReturn(mockStream);
+        when(mockExchange.getRequestHeaders()).thenReturn(mockHeaders);
+        handler.handle(mockExchange);
+        int expectedStatus = 200;
+        byte[] serializedResponse = getExpectedResponse();
         int expectedResponseLength = serializedResponse.length;
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
         verify(mockStream, times(1)).write(serializedResponse);
@@ -70,9 +96,58 @@ public class CredentialRequestHandlerTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_unauthorized_request_THEN_return_403() throws Exception {
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        Headers mockheaders = mock(Headers.class);
+        when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
+        when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
+        when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenReturn("ComponentA");
+
+        when(mockAuthZHandler.isFlowAuthorized(any(), any())).thenThrow(AuthZException.class);
+        handler.handle(mockExchange);
+
+        int expectedStatus = 403;
+        int expectedResponseLength = -1;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_request_without_authN_THEN_return_403() throws Exception {
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        Headers mockheaders = mock(Headers.class);
+        when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
+        when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
+        when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenThrow(UnAuthenticatedException.class);
+        handler.handle(mockExchange);
+
+        int expectedStatus = 403;
+        int expectedResponseLength = -1;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_get_credentials_THEN_returns_success() throws Exception {
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(RESPONSE_STR);
-        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
         final byte[] creds = handler.getCredentials();
         final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
         final String expectedVerb = "GET";
