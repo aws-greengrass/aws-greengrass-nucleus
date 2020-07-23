@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_MERGE_BEHAVIOR;
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.waitForServicesToStart;
@@ -65,7 +66,7 @@ public class DefaultActivator extends DeploymentActivator {
         // publish queue. There needs to be another mechanism to ensure that mergemap completes and
         // all listeners trigger before rest of deployment work flow is executed.
         kernel.getContext().runOnPublishQueueAndWait(() ->
-                kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig));
+                kernel.getConfig().updateMap(deploymentDocument.getTimestamp(), newConfig, DEPLOYMENT_MERGE_BEHAVIOR));
 
         // wait until topic listeners finished processing mergeMap changes.
         kernel.getContext().runOnPublishQueue(() -> {
