@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.tes;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -39,6 +40,9 @@ public class CredentialRequestHandler implements HttpHandler {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
+    public static final int CLOUD_4XX_ERROR_CACHE_IN_MIN = 2;
+    public static final int CLOUD_5XX_ERROR_CACHE_IN_MIN = 1;
+    public static final int UNKNOWN_ERROR_CACHE_IN_MIN = 5;
 
     private final String iotCredentialsPath;
 
@@ -58,12 +62,12 @@ public class CredentialRequestHandler implements HttpHandler {
 
     /**
      * Constructor.
-     * @param iotRoleAlias Iot role alias configured by the customer in AWS account.
-     * @param cloudHelper {@link IotCloudHelper} for making http requests to cloud.
+     *
+     * @param iotRoleAlias      Iot role alias configured by the customer in AWS account.
+     * @param cloudHelper       {@link IotCloudHelper} for making http requests to cloud.
      * @param connectionManager {@link IotConnectionManager} underlying connection manager for cloud.
      */
-    public CredentialRequestHandler(final String iotRoleAlias,
-                                    final IotCloudHelper cloudHelper,
+    public CredentialRequestHandler(final String iotRoleAlias, final IotCloudHelper cloudHelper,
                                     final IotConnectionManager connectionManager) {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
         this.iotCloudHelper = cloudHelper;
@@ -82,6 +86,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
     /**
      * API for kernel to directly fetch credentials from TES instead of using HTTP server.
+     *
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
@@ -92,41 +97,59 @@ public class CredentialRequestHandler implements HttpHandler {
             response = tesCache.get(iotCredentialsPath).credentials;
             return response;
         }
-        
+
+        // Get new credentials from cloud
+        LOGGER.info("IAM credentials not found in cache or already expired. Fetching new ones from TES");
         Instant newExpiry = tesCache.get(iotCredentialsPath).expiry;
 
         try {
-            final String credentials = iotCloudHelper
-                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null)
-                    .toString();
+            final IotCloudResponse cloudResponse = iotCloudHelper
+                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null);
+            final String credentials = cloudResponse.toString();
+            final int cloudResponseCode = cloudResponse.getStatusCode();
 
-            try {
-                response = translateToAwsSdkFormat(credentials);
-                String expiryString = parseExpiryFromResponse(credentials);
-                Instant expiry = Instant.parse(expiryString);
+            if (cloudResponseCode == 0) {
+                // Client errors should expire immediately
+                String responseString = "Failed to get credentials from TES";
+                response = responseString.getBytes(StandardCharsets.UTF_8);
+                newExpiry = Instant.now(clock);
+                tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+            } else if (cloudResponseCode == HttpURLConnection.HTTP_OK) {
+                // Get response successfully, cache credentials according to expiry in response
+                try {
+                    response = translateToAwsSdkFormat(credentials);
+                    String expiryString = parseExpiryFromResponse(credentials);
+                    Instant expiry = Instant.parse(expiryString);
 
-                if (expiry.isBefore(Instant.now(clock))) {
-                    String responseString = "TES responded with expired credentials: " + credentials;
+                    if (expiry.isBefore(Instant.now(clock))) {
+                        String responseString = "TES responded with expired credentials: " + credentials;
+                        response = responseString.getBytes(StandardCharsets.UTF_8);
+                        tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+                        LOGGER.error("Unable to cache expired credentials which expired at {}", expiry.toString());
+                    } else {
+                        newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
+                        tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
+
+                        if (newExpiry.isBefore(Instant.now(clock))) {
+                            LOGGER.warn(
+                                    "Can't cache credentials as new credentials {} will expire in less than {} minutes",
+                                    expiry.toString(), TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                        } else {
+                            LOGGER.info("Received IAM credentials that will be cached until {}", newExpiry.toString());
+                        }
+                    }
+                } catch (AWSIotException e) {
+                    String responseString = "Bad TES response: " + credentials;
                     response = responseString.getBytes(StandardCharsets.UTF_8);
                     tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
-                    LOGGER.error("Unable to cache expired credentials which expired at {}", expiry.toString());
-                } else {
-                    newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
-                    tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
-
-                    if (newExpiry.isBefore(Instant.now(clock))) {
-                        LOGGER.warn("Can't cache credentials as new credentials {} will expire in less than {} minutes",
-                                expiry.toString(),
-                                TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
-                    } else {
-                        LOGGER.info("Received IAM credentials that will be cached until {}", newExpiry.toString());
-                    }
+                    LOGGER.error("Unable to parse response body", e);
                 }
-            } catch (AWSIotException e) {
-                String responseString = "Bad TES response: " + credentials;
+            } else {
+                // Cloud errors should be cached
+                String responseString = String.format("TES responded with status code: %d", cloudResponseCode);
                 response = responseString.getBytes(StandardCharsets.UTF_8);
-                tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
-                LOGGER.error("Unable to parse response body", e);
+                newExpiry = getExpiryPolicyForErr(cloudResponseCode);
+                tesCache.get(iotCredentialsPath).responseCode = cloudResponseCode;
             }
         } catch (AWSIotException e) {
             LOGGER.error("Encountered error while fetching credentials", e);
@@ -164,7 +187,28 @@ public class CredentialRequestHandler implements HttpHandler {
         }
     }
 
-    private boolean areCredentialsValid() {
+    private Instant getExpiryPolicyForErr(int statusCode) {
+        Instant t;
+        // Add caching Time-To-Live (TTL) for TES cloud errors
+        if (statusCode >= 400 && statusCode < 500) {
+            // 4xx retries are only meaningful unless a user action has been adopted, TTL should be longer
+            t = Instant.now(clock).plus(Duration.ofMinutes(CLOUD_4XX_ERROR_CACHE_IN_MIN));
+        } else if (statusCode >= 500 && statusCode < 600) {
+            // 5xx could be a temporary cloud unavailability, TTL should be shorter
+            t = Instant.now(clock).plus(Duration.ofMinutes(CLOUD_5XX_ERROR_CACHE_IN_MIN));
+        } else {
+            // In case of unrecognized cloud errors, back off
+            t = Instant.now(clock).plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
+        }
+        return t;
+    }
+
+    /**
+     * Check if the cached credentials are valid.
+     *
+     * @return if the cached credentials are valid.
+     */
+    public boolean areCredentialsValid() {
         Instant now = Instant.now(clock);
         return now.isBefore(tesCache.get(iotCredentialsPath).expiry);
     }

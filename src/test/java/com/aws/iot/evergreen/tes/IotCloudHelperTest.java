@@ -56,7 +56,7 @@ public class IotCloudHelperTest {
         final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager,
                 IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
-        assertEquals(CLOUD_RESPONSE, response.getResponseBody());
+        assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
         assertEquals(STATUS_CODE, response.getStatusCode());
     }
 
@@ -80,7 +80,7 @@ public class IotCloudHelperTest {
                 IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB,
                 body).getResponseBody();
-        assertEquals(CLOUD_RESPONSE, creds);
+        assertArrayEquals(CLOUD_RESPONSE, creds);
     }
 
     @Test
@@ -103,7 +103,7 @@ public class IotCloudHelperTest {
         IotCloudHelper cloudHelper = new IotCloudHelper();
         final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager, IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
-        assertEquals(CLOUD_RESPONSE, response.getResponseBody());
+        assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
         assertEquals(STATUS_CODE, response.getStatusCode());
     }
 }

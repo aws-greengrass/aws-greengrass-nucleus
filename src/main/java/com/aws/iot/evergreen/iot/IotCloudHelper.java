@@ -17,6 +17,8 @@ import software.amazon.awssdk.crt.http.HttpRequestBodyStream;
 import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.crt.http.HttpStreamResponseHandler;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Arrays;
@@ -84,6 +86,7 @@ public class IotCloudHelper {
 
     private HttpStreamResponseHandler createResponseHandler(CompletableFuture<Integer> reqCompleted,
                                                             Map<String, String> responseHeaders,
+                                                            ByteArrayOutputStream responseByteArray,
                                                             IotCloudResponse response) {
         return new HttpStreamResponseHandler() {
             @Override
@@ -95,7 +98,11 @@ public class IotCloudHelper {
 
             @Override
             public int onResponseBody(HttpStream stream, byte[] bodyBytes) {
-                response.setResponseBody(bodyBytes);
+                try {
+                    responseByteArray.write(bodyBytes);
+                } catch (IOException e) {
+                    LOGGER.error("Fail to write response body:", e);
+                }
                 return bodyBytes.length;
             }
 
@@ -112,14 +119,17 @@ public class IotCloudHelper {
         final CompletableFuture<Integer> reqCompleted = new CompletableFuture<>();
         final Map<String, String> responseHeaders = new HashMap<>();
         final IotCloudResponse response = new IotCloudResponse();
+        final ByteArrayOutputStream responseByteArray = new ByteArrayOutputStream();
         // Give the request up to N seconds to complete, otherwise throw a TimeoutException
         try {
-            conn.makeRequest(request, createResponseHandler(reqCompleted, responseHeaders, response)).activate();
+            conn.makeRequest(request, createResponseHandler(reqCompleted, responseHeaders, responseByteArray, response))
+                    .activate();
             int error = reqCompleted.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
             if (error != 0) {
                 throw new AWSIotException(String.format("Error %s(%d); RequestId: %s", HTTP_HEADER_ERROR_TYPE, error,
                         HTTP_HEADER_REQUEST_ID));
             }
+            response.setResponseBody(responseByteArray.toByteArray());
             return response;
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             LOGGER.error("Http request failed with error", e);
