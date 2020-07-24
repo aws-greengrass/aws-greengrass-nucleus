@@ -45,22 +45,22 @@ public class AuthZModuleTest {
     @ParameterizedTest
     @MethodSource("invalidPermEntries")
     void Given_authZmodule_WHEN_added_empty_entries_THEN_it_fails(String destination,
-                                                                  String principal,
+                                                                  String principle,
                                                                   String op,
                                                                   String resource) {
         AuthZModule module = new AuthZModule();
-        Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+        Permission permission = Permission.builder().principle(principle).operation(op).resource(resource).build();
         assertThrows(AuthorizationException.class, () -> module.addPermission(destination, permission));
     }
 
     @ParameterizedTest
     @MethodSource("permissionEntries")
     void Given_authZmodule_WHEN_added_entries_THEN_retrieve_works(String destination,
-                                                                  String principal,
+                                                                  String principle,
                                                                   String op,
                                                                   String resource) throws AuthorizationException {
         AuthZModule module = new AuthZModule();
-        Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+        Permission permission = Permission.builder().principle(principle).operation(op).resource(resource).build();
         module.addPermission(destination, permission);
         assertTrue(module.isPresent(destination, permission));
     }
@@ -70,11 +70,11 @@ public class AuthZModuleTest {
         AuthZModule module = new AuthZModule();
         permissionEntries().forEach(entry -> {
             String destination = (String)entry.get()[0];
-            String principal = (String)entry.get()[1];
+            String principle = (String)entry.get()[1];
             String op = (String)entry.get()[2];
             String resource = (String)entry.get()[3];
             try {
-                Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+                Permission permission = Permission.builder().principle(principle).operation(op).resource(resource).build();
                 module.addPermission(destination, permission);
                 assertTrue(module.isPresent(destination, permission));
             } catch (AuthorizationException e) {

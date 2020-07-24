@@ -34,7 +34,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
+                .principles(new HashSet(Arrays.asList("compA", "compB")))
                 .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
@@ -43,13 +43,13 @@ public class AuthorizationHandlerTest {
         AuthorizationPolicy policy1 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
+                .principles(new HashSet(Arrays.asList("compA", "compB")))
                 .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
         AuthorizationPolicy policy2 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
+                .principles(new HashSet(Arrays.asList("compA", "compB")))
                 .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
         return Arrays.asList(policy1, policy2);
@@ -59,7 +59,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("ServiceC", "ServiceD")))
+                .principles(new HashSet(Arrays.asList("ServiceC", "ServiceD")))
                 .operations(new HashSet(Arrays.asList("OpD", "OpE")))
                 .build();
     }
@@ -68,7 +68,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
+                .principles(new HashSet(Arrays.asList("compA", "compB")))
                 .operations(new HashSet(Arrays.asList("*")))
                 .build();
     }
@@ -77,7 +77,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
+                .principles(new HashSet(Arrays.asList("compA")))
                 .operations(new HashSet(Arrays.asList("OpA")))
                 .resources(new HashSet(Arrays.asList("*")))
                 .build();
@@ -87,7 +87,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
+                .principles(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
@@ -96,7 +96,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet())
+                .principles(new HashSet())
                 .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
@@ -105,7 +105,7 @@ public class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
+                .principles(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet())
                 .build();
     }
@@ -132,7 +132,7 @@ public class AuthorizationHandlerTest {
         // Another service can be registered
         authorizationHandler.registerService("ServiceB", serviceOps_2);
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceC",
-                Permission.builder().principal("*").operation("*").resource(null).build()));
+                Permission.builder().principle("*").operation("*").resource(null).build()));
     }
 
     @Test
@@ -149,58 +149,58 @@ public class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicy("ServiceB", Collections.singletonList(getAuthZPolicyB()));
 
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpA").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpB").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpC").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpC").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpB").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpA").resource(null).build()));
 
         assertTrue(authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("ServiceD").operation("OpD").resource(null).build()));
+                Permission.builder().principle("ServiceD").operation("OpD").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("ServiceD").operation("OpE").resource(null).build()));
+                Permission.builder().principle("ServiceD").operation("OpE").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("ServiceC").operation("OpD").resource(null).build()));
+                Permission.builder().principle("ServiceC").operation("OpD").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("ServiceC").operation("OpE").resource(null).build()));
+                Permission.builder().principle("ServiceC").operation("OpE").resource(null).build()));
 
-        // Services are not allowed to be accessed from other principals
+        // Services are not allowed to be accessed from other principles
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compC").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compC").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpD").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpD").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpE").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpE").resource(null).build()));
 
         // Services are not allowed to be accessed for non allowed ops
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("Op").resource(null).build()));
+                Permission.builder().principle("compB").operation("Op").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("Op").resource(null).build()));
+                Permission.builder().principle("compA").operation("Op").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("ServiceD").operation("Op").resource(null).build()));
+                Permission.builder().principle("ServiceD").operation("Op").resource(null).build()));
 
         // services are not allowed to be accessed from * principal
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("*").operation("OpA").resource(null).build()));
+                Permission.builder().principle("*").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("random").operation("OpA").resource(null).build()));
+                Permission.builder().principle("random").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("*").operation("OpD").resource(null).build()));
+                Permission.builder().principle("*").operation("OpD").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("random").operation("OpD").resource(null).build()));
+                Permission.builder().principle("random").operation("OpD").resource(null).build()));
 
         // services are not allowed to be accessed for * operation
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("*").resource(null).build()));
+                Permission.builder().principle("compA").operation("*").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("ServiceD").operation("*").resource(null).build()));
+                Permission.builder().principle("ServiceD").operation("*").resource(null).build()));
     }
 
     @Test
@@ -215,35 +215,35 @@ public class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(policy));
         // All registered Operations are allowed now
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpA").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpB").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpC").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpC").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpB").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpA").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compB").operation("*").resource(null).build()));
+                Permission.builder().principle("compB").operation("*").resource(null).build()));
 
         // random destination should not be allowed
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compC").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compC").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpB").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpC").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compB").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpC").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compB").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpB").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compB").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpA").resource(null).build()));
     }
 
     @Test
@@ -256,15 +256,15 @@ public class AuthorizationHandlerTest {
         AuthorizationPolicy policy = getStarResourceAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(policy));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("*").build()));
+                Permission.builder().principle("compA").operation("OpA").resource("*").build()));
 
         // A random string works
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("randomString").build()));
+                Permission.builder().principle("compA").operation("OpA").resource("randomString").build()));
 
         // null resource be allowed as it will pass * check
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpA").resource(null).build()));
     }
 
     @Test
@@ -277,36 +277,36 @@ public class AuthorizationHandlerTest {
         AuthorizationPolicy policy = getStarSourcesAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(policy));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpA").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpB").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpC").resource(null).build()));
         // A non allowed Op is denied
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpD").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpD").resource(null).build()));
 
         // Random Sources should be allowed now
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("*").operation("OpA").resource(null).build()));
+                Permission.builder().principle("*").operation("OpA").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("random").operation("OpA").resource(null).build()));
+                Permission.builder().principle("random").operation("OpA").resource(null).build()));
 
         // Random destination should not be allowed
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compC").operation("*").resource(null).build()));
+                Permission.builder().principle("compC").operation("*").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compA").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compA").operation("OpB").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("*").operation("OpC").resource(null).build()));
+                Permission.builder().principle("*").operation("OpC").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compB").operation("OpC").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpC").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("compB").operation("OpB").resource(null).build()));
+                Permission.builder().principle("compB").operation("OpB").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
-                Permission.builder().principal("*").operation("*").resource(null).build()));
+                Permission.builder().principle("*").operation("*").resource(null).build()));
     }
 
     @Test
