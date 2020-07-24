@@ -3,9 +3,9 @@
 
 package com.aws.iot.evergreen.tes;
 
-import com.aws.iot.evergreen.auth.AuthZHandler;
-import com.aws.iot.evergreen.auth.AuthZPolicy;
-import com.aws.iot.evergreen.auth.exceptions.AuthZException;
+import com.aws.iot.evergreen.auth.AuthorizationHandler;
+import com.aws.iot.evergreen.auth.AuthorizationPolicy;
+import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -38,21 +38,21 @@ public class TokenExchangeService extends EvergreenService {
     private int port;
     private String iotRoleAlias;
     private HttpServerImpl server;
-    private List<AuthZPolicy> authZConfig;
+    private List<AuthorizationPolicy> authZPolicy;
 
-    private final AuthZHandler authZHandler;
+    private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
 
     /**
      * Constructor.
      * @param topics the configuration coming from kernel
      * @param credentialRequestHandler {@link CredentialRequestHandler}
-     * @param authZHandler {@link AuthZHandler}
+     * @param authZHandler {@link AuthorizationHandler}
      */
     @Inject
     public TokenExchangeService(Topics topics,
                                 CredentialRequestHandler credentialRequestHandler,
-                                AuthZHandler authZHandler) {
+                                AuthorizationHandler authZHandler) {
         super(topics);
         // TODO: Add support for other params like role Aliases
         topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
@@ -65,11 +65,11 @@ public class TokenExchangeService extends EvergreenService {
                         iotRoleAlias = Coerce.toString(newv));
         Topic acl = topics.find("accessControl");
         if (acl == null) {
-            authZConfig = Arrays.asList(getDefaultAuthZPolicy());
+            authZPolicy = Arrays.asList(getDefaultAuthZPolicy());
         } else {
             acl.subscribe((why, o) -> {
                 //TODO: convert config to Auth model
-                authZConfig = (List<AuthZPolicy>) o.getOnce();
+                authZPolicy = (List<AuthorizationPolicy>) o.getOnce();
             });
         }
         this.authZHandler = authZHandler;
@@ -85,8 +85,8 @@ public class TokenExchangeService extends EvergreenService {
         try {
             try {
                 authZHandler.registerService(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
-                authZHandler.loadAuthZConfig(this.getName(), authZConfig);
-            } catch (AuthZException e) {
+                authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
+            } catch (AuthorizationException e) {
                 // TODO: this should never happen? If that is the case then propagate it up.
             }
             reportState(State.RUNNING);
@@ -123,12 +123,12 @@ public class TokenExchangeService extends EvergreenService {
         }
     }
 
-    private AuthZPolicy getDefaultAuthZPolicy() {
+    private AuthorizationPolicy getDefaultAuthZPolicy() {
         String defaultPolicyDesc = "Default TokenExchangeService policy";
-        return AuthZPolicy.builder()
+        return AuthorizationPolicy.builder()
                 .policyId(UUID.randomUUID().toString())
                 .policyDescription(defaultPolicyDesc)
-                .sources(new HashSet(Arrays.asList("*")))
+                .principles(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
                 .build();
     }

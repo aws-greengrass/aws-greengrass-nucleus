@@ -1,6 +1,6 @@
 package com.aws.iot.evergreen.tes;
 
-import com.aws.iot.evergreen.auth.AuthZHandler;
+import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -44,7 +44,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     AuthNHandler mockAuthNHandler;
 
     @Mock
-    AuthZHandler mockAuthZHandler;
+    AuthorizationHandler mockAuthZHandler;
 
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
 

@@ -3,9 +3,9 @@
 
 package com.aws.iot.evergreen.tes;
 
-import com.aws.iot.evergreen.auth.AuthZHandler;
+import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.auth.Permission;
-import com.aws.iot.evergreen.auth.exceptions.AuthZException;
+import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
@@ -45,7 +45,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private final IotCloudHelper iotCloudHelper;
     private final AuthNHandler authNHandler;
-    private final AuthZHandler authZHandler;
+    private final AuthorizationHandler authZHandler;
 
     private final IotConnectionManager iotConnectionManager;
 
@@ -54,13 +54,13 @@ public class CredentialRequestHandler implements HttpHandler {
      * @param cloudHelper {@link IotCloudHelper} for making http requests to cloud.
      * @param connectionManager {@link IotConnectionManager} underlying connection manager for cloud.
      * @param authNHandler {@link AuthNHandler} authN module for authenticating requests.
-     * @param authZHandler {@link AuthZHandler} authZ module for authorizing requests.
+     * @param authZHandler {@link AuthorizationHandler} authZ module for authorizing requests.
      */
     @Inject
     public CredentialRequestHandler(final IotCloudHelper cloudHelper,
                                     final IotConnectionManager connectionManager,
                                     final AuthNHandler authNHandler,
-                                    final AuthZHandler authZHandler) {
+                                    final AuthorizationHandler authZHandler) {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
         this.authNHandler = authNHandler;
@@ -85,10 +85,10 @@ public class CredentialRequestHandler implements HttpHandler {
         try {
             String clientService = authNHandler.doAuthN(authNToken);
             LOGGER.atError().log("Got client " + authNToken);
-            authZHandler.isFlowAuthorized(
+            authZHandler.isAuthorized(
                     TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS,
                     Permission.builder()
-                            .source(clientService)
+                            .principle(clientService)
                             .operation(TokenExchangeService.AUTHZ_TES_OPERATION)
                             .resource(null)
                             .build());
@@ -100,7 +100,7 @@ public class CredentialRequestHandler implements HttpHandler {
             exchange.getResponseBody().write(credentials);
             LOGGER.atError().log("set response body " + String.valueOf(credentials.length));
             exchange.close();
-        } catch (AuthZException e) {
+        } catch (AuthorizationException e) {
             LOGGER.atInfo().log("Request denied as its is un authorized");
             generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
         } catch (UnAuthenticatedException e) {
