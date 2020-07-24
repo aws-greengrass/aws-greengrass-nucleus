@@ -29,8 +29,6 @@ public class TokenExchangeService extends EvergreenService {
     public static final String PORT_TOPIC = "port";
     public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "TokenExchangeService";
     public static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
-    // TODO: change when auth is supported
-    public static final String TES_AUTH_ENV_VARIABLE_NAME = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
     public static final String AUTHZ_TES_OPERATION = "getCredentials";
     private static final String TES_CONFIG_ERROR_STR = "%s parameter is either empty or not configured for TES";
     // randomly choose a port
@@ -38,7 +36,7 @@ public class TokenExchangeService extends EvergreenService {
     private int port;
     private String iotRoleAlias;
     private HttpServerImpl server;
-    private List<AuthorizationPolicy> authZPolicy;
+    private final List<AuthorizationPolicy> authZPolicy;
 
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
@@ -85,10 +83,7 @@ public class TokenExchangeService extends EvergreenService {
             server.start();
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
-        } catch (IOException | IllegalArgumentException e) {
-            serviceErrored(e.toString());
-        } catch (AuthorizationException e) {
-            // This should never happen
+        } catch (IOException | IllegalArgumentException | AuthorizationException e) {
             serviceErrored(e.toString());
         }
     }
@@ -120,7 +115,7 @@ public class TokenExchangeService extends EvergreenService {
         return Arrays.asList(AuthorizationPolicy.builder()
                 .policyId(UUID.randomUUID().toString())
                 .policyDescription(defaultPolicyDesc)
-                .principles(new HashSet(Arrays.asList("*")))
+                .principals(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
                 .build());
     }

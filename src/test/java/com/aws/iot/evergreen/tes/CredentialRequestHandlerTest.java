@@ -8,7 +8,7 @@ import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.ipc.AuthNHandler;
-import com.aws.iot.evergreen.ipc.exceptions.UnAuthenticatedException;
+import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -130,9 +130,9 @@ public class CredentialRequestHandlerTest {
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
-        when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenThrow(UnAuthenticatedException.class);
-        handler.handle(mockExchange);
+        when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenThrow(UnauthenticatedException.class);
 
+        handler.handle(mockExchange);
         int expectedStatus = 403;
         int expectedResponseLength = -1;
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);

@@ -1,10 +1,14 @@
 package com.aws.iot.evergreen.integrationtests.tes;
 
+import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.ipc.AuthNHandler;
+import com.aws.iot.evergreen.ipc.services.auth.Auth;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -20,6 +24,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("E2E")
 class TESTest extends BaseITCase {
+    private static final int HTTP_200 = 200;
+    private static final int HTTP_403 = 403;
     private Kernel kernel;
     private ThingInfo thingInfo;
     private DeviceProvisioningHelper deviceProvisioningHelper;
@@ -49,7 +57,7 @@ class TESTest extends BaseITCase {
     private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
 
     @BeforeEach
-    void setupKernel() throws IOException {
+    void setupKernel() throws Exception {
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
@@ -57,6 +65,16 @@ class TESTest extends BaseITCase {
         roleName = TES_ROLE_NAME + roleId;
         roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
         provision(kernel);
+        CountDownLatch tesRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals(TOKEN_EXCHANGE_SERVICE_TOPICS) && newState.equals(State.RUNNING)) {
+                tesRunning.countDown();
+            }
+        });
+        kernel.launch();
+        assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
+        // Let tes start the http server
+        Thread.sleep(5000);
     }
 
     @AfterEach
@@ -73,22 +91,18 @@ class TESTest extends BaseITCase {
 
     @Test
     void GIVEN_iot_role_alias_WHEN_tes_is_queried_THEN_valid_credentials_are_returned() throws Exception {
-        CountDownLatch tesRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(TOKEN_EXCHANGE_SERVICE_TOPICS) && newState.equals(State.RUNNING)) {
-                tesRunning.countDown();
-            }
-        });
-        kernel.launch();
-        assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
-        Thread.sleep(5000);
         String urlString = kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).getOnce().toString();
         assertNotNull(urlString);
         URL url = new URL(urlString);
+
+        // Get the first token from the token map
+        String token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthNHandler.AUTH_TOKEN_LOOKUP_KEY).iterator().next().getName();
+        assertNotNull(token);
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");
-        int status = con.getResponseCode();
-        assertEquals(status, 200);
+        con.setRequestProperty ("Authorization", token);
+
+        assertEquals(con.getResponseCode(), HTTP_200);
         StringBuilder response = new StringBuilder();
         try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
             String responseLine = in.readLine();
@@ -96,11 +110,32 @@ class TESTest extends BaseITCase {
                 response.append(responseLine);
                 responseLine = in.readLine();
             }
-
         }
         con.disconnect();
         assertThat(response.toString(), matchesPattern(
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
+    }
+
+    @Test
+    void GIVEN_iot_role_alias_WHEN_tes_is_queried_without_auth_header_THEN_403_returned() throws Exception {
+        String urlString = kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).getOnce().toString();
+        assertNotNull(urlString);
+        URL url = new URL(urlString);
+
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+
+        // We are not setting auth header
+        assertEquals(con.getResponseCode(), HTTP_403);
+        con.disconnect();
+
+        // Set Auth header to invalid value now
+        con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        con.setRequestProperty ("Authorization", "Invalid token");
+        assertEquals(con.getResponseCode(), HTTP_403);
+        con.disconnect();
+
     }
 
     private void provision(Kernel kernel) throws IOException {

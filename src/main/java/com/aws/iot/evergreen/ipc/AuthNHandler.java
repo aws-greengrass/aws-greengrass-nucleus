@@ -5,7 +5,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.exceptions.UnAuthenticatedException;
+import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.ipc.services.auth.AuthRequest;
 import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
@@ -63,17 +63,17 @@ public class AuthNHandler implements InjectionActions {
      * @param message       incoming message frame to be validated.
      * @param remoteAddress remote address the client is connected from
      * @return RequestContext containing the server name if validated.
-     * @throws UnAuthenticatedException thrown if not authorized, or any other error happens.
+     * @throws UnauthenticatedException thrown if not authorized, or any other error happens.
      */
     public ConnectionContext doAuth(FrameReader.Message message, SocketAddress remoteAddress)
-            throws UnAuthenticatedException {
+            throws UnauthenticatedException {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         AuthRequest authRequest;
         try {
             authRequest = IPCUtil.decode(applicationMessage.getPayload(), AuthRequest.class);
         } catch (IOException e) {
-            throw new UnAuthenticatedException("Fail to decode Auth message", e);
+            throw new UnauthenticatedException("Fail to decode Auth message", e);
         }
         String serviceName = doAuthN(authRequest.getAuthToken());
         return new ConnectionContext(serviceName, remoteAddress, router);
@@ -83,13 +83,16 @@ public class AuthNHandler implements InjectionActions {
      * Lookup the provided auth token to associate it with a service (or reject it).
      * @param authToken token to be looked up.
      * @return service name to which the token is associated.
-     * @throws UnAuthenticatedException if token is invalid or unassociated.
+     * @throws UnauthenticatedException if token is invalid or unassociated.
      */
-    public String doAuthN(String authToken) throws UnAuthenticatedException {
+    public String doAuthN(String authToken) throws UnauthenticatedException {
+        if (authToken == null) {
+            throw new UnauthenticatedException("Invalid auth token");
+        }
         String serviceName = (String) config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                 AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
         if (serviceName == null) {
-            throw new UnAuthenticatedException("Auth token not found");
+            throw new UnauthenticatedException("Auth token not found");
         }
         return serviceName;
     }

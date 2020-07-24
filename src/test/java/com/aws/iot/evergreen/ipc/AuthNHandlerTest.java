@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.exceptions.UnAuthenticatedException;
+import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.ipc.services.auth.AuthRequest;
 import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
@@ -129,7 +129,7 @@ class AuthNHandlerTest {
         ApplicationMessage applicationMessage =
                 ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
 
-        assertThrows(UnAuthenticatedException.class, () -> auth
+        assertThrows(UnauthenticatedException.class, () -> auth
                 .doAuth(new FrameReader.Message(applicationMessage.toByteArray()), mock(SocketAddress.class)));
     }
 
@@ -175,7 +175,7 @@ class AuthNHandlerTest {
         // GIVEN
         // done in setupMocks
 
-        UnAuthenticatedException ex = new UnAuthenticatedException("No Auth!");
+        UnauthenticatedException ex = new UnauthenticatedException("No Auth!");
         ignoreException(context, ex);
         doThrow(ex).when(mockAuth).doAuth(any(), any());
 

@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.tes;
 
 import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.auth.AuthorizationPolicy;
+import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -23,15 +24,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -57,6 +59,8 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
 
     ArgumentCaptor<List<AuthorizationPolicy>> authCaptor = ArgumentCaptor.forClass(List.class);
+
+    ArgumentCaptor<Set<String>> operationsCaptor = ArgumentCaptor.forClass(Set.class);
 
     @BeforeEach
     public void setup() {
@@ -114,9 +118,15 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
         assertEquals(MOCK_ROLE_ALIAS, stringArgumentCaptor.getValue());
 
 
-        verify(mockAuthZHandler).registerService(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet(Arrays.asList(TokenExchangeService.AUTHZ_TES_OPERATION)));
-        verify(mockAuthZHandler).loadAuthorizationPolicy(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, authCaptor.capture());
+        verify(mockAuthZHandler).registerService(stringArgumentCaptor.capture(), operationsCaptor.capture());
+        assertEquals(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
+        assertTrue(operationsCaptor.getValue().contains(TokenExchangeService.AUTHZ_TES_OPERATION));
+
+        verify(mockAuthZHandler).loadAuthorizationPolicy(anyString(), authCaptor.capture());
         assertEquals("Default TokenExchangeService policy", authCaptor.getValue().get(0).getPolicyDescription());
+        assertTrue(authCaptor.getValue().get(0).getPrincipals().contains("*"));
+        assertTrue(authCaptor.getValue().get(0).getOperations().contains(TokenExchangeService.AUTHZ_TES_OPERATION));
+
     }
 
     @ParameterizedTest
@@ -149,6 +159,45 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
                 mockAuthZHandler));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
+        tes.startup();
+        assertEquals(State.ERRORED, stateArgumentCaptor.getValue());
+    }
+
+    @Test
+    public void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out() throws Exception {
+        //Set mock for role topic
+        Topic roleTopic = mock(Topic.class);
+        when(roleTopic.subscribe(any())).thenAnswer((a) -> {
+            ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, roleTopic);
+            return null;
+        });
+        when(roleTopic.getOnce()).thenReturn("TEST");
+
+        // set mock for port topic
+        Topic portTopic = mock(Topic.class);
+        when(portTopic.dflt(anyInt())).thenReturn(portTopic);
+        when(portTopic.subscribe(any())).thenAnswer((a) -> {
+            ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, portTopic);
+            return null;
+        });
+        when(portTopic.getOnce()).thenReturn(8080);
+
+        when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+        when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.PORT_TOPIC)).thenReturn(portTopic);
+
+
+        TokenExchangeService tes = spy(new TokenExchangeService(config,
+                mockCredentialHandler,
+                mockAuthZHandler));
+        ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
+        doNothing().when(tes).reportState(stateArgumentCaptor.capture());
+        doThrow(AuthorizationException.class).when(mockAuthZHandler).registerService(any(), any());
+        tes.startup();
+        assertEquals(State.ERRORED, stateArgumentCaptor.getValue());
+
+        // this time make loadAuthorizationPolicy throw
+        doNothing().when(mockAuthZHandler).registerService(any(), any());
+        doThrow(AuthorizationException.class).when(mockAuthZHandler).loadAuthorizationPolicy(any(), any());
         tes.startup();
         assertEquals(State.ERRORED, stateArgumentCaptor.getValue());
     }

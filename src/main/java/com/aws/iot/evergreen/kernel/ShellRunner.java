@@ -23,6 +23,7 @@ public interface ShellRunner {
 
     class Default implements ShellRunner {
         private static final String SCRIPT_NAME_KEY = "scriptName";
+        public static final String TES_AUTH_HEADER = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
 
         @Inject
         Kernel config;
@@ -44,7 +45,9 @@ public interface ShellRunner {
                             onBehalfOf.logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
                                     .kv("stderr", ss).log();
                         })
-                        .setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN",
+                        // Tes needs to inject identity separately as required by AWS SDK's which expect this env
+                        // variable to be present for sending credential request to a server
+                        .setenv(TES_AUTH_HEADER,
                                 String.valueOf(onBehalfOf.getRuntimeConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))
                         .setenv("SVCUID",
