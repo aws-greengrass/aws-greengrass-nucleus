@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
@@ -34,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -41,6 +43,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -343,5 +347,47 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .find("version").getOnce());
 
         Slf4jLogAdapter.removeGlobalListener(logListener);
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
+    void GIVEN_updating_Component_WHEN_removing_field_from_recipe_THEN_kernel_config_remove_corresponding_field() throws Exception {
+        // CustomerApp 0.9.1 has 'startup' key in lifecycle
+        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(10), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        EvergreenService customerApp = kernel.locate("CustomerApp");
+        assertNotNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("startup"));
+
+        // update with some local data
+        customerApp.getRuntimeConfig().lookup("runtimeKey").withValue("val");
+
+        // Second deployment to update CustomerApp, replace 'startup' key with 'run' key.
+        SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        customerApp = kernel.locate("CustomerApp");
+        // assert local data is not affected
+        assertEquals("val", customerApp.getRuntimeConfig().findLeafChild("runtimeKey").getOnce());
+        // assert updated service have 'startup' key removed.
+        assertNotNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("run"));
+        assertNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("startup"));
+        assertThat(customerApp::getState, eventuallyEval(is(State.FINISHED)));
     }
 }

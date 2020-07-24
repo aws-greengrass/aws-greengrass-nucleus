@@ -130,7 +130,7 @@ public class ServiceDependencyLifecycleTest {
                         new KernelTest.ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
                         new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING),
-                        new KernelTest.ExpectedStateTransition("main", State.STOPPING, State.FINISHED)));
+                        new KernelTest.ExpectedStateTransition("main", State.STARTING, State.FINISHED)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedDuringLaunch, Collections.emptySet());
 
 
