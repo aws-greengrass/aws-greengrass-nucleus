@@ -10,7 +10,7 @@ import lombok.Value;
 @Builder
 @Value
 public class Permission {
-    @NonNull String principal;
+    @NonNull String principle;
     @NonNull String operation;
     String resource;
 }
