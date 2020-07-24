@@ -272,8 +272,6 @@ public class ServiceDependencyLifecycleTest {
                   new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
         testStateTransitionsInNoOrder(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedStateTransitions);
-        CountDownLatch serviceStateTransitionsLatch = new CountDownLatch(2);
-
 
         // WHEN_dependency_removed_THEN_customer_app_stays_running
         LinkedList<ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(
