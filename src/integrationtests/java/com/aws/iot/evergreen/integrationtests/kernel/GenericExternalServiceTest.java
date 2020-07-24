@@ -25,8 +25,8 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESP
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -259,19 +259,21 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertEquals(147, serviceWithJustBootstrap.bootstrap());
 
-        GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
-                (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");
-
-        try {
-            // this runs 2 minutes
-            serviceWithJustBootstrapAndShouldTimeout.bootstrap();
-            fail("Should timeout");
-        } catch (TimeoutException e) {
-            // success
-        }
-
         GenericExternalService serviceWithJustBootstrapAndConfiguredTimeout =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_configured_timeout");
         assertEquals(147, serviceWithJustBootstrapAndConfiguredTimeout.bootstrap());
+    }
+
+    @Test
+    void GIVEN_bootstrap_command_WHEN_runs_longer_than_120_sec_THEN_timeout_exception_is_thrown() throws Exception {
+        kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString());
+
+
+        GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
+                (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");
+
+        // this runs 2 minutes
+        assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
     }
 }

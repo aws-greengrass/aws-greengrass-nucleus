@@ -102,7 +102,7 @@ public class GenericExternalService extends EvergreenService {
      *
      * @return exit code of process; null if no bootstrap command found.
      * @throws InterruptedException when the command execution is interrupted.
-     * @throws TimeoutException when the command execution times out.
+     * @throws TimeoutException     when the command execution times out.
      */
     @Override
     public synchronized Integer bootstrap() throws InterruptedException, TimeoutException {
@@ -117,42 +117,29 @@ public class GenericExternalService extends EvergreenService {
         // run the command at background thread so that the main thread can handle it when it times out
         // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
         // signature changes to deal with timeout, so we decided to go with background thread.
-        Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+
+        try (Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
             atomicExitCode.set(exitCode);
             timeoutLatch.countDown();
-        }, lifecycleProcesses).getRight();
+        }, lifecycleProcesses).getRight()) {
 
-        if (exec == null) {
-            // no bootstrap command found
-            return null;
-        }
 
-        // timeout handling
-        Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
-                TIMEOUT_NAMESPACE_TOPIC);
+            if (exec == null) {
+                // no bootstrap command found
+                return null;
+            }
 
-        int timeoutInSec = timeoutTopic == null ? DEFAULT_BOOTSTRAP_TIMEOUT_SEC : Coerce.toInt(timeoutTopic);
-
-        try {
+            // timeout handling
+            int timeoutInSec = (int) config
+                    .findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
             boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
-
             if (!completedInTime) {
-                throw new TimeoutException("Bootstrap timed out");
+                throw new TimeoutException("Bootstrap step timed out");
             }
 
-        } catch (InterruptedException e) {
-            // waiting thread gets interrupted and it should clean up the process
-            if (exec.isRunning()) {
-                try {
-                    exec.close();
-                } catch (IOException ex) {
-                    logger.atError("bootstrap-process-close-error").setCause(e)
-                            .addKeyValue("timeoutSeconds", timeoutInSec)
-                            .log("Error closing process after bootstrap step timed out");
-                }
-            }
-
-            throw e;
+        } catch (IOException e) {
+            logger.atError("bootstrap-process-close-error").setCause(e).log("Error closing process at bootstrap step.");
         }
 
         return atomicExitCode.get();
@@ -374,8 +361,8 @@ public class GenericExternalService extends EvergreenService {
      * Run one of the commands defined in the config on the command line.
      *
      * @param name         name of the command to run ("run", "install", "startup", "bootstrap").
-     * @param background   IntConsumer to receive the exit code. If null, the command will run as a foreground process
-     *                     and timeout after 2 minutes.
+     * @param background   IntConsumer to and run the command as background process and receive the exit code. If null,
+     *                     the command will run as a foreground process and blocks indefinitely.
      * @param trackingList List used to track running processes.
      * @return the status of the run and the Exec.
      */
