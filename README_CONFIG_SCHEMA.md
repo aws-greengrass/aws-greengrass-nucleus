@@ -65,6 +65,11 @@ Root keys have to be recognized keys.
 services: 
 <serviceName>:
   lifecycle:
+    bootstrap:
+      script:
+      timeout: # optional. timeout in number of seconds. Default to 120 sec.
+      setenv: # key-value environment variables. optional, can override the parent 'setenv'
+
     install:
       skipif: onpath <executable>|exists <file>
       script:

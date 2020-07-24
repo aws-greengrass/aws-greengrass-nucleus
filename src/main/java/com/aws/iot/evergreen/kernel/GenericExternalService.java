@@ -102,7 +102,9 @@ public class GenericExternalService extends EvergreenService {
      *
      * @return exit code of process; null if no bootstrap command found.
      * @throws InterruptedException when the command execution is interrupted.
+     * @throws TimeoutException when the command execution times out.
      */
+    @Override
     public synchronized Integer bootstrap() throws InterruptedException, TimeoutException {
         // this is redundant because all lifecycle processes should have been before calling this method.
         // stopping here again to be safer

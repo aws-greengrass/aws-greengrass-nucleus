@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -231,6 +232,20 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
+     * Bootstrap and notify if a kernel/device restart is needed. Called when a component newly added to kernel, or the
+     * version changes. Returns 0 for no-op, 100 for restarting kernel, 200 for restarting device, other code for
+     * errors, and null if not configured.
+     *
+     * @return exit code; 0 for no-op, 100 for restarting kernel, 200 for restarting device, other code for errors.
+     * @throws InterruptedException when the execution is interrupted.
+     * @throws TimeoutException when the command execution times out.
+
+     */
+    protected Integer bootstrap() throws InterruptedException, TimeoutException {
+        return null;
+    }
+
+    /**
      * Called when this service is known to be needed to make sure that required additional software is installed.
      *
      * @throws InterruptedException if the install task was interrupted while running
@@ -321,8 +336,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * @throws InputValidationException if the provided arguments are invalid.
      */
     public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService,
-                                                   DependencyType dependencyType,
-                                                   boolean isDefault) throws InputValidationException {
+                                                   DependencyType dependencyType, boolean isDefault)
+            throws InputValidationException {
         if (dependentEvergreenService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
@@ -450,8 +465,9 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Get the config topics for service local data-store during runtime.
-     * content under runtimeConfig will not be affected by DeploymentService or DeploymentService roll-back.
+     * Get the config topics for service local data-store during runtime. content under runtimeConfig will not be
+     * affected by DeploymentService or DeploymentService roll-back.
+     *
      * @return
      */
     public Topics getRuntimeConfig() {
