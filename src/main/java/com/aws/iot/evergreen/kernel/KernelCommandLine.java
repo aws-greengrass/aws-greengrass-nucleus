@@ -48,6 +48,7 @@ public class KernelCommandLine {
     private static final String clitoolPathName = "~root/bin";
     private static final String workPathName = "~root/work";
     private static final String packageStorePathName = "~root/packages";
+    private static final String kernelAltsPathName = "~root/alts";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -128,6 +129,7 @@ public class KernelCommandLine {
         kernel.setWorkPath(Paths.get(deTilde(workPathName)).toAbsolutePath());
         Exec.setDefaultEnv("HOME", kernel.getWorkPath().toString());
         kernel.setPackageStorePath(Paths.get(deTilde(packageStorePathName)).toAbsolutePath());
+        kernel.setKernelAltsPath(Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath());
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
                     kernel.getWorkPath(), kernel.getPackageStorePath());
@@ -137,6 +139,10 @@ public class KernelCommandLine {
             logger.atError("system-boot-error", rte).log();
             throw rte;
         }
+
+        // TODO: Add current kernel to local component store, if not exits.
+        // Add symlinks for current Kernel alt, if not exits
+        // Register Kernel Loader as system service (platform-specific), if not exits
 
         kernel.getContext().put(CONTEXT_PACKAGE_STORE_DIRECTORY, kernel.getPackageStorePath());
     }
