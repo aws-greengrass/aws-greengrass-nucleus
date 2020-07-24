@@ -32,7 +32,7 @@ import javax.inject.Singleton;
 public class AuthorizationHandler {
     private static final String ANY_REGEX = "*";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
-    private final AuthZModule authModule;
+    private final AuthorizationModule authModule;
     private final ConcurrentHashMap<String, Set<String>> serviceToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>> serviceToAuthZConfig = new ConcurrentHashMap<>();
     private final Kernel kernel;
@@ -43,7 +43,7 @@ public class AuthorizationHandler {
      */
     @Inject
     public AuthorizationHandler(Kernel kernel) {
-        authModule = new AuthZModule();
+        authModule = new AuthorizationModule();
         this.kernel = kernel;
     }
 
