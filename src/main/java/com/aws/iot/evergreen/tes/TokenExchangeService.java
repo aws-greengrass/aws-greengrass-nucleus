@@ -63,15 +63,8 @@ public class TokenExchangeService extends EvergreenService {
         topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
                 .subscribe((why, newv) ->
                         iotRoleAlias = Coerce.toString(newv));
-        Topic acl = topics.find("accessControl");
-        if (acl == null) {
-            authZPolicy = Arrays.asList(getDefaultAuthZPolicy());
-        } else {
-            acl.subscribe((why, o) -> {
-                //TODO: convert config to Auth model
-                authZPolicy = (List<AuthorizationPolicy>) o.getOnce();
-            });
-        }
+        // TODO: Add support for overriding this from config
+        this.authZPolicy = getDefaultAuthZPolicy();
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
     }
@@ -83,12 +76,8 @@ public class TokenExchangeService extends EvergreenService {
         logger.atInfo().addKeyValue(PORT_TOPIC, port)
                 .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias).log("Starting Token Server at port {}", port);
         try {
-            try {
-                authZHandler.registerService(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
-                authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
-            } catch (AuthorizationException e) {
-                // TODO: this should never happen? If that is the case then propagate it up.
-            }
+            authZHandler.registerService(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
+            authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
             reportState(State.RUNNING);
             validateConfig();
             server = new HttpServerImpl(port, credentialRequestHandler);
@@ -97,6 +86,9 @@ public class TokenExchangeService extends EvergreenService {
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
         } catch (IOException | IllegalArgumentException e) {
+            serviceErrored(e.toString());
+        } catch (AuthorizationException e) {
+            // This should never happen
             serviceErrored(e.toString());
         }
     }
@@ -123,13 +115,13 @@ public class TokenExchangeService extends EvergreenService {
         }
     }
 
-    private AuthorizationPolicy getDefaultAuthZPolicy() {
+    List<AuthorizationPolicy> getDefaultAuthZPolicy() {
         String defaultPolicyDesc = "Default TokenExchangeService policy";
-        return AuthorizationPolicy.builder()
+        return Arrays.asList(AuthorizationPolicy.builder()
                 .policyId(UUID.randomUUID().toString())
                 .policyDescription(defaultPolicyDesc)
                 .principles(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
-                .build();
+                .build());
     }
 }

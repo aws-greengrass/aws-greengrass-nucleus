@@ -14,7 +14,7 @@ import java.util.Set;
 public class AuthorizationPolicy {
     @NonNull String policyId;
     String policyDescription;
-    @NonNull Set<String> principals;
+    @NonNull Set<String> principles;
     @NonNull Set<String> operations;
     Set<String> resources;
 }

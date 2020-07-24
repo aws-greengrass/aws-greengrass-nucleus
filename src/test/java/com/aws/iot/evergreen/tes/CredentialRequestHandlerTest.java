@@ -3,8 +3,8 @@
 
 package com.aws.iot.evergreen.tes;
 
-import com.aws.iot.evergreen.auth.AuthZHandler;
-import com.aws.iot.evergreen.auth.exceptions.AuthZException;
+import com.aws.iot.evergreen.auth.AuthorizationHandler;
+import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.ipc.AuthNHandler;
@@ -57,7 +57,7 @@ public class CredentialRequestHandlerTest {
     AuthNHandler mockAuthNHandler;
 
     @Mock
-    AuthZHandler mockAuthZHandler;
+    AuthorizationHandler mockAuthZHandler;
 
     private byte[] getExpectedResponse() throws Exception {
         Map<String, String> expectedReponse = new HashMap<>();
@@ -109,7 +109,7 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
         when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenReturn("ComponentA");
 
-        when(mockAuthZHandler.isFlowAuthorized(any(), any())).thenThrow(AuthZException.class);
+        when(mockAuthZHandler.isAuthorized(any(), any())).thenThrow(AuthorizationException.class);
         handler.handle(mockExchange);
 
         int expectedStatus = 403;
