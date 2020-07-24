@@ -14,6 +14,8 @@ import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -43,12 +45,14 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -80,6 +84,9 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Path packageStorePath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path kernelAltsPath;
 
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;
@@ -132,8 +139,28 @@ public class Kernel {
     /**
      * Startup the Kernel and all services.
      */
+    @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
-        kernelLifecycle.launch();
+        KernelAlternatives kernelAlts = new KernelAlternatives(getKernelAltsPath());
+        context.put(KernelAlternatives.class, kernelAlts);
+        DeploymentStage stage = kernelAlts.determineDeploymentStage();
+
+        switch (stage) {
+            case BOOTSTRAP:
+                // TODO: load pending bootstrap tasks. Start with one execution here. Flip symlinks. Update task list.
+                // System.exit(?)
+                break;
+            case KERNEL_ACTIVATION:
+            case KERNEL_ROLLBACK:
+                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
+                context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
+                deploymentsQueue.add(kernelAlts.loadPersistedDeployment());
+                // fall through to launch kernel
+            default:
+                kernelLifecycle.launch();
+                break;
+        }
         return this;
     }
 
