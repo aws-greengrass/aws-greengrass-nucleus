@@ -164,7 +164,7 @@ public class DeviceConfiguration {
             validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
                     iotCredEndpoint, awsRegion);
         } catch (DeviceConfigurationException e) {
-            logger.atError().setCause(e).log();
+            logger.atError().log(e.getMessage());
         }
     }
 
