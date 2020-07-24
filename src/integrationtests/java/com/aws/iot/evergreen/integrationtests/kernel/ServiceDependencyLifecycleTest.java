@@ -116,6 +116,36 @@ public class ServiceDependencyLifecycleTest {
         logger.atWarn().log("End of " + actionName);
     }
 
+    @SuppressWarnings({"PMD.CloseResource"})
+    private static void testStateTransitionsInNoOrder(long timeoutSeconds, Kernel kernel, Crashable action,
+                                                      String actionName,
+                                                      Set<ExpectedStateTransition> expectedStateTransitions)
+            throws Throwable {
+        Context context = kernel.getContext();
+        CountDownLatch assertionLatch = new CountDownLatch(expectedStateTransitions.size());
+
+        GlobalStateChangeListener listener = (EvergreenService service, State oldState, State newState) -> {
+            for (ExpectedStateTransition est : expectedStateTransitions) {
+                if(service.getName().equals(est.serviceName) && oldState == est.was && newState == est.current) {
+                    logger.atInfo().kv("expected", est).log("Just saw expected state transition");
+                    assertionLatch.countDown();
+                } else {
+                    ExpectedStateTransition other = new ExpectedStateTransition(service.getName(),
+                            oldState, newState);
+                    logger.atInfo().kv("other", other).log("Saw other state transition event");
+                }
+            }
+        };
+        context.addGlobalStateChangeListener(listener);
+        action.run();
+        assertionLatch.await(timeoutSeconds, TimeUnit.SECONDS);
+        context.removeGlobalStateChangeListener(listener);
+
+        if(assertionLatch.getCount() != 0) {
+            fail("Did not see all the expected state transitions for action " + actionName);
+        }
+    }
+
     @Test
     void GIVEN_hard_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_impacted()
             throws Throwable {
@@ -234,13 +264,24 @@ public class ServiceDependencyLifecycleTest {
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
 
-        // WHEN_kernel_launch_THEN_customer_app_starts_independently_from_soft_dependency
-        LinkedList<ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(
-                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.NEW, State.INSTALLED),
-                        new ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
-                        new ExpectedStateTransition(SoftDependency, State.INSTALLED, State.STARTING),
-                        new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedDuringLaunch, Collections.emptySet());
+        HashSet<ExpectedStateTransition> expectedStateTransitions = new HashSet<>(
+          Arrays.asList(new ExpectedStateTransition(CustomerApp, State.NEW, State.INSTALLED),
+                  new ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
+                  new ExpectedStateTransition(SoftDependency, State.INSTALLED, State.STARTING),
+                  new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
+                  new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
+
+        testStateTransitionsInNoOrder(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedStateTransitions);
+        CountDownLatch serviceStateTransitionsLatch = new CountDownLatch(2);
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if(service.getName().equals(CustomerApp) && oldState == State.STARTING && newState == State.RUNNING) {
+                serviceStateTransitionsLatch.countDown();
+            }
+            if(service.getName().equals(SoftDependency) && oldState == State.STARTING && newState == State.RUNNING) {
+                serviceStateTransitionsLatch.countDown();
+            }
+        });
 
 
         // WHEN_dependency_removed_THEN_customer_app_stays_running
