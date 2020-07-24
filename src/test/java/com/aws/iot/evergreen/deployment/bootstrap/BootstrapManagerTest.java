@@ -56,13 +56,6 @@ public class BootstrapManagerTest {
     Context context;
 
     @Test
-    void GIVEN_bootstrap_task_list_WHEN_check_isBootstrapRequired_THEN_return_true() throws Exception {
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapTaskStatus(componentA)));
-        assertTrue(bootstrapManager.isBootstrapRequired(null));
-    }
-
-    @Test
     void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertFalse(bootstrapManager.isBootstrapRequired(Collections.emptyMap()));

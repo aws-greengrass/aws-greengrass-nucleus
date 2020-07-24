@@ -64,7 +64,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
-     * Check if any bootstrap tasks are pending. Meanwhile resolve a list of bootstrap tasks if not done already.
+     * Check if any bootstrap tasks are pending based on new configuration.
+     * Meanwhile resolve a list of bootstrap tasks.
      *
      * @param newConfig new configuration from deployment
      * @return true if there are bootstrap tasks, false otherwise
@@ -72,9 +73,6 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
     public boolean isBootstrapRequired(Map<Object, Object> newConfig) throws ServiceUpdateException {
-        if (hasNext()) {
-            return true;
-        }
         bootstrapTaskStatusList.clear();
         cursor = 0;
 
@@ -190,7 +188,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @param next BootstrapTaskStatus object
      * @return 100 if kernel restart is needed, 101 if device reboot is needed, 0 if no-op.
      */
-    public int executeOneBootstrapTask(BootstrapTaskStatus next) {
+    protected int executeOneBootstrapTask(BootstrapTaskStatus next) {
         Objects.requireNonNull(next);
         // TODO: support bootstrap step in Evergreen Services.
         // Load service BootstrapTaskStatus.componentName and call bootstrap here.
@@ -219,7 +217,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     persistBootstrapTaskList();
                     break;
                 default:
-                    throw new ServiceUpdateException("Fail to execute bootstrap step for " + next.getComponentName());
+                    throw new ServiceUpdateException(String.format(
+                            "Fail to execute bootstrap step for %s, exit code: %d", next.getComponentName(), exitCode));
             }
             if (exitCode != 0) {
                 return exitCode;
