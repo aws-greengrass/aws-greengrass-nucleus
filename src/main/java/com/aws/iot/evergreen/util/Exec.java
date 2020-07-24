@@ -94,7 +94,6 @@ public final class Exec implements Closeable {
     }
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-
     Process process;
     IntConsumer whenDone;
     Consumer<CharSequence> stdout = NOP;
@@ -339,7 +338,6 @@ public final class Exec implements Closeable {
                     if (!process.waitFor(timeout, timeunit)) {
                         (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
                         process.destroy();
-                        // throw new TimeoutException();
                     }
                 }
             } catch (InterruptedException ie) {
@@ -379,7 +377,6 @@ public final class Exec implements Closeable {
     void setClosed() {
         if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
-
             final int exit = process == null ? -1 : process.exitValue();
             isClosed.set(true);
             if (wd != null) {
