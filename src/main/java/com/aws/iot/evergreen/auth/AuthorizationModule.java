@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Simple permission table which stores permissions. A permission is a
  * 4 value set of destination,principal,operation,resource.
  */
-public class AuthZModule {
+public class AuthorizationModule {
     ConcurrentHashMap<String, List<Permission>> permissions = new ConcurrentHashMap<>();
 
     /**
