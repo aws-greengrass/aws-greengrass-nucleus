@@ -49,6 +49,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     @Getter
     protected final Topics config;
+    private final Topics runtimeConfig;
 
     //TODO: make the field private
     @Getter
@@ -68,14 +69,24 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     // Service logger instance
     protected final Logger logger;
 
-
     /**
      * Constructor for EvergreenService.
      *
      * @param topics root Configuration topic for this service
      */
     public EvergreenService(Topics topics) {
+        this(topics, topics.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC));
+    }
+
+    /**
+     * Constructor for EvergreenService.
+     *
+     * @param topics        root Configuration topic for this service
+     * @param runtimeConfig root configuration topic for the service's runtime config
+     */
+    public EvergreenService(Topics topics, Topics runtimeConfig) {
         this.config = topics;
+        this.runtimeConfig = runtimeConfig;
         this.context = topics.getContext();
 
         // TODO: Validate syntax for lifecycle keywords and fail early
@@ -88,7 +99,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         this.externalDependenciesTopic =
                 topics.createLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).dflt(new ArrayList<String>());
         this.externalDependenciesTopic.withParentNeedsToKnow(false);
-        this.lifecycle = new Lifecycle(this, logger);
+        this.lifecycle = new Lifecycle(this, logger, runtimeConfig);
 
         initDependenciesTopic();
         periodicityInformation = Periodicity.of(this);
@@ -321,8 +332,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * @throws InputValidationException if the provided arguments are invalid.
      */
     public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService,
-                                                   DependencyType dependencyType,
-                                                   boolean isDefault) throws InputValidationException {
+                                                   DependencyType dependencyType, boolean isDefault)
+            throws InputValidationException {
         if (dependentEvergreenService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
@@ -454,12 +465,13 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Get the config topics for service local data-store during runtime.
-     * content under runtimeConfig will not be affected by DeploymentService or DeploymentService roll-back.
+     * Get the config topics for service local data-store during runtime. content under runtimeConfig will not be
+     * affected by DeploymentService or DeploymentService roll-back.
+     *
      * @return
      */
     public Topics getRuntimeConfig() {
-        return config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC);
+        return runtimeConfig;
     }
 
     protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)

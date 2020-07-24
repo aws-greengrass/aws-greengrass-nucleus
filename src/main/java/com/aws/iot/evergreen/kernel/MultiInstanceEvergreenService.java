@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import lombok.Getter;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import java.util.Set;
@@ -16,16 +17,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
-public abstract class MultiInstanceEvergreenService extends EvergreenService {
+public class MultiInstanceEvergreenService extends EvergreenService {
     protected static final int BASE_INSTANCE_ID = 0;
     public static final String INSTANCES_NAMESPACE_KEY = "instances";
-    private AtomicInteger lastInstanceId;
+    protected AtomicInteger lastInstanceId;
     @Getter
     private final int instanceId;
     private Map<Integer, MultiInstanceEvergreenService> instances;
 
     MultiInstanceEvergreenService(Topics topics, int instanceId) {
-        super(topics);
+        super(topics, topics.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC, INSTANCES_NAMESPACE_KEY,
+                String.valueOf(instanceId)));
         this.instanceId = instanceId;
 
         // Only allocate these objects when they're needed, which is when this is the base instance
@@ -37,7 +39,8 @@ public abstract class MultiInstanceEvergreenService extends EvergreenService {
     }
 
     /**
-     * Create a new sub-instance of this service. Must be called on the "base" service instance.
+     * Create a new sub-instance of this service. Must be called on the "base" service instance. Subclasses can choose
+     * to override this method if they have a different constructor than just {@link Topics} and {@code int}.
      *
      * @return the newly created instance
      * @throws ServiceLoadException thrown if not called on the base instance, or if constructing the new instance
@@ -48,8 +51,16 @@ public abstract class MultiInstanceEvergreenService extends EvergreenService {
             throw new ServiceLoadException("New instances may only be created from the base instance");
         }
         try {
-            return getClass().getConstructor(Topics.class, int.class)
-                    .newInstance(config, lastInstanceId.incrementAndGet());
+            int id = lastInstanceId.incrementAndGet();
+            Constructor<? extends MultiInstanceEvergreenService> constructor =
+                    getClass().getDeclaredConstructor(Topics.class, int.class);
+            constructor.setAccessible(true);
+            MultiInstanceEvergreenService newService = constructor.newInstance(config, id);
+            context.injectFields(newService);
+            context.get(Kernel.class).clearODcache(); // Must clear the cache because we've essentially added a new
+            // dependency; the newly created service
+            instances.put(id, newService);
+            return newService;
         } catch (NoSuchMethodException | InstantiationException
                 | IllegalAccessException | InvocationTargetException e) {
             throw new ServiceLoadException("Unable to create new instance of " + getClass().getName(), e);
@@ -91,12 +102,6 @@ public abstract class MultiInstanceEvergreenService extends EvergreenService {
             return super.getName();
         }
         return String.format("%s-%d", super.getName(), instanceId);
-    }
-
-    // Redirect runtime config to be instance-specific
-    @Override
-    public Topics getRuntimeConfig() {
-        return super.getRuntimeConfig().lookupTopics(INSTANCES_NAMESPACE_KEY, String.valueOf(instanceId));
     }
 
     // Override so that it adds all instances of the service into the dependency set
