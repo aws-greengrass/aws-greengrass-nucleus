@@ -26,6 +26,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -97,8 +98,7 @@ class GenericExternalServiceTest extends BaseITCase {
         });
 
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
-        kernel.locate("main").close()
-                .get(20, TimeUnit.SECONDS);
+        kernel.locate("main").close().get(20, TimeUnit.SECONDS);
     }
 
     @Test
@@ -254,8 +254,24 @@ class GenericExternalServiceTest extends BaseITCase {
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString());
 
-        GenericExternalService service = (GenericExternalService) kernel.locate("service_with_just_bootstrap");
+        GenericExternalService serviceWithJustBootstrap =
+                (GenericExternalService) kernel.locate("service_with_just_bootstrap");
 
-        System.out.println(service.bootstrap());
+        assertEquals(147, serviceWithJustBootstrap.bootstrap());
+
+        GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
+                (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");
+
+        try {
+            // this runs 2 minutes
+            serviceWithJustBootstrapAndShouldTimeout.bootstrap();
+            fail("Should timeout");
+        } catch (TimeoutException e) {
+            // success
+        }
+
+        GenericExternalService serviceWithJustBootstrapAndConfiguredTimeout =
+                (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_configured_timeout");
+        assertEquals(147, serviceWithJustBootstrapAndConfiguredTimeout.bootstrap());
     }
 }

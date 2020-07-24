@@ -95,7 +95,7 @@ public final class Exec implements Closeable {
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-    private Process process;
+    Process process;
     IntConsumer whenDone;
     Consumer<CharSequence> stdout = NOP;
     Consumer<CharSequence> stderr = NOP;
@@ -139,10 +139,6 @@ public final class Exec implements Closeable {
     public Exec logger(Logger logger) {
         this.logger = logger;
         return this;
-    }
-
-    public Process getProcess() {
-        return process;
     }
 
     public static String cmd(String... command) throws InterruptedException, IOException {

@@ -21,10 +21,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +41,7 @@ public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
     public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
+    public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
     public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
     public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
     public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
@@ -94,24 +97,63 @@ public class GenericExternalService extends EvergreenService {
     }
 
     /**
-     * Runs the command under 'bootstrap' as a foreground process and return exit code. It times out after 2 minutes.
+     * Runs the command under 'bootstrap' and returns the exit code. The timeout can be configured with 'timeout' field
+     * in seconds. If not configured, by default, it times out after 2 minutes.
      *
      * @return exit code of process; null if no bootstrap command found.
      * @throws InterruptedException when the command execution is interrupted.
      */
-    public synchronized Integer bootstrap() throws InterruptedException {
+    public synchronized Integer bootstrap() throws InterruptedException, TimeoutException {
         // this is redundant because all lifecycle processes should have been before calling this method.
         // stopping here again to be safer
         stopAllLifecycleProcesses();
 
-        // external handle
-        Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null, lifecycleProcesses).getRight();
+        CountDownLatch timeoutLatch = new CountDownLatch(1);
+
+        AtomicInteger atomicExitCode = new AtomicInteger();
+
+        // run the command at background thread so that the main thread can handle it when it times out
+        // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
+        // signature changes to deal with timeout, so we decided to go with background thread.
+        Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+            atomicExitCode.set(exitCode);
+            timeoutLatch.countDown();
+        }, lifecycleProcesses).getRight();
 
         if (exec == null) {
+            // no bootstrap command found
             return null;
         }
 
-        return exec.getProcess().exitValue();
+        // timeout handling
+        Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
+                TIMEOUT_NAMESPACE_TOPIC);
+
+        int timeoutInSec = timeoutTopic == null ? DEFAULT_BOOTSTRAP_TIMEOUT_SEC : Coerce.toInt(timeoutTopic);
+
+        try {
+            boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
+
+            if (!completedInTime) {
+                throw new TimeoutException("Bootstrap timed out");
+            }
+
+        } catch (InterruptedException e) {
+            // waiting thread gets interrupted and it should clean up the process
+            if (exec.isRunning()) {
+                try {
+                    exec.close();
+                } catch (IOException ex) {
+                    logger.atError("bootstrap-process-close-error").setCause(e)
+                            .addKeyValue("timeoutSeconds", timeoutInSec)
+                            .log("Error closing process after bootstrap step timed out");
+                }
+            }
+
+            throw e;
+        }
+
+        return atomicExitCode.get();
     }
 
     @Override
@@ -360,7 +402,8 @@ public class GenericExternalService extends EvergreenService {
         } catch (IOException e) {
             logger.atError().log("Error setting up to run {}", t.getFullName(), e);
             return new Pair<>(RunStatus.Errored, null);
-        } if (exec == null) {
+        }
+        if (exec == null) {
             return new Pair<>(RunStatus.NothingDone, null);
         }
         addEnv(exec, t.parent);
