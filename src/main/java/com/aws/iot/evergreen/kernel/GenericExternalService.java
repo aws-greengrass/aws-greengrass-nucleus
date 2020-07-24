@@ -97,7 +97,7 @@ public class GenericExternalService extends EvergreenService {
     }
 
     /**
-     * Runs the command under 'bootstrap' and returns the exit code. The timeout can be configured with 'timeout' field
+     * Run the command under 'bootstrap' and returns the exit code. The timeout can be configured with 'timeout' field
      * in seconds. If not configured, by default, it times out after 2 minutes.
      *
      * @return exit code of process; null if no bootstrap command found.
