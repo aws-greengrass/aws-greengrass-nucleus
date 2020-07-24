@@ -248,4 +248,14 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
     }
+
+    @Test
+    void GIVEN_bootstrap_command_WHEN_bootstrap_THEN_command_runs_and_returns_exit_code() throws Exception {
+        kernel = new Kernel();
+        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString());
+
+        GenericExternalService service = (GenericExternalService) kernel.locate("service_with_just_bootstrap");
+
+        System.out.println(service.bootstrap());
+    }
 }

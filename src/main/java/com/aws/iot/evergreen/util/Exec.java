@@ -21,6 +21,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -93,7 +94,8 @@ public final class Exec implements Closeable {
     }
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    Process process;
+
+    private Process process;
     IntConsumer whenDone;
     Consumer<CharSequence> stdout = NOP;
     Consumer<CharSequence> stderr = NOP;
@@ -137,6 +139,10 @@ public final class Exec implements Closeable {
     public Exec logger(Logger logger) {
         this.logger = logger;
         return this;
+    }
+
+    public Process getProcess() {
+        return process;
     }
 
     public static String cmd(String... command) throws InterruptedException, IOException {
@@ -337,6 +343,7 @@ public final class Exec implements Closeable {
                     if (!process.waitFor(timeout, timeunit)) {
                         (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
                         process.destroy();
+                        // throw new TimeoutException();
                     }
                 }
             } catch (InterruptedException ie) {
@@ -376,6 +383,7 @@ public final class Exec implements Closeable {
     void setClosed() {
         if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
+
             final int exit = process == null ? -1 : process.exitValue();
             isClosed.set(true);
             if (wd != null) {

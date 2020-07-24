@@ -1,0 +1,9 @@
+services:
+  main:
+    dependencies:
+      - service_with_just_bootstrap
+  service_with_just_bootstrap:
+    lifecycle:
+      bootstrap:
+        posix: sleep 121; exit 147
+        windows: powershell -command echo \"exit 147\"

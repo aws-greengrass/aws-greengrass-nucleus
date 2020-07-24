@@ -29,6 +29,9 @@ import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -66,12 +69,12 @@ public class GenericExternalService extends EvergreenService {
             }
 
             logger.atInfo("service-config-change").kv("configNode", child.getFullName()).log();
-            if (child.childOf("shutdown")) {
+            if (child.childOf(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC)) {
                 return;
             }
 
             // Reinstall for changes to the install script or if the package version changed
-            if (child.childOf("install") || child.childOf(VERSION_CONFIG_KEY)) {
+            if (child.childOf(LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)) {
                 requestReinstall();
                 return;
             }
@@ -90,11 +93,32 @@ public class GenericExternalService extends EvergreenService {
                 : "exit(" + ((exitCode << 24) >> 24) + ")";
     }
 
+    /**
+     * Runs the command under 'bootstrap' as a foreground process and return exit code. It times out after 2 minutes.
+     *
+     * @return exit code of process; null if no bootstrap command found.
+     * @throws InterruptedException when the command execution is interrupted.
+     */
+    public synchronized Integer bootstrap() throws InterruptedException {
+        // this is redundant because all lifecycle processes should have been before calling this method.
+        // stopping here again to be safer
+        stopAllLifecycleProcesses();
+
+        // external handle
+        Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null, lifecycleProcesses).getRight();
+
+        if (exec == null) {
+            return null;
+        }
+
+        return exec.getProcess().exitValue();
+    }
+
     @Override
     public synchronized void install() throws InterruptedException {
         stopAllLifecycleProcesses();
 
-        if (run("install", null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
+        if (run(LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
     }
@@ -187,7 +211,7 @@ public class GenericExternalService extends EvergreenService {
     public synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
         try {
-            run("shutdown", null, lifecycleProcesses);
+            run(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
             return;
@@ -305,8 +329,9 @@ public class GenericExternalService extends EvergreenService {
     /**
      * Run one of the commands defined in the config on the command line.
      *
-     * @param name         name of the command to run ("run", "install", "start").
-     * @param background   IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
+     * @param name         name of the command to run ("run", "install", "startup", "bootstrap").
+     * @param background   IntConsumer to receive the exit code. If null, the command will run as a foreground process
+     *                     and timeout after 2 minutes.
      * @param trackingList List used to track running processes.
      * @return the status of the run and the Exec.
      */
@@ -335,8 +360,7 @@ public class GenericExternalService extends EvergreenService {
         } catch (IOException e) {
             logger.atError().log("Error setting up to run {}", t.getFullName(), e);
             return new Pair<>(RunStatus.Errored, null);
-        }
-        if (exec == null) {
+        } if (exec == null) {
             return new Pair<>(RunStatus.NothingDone, null);
         }
         addEnv(exec, t.parent);
