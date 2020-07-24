@@ -145,7 +145,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             mockGroupToRootPackageMappingStubs();
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             CountDownLatch jobSucceededLatch = new CountDownLatch(1);
             doAnswer(new Answer() {
                 @Override
@@ -163,7 +163,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
 
-            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             jobSucceededLatch.await(10, TimeUnit.SECONDS);
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
@@ -190,10 +190,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             Throwable t = new NonRetryableDeploymentTaskFailureException(null);
             mockFutureWithException.completeExceptionally(t);
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFutureWithException);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFutureWithException);
             startDeploymentServiceInAnotherThread();
 
-            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
@@ -208,10 +208,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(
                     new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, null));
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();
 
-            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
@@ -224,10 +224,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                 throws Exception {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_COMPLETE, null));
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();
 
-            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS),
                     any());
@@ -242,10 +242,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture
                     .complete(new DeploymentResult(DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, null));
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();
 
-            verify(mockExecutorService, timeout(1000)).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS),
                     any());
@@ -263,7 +263,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             ignoreExceptionUltimateCauseOfType(context, RetryableDeploymentTaskFailureException.class);
             Throwable t = new RetryableDeploymentTaskFailureException(null);
             mockFutureWithException.completeExceptionally(t);
-            when(mockExecutorService.submit(any(DeploymentTask.class)))
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class)))
                     .thenReturn(mockFutureWithException, mockFutureWithException,
                             mockFuture);
             CountDownLatch jobSuceededLatch = new CountDownLatch(1);
@@ -280,7 +280,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             startDeploymentServiceInAnotherThread();
             // Expecting three invocations, once for each retry attempt
-            verify(mockExecutorService, WAIT_FOUR_SECONDS.times(3)).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, WAIT_FOUR_SECONDS.times(3)).submit(any(DefaultDeploymentTask.class));
             InOrder statusOrdering = inOrder(deploymentStatusKeeper);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
@@ -293,7 +293,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
                 throws Exception {
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(true);
             startDeploymentServiceInAnotherThread();
 
@@ -301,7 +301,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
             // Expecting three invocations, once for each retry attempt
-            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
             verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
@@ -313,7 +313,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
                 throws Exception {
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(false);
             startDeploymentServiceInAnotherThread();
 
@@ -321,7 +321,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
             // Expecting three invocations, once for each retry attempt
-            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
@@ -332,7 +332,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
                 throws Exception {
-            when(mockExecutorService.submit(any(DeploymentTask.class))).thenReturn(mockFuture);
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();
 
             CountDownLatch cdl = new CountDownLatch(1);
@@ -353,7 +353,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
 
             // Expecting three invocations, once for each retry attempt
-            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DeploymentTask.class));
+            verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(mockSafeUpdateService, times(0)).discardPendingUpdateAction(any());
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),

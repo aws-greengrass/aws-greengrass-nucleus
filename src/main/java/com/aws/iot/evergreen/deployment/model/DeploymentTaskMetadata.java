@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.deployment.model;
 
-import com.aws.iot.evergreen.deployment.DeploymentTask;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
@@ -23,6 +22,8 @@ public class DeploymentTaskMetadata {
     private AtomicInteger deploymentAttemptCount;
     @NonNull @Getter
     private DeploymentDocument deploymentDocument;
+    @NonNull @Getter
+    private boolean cancellable;
 
     @Synchronized
     public void setDeploymentResultFuture(Future<DeploymentResult> deploymentResultFuture) {
@@ -33,4 +34,5 @@ public class DeploymentTaskMetadata {
     public Future<DeploymentResult> getDeploymentResultFuture() {
         return deploymentResultFuture;
     }
+
 }
