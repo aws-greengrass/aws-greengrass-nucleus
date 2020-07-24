@@ -48,17 +48,17 @@ public class AuthorizationHandler {
     }
 
     /**
-     * Check if the combination of destination, principle, operation and resource is allowed.
-     * A scenario where this method is called is for a request which originates from {@code principle}
+     * Check if the combination of destination, principal, operation and resource is allowed.
+     * A scenario where this method is called is for a request which originates from {@code principal}
      * service destined for {@code destination} service, which needs access to {@code resource}
      * using API {@code operation}.
      * @param destination Destination service which is being accessed.
-     * @param permission container for principle, operation and resource
+     * @param permission container for principal, operation and resource
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
     public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
-        String principle = permission.getPrinciple();
+        String principal = permission.getPrincipal();
         String operation = permission.getOperation();
         String resource = permission.getResource();
         // If the operation is not registered with the destination service, then fail
@@ -67,11 +67,11 @@ public class AuthorizationHandler {
         // Lookup all possible allow configurations starting from most specific to least
         // This helps for access logs, as customer can figure out which policy is being hit.
         String[][] combinations = {
-                {destination, principle, operation, resource},
-                {destination, principle, operation, ANY_REGEX},
-                {destination, principle, ANY_REGEX, resource},
+                {destination, principal, operation, resource},
+                {destination, principal, operation, ANY_REGEX},
+                {destination, principal, ANY_REGEX, resource},
                 {destination, ANY_REGEX, operation, resource},
-                {destination, principle, ANY_REGEX, ANY_REGEX},
+                {destination, principal, ANY_REGEX, ANY_REGEX},
                 {destination, ANY_REGEX, operation, ANY_REGEX},
                 {destination, ANY_REGEX, ANY_REGEX, resource},
                 {destination, ANY_REGEX, ANY_REGEX, ANY_REGEX},
@@ -80,11 +80,11 @@ public class AuthorizationHandler {
         for (String[] combination: combinations) {
             if (authModule.isPresent(combination[0],
                     Permission.builder()
-                            .principle(combination[1])
+                            .principal(combination[1])
                             .operation(combination[2])
                             .resource(combination[3])
                             .build())) {
-                logger.atDebug().log("Hit policy with principle {}, operation {}, resource {}",
+                logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
                         combination[1],
                         combination[2],
                         combination[3]);
@@ -92,8 +92,8 @@ public class AuthorizationHandler {
             }
         }
         throw new AuthorizationException(
-                String.format("Principle %s is not authorized to perform %s:%s on resource %s",
-                        principle,
+                String.format("Principal %s is not authorized to perform %s:%s on resource %s",
+                        principal,
                         destination,
                         operation,
                         resource));
@@ -125,7 +125,7 @@ public class AuthorizationHandler {
 
     /**
      * Loads authZ policies for future auth lookups. The policies should not have confidential
-     * values. This method assumes that the service names for principle and destination,
+     * values. This method assumes that the service names for principal and destination,
      * the operations and resources must not be secret and can be logged or shared if required.
      * @param serviceName Destination service which intents to supply auth policies
      * @param policies policies which has list of policies. All policies are treated as separate
@@ -146,14 +146,14 @@ public class AuthorizationHandler {
         isServiceRegistered(serviceName);
 
         validatePolicyId(policies);
-        // First validate if all principles and operations are valid
+        // First validate if all principals and operations are valid
         for (AuthorizationPolicy policy: policies) {
-            validatePrinciples(policy);
+            validatePrincipals(policy);
             validateOperations(serviceName, policy);
         }
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy: policies) {
-            addPermission(serviceName, policy.getPrinciples(), policy.getOperations(), policy.getResources());
+            addPermission(serviceName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
         }
         this.serviceToAuthZConfig.put(serviceName, policies);
     }
@@ -201,36 +201,36 @@ public class AuthorizationHandler {
         }
     }
 
-    private void validatePrinciples(AuthorizationPolicy policy) throws AuthorizationException {
-        Set<String> principles = policy.getPrinciples();
-        if (Utils.isEmpty(principles)) {
-            throw new AuthorizationException("Malformed policy with invalid/empty principle: " + policy.getPolicyId());
+    private void validatePrincipals(AuthorizationPolicy policy) throws AuthorizationException {
+        Set<String> principals = policy.getPrincipals();
+        if (Utils.isEmpty(principals)) {
+            throw new AuthorizationException("Malformed policy with invalid/empty principal: " + policy.getPolicyId());
         }
-        // check if principle is a valid EG service
-        List<String> unknownSources = principles.stream().filter(s -> !s.equals(ANY_REGEX)).filter(s ->
+        // check if principal is a valid EG service
+        List<String> unknownSources = principals.stream().filter(s -> !s.equals(ANY_REGEX)).filter(s ->
                 kernel.findServiceTopic(s) == null).collect(Collectors.toList());
 
         if (!unknownSources.isEmpty()) {
             throw new AuthorizationException(
-                    String.format("Principle %s in auth policy are not valid services", unknownSources));
+                    String.format("Principal %s in auth policy are not valid services", unknownSources));
         }
     }
 
     private void addPermission(String destination,
-                               Set<String> principles,
+                               Set<String> principals,
                                Set<String> operations,
                                Set<String> resources) throws AuthorizationException {
         // Method assumes that all inputs are valid now
-        for (String principle: principles) {
+        for (String principal: principals) {
             for (String operation: operations) {
                 if (resources == null || resources.isEmpty()) {
                     authModule.addPermission(destination,
-                            Permission.builder().principle(principle).operation(operation).resource(null).build());
+                            Permission.builder().principal(principal).operation(operation).resource(null).build());
                 } else {
                     for (String resource : resources) {
                         authModule.addPermission(destination,
                                 Permission.builder()
-                                        .principle(principle)
+                                        .principal(principal)
                                         .operation(operation)
                                         .resource(resource)
                                         .build());
