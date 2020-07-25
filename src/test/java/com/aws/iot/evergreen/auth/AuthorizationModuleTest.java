@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(EGExtension.class)
-public class AuthZModuleTest {
+public class AuthorizationModuleTest {
 
     private static Stream<Arguments> permissionEntries() {
         return Stream.of(
@@ -48,7 +48,7 @@ public class AuthZModuleTest {
                                                                   String principal,
                                                                   String op,
                                                                   String resource) {
-        AuthZModule module = new AuthZModule();
+        AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         assertThrows(AuthorizationException.class, () -> module.addPermission(destination, permission));
     }
@@ -59,7 +59,7 @@ public class AuthZModuleTest {
                                                                   String principal,
                                                                   String op,
                                                                   String resource) throws AuthorizationException {
-        AuthZModule module = new AuthZModule();
+        AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         module.addPermission(destination, permission);
         assertTrue(module.isPresent(destination, permission));
@@ -67,7 +67,7 @@ public class AuthZModuleTest {
 
     @Test
     void Given_authZmodule_WHEN_added_entries_successively_THEN_retrieve_works() {
-        AuthZModule module = new AuthZModule();
+        AuthorizationModule module = new AuthorizationModule();
         permissionEntries().forEach(entry -> {
             String destination = (String)entry.get()[0];
             String principal = (String)entry.get()[1];
