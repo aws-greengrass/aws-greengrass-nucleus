@@ -9,7 +9,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
-import com.aws.iot.evergreen.ipc.AuthNHandler;
+import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
@@ -48,7 +48,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     IotConnectionManager mockIotConnectionManager;
 
     @Mock
-    AuthNHandler mockAuthNHandler;
+    AuthenticationHandler mockAuthNHandler;
 
     @Mock
     AuthorizationHandler mockAuthZHandler;

@@ -26,11 +26,11 @@ import static com.aws.iot.evergreen.ipc.common.ResponseHelper.sendResponse;
 
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthNHandler implements InjectionActions {
+public class AuthenticationHandler implements InjectionActions {
     public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
     public static final String SERVICE_UNIQUE_ID_KEY = "_UID";
     public static final int AUTH_API_VERSION = 1;
-    private static final Logger logger = LogManager.getLogger(AuthNHandler.class);
+    private static final Logger logger = LogManager.getLogger(AuthenticationHandler.class);
 
     @Inject
     private Configuration config;
@@ -75,7 +75,7 @@ public class AuthNHandler implements InjectionActions {
         } catch (IOException e) {
             throw new UnauthenticatedException("Fail to decode Auth message", e);
         }
-        String serviceName = doAuthN(authRequest.getAuthToken());
+        String serviceName = doAuthentication(authRequest.getAuthToken());
         return new ConnectionContext(serviceName, remoteAddress, router);
     }
 
@@ -85,16 +85,16 @@ public class AuthNHandler implements InjectionActions {
      * @return service name to which the token is associated.
      * @throws UnauthenticatedException if token is invalid or unassociated.
      */
-    public String doAuthN(String authToken) throws UnauthenticatedException {
+    public String doAuthentication(String authToken) throws UnauthenticatedException {
         if (authToken == null) {
             throw new UnauthenticatedException("Invalid auth token");
         }
-        String serviceName = (String) config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC,
-                AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
-        if (serviceName == null) {
+        Topic service = config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                AUTH_TOKEN_LOOKUP_KEY, authToken);
+        if (service == null) {
             throw new UnauthenticatedException("Auth token not found");
         }
-        return serviceName;
+        return (String) service.getOnce();
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")

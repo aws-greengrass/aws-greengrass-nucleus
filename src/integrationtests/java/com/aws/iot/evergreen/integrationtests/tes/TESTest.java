@@ -1,14 +1,11 @@
 package com.aws.iot.evergreen.integrationtests.tes;
 
-import com.aws.iot.evergreen.config.Node;
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
-import com.aws.iot.evergreen.ipc.AuthNHandler;
-import com.aws.iot.evergreen.ipc.services.auth.Auth;
+import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -24,8 +21,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -96,7 +91,7 @@ class TESTest extends BaseITCase {
         URL url = new URL(urlString);
 
         // Get the first token from the token map
-        String token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthNHandler.AUTH_TOKEN_LOOKUP_KEY).iterator().next().getName();
+        String token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY).iterator().next().getName();
         assertNotNull(token);
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");

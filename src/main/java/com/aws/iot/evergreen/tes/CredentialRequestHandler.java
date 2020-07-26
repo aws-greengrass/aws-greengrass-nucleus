@@ -9,7 +9,7 @@ import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
-import com.aws.iot.evergreen.ipc.AuthNHandler;
+import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -44,7 +44,7 @@ public class CredentialRequestHandler implements HttpHandler {
     private String iotCredentialsPath;
 
     private final IotCloudHelper iotCloudHelper;
-    private final AuthNHandler authNHandler;
+    private final AuthenticationHandler authNHandler;
     private final AuthorizationHandler authZHandler;
 
     private final IotConnectionManager iotConnectionManager;
@@ -53,17 +53,17 @@ public class CredentialRequestHandler implements HttpHandler {
      * Constructor.
      * @param cloudHelper {@link IotCloudHelper} for making http requests to cloud.
      * @param connectionManager {@link IotConnectionManager} underlying connection manager for cloud.
-     * @param authNHandler {@link AuthNHandler} authN module for authenticating requests.
+     * @param authenticationHandler {@link AuthenticationHandler} authN module for authenticating requests.
      * @param authZHandler {@link AuthorizationHandler} authZ module for authorizing requests.
      */
     @Inject
     public CredentialRequestHandler(final IotCloudHelper cloudHelper,
                                     final IotConnectionManager connectionManager,
-                                    final AuthNHandler authNHandler,
+                                    final AuthenticationHandler authenticationHandler,
                                     final AuthorizationHandler authZHandler) {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
-        this.authNHandler = authNHandler;
+        this.authNHandler = authenticationHandler;
         this.authZHandler = authZHandler;
     }
 
@@ -142,7 +142,7 @@ public class CredentialRequestHandler implements HttpHandler {
     private void doAuth(final HttpExchange exchange) throws UnauthenticatedException, AuthorizationException {
         // if header is not present, then authToken would be null and authNhandler would throw
         String authNToken = exchange.getRequestHeaders().getFirst(AUTH_HEADER);
-        String clientService = authNHandler.doAuthN(authNToken);
+        String clientService = authNHandler.doAuthentication(authNToken);
         authZHandler.isAuthorized(
                 TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS,
                 Permission.builder()

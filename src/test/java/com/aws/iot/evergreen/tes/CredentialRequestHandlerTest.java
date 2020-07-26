@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
-import com.aws.iot.evergreen.ipc.AuthNHandler;
+import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -54,7 +54,7 @@ public class CredentialRequestHandlerTest {
     IotCloudHelper mockCloudHelper;
 
     @Mock
-    AuthNHandler mockAuthNHandler;
+    AuthenticationHandler mockAuthNHandler;
 
     @Mock
     AuthorizationHandler mockAuthZHandler;
@@ -78,7 +78,7 @@ public class CredentialRequestHandlerTest {
                 mockAuthNHandler,
                 mockAuthZHandler);
         handler.setIotCredentialsPath(ROLE_ALIAS);
-        when(mockAuthNHandler.doAuthN(anyString())).thenReturn("ServiceA");
+        when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         HttpExchange mockExchange = mock(HttpExchange.class);
         OutputStream mockStream = mock(OutputStream.class);
         Headers mockHeaders = mock(Headers.class);
@@ -107,7 +107,7 @@ public class CredentialRequestHandlerTest {
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
-        when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenReturn("ComponentA");
+        when(mockAuthNHandler.doAuthentication(AUTHN_TOKEN)).thenReturn("ComponentA");
 
         when(mockAuthZHandler.isAuthorized(any(), any())).thenThrow(AuthorizationException.class);
         handler.handle(mockExchange);
@@ -130,7 +130,7 @@ public class CredentialRequestHandlerTest {
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
-        when(mockAuthNHandler.doAuthN(AUTHN_TOKEN)).thenThrow(UnauthenticatedException.class);
+        when(mockAuthNHandler.doAuthentication(AUTHN_TOKEN)).thenThrow(UnauthenticatedException.class);
 
         handler.handle(mockExchange);
         int expectedStatus = 403;

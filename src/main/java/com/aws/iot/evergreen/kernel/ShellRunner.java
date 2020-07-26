@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.AuthNHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public interface ShellRunner {

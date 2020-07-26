@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 public class IPCChannelHandlerTest {
     public static final String ERROR_MESSAGE = "AAAAAAH!";
     @Mock
-    AuthNHandler mockAuth;
+    AuthenticationHandler mockAuth;
     @Mock
     IPCRouter ipcRouter;
     @Mock

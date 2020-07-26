@@ -37,7 +37,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     private static final Logger logger = LogManager.getLogger(IPCChannelHandler.class);
 
     @Inject
-    private AuthNHandler auth;
+    private AuthenticationHandler auth;
 
     @Inject
     private IPCRouter router;

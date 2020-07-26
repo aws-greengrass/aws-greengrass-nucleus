@@ -76,13 +76,13 @@ public class TokenExchangeService extends EvergreenService {
         try {
             authZHandler.registerService(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
             authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
-            reportState(State.RUNNING);
             validateConfig();
             server = new HttpServerImpl(port, credentialRequestHandler);
             credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
             server.start();
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
+            reportState(State.RUNNING);
         } catch (IOException | IllegalArgumentException | AuthorizationException e) {
             serviceErrored(e.toString());
         }
