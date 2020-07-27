@@ -123,10 +123,11 @@ public class Lifecycle {
      *
      * @param evergreenService service that this is the lifecycle for
      * @param logger           service's logger
+     * @param topics           config namespace for storing the state topic
      */
-    public Lifecycle(EvergreenService evergreenService, Logger logger) {
+    public Lifecycle(EvergreenService evergreenService, Logger logger, Topics topics) {
         this.evergreenService = evergreenService;
-        this.stateTopic = initStateTopic(evergreenService.getConfig());
+        this.stateTopic = initStateTopic(topics);
         this.logger = logger;
     }
 
