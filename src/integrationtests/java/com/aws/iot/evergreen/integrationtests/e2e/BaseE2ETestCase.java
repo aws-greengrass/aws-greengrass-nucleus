@@ -210,8 +210,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         for (String cloudPkgName: componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
-            content = content.replaceAll(localPkgName + "\n", cloudPkgName + "\n");
-            content = content.replaceAll(localPkgName + ":", cloudPkgName + ":");
+            content = content.replaceAll("\\{\\{" + localPkgName + "}}", cloudPkgName);
         }
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));

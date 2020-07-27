@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-ComponentName: CustomerApp
+ComponentName: {{CustomerApp}}
 Description: A customer app
 Publisher: Me
 Version: '1.0.0'
@@ -20,5 +20,5 @@ Lifecycle:
       echo "Hello evergreen. {{params:sampleText.value}}"
 Dependencies:
   all:
-    Mosquitto:
+    {{Mosquitto}}:
       VersionRequirements: 1.0.0
