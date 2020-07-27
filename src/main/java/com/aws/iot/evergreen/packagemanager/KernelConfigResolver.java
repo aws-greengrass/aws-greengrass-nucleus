@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.util.Utils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Kernel.SERVICE_CLASS_TOPIC_KEY;
 
 public class KernelConfigResolver {
 
@@ -102,6 +104,10 @@ public class KernelConfigResolver {
                     interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
+
+        if (!Utils.isEmpty(packageRecipe.getClassName())) {
+            resolvedServiceConfig.put(SERVICE_CLASS_TOPIC_KEY, packageRecipe.getClassName());
+        }
 
         // Generate dependencies
         List<String> dependencyConfig = new ArrayList<>();

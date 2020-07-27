@@ -1,0 +1,7 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: ClassService
+Description: Directly creates a raw EvergreenService instead of a GenericExternalService
+Publisher: Me
+Version: '1.0.0'
+Class: com.aws.iot.evergreen.kernel.EvergreenService

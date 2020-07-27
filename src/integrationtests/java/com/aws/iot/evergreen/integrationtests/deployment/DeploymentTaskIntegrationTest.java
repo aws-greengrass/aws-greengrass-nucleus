@@ -191,6 +191,9 @@ class DeploymentTaskIntegrationTest {
         assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
                 Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
         Slf4jLogAdapter.removeGlobalListener(listener);
+
+        // Check that ClassService is a raw EvergreenService and not a GenericExternalService
+        assertEquals(EvergreenService.class, kernel.locate("ClassService").getClass());
     }
 
     @Test

@@ -63,6 +63,7 @@ public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
 
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
+    public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     @Getter
     private final Context context;
     @Getter
@@ -281,7 +282,7 @@ public class Kernel {
 
             Class<?> clazz = null;
             if (serviceRootTopics != null) {
-                Node n = serviceRootTopics.findLeafChild("class");
+                Node n = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
 
                 if (n != null) {
                     String cn = Coerce.toString(n);
