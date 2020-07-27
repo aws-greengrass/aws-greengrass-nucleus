@@ -41,7 +41,7 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         // THEN
         // verify config
         Assertions.assertSame(config, evergreenService.config);
-        Mockito.verify(runtimeStoreTopic).createLeafChild(STATE_TOPIC_NAME);
+        Mockito.verify(privateStoreTopic).createLeafChild(STATE_TOPIC_NAME);
 
         // verify stateTopic
         Mockito.verify(stateTopic).withParentNeedsToKnow(false);
