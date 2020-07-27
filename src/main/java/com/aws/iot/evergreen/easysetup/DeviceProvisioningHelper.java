@@ -8,6 +8,7 @@ import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.CommitableFile;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
@@ -220,9 +221,10 @@ public class DeviceProvisioningHelper {
      * @param thing     thing info
      * @param awsRegion aws region
      * @throws IOException Exception while reading root CA from file
+     * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion)
-            throws IOException {
+            throws IOException, DeviceConfigurationException {
         Path rootDir = kernel.getRootPath();
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");

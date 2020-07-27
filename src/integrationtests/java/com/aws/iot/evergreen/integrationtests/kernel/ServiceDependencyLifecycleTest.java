@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
+import com.aws.iot.evergreen.integrationtests.kernel.KernelTest.ExpectedStateTransition;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -68,16 +69,16 @@ public class ServiceDependencyLifecycleTest {
 
     @SuppressWarnings({"PMD.LooseCoupling", "PMD.CloseResource"})
     private static void testRoutine(long timeoutSeconds, Kernel kernel, Crashable action, String actionName,
-                                    LinkedList<KernelTest.ExpectedStateTransition> expectedStateTransitions,
-                                    Set<KernelTest.ExpectedStateTransition> unexpectedStateTransitions)
+                                    LinkedList<ExpectedStateTransition> expectedStateTransitions,
+                                    Set<ExpectedStateTransition> unexpectedStateTransitions)
             throws Throwable {
         Context context = kernel.getContext();
         CountDownLatch assertionLatch = new CountDownLatch(1);
-        List<KernelTest.ExpectedStateTransition> unexpectedSeenInOrder = new LinkedList<>();
+        List<ExpectedStateTransition> unexpectedSeenInOrder = new LinkedList<>();
 
         GlobalStateChangeListener listener = (EvergreenService service, State oldState, State newState) -> {
             if (!expectedStateTransitions.isEmpty()) {
-                KernelTest.ExpectedStateTransition expected = expectedStateTransitions.peek();
+                ExpectedStateTransition expected = expectedStateTransitions.peek();
 
                 if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
                         .equals(expected.current)) {
@@ -88,7 +89,7 @@ public class ServiceDependencyLifecycleTest {
                     assertionLatch.countDown();
                 }
             }
-            KernelTest.ExpectedStateTransition actual = new KernelTest.ExpectedStateTransition(service.getName(),
+            ExpectedStateTransition actual = new ExpectedStateTransition(service.getName(),
                     oldState, newState);
             logger.atInfo().kv("actual", actual).log("Actual state event");
             if (unexpectedStateTransitions.contains(actual)) {
@@ -115,6 +116,36 @@ public class ServiceDependencyLifecycleTest {
         logger.atWarn().log("End of " + actionName);
     }
 
+    @SuppressWarnings({"PMD.CloseResource"})
+    private static void testStateTransitionsInNoOrder(long timeoutSeconds, Kernel kernel, Crashable action,
+                                                      String actionName,
+                                                      Set<ExpectedStateTransition> expectedStateTransitions)
+            throws Throwable {
+        Context context = kernel.getContext();
+        CountDownLatch assertionLatch = new CountDownLatch(expectedStateTransitions.size());
+
+        GlobalStateChangeListener listener = (EvergreenService service, State oldState, State newState) -> {
+            for (ExpectedStateTransition est : expectedStateTransitions) {
+                if(service.getName().equals(est.serviceName) && oldState == est.was && newState == est.current) {
+                    logger.atInfo().kv("expected", est).log("Just saw expected state transition");
+                    assertionLatch.countDown();
+                } else {
+                    ExpectedStateTransition other = new ExpectedStateTransition(service.getName(),
+                            oldState, newState);
+                    logger.atInfo().kv("other", other).log("Saw other state transition event");
+                }
+            }
+        };
+        context.addGlobalStateChangeListener(listener);
+        action.run();
+        assertionLatch.await(timeoutSeconds, TimeUnit.SECONDS);
+        context.removeGlobalStateChangeListener(listener);
+
+        if(assertionLatch.getCount() != 0) {
+            fail("Did not see all the expected state transitions for action " + actionName);
+        }
+    }
+
     @Test
     void GIVEN_hard_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_impacted()
             throws Throwable {
@@ -123,23 +154,22 @@ public class ServiceDependencyLifecycleTest {
         kernel = new Kernel().parseArgs("-i", configFile.toString());
 
         // WHEN_kernel_launch_THEN_customer_app_starts_after_hard_dependency_is_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.NEW, State.INSTALLED),
-                        new KernelTest.ExpectedStateTransition(HardDependency, State.NEW, State.INSTALLED),
-                        new KernelTest.ExpectedStateTransition(HardDependency, State.INSTALLED, State.STARTING),
-                        new KernelTest.ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING),
-                        new KernelTest.ExpectedStateTransition("main", State.STARTING, State.FINISHED)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedDuringLaunch, Collections.emptySet());
+        LinkedList<ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(
+                Arrays.asList(
+                        new ExpectedStateTransition(HardDependency, State.INSTALLED, State.STARTING),
+                        new ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition("main", State.STOPPING, State.FINISHED)));
 
+        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launched", expectedDuringLaunch, Collections.emptySet());
 
         // WHEN_dependency_removed_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(HardDependency, State.RUNNING, State.STOPPING)));
-        Set<KernelTest.ExpectedStateTransition> unexpectedDepRemoved = new HashSet<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
+        LinkedList<ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(HardDependency, State.RUNNING, State.STOPPING)));
+        Set<ExpectedStateTransition> unexpectedDepRemoved = new HashSet<>(
+                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
 
         Map<Object, Object> configRemoveDep = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
@@ -164,9 +194,9 @@ public class ServiceDependencyLifecycleTest {
 
 
         // WHEN_dependency_added_THEN_customer_app_restarts
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepAdded = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDepAdded = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
         Map<Object, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
 
@@ -181,45 +211,45 @@ public class ServiceDependencyLifecycleTest {
 
 
         // WHEN_dependency_errored_THEN_customer_app_restarts
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDuringDepError = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(HardDependency, State.RUNNING, State.ERRORED),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDuringDepError = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(HardDependency, State.RUNNING, State.ERRORED),
+                        new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(HardDependency).serviceErrored("mock dependency error"),
                 "dependency errored", expectedDuringDepError, Collections.emptySet());
 
 
         // WHEN_dependency_stops_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepFinish = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(HardDependency, State.STOPPING, State.FINISHED)));
-        Set<KernelTest.ExpectedStateTransition> unexpectedDepFinish = new HashSet<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
+        LinkedList<ExpectedStateTransition> expectedDepFinish = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(HardDependency, State.STOPPING, State.FINISHED)));
+        Set<ExpectedStateTransition> unexpectedDepFinish = new HashSet<>(
+                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
         testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(HardDependency).requestStop(), "dependency stop", expectedDepFinish,
                 unexpectedDepFinish);
 
 
         // WHEN_dependency_restarts_THEN_customer_app_restarts
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepRestart = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDepRestart = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(HardDependency).requestRestart(), "dependency restart",
                 expectedDepRestart, Collections.emptySet());
 
 
         // WHEN_dependency_reinstalled_THEN_customer_app_restarts
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepReinstall = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(HardDependency, State.NEW, State.INSTALLED),
-                        new KernelTest.ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDepReinstall = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(HardDependency, State.NEW, State.INSTALLED),
+                        new ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(HardDependency).requestReinstall(), "dependency reinstall",
                 expectedDepReinstall, Collections.emptySet());
 
 
         // WHEN_kernel_shutdown_THEN_hard_dependency_waits_for_customer_app_to_close
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDuringShutdown = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED),
-                        new KernelTest.ExpectedStateTransition(HardDependency, State.STOPPING, State.FINISHED)));
+        LinkedList<ExpectedStateTransition> expectedDuringShutdown = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED),
+                        new ExpectedStateTransition(HardDependency, State.STOPPING, State.FINISHED)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::shutdown, "kernel shutdown", expectedDuringShutdown, Collections.emptySet());
     }
 
@@ -230,22 +260,22 @@ public class ServiceDependencyLifecycleTest {
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         kernel = new Kernel().parseArgs("-i", configFile.toString());
 
-        Set<KernelTest.ExpectedStateTransition> unexpectedDuringAllSoftDepChange = new HashSet<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
+        Set<ExpectedStateTransition> unexpectedDuringAllSoftDepChange = new HashSet<>(
+                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
 
-        // WHEN_kernel_launch_THEN_customer_app_starts_independently_from_soft_dependency
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.NEW, State.INSTALLED),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
-                        new KernelTest.ExpectedStateTransition(SoftDependency, State.INSTALLED, State.STARTING),
-                        new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedDuringLaunch, Collections.emptySet());
+        HashSet<ExpectedStateTransition> expectedStateTransitions = new HashSet<>(
+          Arrays.asList(new ExpectedStateTransition(CustomerApp, State.NEW, State.INSTALLED),
+                  new ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
+                  new ExpectedStateTransition(SoftDependency, State.INSTALLED, State.STARTING),
+                  new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
+                  new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
+        testStateTransitionsInNoOrder(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedStateTransitions);
 
         // WHEN_dependency_removed_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.RUNNING, State.STOPPING)));
+        LinkedList<ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.RUNNING, State.STOPPING)));
 
         Map<Object, Object> configRemoveDep = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
@@ -270,10 +300,10 @@ public class ServiceDependencyLifecycleTest {
 
 
         // WHEN_dependency_added_THEN_customer_app_restarts
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepAdded = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDepAdded = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
         Map<Object, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
 
@@ -287,39 +317,39 @@ public class ServiceDependencyLifecycleTest {
 
 
         // WHEN_dependency_errored_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDuringDepError = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.RUNNING, State.ERRORED),
-                        new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDuringDepError = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.RUNNING, State.ERRORED),
+                        new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
         testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).serviceErrored("mock dependency error"),
                 "dependency errored", expectedDuringDepError, unexpectedDuringAllSoftDepChange);
 
 
         // WHEN_dependency_stops_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepFinish = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED)));
+        LinkedList<ExpectedStateTransition> expectedDepFinish = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestStop(), "dependency stop", expectedDepFinish,
                 unexpectedDuringAllSoftDepChange);
 
 
         // WHEN_dependency_restarts_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepRestart = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDepRestart = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestRestart(), "dependency restart",
                 expectedDepRestart, unexpectedDuringAllSoftDepChange);
 
 
         // WHEN_dependency_reinstalled_THEN_customer_app_stays_running
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDepReinstall = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.NEW, State.INSTALLED),
-                        new KernelTest.ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
+        LinkedList<ExpectedStateTransition> expectedDepReinstall = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.NEW, State.INSTALLED),
+                        new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestReinstall(), "dependency reinstall",
                 expectedDepReinstall, unexpectedDuringAllSoftDepChange);
 
 
         // WHEN_kernel_shutdown_THEN_soft_dependency_does_not_wait_for_customer_app_to_close
-        LinkedList<KernelTest.ExpectedStateTransition> expectedDuringShutdown = new LinkedList<>(
-                Arrays.asList(new KernelTest.ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
+        LinkedList<ExpectedStateTransition> expectedDuringShutdown = new LinkedList<>(
+                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED),
+                        new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.shutdown(60), "kernel shutdown", expectedDuringShutdown,
                 Collections.emptySet());
     }
@@ -338,9 +368,9 @@ public class ServiceDependencyLifecycleTest {
         // wait for SoftDependency to be RUNNING first.
         assertThat(kernel.locate("SoftDependency")::getState, eventuallyEval(is(State.RUNNING)));
 
-        List<KernelTest.ExpectedStateTransition> stateTransitions = Arrays
-                .asList(new KernelTest.ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
-                        new KernelTest.ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
+        List<ExpectedStateTransition> stateTransitions = Arrays
+                .asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
+                        new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
 
 
         Map<Object, Object> depTypeSoftToHard = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);

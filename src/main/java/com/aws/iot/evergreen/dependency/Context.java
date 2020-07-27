@@ -300,6 +300,97 @@ public class Context implements Closeable {
         return Thread.currentThread() == publishThread;
     }
 
+    /**
+     * Use to manually inject dependencies into the fields of a class using the values in the
+     * current Context. Use with caution because you should not inject fields into a class multiple times
+     * as it will trigger the pre and post lifecycle methods each time.
+     *
+     * @param object Object to inject fields into
+     */
+    @SuppressFBWarnings("DP_DO_INSIDE_DO_PRIVILEGED")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
+    public void injectFields(Object object) {
+        // TODO Revisit this method.
+        if (object == null) {
+            return;
+        }
+        Class clazz = object.getClass();
+        String className = clazz.getName();
+        logger.atTrace("class-injection-start").kv(classKeyword, className).log();
+
+        EvergreenService asService = object instanceof EvergreenService ? (EvergreenService) object : null;
+        InjectionActions injectionActions = object instanceof InjectionActions ? (InjectionActions) object : null;
+        if (asService != null) {
+            asService.context = this; // inject context early
+        }
+        if (injectionActions != null) {
+            try {
+                injectionActions.preInject();
+                logger.atTrace("class-pre-inject-complete").kv(classKeyword, className).log();
+            } catch (Throwable e) {
+                logger.atError("class-pre-inject-error", e).kv(classKeyword, className).log();
+                if (asService != null) {
+                    asService.serviceErrored(e);
+                }
+            }
+        }
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                Inject a = f.getAnnotation(Inject.class);
+                if (a != null) {
+                    try {
+                        final Named named = f.getAnnotation(Named.class);
+                        final String name = nullEmpty(named == null ? null : named.value());
+                        Class t = f.getType();
+                        Object v;
+                        if (t == Provider.class) {
+                            v = getValue(
+                                    (Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
+                                    name);
+                        } else {
+                            v = this.get(t, name);
+
+                            // if v is an EvergreenService, then make sure to save it into
+                            // the context tagged with its service name so that EvergreenService.locate
+                            // will be able to find it when it looks for it by name (and not by class)
+                            if (v instanceof EvergreenService) {
+                                this.getValue(EvergreenService.class, ((EvergreenService) v).getName())
+                                        .putAndInjectFields((EvergreenService) v);
+                            }
+                        }
+                        ServiceDependencyType dependencyType = f.getAnnotation(ServiceDependencyType.class);
+                        f.setAccessible(true);
+                        f.set(object, v);
+                        if (asService != null && v instanceof EvergreenService) {
+                            asService.addOrUpdateDependency((EvergreenService) v,
+                                    dependencyType == null ? DependencyType.HARD : dependencyType.value(), true);
+                        }
+                        logger.atTrace("class-inject-complete").kv(classKeyword, f.getName()).log();
+                    } catch (Throwable ex) {
+                        logger.atError("class-inject-error", ex).kv(classKeyword, f.getName()).log();
+                        if (asService != null) {
+                            asService.serviceErrored(ex);
+                        }
+                    }
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        if (injectionActions != null && (asService == null || !asService.isErrored())) {
+            try {
+                injectionActions.postInject();
+                logger.atTrace("class-post-inject-complete").kv(classKeyword, object.getClass()).log();
+            } catch (Throwable e) {
+                logger.atError("class-post-inject-error", e).kv(classKeyword, object.getClass()).log();
+                if (asService != null) {
+                    asService.serviceErrored(e);
+                }
+            }
+        }
+
+        logger.atTrace("class-injection-complete").kv(classKeyword, className).log();
+    }
+
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD})
     public @interface ServiceDependencyType {
@@ -344,7 +435,7 @@ public class Context implements Closeable {
             if (newObject == null || targetClass.isAssignableFrom(newObject.getClass())) {
                 injectionCompleted = false;
                 object = newObject;
-                injectFields(newObject);
+                Context.this.injectFields(newObject);
                 injectionCompleted = true;
                 return newObject; // only assign after injection is complete
 
@@ -459,90 +550,5 @@ public class Context implements Closeable {
         public boolean isEmpty() {
             return object == null;
         }
-
-        @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
-        private void injectFields(Object object) {
-            // TODO Revisit this method.
-            if (object == null) {
-                return;
-            }
-            Class clazz = object.getClass();
-            String className = clazz.getName();
-            logger.atTrace("class-injection-start").kv(classKeyword, className).log();
-
-            EvergreenService asService = object instanceof EvergreenService ? (EvergreenService) object : null;
-            InjectionActions injectionActions = object instanceof InjectionActions ? (InjectionActions) object : null;
-            if (asService != null) {
-                asService.context = Context.this; // inject context early
-            }
-            if (injectionActions != null) {
-                try {
-                    injectionActions.preInject();
-                    logger.atTrace("class-pre-inject-complete").kv(classKeyword, className).log();
-                } catch (Throwable e) {
-                    logger.atError("class-pre-inject-error", e).kv(classKeyword, className).log();
-                    if (asService != null) {
-                        asService.serviceErrored(e);
-                    }
-                }
-            }
-            while (clazz != null && clazz != Object.class) {
-                for (Field f : clazz.getDeclaredFields()) {
-                    Inject a = f.getAnnotation(Inject.class);
-                    //                    System.out.println(f.getName() + " " + (a != null));
-                    if (a != null) {
-                        try {
-                            final Named named = f.getAnnotation(Named.class);
-                            final String name = nullEmpty(named == null ? null : named.value());
-                            Class t = f.getType();
-                            Object v;
-                            if (t == Provider.class) {
-                                v = getValue(
-                                        (Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
-                                        name);
-                            } else {
-                                v = Context.this.get(t, name);
-
-                                // if v is an EvergreenService, then make sure to save it into
-                                // the context tagged with its service name so that EvergreenService.locate
-                                // will be able to find it when it looks for it by name (and not by class)
-                                if (v instanceof EvergreenService) {
-                                    Context.this.getValue(EvergreenService.class, ((EvergreenService) v).getName())
-                                            .putAndInjectFields((EvergreenService) v);
-                                }
-                            }
-                            ServiceDependencyType dependencyType = f.getAnnotation(ServiceDependencyType.class);
-                            f.setAccessible(true);
-                            f.set(object, v);
-                            if (asService != null && v instanceof EvergreenService) {
-                                asService.addOrUpdateDependency((EvergreenService) v,
-                                        dependencyType == null ? DependencyType.HARD : dependencyType.value(), true);
-                            }
-                            logger.atTrace("class-inject-complete").kv(classKeyword, f.getName()).log();
-                        } catch (Throwable ex) {
-                            logger.atError("class-inject-error", ex).kv(classKeyword, f.getName()).log();
-                            if (asService != null) {
-                                asService.serviceErrored(ex);
-                            }
-                        }
-                    }
-                }
-                clazz = clazz.getSuperclass();
-            }
-            if (injectionActions != null && (asService == null || !asService.isErrored())) {
-                try {
-                    injectionActions.postInject();
-                    logger.atTrace("class-post-inject-complete").kv(classKeyword, this.object.getClass()).log();
-                } catch (Throwable e) {
-                    logger.atError("class-post-inject-error", e).kv(classKeyword, this.object.getClass()).log();
-                    if (asService != null) {
-                        asService.serviceErrored(e);
-                    }
-                }
-            }
-
-            logger.atTrace("class-injection-complete").kv(classKeyword, className).log();
-        }
-
     }
 }

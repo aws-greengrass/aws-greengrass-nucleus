@@ -41,6 +41,7 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String RUNTIME_STORE_NAMESPACE_TOPIC = "runtime";
+    public static final String PRIVATE_STORE_NAMESPACE_TOPIC = "_private";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_DEPENDENCIES_NAMESPACE_TOPIC = "dependencies";
     public static final String SERVICE_NAME_KEY = "serviceName";
@@ -50,6 +51,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     @Getter
     protected final Topics config;
+    private final Topics privateConfig;
 
     //TODO: make the field private
     @Getter
@@ -69,27 +71,37 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     // Service logger instance
     protected final Logger logger;
 
-
     /**
      * Constructor for EvergreenService.
      *
      * @param topics root Configuration topic for this service
      */
     public EvergreenService(Topics topics) {
+        this(topics, topics.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
+    }
+
+    /**
+     * Constructor for EvergreenService.
+     *
+     * @param topics        root Configuration topic for this service
+     * @param privateConfig root configuration topic for the service's private config which must not be shared
+     */
+    public EvergreenService(Topics topics, Topics privateConfig) {
         this.config = topics;
+        this.privateConfig = privateConfig;
         this.context = topics.getContext();
 
         // TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
-        this.logger = LogManager.getLogger(getName());
-        logger.dfltKv(SERVICE_NAME_KEY, getName());
+        this.logger = LogManager.getLogger(getServiceName()).createChild();
+        logger.dfltKv(SERVICE_NAME_KEY, getServiceName());
         logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
 
         this.externalDependenciesTopic =
                 topics.createLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).dflt(new ArrayList<String>());
         this.externalDependenciesTopic.withParentNeedsToKnow(false);
-        this.lifecycle = new Lifecycle(this, logger);
+        this.lifecycle = new Lifecycle(this, logger, privateConfig);
 
         initDependenciesTopic();
         periodicityInformation = Periodicity.of(this);
@@ -457,6 +469,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     public String getName() {
+        return getServiceName();
+    }
+
+    private String getServiceName() {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 
@@ -472,6 +488,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      */
     public Topics getRuntimeConfig() {
         return config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC);
+    }
+
+    public Topics getPrivateConfig() {
+        return privateConfig;
     }
 
     protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)

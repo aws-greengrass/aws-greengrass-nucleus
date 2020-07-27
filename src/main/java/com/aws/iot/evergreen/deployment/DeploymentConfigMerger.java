@@ -104,7 +104,7 @@ public class DeploymentConfigMerger {
     /**
      * Completes the provided future when all of the listed services are running.
      *
-     * @param servicesToTrack       service to track
+     * @param servicesToTrack       services to track
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
@@ -289,6 +289,8 @@ public class DeploymentConfigMerger {
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE);
         UpdateBehaviorTree serviceRuntimeMergeBehavior =
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
+        UpdateBehaviorTree servicePrivateMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
 
         rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
         servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
@@ -296,6 +298,8 @@ public class DeploymentConfigMerger {
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
         insideServiceMergeBehavior.getChildOverride().put(
                 EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride().put(
+                EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
 
         return rootMergeBehavior;
     }

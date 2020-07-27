@@ -80,9 +80,7 @@ public class DeploymentConfigMergerTest {
             throws Exception {
         EvergreenService oldService = createMockEvergreenService("oldService");
         EvergreenService existingService = createMockEvergreenService("existingService");
-        Collection<EvergreenService> orderedDependencies = Arrays.asList(
-                oldService, existingService
-        );
+        Collection<EvergreenService> orderedDependencies = Arrays.asList(oldService, existingService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
 
         Map<String, Object> newConfig = new HashMap<>();
@@ -135,9 +133,8 @@ public class DeploymentConfigMergerTest {
 
         EvergreenService existingService = createMockEvergreenService("existingService", kernel);
 
-        Collection<EvergreenService> orderedDependencies = Arrays.asList(
-                oldService, existingService, existingAutoStartService
-        );
+        Collection<EvergreenService> orderedDependencies =
+                Arrays.asList(oldService, existingService, existingAutoStartService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
 
         Map<String, Object> newConfig = new HashMap<>();
@@ -181,13 +178,14 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully() throws Exception {
+    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully()
+            throws Exception {
         // GIVEN
         EvergreenService mockService = mock(EvergreenService.class);
         // service is in BROKEN state before merge
-        when(mockService.getState()).thenReturn(State.BROKEN);
-        when(mockService.getStateModTime()).thenReturn((long) 1);
-        when(mockService.reachedDesiredState()).thenReturn(false);
+        doReturn(State.BROKEN).when(mockService).getState();
+        doReturn((long) 1).when(mockService).getStateModTime();
+        doReturn(false).when(mockService).reachedDesiredState();
         CountDownLatch serviceStarted = new CountDownLatch(1);
         new Thread(() -> {
             try {
@@ -199,7 +197,7 @@ public class DeploymentConfigMergerTest {
         }).start();
 
         // assert waitForServicesToStart didn't finish
-        assertFalse(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertFalse(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
 
         // WHEN
         // use doReturn() here: https://stackoverflow.com/questions/11121772
@@ -207,7 +205,7 @@ public class DeploymentConfigMergerTest {
         doReturn(true).when(mockService).reachedDesiredState();
 
         // THEN
-        assertTrue(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertTrue(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
     }
 
     @Test

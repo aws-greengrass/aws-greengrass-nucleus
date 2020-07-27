@@ -23,8 +23,8 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotFoundException;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
@@ -79,6 +79,8 @@ class IPCServicesTest {
     @BeforeEach
     void beforeEach(ExtensionContext context) {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
+        // Ignore if IPC can't send us more lifecycle updates because the test is already done.
+        ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
     }
 
     @BeforeAll
@@ -100,8 +102,7 @@ class IPCServicesTest {
 
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
 
-        Topic kernelUri =
-                kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
+        Topic kernelUri = kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
         URI serverUri = new URI((String) kernelUri.getOnce());
         port = serverUri.getPort();
         address = serverUri.getHost();
@@ -148,8 +149,8 @@ class IPCServicesTest {
             assertEquals(resource, lookupResults.get(0));
 
             // Try updating the resource
-            UpdateResourceRequest updateRequest =
-                    UpdateResourceRequest.builder().resource(resource.toBuilder().uri(new URI("file://ABC.txt")).build()).build();
+            UpdateResourceRequest updateRequest = UpdateResourceRequest.builder()
+                    .resource(resource.toBuilder().uri(new URI("file://ABC.txt")).build()).build();
             c.updateResource(updateRequest);
             assertEquals(updateRequest.getResource().getUri(), c.lookupResources(lookup).get(0).getUri());
 
@@ -187,7 +188,7 @@ class IPCServicesTest {
     }
 
     @Test
-    void lifecycleTest(ExtensionContext context) throws Exception {
+    void lifecycleTest() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
@@ -200,13 +201,10 @@ class IPCServicesTest {
         c.listenToStateChanges("ServiceName", p.getRight());
         c.reportState("ERRORED");
         p.getLeft().get(500, TimeUnit.MILLISECONDS);
-        // Ignore if IPC can't send us more lifecycle updates because the test is already done.
-        ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
     }
 
     @Test
-    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed()
-            throws Exception {
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
@@ -236,8 +234,7 @@ class IPCServicesTest {
     }
 
     @Test
-    void GIVEN_ConfigStoreClient_WHEN_read_THEN_value_returned()
-            throws Exception {
+    void GIVEN_ConfigStoreClient_WHEN_read_THEN_value_returned() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
@@ -261,8 +258,7 @@ class IPCServicesTest {
     }
 
     @Test
-    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_THEN_called_with_message()
-            throws Exception {
+    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_THEN_called_with_message() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -291,10 +287,9 @@ class IPCServicesTest {
         }
     }
 
-    private KernelIPCClientConfig getIPCConfigForService(String serviceName) {
-        return  KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.findServiceTopic(serviceName)
-                        .find(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC, SERVICE_UNIQUE_ID_KEY).getOnce())
-                .build();
+    private KernelIPCClientConfig getIPCConfigForService(String serviceName) throws ServiceLoadException {
+        return KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token((String) kernel.locate(serviceName).getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
+                        .getOnce()).build();
     }
 }
