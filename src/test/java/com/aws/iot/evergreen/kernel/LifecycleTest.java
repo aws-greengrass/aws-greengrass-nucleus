@@ -1,6 +1,7 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
@@ -88,7 +89,8 @@ public class LifecycleTest {
         config = rootConfig.createInteriorChild(EvergreenService.SERVICES_NAMESPACE_TOPIC)
                 .createInteriorChild("MockService");
         try (InputStream inputStream = new ByteArrayInputStream(BLANK_CONFIG_YAML_WITH_TIMEOUT.getBytes())) {
-            config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
+            config.updateFromMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream),
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
         } catch (IOException e) {
             fail(e);
         }

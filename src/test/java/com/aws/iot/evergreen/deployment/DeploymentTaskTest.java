@@ -76,7 +76,7 @@ class DeploymentTaskTest {
 
     private final Logger logger = LogManager.getLogger("unit test");
 
-    private DeploymentTask deploymentTask;
+    private DefaultDeploymentTask deploymentTask;
 
     @BeforeAll
     static void setupContext() {
@@ -98,7 +98,7 @@ class DeploymentTaskTest {
 
         when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
-        deploymentTask = new DeploymentTask(mockDependencyResolver, mockPackageManager, mockKernelConfigResolver,
+        deploymentTask = new DefaultDeploymentTask(mockDependencyResolver, mockPackageManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger, deploymentDocument, mockDeploymentServiceConfig);
     }
 

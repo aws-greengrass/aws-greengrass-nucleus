@@ -31,12 +31,12 @@ services:
     lifecycle:
       posix:
         run: |-
-          sleep 1 # Sleep just a little so that it is marked as running and allows main to startup before this fails
+          sleep 3 # Sleep just a little so that it is marked as running and allows main to startup before this fails
           echo "RUN_BROKEN"
           exit 1
       windows:
         run: |-
-          powershell -command sleep 1; echo RUN_BROKEN; exit 1;
+          powershell -command sleep 3; echo RUN_BROKEN; exit 1;
 
   main:
     lifecycle:

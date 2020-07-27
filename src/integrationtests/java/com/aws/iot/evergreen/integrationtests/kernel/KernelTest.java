@@ -266,7 +266,7 @@ class KernelTest extends BaseITCase {
         kernel = new Kernel();
         List<ExpectedStateTransition> actualTransitions = new LinkedList<>();
         AtomicInteger currentGroup = new AtomicInteger();
-        kernel.getContext().addGlobalStateChangeListener((EvergreenService service, State oldState, State newState) -> {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             actualTransitions.add(new ExpectedStateTransition(service.getName(), oldState, newState, currentGroup.get()));
             if (expectedStateTransitionList.isEmpty()) {
                 return;

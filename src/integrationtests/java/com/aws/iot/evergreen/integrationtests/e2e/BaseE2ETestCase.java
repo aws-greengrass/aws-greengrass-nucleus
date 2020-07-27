@@ -16,6 +16,7 @@ import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.amazonaws.services.evergreen.model.SetConfigurationResult;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -123,7 +124,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.add(thingGroupName);
     }
 
-    protected void initKernel() throws IOException {
+    protected void initKernel() throws IOException, DeviceConfigurationException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
     }

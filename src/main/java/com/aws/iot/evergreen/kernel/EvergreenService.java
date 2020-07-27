@@ -462,19 +462,26 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             throws InputValidationException, ServiceLoadException {
         HashMap<EvergreenService, DependencyType> ret = new HashMap<>();
         for (String dependency : dependencyList) {
-            String[] dependencyInfo = dependency.split(":");
-            if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
-                throw new InputValidationException("Bad dependency syntax");
-            }
-            Pair<EvergreenService, DependencyType> dep =
-                    parseSingleDependency(dependencyInfo[0], dependencyInfo.length > 1 ? dependencyInfo[1] : null);
-            ret.put(dep.getLeft(), dep.getRight());
+            Pair<String, DependencyType> dep = parseSingleDependency(dependency);
+            ret.put(context.get(Kernel.class).locate(dep.getLeft()), dep.getRight());
         }
         return ret;
     }
 
-    private Pair<EvergreenService, DependencyType> parseSingleDependency(String name, String typeString)
-            throws InputValidationException, ServiceLoadException {
+    /**
+     * Parse a string into a dependency specification.
+     *
+     * @param dependency string in the format of one service dependency
+     * @return a pair of dependency name and type
+     * @throws InputValidationException if the dependency string has invalid format
+     */
+    public static Pair<String, DependencyType> parseSingleDependency(String dependency)
+            throws InputValidationException {
+        String[] dependencyInfo = dependency.split(":");
+        if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
+            throw new InputValidationException("Bad dependency syntax");
+        }
+        String typeString = dependencyInfo.length > 1 ? dependencyInfo[1] : null;
         DependencyType type = null;
         if (typeString != null && !typeString.isEmpty()) {
             // do "friendly" match
@@ -489,8 +496,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             }
         }
 
-        EvergreenService d = context.get(Kernel.class).locate(name);
-        return new Pair<>(d, type == null ? DependencyType.HARD : type);
+        return new Pair<>(dependencyInfo[0], type == null ? DependencyType.HARD : type);
     }
 
     private synchronized void setupDependencies(Iterable<String> dependencyList)

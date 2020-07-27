@@ -126,10 +126,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
         kernel.launch();
 
-        assertTrue(jobInProgress.await(5, TimeUnit.MINUTES));
-        // sleep to let IoT cloud accept the jobInProgress request.
-        // TODO: A more proper fix is at https://sim.amazon.com/issues/P37649819
-        Thread.sleep(3000);
+        assertTrue(jobInProgress.await(2, TimeUnit.MINUTES));
+
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();
@@ -143,7 +141,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
             networkUtils.disconnectMqtt();
 
             // Wait for the deployment to finish offline
-            assertTrue(jobCompleted.await(3, TimeUnit.MINUTES));
+            assertTrue(jobCompleted.await(5, TimeUnit.MINUTES));
             assertTrue(connectionInterrupted.await(2, TimeUnit.MINUTES));
         } finally {
             networkUtils.recoverMqtt();
@@ -155,6 +153,6 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
         // Wait for the IoT job to be updated and marked as successful
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(),
-                Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
     }
 }
