@@ -272,17 +272,6 @@ public class ServiceDependencyLifecycleTest {
                   new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
         testStateTransitionsInNoOrder(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launch", expectedStateTransitions);
-        CountDownLatch serviceStateTransitionsLatch = new CountDownLatch(2);
-
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if(service.getName().equals(CustomerApp) && oldState == State.STARTING && newState == State.RUNNING) {
-                serviceStateTransitionsLatch.countDown();
-            }
-            if(service.getName().equals(SoftDependency) && oldState == State.STARTING && newState == State.RUNNING) {
-                serviceStateTransitionsLatch.countDown();
-            }
-        });
-
 
         // WHEN_dependency_removed_THEN_customer_app_stays_running
         LinkedList<ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(

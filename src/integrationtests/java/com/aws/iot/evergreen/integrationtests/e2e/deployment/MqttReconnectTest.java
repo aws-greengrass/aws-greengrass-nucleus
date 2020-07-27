@@ -152,7 +152,12 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         Thread.sleep(DNS_CACHE_TTL.plus(Duration.ofSeconds(1)).toMillis());
 
         // Wait for the IoT job to be updated and marked as successful
+        // The reason for making the timeout as 7 min is because it has been observed that if the update job status was
+        // invoked just before the connection recovers it can block the call for total timeout of 5 mins,
+        // without successfully updating the status of the job in cloud. After this timeout expires the status will
+        // be updated again as part of the onConnectionResumed callback. Additional 2 mins are for this status
+        // to get updated
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(),
-                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.SUCCEEDED));
     }
 }
