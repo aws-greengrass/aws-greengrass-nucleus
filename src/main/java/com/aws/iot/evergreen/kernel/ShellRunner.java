@@ -45,7 +45,7 @@ public interface ShellRunner {
                                     .kv("stderr", ss).log();
                         })
                         .setenv("SVCUID",
-                                String.valueOf(onBehalfOf.getRuntimeConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
+                                String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))
                         .cd(cwd.toFile().getAbsoluteFile())
                         .logger(onBehalfOf.logger);
