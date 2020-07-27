@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.MultiInstanceEvergreenService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -248,35 +247,5 @@ class GenericExternalServiceTest extends BaseITCase {
         service.getServiceConfig().find(SETENV_CONFIG_NAMESPACE, "my_env_var").withValue("var2");
 
         assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
-    }
-
-    @Test
-    void GIVEN_running_service_WHEN_createNewInstance_THEN_service_has_new_instance() throws Exception {
-        kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
-        CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
-            }
-        });
-        kernel.launch();
-
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
-
-        GenericExternalService service = (GenericExternalService) kernel.locate("service_with_dynamic_config");
-        assertEquals(State.RUNNING, service.getState());
-
-        CountDownLatch clonedServiceRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((serviceToListenTo, oldState, newState) -> {
-            if ("service_with_dynamic_config-1".equals(serviceToListenTo.getName()) && State.RUNNING.equals(newState)) {
-                clonedServiceRunning.countDown();
-            }
-        });
-
-        MultiInstanceEvergreenService clonedService = service.createNewInstance();
-        clonedService.requestStart();
-        assertTrue(clonedServiceRunning.await(5, TimeUnit.SECONDS));
-        assertEquals(State.RUNNING, clonedService.getState());
     }
 }

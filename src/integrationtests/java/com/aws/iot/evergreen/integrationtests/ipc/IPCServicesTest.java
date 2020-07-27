@@ -289,7 +289,7 @@ class IPCServicesTest {
 
     private KernelIPCClientConfig getIPCConfigForService(String serviceName) throws ServiceLoadException {
         return KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.locate(serviceName).getRuntimeConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
+                .token((String) kernel.locate(serviceName).getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                         .getOnce()).build();
     }
 }

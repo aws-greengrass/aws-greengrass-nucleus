@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.STATE_TOPIC_NAME;
@@ -48,7 +49,10 @@ public class EGServiceTestUtil {
     public Topics initializeMockedConfig() {
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC), anyString(), anyString()))
                 .thenReturn(runtimeStoreTopic);
+        lenient().when(config.lookupTopics(eq(PRIVATE_STORE_NAMESPACE_TOPIC), anyString(), anyString()))
+                .thenReturn(runtimeStoreTopic);
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC))).thenReturn(runtimeStoreTopic);
+        lenient().when(config.lookupTopics(eq(PRIVATE_STORE_NAMESPACE_TOPIC))).thenReturn(runtimeStoreTopic);
         lenient().when(runtimeStoreTopic.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
         when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(requiresTopic);
         when(config.getName()).thenReturn(serviceFullName);

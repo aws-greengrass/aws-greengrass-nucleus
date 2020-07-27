@@ -52,7 +52,6 @@ class KernelTest {
             + "    lifecycle:\n"
             + "      run:\n"
             + "        script: \"test script\"\n"
-            + "    runtime: {}\n"
             + "  main:\n"
             + "    dependencies:\n"
             + "    - \"service1\"\n";

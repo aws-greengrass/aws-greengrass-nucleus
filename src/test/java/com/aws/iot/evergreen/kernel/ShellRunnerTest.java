@@ -45,7 +45,7 @@ class ShellRunnerTest extends EGServiceTestUtil {
         Topics serviceRuntimeTopics = mock(Topics.class);
         Topic mockTopic = mock(Topic.class);
 
-        when(config.lookupTopics(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC)).thenReturn(serviceRuntimeTopics);
+        when(config.lookupTopics(EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC)).thenReturn(serviceRuntimeTopics);
         when(serviceRuntimeTopics.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
         when(serviceRuntimeTopics.createLeafChild(anyString())).thenReturn(mockTopic);
         when(mockTopic.withParentNeedsToKnow(false)).thenReturn(mockTopic);
