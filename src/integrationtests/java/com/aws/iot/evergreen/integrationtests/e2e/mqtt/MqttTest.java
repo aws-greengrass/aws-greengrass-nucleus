@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.mqtt;
 
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.mqtt.MqttClient;
@@ -43,7 +44,7 @@ public class MqttTest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_mqttclient_WHEN_subscribe_and_publish_THEN_receives_all_messages()
-            throws IOException, ExecutionException, InterruptedException, TimeoutException {
+            throws IOException, ExecutionException, InterruptedException, TimeoutException, DeviceConfigurationException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());

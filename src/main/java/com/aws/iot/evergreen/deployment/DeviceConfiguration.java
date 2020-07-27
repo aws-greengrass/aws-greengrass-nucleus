@@ -59,7 +59,6 @@ public class DeviceConfiguration {
         this.kernel = kernel;
         deTildeValidator = getDeTildeValidator(kernel);
         regionValidator = getRegionValidator();
-        validate();
     }
 
     /**
@@ -73,10 +72,11 @@ public class DeviceConfiguration {
      * @param certificateFilePath certificate location on device
      * @param rootCaFilePath      downloaded RootCA location on device
      * @param awsRegion           aws region for the device
+     * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
                                String privateKeyPath, String certificateFilePath, String rootCaFilePath,
-                               String awsRegion) {
+                               String awsRegion) throws DeviceConfigurationException {
         this.kernel = kernel;
         deTildeValidator = getDeTildeValidator(kernel);
         regionValidator = getRegionValidator();
@@ -152,7 +152,11 @@ public class DeviceConfiguration {
         kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
     }
 
-    private void validate() {
+    /**
+     * Validates the device configuration parameters.
+     * @throws DeviceConfigurationException when configuration parameters are not valid
+     */
+    public void validate() throws DeviceConfigurationException {
         String thingName = Coerce.toString(getThingName());
         String certificateFilePath = Coerce.toString(getCertificateFilePath());
         String privateKeyPath = Coerce.toString(getPrivateKeyFilePath());
@@ -160,12 +164,8 @@ public class DeviceConfiguration {
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
-        try {
-            validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
-                    iotCredEndpoint, awsRegion);
-        } catch (DeviceConfigurationException e) {
-            logger.atError().log(e.getMessage());
-        }
+        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
+                iotCredEndpoint, awsRegion);
     }
 
     private Topic getTopic(String parameterName) {

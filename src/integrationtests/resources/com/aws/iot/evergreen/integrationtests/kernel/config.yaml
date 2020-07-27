@@ -19,31 +19,6 @@ services:
           skipif: onpath brew
           script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
-  docker:
-    lifecycle:
-      startup:
-        macos: open /Applications/Docker.app
-      install:
-        skipif: onpath docker
-        debian: |-
-          curl --silent -sSL https://get.docker.com/ | sh
-        fedora: sudo dnf install docker
-        macos:
-          skipif: exists /Applications/Docker.app
-          script: |-
-            find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
-            brew cask install docker
-    dependencies:
-      macos:
-        - homebrew
-
-  hello-docker:
-    dependencies:
-      - docker
-    lifecycle:
-      run: docker run --rm hello-world
-      shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
-
   broken:
     lifecycle:
       startup: exit -1
@@ -72,7 +47,6 @@ services:
     dependencies:
       macos:
         - git
-        - hello-docker
         - ticktock:SOFT
       all:
         - ticktock:SOFT

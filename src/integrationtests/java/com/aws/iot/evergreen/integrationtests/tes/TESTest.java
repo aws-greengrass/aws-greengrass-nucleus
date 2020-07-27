@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.integrationtests.tes;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
@@ -49,7 +50,7 @@ class TESTest extends BaseITCase {
     private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
 
     @BeforeEach
-    void setupKernel() throws IOException {
+    void setupKernel() throws IOException, DeviceConfigurationException {
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
@@ -103,7 +104,7 @@ class TESTest extends BaseITCase {
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
 
-    private void provision(Kernel kernel) throws IOException {
+    private void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName,
