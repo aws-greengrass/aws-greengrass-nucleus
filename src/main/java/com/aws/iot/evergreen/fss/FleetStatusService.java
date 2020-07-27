@@ -119,10 +119,9 @@ public class FleetStatusService extends EvergreenService {
 
         this.kernel.orderedDependencies().forEach(evergreenService -> {
             // Do not update status of auto-started services.
-            if (evergreenService.isAutostart()) {
-                return;
+            if (!evergreenService.isAutostart()) {
+                evergreenServiceMap.put(evergreenService.getName(), evergreenService);
             }
-            evergreenServiceMap.put(evergreenService.getName(), evergreenService);
         });
         updateFleetStatusServiceData(evergreenServiceMap);
     }
