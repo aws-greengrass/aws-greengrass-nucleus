@@ -1,5 +1,6 @@
 package com.aws.iot.evergreen.easysetup;
 
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -224,7 +225,7 @@ public class EvergreenSetup {
         return arg = setupArgs == null || argpos >= setupArgs.length ? null : setupArgs[argpos++];
     }
 
-    void provision(Kernel kernel) throws IOException {
+    void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         outStream.println(
                 String.format("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...", thingName));
         ThingInfo thingInfo =
