@@ -40,7 +40,7 @@ public class PackageRecipe {
     @EqualsAndHashCode.Include
     private final String componentName;
 
-    private final String className;
+    private final String componentType;
 
     @EqualsAndHashCode.Include
     private Semver version;
@@ -73,7 +73,7 @@ public class PackageRecipe {
      * @param lifecycle             Lifecycle definitions
      * @param artifacts             Artifact definitions
      * @param dependencies          List of dependencies
-     * @param className             Path of class used to construct the service
+     * @param componentType         Type of component to be created
      * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
@@ -88,7 +88,7 @@ public class PackageRecipe {
                          @JsonProperty("Dependencies")
                              @JsonDeserialize(using = DependencyMapDeserializer.class)
                                      Map<String, RecipeDependencyProperties> dependencies,
-                         @JsonProperty("Class") String className) {
+                         @JsonProperty("ComponentType") String componentType) {
 
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.componentName = componentName;
@@ -102,7 +102,7 @@ public class PackageRecipe {
         this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
         this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
-        this.className = className;
+        this.componentType = componentType;
     }
 
     @JsonSerialize(using = SemverSerializer.class)

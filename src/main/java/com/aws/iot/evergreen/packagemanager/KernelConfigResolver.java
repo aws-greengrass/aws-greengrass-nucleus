@@ -29,7 +29,7 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.Kernel.SERVICE_CLASS_TOPIC_KEY;
+import static com.aws.iot.evergreen.kernel.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
 
@@ -105,8 +105,8 @@ public class KernelConfigResolver {
         }
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
 
-        if (!Utils.isEmpty(packageRecipe.getClassName())) {
-            resolvedServiceConfig.put(SERVICE_CLASS_TOPIC_KEY, packageRecipe.getClassName());
+        if (!Utils.isEmpty(packageRecipe.getComponentType())) {
+            resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, packageRecipe.getComponentType());
         }
 
         // Generate dependencies
