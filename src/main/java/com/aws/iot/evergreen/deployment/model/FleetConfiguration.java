@@ -35,5 +35,7 @@ public class FleetConfiguration {
     @Setter
     private Long creationTimestamp;
 
-    private FailureHandlingPolicy failureHandlingPolicy;
+    FailureHandlingPolicy failureHandlingPolicy;
+
+    DeploymentSafetyPolicy deploymentSafetyPolicy;
 }

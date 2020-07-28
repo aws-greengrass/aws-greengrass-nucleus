@@ -10,6 +10,9 @@ import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentResult;
+import com.amazonaws.services.evergreen.model.DeploymentPolicies;
+import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
+import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.InvalidInputException;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
@@ -69,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    protected static final String FCS_BETA_ENDPOINT = "https://aqzw8qdn5l.execute-api.us-east-1.amazonaws.com/Beta";
+    protected static final String FCS_GAMMA_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
     protected static final Region BETA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
 
@@ -239,7 +242,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                    FCS_BETA_ENDPOINT, BETA_REGION.toString());
+                    FCS_GAMMA_ENDPOINT, BETA_REGION.toString());
             fcsClient = AWSEvergreenClientBuilder.standard()
                     .withEndpointConfiguration(endpointConfiguration).build();
         }
@@ -249,11 +252,20 @@ public class BaseE2ETestCase implements AutoCloseable {
     @SuppressWarnings("PMD.LinguisticNaming")
     protected PublishConfigurationResult setAndPublishFleetConfiguration(SetConfigurationRequest setRequest) {
         AWSEvergreen client = getFcsClient();
+
+        // update package name with random suffix to avoid conflict in cloud
         Map<String, PackageMetaData> updatedPkgMetadata = new HashMap<>();
         setRequest.getPackages().forEach((key, val) -> {
             updatedPkgMetadata.put(getTestComponentNameInCloud(key), val);
         });
         setRequest.setPackages(updatedPkgMetadata);
+
+        // set default value
+        if (setRequest.getDeploymentPolicies() == null) {
+            setRequest.withDeploymentPolicies(new DeploymentPolicies()
+                .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
+        }
 
         logger.atInfo().kv("setRequest", setRequest).log();
         SetConfigurationResult setResult = client.setConfiguration(setRequest);

@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
@@ -95,7 +94,6 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
         String jobId = publishResult.getJobId();

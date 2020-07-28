@@ -5,6 +5,8 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
+import com.amazonaws.services.evergreen.model.DeploymentPolicies;
+import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
@@ -79,7 +81,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
@@ -92,7 +93,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
@@ -113,7 +113,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("SomeOldService", new PackageMetaData().withRootComponent(true).withVersion("0.9.0"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
@@ -141,7 +140,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .withDeploymentPolicies(new DeploymentPolicies()
+                        .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING))
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
@@ -155,7 +155,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
@@ -176,7 +175,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("RedSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"))
                 .addPackagesEntry("YellowSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
@@ -188,7 +186,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
+                .withDeploymentPolicies(new DeploymentPolicies()
+                        .withFailureHandlingPolicy(FailureHandlingPolicy.ROLLBACK))
                 .addPackagesEntry("RedSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"))
                 .addPackagesEntry("YellowSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"))
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.0"));
@@ -220,7 +219,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
@@ -232,7 +230,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .withDeploymentPolicies(new DeploymentPolicies()
+                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -277,13 +276,64 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
+    void GIVEN_deployment_received_WHEN_skip_safety_check_THEN_safety_check_skipped() throws Exception {
+        // GIVEN
+        // First Deployment to have a service running in Kernel which has a safety check that always returns
+        // false, i.e. keeps waiting forever
+        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        CountDownLatch safeCheckSkipped = new CountDownLatch(1);
+        Consumer<EvergreenStructuredLogMessage> logListener = m -> {
+            if (m.getMessage().contains("Deployment is configured to skip safety check")) {
+                safeCheckSkipped.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
+
+        // WHEN
+        // Second deployment to update the service with SKIP_SAFETY_CHECK
+        SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withDeploymentPolicies(new DeploymentPolicies()
+                        .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK))
+                .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
+                        "1.0.1"));
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+        // THEN
+        assertTrue(safeCheckSkipped.await(60, TimeUnit.SECONDS));
+        Slf4jLogAdapter.removeGlobalListener(logListener);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+        assertEquals("1.0.1", getCloudDeployedComponent("NonDisruptableService").getConfig()
+                .find("version").getOnce());
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
     void GIVEN_deployment_in_progress_with_more_jobs_queued_in_cloud_WHEN_cancel_event_received_and_kernel_is_waiting_for_safe_time_THEN_deployment_should_be_canceled() throws Exception {
         // First Deployment to have a service running in Kernel which has a safety check that always returns
         // false, i.e. keeps waiting forever
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
@@ -307,7 +357,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .withDeploymentPolicies(new DeploymentPolicies()
+                        .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -318,7 +370,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest3 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .withDeploymentPolicies(new DeploymentPolicies()
+                        .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
@@ -358,7 +412,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
@@ -375,7 +428,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
