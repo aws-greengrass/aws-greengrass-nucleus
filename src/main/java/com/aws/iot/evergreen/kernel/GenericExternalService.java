@@ -55,7 +55,11 @@ public class GenericExternalService extends EvergreenService {
      * @param c root topic for this service.
      */
     public GenericExternalService(Topics c) {
-        super(c);
+        this(c, c.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
+    }
+
+    protected GenericExternalService(Topics c, Topics privateSpace) {
+        super(c, privateSpace);
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
