@@ -42,9 +42,6 @@ public class DeploymentDocument {
     @JsonProperty("GroupName")
     private String groupName;
 
-    @JsonProperty("GroupVersion")
-    private String groupVersion;
-
     @Setter
     @JsonProperty("Timestamp")
     private Long timestamp;

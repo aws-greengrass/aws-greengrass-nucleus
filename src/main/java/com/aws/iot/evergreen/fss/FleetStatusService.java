@@ -33,11 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -219,7 +217,7 @@ public class FleetStatusService extends EvergreenService {
                     .qos(QualityOfService.AT_LEAST_ONCE)
                     .topic(updateFssDataTopic)
                     .payload(SERIALIZER.writeValueAsBytes(fleetStatusDetails)).build());
-        } catch (ExecutionException | InterruptedException | TimeoutException | JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             logger.atError().cause(e).log("Unable to publish fleet status service.");
         }
     }

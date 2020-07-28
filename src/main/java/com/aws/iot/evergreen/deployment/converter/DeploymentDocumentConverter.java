@@ -87,19 +87,15 @@ public final class DeploymentDocumentConverter {
                 .build();
 
         String groupName;
-        String groupVersion = null;
         try {
             // Resource name formats:
             // configuration:thing/<thing-name>:version
             // configuration:thinggroup/<thing-group-name>:version
-            Arn configArn = Arn.fromString(config.getConfigurationArn());
-            groupName = configArn.getResource().getResource();
-            groupVersion = configArn.getResource().getQualifier();
+            groupName = Arn.fromString(config.getConfigurationArn()).getResource().getResource();
         } catch (IllegalArgumentException e) {
             groupName = config.getConfigurationArn();
         }
         deploymentDocument.setGroupName(groupName);
-        deploymentDocument.setGroupVersion(groupVersion);
 
         if (config.getPackages() == null) {
             return deploymentDocument;
