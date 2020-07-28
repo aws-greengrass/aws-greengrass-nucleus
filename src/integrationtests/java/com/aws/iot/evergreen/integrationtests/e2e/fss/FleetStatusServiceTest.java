@@ -13,7 +13,7 @@ import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.fss.ComponentStatusDetails;
 import com.aws.iot.evergreen.fss.FleetStatusDetails;
-import com.aws.iot.evergreen.fss.OverAllStatus;
+import com.aws.iot.evergreen.fss.OverallStatus;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -37,9 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_ARN_PARTITION;
-import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_ARN_RESOURCE_PREFIX;
-import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_ARN_SERVICE;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -53,6 +50,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 public class FleetStatusServiceTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
+    private static final String FLEET_STATUS_ARN_RESOURCE_PREFIX = "configuration:%s:%s";
+    private static final String FLEET_STATUS_ARN_SERVICE = "greengrass";
+    private static final String FLEET_STATUS_ARN_PARTITION = "aws";
 
     @AfterEach
     void afterEach() {
@@ -135,7 +135,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         FleetStatusDetails fleetStatusDetails1 = DESERIALIZER.readValue(receivedMqttMessage1.getPayload(), FleetStatusDetails.class);
         assertEquals(thingInfo.getThingName(), fleetStatusDetails1.getThing());
         assertEquals("1.0.0", fleetStatusDetails1.getGgcVersion());
-        assertEquals(OverAllStatus.HEALTHY, fleetStatusDetails1.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverAllStatus());
         assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails1.getThingGroups());
         assertThat(fleetStatusDetails1.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder("Mosquitto", "SomeService", "CustomerApp", "GreenSignal", "main"));
@@ -150,7 +150,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         FleetStatusDetails fleetStatusDetails2 = DESERIALIZER.readValue(receivedMqttMessage2.getPayload(), FleetStatusDetails.class);
         assertEquals(thingInfo.getThingName(), fleetStatusDetails2.getThing());
         assertEquals("1.0.0", fleetStatusDetails2.getGgcVersion());
-        assertEquals(OverAllStatus.HEALTHY, fleetStatusDetails2.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverAllStatus());
         assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails2.getThingGroups());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder("SomeService"));

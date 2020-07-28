@@ -1,6 +1,5 @@
 package com.aws.iot.evergreen.easysetup;
 
-import com.amazonaws.arn.Arn;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
@@ -238,8 +237,7 @@ public class DeviceProvisioningHelper {
         }
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
-                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion,
-                Arn.fromString(thing.thingArn).getAccountId());
+                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion);
         outStream.println("Created device configuration");
     }
 

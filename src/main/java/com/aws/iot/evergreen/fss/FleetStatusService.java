@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.fss;
 
-import com.amazonaws.arn.Arn;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -44,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY;
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
@@ -54,9 +53,6 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 public class FleetStatusService extends EvergreenService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
     public static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS = "periodicUpdateIntervalMs";
-    public static final String FLEET_STATUS_ARN_SERVICE = "greengrass";
-    public static final String FLEET_STATUS_ARN_PARTITION = "aws";
-    public static final String FLEET_STATUS_ARN_RESOURCE_PREFIX = "configuration:%s:%s";
     public static final String FLEET_STATUS_SERVICE_PUBLISH_TOPIC = "$aws/things/{thingName}/evergreen/health/json";
     private static AtomicLong sequenceNumber = new AtomicLong();
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
@@ -79,7 +75,7 @@ public class FleetStatusService extends EvergreenService {
     private boolean isDeploymentInProgress;
 
     /**
-     * Constructor for EvergreenService.
+     * Constructor for FleetStatusService.
      *
      * @param topics                 root Configuration topic for this service
      * @param mqttClient             {@link MqttClient}
@@ -114,19 +110,18 @@ public class FleetStatusService extends EvergreenService {
                 periodicUpdateIntervalMs, TimeUnit.MILLISECONDS);
     }
 
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleServiceStateChange(EvergreenService evergreenService, State oldState,
                                                        State newState) {
         // Do not update status of auto-started services.
         if (evergreenService.isAutostart()) {
             return;
         }
-        logger.atTrace().log("Service name: {}, oldState: {}, newState: {}",
-                evergreenService.getName(), oldState, newState);
         evergreenServiceMap.put(evergreenService.getName(), evergreenService);
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress && (newState.equals(State.BROKEN) || newState.equals(State.ERRORED))) {
-            updateFleetStatusServiceData(evergreenServiceMap, OverAllStatus.UNHEALTHY);
+            updateFleetStatusServiceData(evergreenServiceMap, OverallStatus.UNHEALTHY);
         }
     }
 
@@ -138,8 +133,8 @@ public class FleetStatusService extends EvergreenService {
         }
         logger.atInfo().log("Updating FSS data on a periodic basis.");
         Map<String, EvergreenService> evergreenServiceMap = new HashMap<>();
-        AtomicReference<OverAllStatus> overAllStatus = new AtomicReference<>();
-        overAllStatus.set(OverAllStatus.HEALTHY);
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        overAllStatus.set(OverallStatus.HEALTHY);
 
         // Get all running services from the kernel to update the fleet status.
         this.kernel.orderedDependencies().forEach(evergreenService -> {
@@ -163,8 +158,8 @@ public class FleetStatusService extends EvergreenService {
         logger.atInfo().log("Updating Fleet Status service for deployment job with ID: {}",
                 deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString());
         isDeploymentInProgress = false;
-        AtomicReference<OverAllStatus> overAllStatus = new AtomicReference<>();
-        overAllStatus.set(OverAllStatus.HEALTHY);
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        overAllStatus.set(OverallStatus.HEALTHY);
 
         // Check if the removed dependency is still running (Probably as a dependant service to another service).
         // If so, then remove it from the removedDependencies collection.
@@ -180,7 +175,7 @@ public class FleetStatusService extends EvergreenService {
     }
 
     private void updateFleetStatusServiceData(Map<String, EvergreenService> evergreenServiceMap,
-                                              OverAllStatus overAllStatus) {
+                                              OverallStatus overAllStatus) {
         // If there are no evergreen services to be updated, do not send an update.
         if (evergreenServiceMap.isEmpty()) {
             return;
@@ -225,7 +220,7 @@ public class FleetStatusService extends EvergreenService {
                     .topic(updateFssDataTopic)
                     .payload(SERIALIZER.writeValueAsBytes(fleetStatusDetails)).build());
         } catch (ExecutionException | InterruptedException | TimeoutException | JsonProcessingException e) {
-            logger.atError().cause(e);
+            logger.atError().cause(e).log("Unable to publish fleet status service.");
         }
     }
 
@@ -249,20 +244,12 @@ public class FleetStatusService extends EvergreenService {
 
                 groupTopics.iterator().forEachRemaining(pkgNode -> {
                     Topics pkgTopics = (Topics) pkgNode;
-                    Topic lookup = pkgTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY);
-                    String groupVersion = (String) lookup.getOnce();
-                    String groupName2 = Arn.builder()
-                            .withPartition(FLEET_STATUS_ARN_PARTITION)
-                            .withService(FLEET_STATUS_ARN_SERVICE)
-                            .withAccountId(Coerce.toString(deviceConfiguration.getAccountId()))
-                            .withRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
-                            .withResource(String.format(FLEET_STATUS_ARN_RESOURCE_PREFIX, groupName,
-                                    groupVersion))
-                            .build().toString();
-                    Set<String> groupSet = packageToGroupsMappingCache
+                    Topic lookup = pkgTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
+                    String groupDeploymentId = (String) lookup.getOnce();
+                    Set<String> groupDeploymentIdSet = packageToGroupsMappingCache
                             .getOrDefault(pkgTopics.getName(), new HashSet<>());
-                    groupSet.add(groupName2);
-                    packageToGroupsMappingCache.put(pkgTopics.getName(), groupSet);
+                    groupDeploymentIdSet.add(groupDeploymentId);
+                    packageToGroupsMappingCache.put(pkgTopics.getName(), groupDeploymentIdSet);
                     pendingPackagesList.add(pkgTopics.getName());
                 });
             });
@@ -272,9 +259,9 @@ public class FleetStatusService extends EvergreenService {
 
         // Associate the groups to the dependant services based on the services it is depending on.
         while (!pendingPackagesList.isEmpty()) {
-            String pkgList = pendingPackagesList.get(0);
+            String pkgName = pendingPackagesList.get(0);
             try {
-                EvergreenService evergreenService = this.kernel.locate(pkgList);
+                EvergreenService evergreenService = this.kernel.locate(pkgName);
                 Set<String> groupName2 = packageToGroupsMappingCache
                         .getOrDefault(evergreenService.getName(), new HashSet<>());
 
@@ -286,19 +273,19 @@ public class FleetStatusService extends EvergreenService {
                     packageToGroupsMappingCache.put(evergreenService1.getName(), groupSet);
                 });
             } catch (ServiceLoadException ex) {
-                logger.atError().cause(ex);
+                logger.atError().cause(ex).log("Unable to get status for {}.", pkgName);
             }
             pendingPackagesList.remove(0);
         }
         return packageToGroupsMappingCache;
     }
 
-    private OverAllStatus getOverallStatusBasedOnServiceState(EvergreenService evergreenService) {
+    private OverallStatus getOverallStatusBasedOnServiceState(EvergreenService evergreenService) {
         if (State.BROKEN.equals(evergreenService.getState())
                 || State.ERRORED.equals(evergreenService.getState())) {
-            return OverAllStatus.UNHEALTHY;
+            return OverallStatus.UNHEALTHY;
         }
-        return OverAllStatus.HEALTHY;
+        return OverallStatus.HEALTHY;
     }
 
 

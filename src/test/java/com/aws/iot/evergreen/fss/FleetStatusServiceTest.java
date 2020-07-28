@@ -46,13 +46,11 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
-import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY;
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
-import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_ACCOUNT_ID;
-import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -102,16 +100,15 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topic accountIdTopic = Topic.of(context, DEVICE_PARAM_ACCOUNT_ID, "12345");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
-        Topic awsRegionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "testRegion");
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
         Topic pkgTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic groupTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, "12");
+        Topic groupTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
         Map<String, Node> pkgDetails = new HashMap<>();
         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, groupTopic1);
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, groupTopic1);
         Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
         pkgTopics.children.putAll(pkgDetails);
         deploymentGroupTopics.children.put("MockService", pkgTopics);
@@ -138,9 +135,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
-        when(mockDeviceConfiguration.getAccountId()).thenReturn(accountIdTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-        when(mockDeviceConfiguration.getAWSRegion()).thenReturn(awsRegionTopic);
 
         // Create the fleet status service instance
         FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
@@ -176,7 +171,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals("testGroup", fleetStatusDetails.getThingGroups());
-        assertEquals(OverAllStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -193,16 +188,15 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topic accountIdTopic = Topic.of(context, DEVICE_PARAM_ACCOUNT_ID, "12345");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
-        Topic awsRegionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "testRegion");
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
         Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, "12");
+        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
         Map<String, Node> pkgDetails = new HashMap<>();
         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, t1);
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
         Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
         pkgTopics.children.putAll(pkgDetails);
         deploymentGroupTopics.children.put("MockService", pkgTopics);
@@ -223,9 +217,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
-        when(mockDeviceConfiguration.getAccountId()).thenReturn(accountIdTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-        when(mockDeviceConfiguration.getAWSRegion()).thenReturn(awsRegionTopic);
 
         // Create the fleet status service instance
         FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
@@ -259,7 +251,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals("testGroup", fleetStatusDetails.getThingGroups());
-        assertEquals(OverAllStatus.UNHEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverAllStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -374,16 +366,15 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
-        Topic accountIdTopic = Topic.of(context, DEVICE_PARAM_ACCOUNT_ID, "12345");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
-        Topic awsRegionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "testRegion");
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
         Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, "12");
+        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
         Map<String, Node> pkgDetails = new HashMap<>();
         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, t1);
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
         Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
         pkgTopics.children.putAll(pkgDetails);
         deploymentGroupTopics.children.put("MockService", pkgTopics);
@@ -404,9 +395,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
-        when(mockDeviceConfiguration.getAccountId()).thenReturn(accountIdTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-        when(mockDeviceConfiguration.getAWSRegion()).thenReturn(awsRegionTopic);
 
         // Create the fleet status service instance
         FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
@@ -427,7 +416,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals("testGroup", fleetStatusDetails.getThingGroups());
-        assertEquals(OverAllStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -493,7 +482,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals("", fleetStatusDetails.getThingGroups());
-        assertEquals(OverAllStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -506,16 +495,15 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topic accountIdTopic = Topic.of(context, DEVICE_PARAM_ACCOUNT_ID, "12345");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
-        Topic awsRegionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "testRegion");
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
         Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, "12");
+        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
         Map<String, Node> pkgDetails = new HashMap<>();
         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY, t1);
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
         Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
         pkgTopics.children.putAll(pkgDetails);
         deploymentGroupTopics.children.put("MockService", pkgTopics);
@@ -535,9 +523,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
-        when(mockDeviceConfiguration.getAccountId()).thenReturn(accountIdTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-        when(mockDeviceConfiguration.getAWSRegion()).thenReturn(awsRegionTopic);
 
         // Create the fleet status service instance
         FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
@@ -561,7 +547,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals("testGroup", fleetStatusDetails.getThingGroups());
-        assertEquals(OverAllStatus.UNHEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverAllStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());

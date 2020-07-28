@@ -39,7 +39,6 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
-    public static final String DEVICE_PARAM_ACCOUNT_ID = "accountId";
 
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
@@ -74,11 +73,10 @@ public class DeviceConfiguration {
      * @param certificateFilePath certificate location on device
      * @param rootCaFilePath      downloaded RootCA location on device
      * @param awsRegion           aws region for the device
-     * @param accountId           aws region for the device
      */
     public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
                                String privateKeyPath, String certificateFilePath, String rootCaFilePath,
-                               String awsRegion, String accountId) {
+                               String awsRegion) {
         this.kernel = kernel;
         deTildeValidator = getDeTildeValidator(kernel);
         regionValidator = getRegionValidator();
@@ -90,7 +88,6 @@ public class DeviceConfiguration {
         getCertificateFilePath().withValue(certificateFilePath);
         getRootCAFilePath().withValue(rootCaFilePath);
         getAWSRegion().withValue(awsRegion);
-        getAccountId().withValue(accountId);
 
         validate();
     }
@@ -121,10 +118,6 @@ public class DeviceConfiguration {
 
     public Topic getThingName() {
         return getTopic(DEVICE_PARAM_THING_NAME);
-    }
-
-    public Topic getAccountId() {
-        return getTopic(DEVICE_PARAM_ACCOUNT_ID);
     }
 
     public Topic getCertificateFilePath() {
@@ -167,10 +160,9 @@ public class DeviceConfiguration {
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
-        String accountId = Coerce.toString(getAccountId());
         try {
             validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
-                    iotCredEndpoint, awsRegion, accountId);
+                    iotCredEndpoint, awsRegion);
         } catch (DeviceConfigurationException e) {
             logger.atError().setCause(e).log();
         }
@@ -186,7 +178,7 @@ public class DeviceConfiguration {
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
                                              String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
-                                             String awsRegion, String accountId) throws DeviceConfigurationException {
+                                             String awsRegion) throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
             errors.add(DEVICE_PARAM_THING_NAME + CANNOT_BE_EMPTY);
@@ -208,9 +200,6 @@ public class DeviceConfiguration {
         }
         if (Utils.isEmpty(awsRegion)) {
             errors.add(DEVICE_PARAM_AWS_REGION + CANNOT_BE_EMPTY);
-        }
-        if (Utils.isEmpty(accountId)) {
-            errors.add(DEVICE_PARAM_ACCOUNT_ID + CANNOT_BE_EMPTY);
         }
         if (!errors.isEmpty()) {
             throw new DeviceConfigurationException(errors.toString());

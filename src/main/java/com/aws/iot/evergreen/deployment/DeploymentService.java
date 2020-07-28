@@ -57,7 +57,7 @@ public class DeploymentService extends EvergreenService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
-    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY = "groupVersion";
+    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID = "groupDeploymentId";
 
     protected static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -225,8 +225,8 @@ public class DeploymentService extends EvergreenService {
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
                         Map<Object, Object> pkgDetails = new HashMap<>();
                         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY,
-                                deploymentDocument.getGroupVersion());
+                        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                                deploymentDocument.getDeploymentId());
                         deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
                     });
                     deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);

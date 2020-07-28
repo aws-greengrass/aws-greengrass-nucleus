@@ -510,7 +510,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
             });
             context.get(Kernel.class).clearODcache();
-            context.get(FleetStatusService.class).updateRemovedDependencies(removedDependencies);
+            FleetStatusService fleetStatusService = context.get(FleetStatusService.class);
+            if (fleetStatusService != null) {
+                fleetStatusService.updateRemovedDependencies(removedDependencies);
+            }
         }
 
         AtomicBoolean hasNewService = new AtomicBoolean(false);

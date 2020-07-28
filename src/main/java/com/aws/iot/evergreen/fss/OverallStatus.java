@@ -5,7 +5,7 @@
 
 package com.aws.iot.evergreen.fss;
 
-public enum OverAllStatus {
+public enum OverallStatus {
     HEALTHY,
     UNHEALTHY
 }
