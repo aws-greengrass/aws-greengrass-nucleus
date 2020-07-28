@@ -271,4 +271,23 @@ public class CredentialRequestHandlerTest {
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
     }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_connection_error_WHEN_called_handle_THEN_expire_immediately() throws Exception {
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenThrow(AWSIotException.class);
+        CredentialRequestHandler handler =
+                new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        OutputStream mockStream = mock(OutputStream.class);
+        when(mockExchange.getResponseBody()).thenReturn(mockStream);
+        handler.handle(mockExchange);
+        byte[] expectedResponse = "Failed to get connection".getBytes();
+        int expectedStatus = 500;
+        // expire immediately
+        assertFalse(handler.areCredentialsValid());
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
+        verify(mockStream, times(1)).write(expectedResponse);
+        mockStream.close();
+    }
 }

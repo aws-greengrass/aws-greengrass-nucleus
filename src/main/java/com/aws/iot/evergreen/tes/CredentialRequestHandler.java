@@ -153,11 +153,12 @@ public class CredentialRequestHandler implements HttpHandler {
                 tesCache.get(iotCredentialsPath).responseCode = cloudResponseCode;
             }
         } catch (AWSIotException e) {
-            // Http connection error
-            String responseString = "Failed to get connection:" + e.getMessage();
+            // Http connection error should expire immediately
+            String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
+            newExpiry = Instant.now(clock);
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
-            LOGGER.error("Encountered error while fetching credentials", e);
+            LOGGER.warn("Encountered error while fetching credentials", e.getMessage());
         }
 
         tesCache.get(iotCredentialsPath).expiry = newExpiry;
