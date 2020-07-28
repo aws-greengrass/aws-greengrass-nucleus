@@ -115,19 +115,15 @@ public class GenericExternalService extends EvergreenService {
         stopAllLifecycleProcesses();
 
         CountDownLatch timeoutLatch = new CountDownLatch(1);
-
         AtomicInteger atomicExitCode = new AtomicInteger();
 
         // run the command at background thread so that the main thread can handle it when it times out
         // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
         // signature changes to deal with timeout, so we decided to go with background thread.
-
         try (Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
             atomicExitCode.set(exitCode);
             timeoutLatch.countDown();
         }, lifecycleProcesses).getRight()) {
-
-
             if (exec == null) {
                 // no bootstrap command found
                 return null;
@@ -139,11 +135,13 @@ public class GenericExternalService extends EvergreenService {
                             LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
             boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
             if (!completedInTime) {
-                throw new TimeoutException("Bootstrap step timed out");
+                String msg = String.format("Bootstrap step timed out after '%s' seconds.", timeoutInSec);
+                throw new TimeoutException(msg);
             }
 
         } catch (IOException e) {
             logger.atError("bootstrap-process-close-error").setCause(e).log("Error closing process at bootstrap step.");
+            // No need to return special error code here because the exit code is handled by atomicExitCode.
         }
 
         return atomicExitCode.get();

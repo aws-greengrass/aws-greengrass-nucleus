@@ -269,7 +269,6 @@ class GenericExternalServiceTest extends BaseITCase {
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString());
 
-
         GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");
 

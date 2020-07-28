@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -245,15 +246,15 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     /**
      * Bootstrap and notify if a kernel/device restart is needed. Called when a component newly added to kernel, or the
-     * version changes. Returns 0 for no-op, 100 for restarting kernel, 200 for restarting device, other code for
-     * errors, and null if not configured.
+     * version changes. Returns 0 for no-op, 100 for restarting kernel, 101 for restarting device, other code for
+     * errors, and null if not configured. Refer to  {@link BootstrapSuccessCode}.
      *
-     * @return exit code; 0 for no-op, 100 for restarting kernel, 200 for restarting device, other code for errors.
+     * @return exit code; 0 for no-op, 100 for restarting kernel, 101 for restarting device, other code for errors, and
+     *         null if not configured. Refer to  {@link BootstrapSuccessCode}.
      * @throws InterruptedException when the execution is interrupted.
-     * @throws TimeoutException when the command execution times out.
-
+     * @throws TimeoutException     when the command execution times out.
      */
-    protected Integer bootstrap() throws InterruptedException, TimeoutException {
+    public Integer bootstrap() throws InterruptedException, TimeoutException {
         return null;
     }
 
