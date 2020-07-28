@@ -87,9 +87,8 @@ public class BaseE2ETestCase implements AutoCloseable {
             new DeviceProvisioningHelper(BETA_REGION.toString(), System.out);
 
     @TempDir
-    protected Path tempRootDir;
+    protected static Path tempRootDir;
 
-    @TempDir
     protected static Path e2eTestPkgStoreDir;
 
     protected static PackageStore e2eTestPackageStore;
@@ -167,6 +166,7 @@ public class BaseE2ETestCase implements AutoCloseable {
             throws IOException, PackagingException {
         Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
 
+        e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
 
@@ -212,6 +212,8 @@ public class BaseE2ETestCase implements AutoCloseable {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
             content = content.replaceAll("\\{\\{" + localPkgName + "}}", cloudPkgName);
         }
+
+        testRecipePath = e2eTestPackageStore.resolveRecipePath(pkgIdCloud);
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
