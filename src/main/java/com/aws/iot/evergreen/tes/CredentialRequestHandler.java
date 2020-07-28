@@ -90,7 +90,7 @@ public class CredentialRequestHandler implements HttpHandler {
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
-        byte[] response = {};
+        byte[] response;
         LOGGER.debug("Got request for credentials");
 
         if (areCredentialsValid()) {
@@ -146,12 +146,17 @@ public class CredentialRequestHandler implements HttpHandler {
                 }
             } else {
                 // Cloud errors should be cached
-                String responseString = String.format("TES responded with status code: %d", cloudResponseCode);
+                String responseString =
+                        String.format("TES responded with status code: %d", cloudResponseCode, credentials);
                 response = responseString.getBytes(StandardCharsets.UTF_8);
                 newExpiry = getExpiryPolicyForErr(cloudResponseCode);
                 tesCache.get(iotCredentialsPath).responseCode = cloudResponseCode;
             }
         } catch (AWSIotException e) {
+            // Http connection error
+            String responseString = "Failed to get connection:" + e.getMessage();
+            response = responseString.getBytes(StandardCharsets.UTF_8);
+            tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             LOGGER.error("Encountered error while fetching credentials", e);
         }
 
@@ -188,19 +193,16 @@ public class CredentialRequestHandler implements HttpHandler {
     }
 
     private Instant getExpiryPolicyForErr(int statusCode) {
-        Instant t;
+        int expiryTime = UNKNOWN_ERROR_CACHE_IN_MIN; // In case of unrecognized cloud errors, back off
         // Add caching Time-To-Live (TTL) for TES cloud errors
         if (statusCode >= 400 && statusCode < 500) {
             // 4xx retries are only meaningful unless a user action has been adopted, TTL should be longer
-            t = Instant.now(clock).plus(Duration.ofMinutes(CLOUD_4XX_ERROR_CACHE_IN_MIN));
+            expiryTime = CLOUD_4XX_ERROR_CACHE_IN_MIN;
         } else if (statusCode >= 500 && statusCode < 600) {
             // 5xx could be a temporary cloud unavailability, TTL should be shorter
-            t = Instant.now(clock).plus(Duration.ofMinutes(CLOUD_5XX_ERROR_CACHE_IN_MIN));
-        } else {
-            // In case of unrecognized cloud errors, back off
-            t = Instant.now(clock).plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
+            expiryTime = CLOUD_5XX_ERROR_CACHE_IN_MIN;
         }
-        return t;
+        return Instant.now(clock).plus(Duration.ofMinutes(expiryTime));
     }
 
     /**
