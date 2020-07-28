@@ -1,0 +1,64 @@
+---
+services:
+  main:
+    dependencies:
+      - IPCService
+      - mqtt
+      - ServiceName
+    lifecycle:
+
+  mqtt:
+    dependencies:
+      - IPCService
+    resources:
+      - evergreen_1._mqtt._tcp.local
+      - evergreen_1._http._tcp.local
+    lifecycle:
+
+  ServiceName:
+    dependencies:
+      - IPCService
+    resources:
+      - http-resource
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100
+
+  pubsub:
+    AccessControl:
+      policyId1:
+        policyDescription: "access to pubsub topics"
+        principals:
+          - "ServiceName"
+          - "mqtt"
+        operations:
+          - "publish"
+          - "subscribe"
+        resources:
+          - "/topic/1/#"
+          - "/longer/topic/example/"
+          - "*"
+  pubsub_no_description:
+    AccessControl:
+      policyId1:
+        principals:
+          - "ServiceName"
+          - "mqtt"
+        operations:
+          - "publish"
+          - "subscribe"
+
+  pubsub_no_operations:
+    AccessControl:
+      policyId1:
+        policyDescription: "access to pubsub topics"
+        principals:
+          - "ServiceName"
+          - "mqtt"
+        resources:
+          - "/topic/1/#"
+          - "/longer/topic/example/"
+          - "*"
