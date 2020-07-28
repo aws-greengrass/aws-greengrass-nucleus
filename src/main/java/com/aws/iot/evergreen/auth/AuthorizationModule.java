@@ -28,7 +28,7 @@ public class AuthorizationModule {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
-            throw new AuthorizationException("Either one parameter is empty");
+            throw new AuthorizationException("Invalid arguments");
         }
         // resource as null is ok, but it should not be empty
         String resource = permission.getResource();
@@ -49,7 +49,12 @@ public class AuthorizationModule {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
-            throw new AuthorizationException("Either one parameter is empty");
+            throw new AuthorizationException("Invalid arguments");
+        }
+        // resource as null is ok, but it should not be empty
+        String resource = permission.getResource();
+        if (resource != null && Utils.isEmpty(resource)) {
+            throw new AuthorizationException("Resource cannot be empty");
         }
         if (!permissions.containsKey(destination)) {
             return false;

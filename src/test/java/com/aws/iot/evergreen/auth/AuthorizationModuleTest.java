@@ -44,13 +44,24 @@ public class AuthorizationModuleTest {
 
     @ParameterizedTest
     @MethodSource("invalidPermEntries")
-    void Given_authZmodule_WHEN_added_empty_entries_THEN_it_fails(String destination,
+    void Given_authZmodule_WHEN_added_invalid_entries_THEN_it_fails(String destination,
                                                                   String principal,
                                                                   String op,
                                                                   String resource) {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         assertThrows(AuthorizationException.class, () -> module.addPermission(destination, permission));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidPermEntries")
+    void Given_authZmodule_WHEN_checked_with_invalid_entries_THEN_it_fails(String destination,
+                                                                  String principal,
+                                                                  String op,
+                                                                  String resource) {
+        AuthorizationModule module = new AuthorizationModule();
+        Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+        assertThrows(AuthorizationException.class, () -> module.isPresent(destination, permission));
     }
 
     @ParameterizedTest

@@ -111,8 +111,8 @@ public class AuthorizationHandler {
      */
     public void registerService(String serviceName, Set<String> operations)
             throws AuthorizationException {
-        if (Utils.isEmpty(operations)) {
-            throw new AuthorizationException("operations is empty");
+        if (Utils.isEmpty(operations) || Utils.isEmpty(serviceName)) {
+            throw new AuthorizationException("Invalid arguments for registerService()");
         }
         if (serviceToOperationsMap.containsKey(serviceName)) {
             throw new AuthorizationException("Service already registered: " + serviceName);
@@ -137,14 +137,10 @@ public class AuthorizationHandler {
             throws AuthorizationException {
         // TODO: Make this method atomic operation or thread safe for manipulating
         // underlying permission store.
-        if (Utils.isEmpty(serviceName)) {
-            throw new AuthorizationException("Service name is not specified");
-        }
-        if (policies == null) {
-            throw new AuthorizationException("policies is null");
+        if (Utils.isEmpty(policies)) {
+            throw new AuthorizationException("policies is null/empty");
         }
         isServiceRegistered(serviceName);
-
         validatePolicyId(policies);
         // First validate if all principals and operations are valid
         for (AuthorizationPolicy policy: policies) {
@@ -160,7 +156,7 @@ public class AuthorizationHandler {
 
     private void isServiceRegistered(String serviceName) throws AuthorizationException {
         if (Utils.isEmpty(serviceName)) {
-            throw new AuthorizationException("Invalid service name: " + serviceName);
+            throw new AuthorizationException("Service name is not specified: " + serviceName);
         }
         if (!serviceToOperationsMap.containsKey(serviceName)) {
             throw new AuthorizationException("Service not registered: " + serviceName);

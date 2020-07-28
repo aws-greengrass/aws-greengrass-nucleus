@@ -6,6 +6,8 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -92,7 +94,7 @@ public class AuthorizationHandlerTest {
                 .build();
     }
 
-    private AuthorizationPolicy getAuthZPolicyWithEmptySources() {
+    private AuthorizationPolicy getAuthZPolicyWithEmptyPrincipal() {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
@@ -110,13 +112,21 @@ public class AuthorizationHandlerTest {
                 .build();
     }
 
-    @Test
-    void GIVEN_AuthZ_handler_WHEN_authz_policy_with_duplicate_id_THEN_load_fails() throws AuthorizationException {
+    private AuthorizationPolicy getAuthZPolicyWithEmptyPolicyId() {
+        return AuthorizationPolicy.builder()
+                .policyId("")
+                .policyDescription("Test policy")
+                .principals(new HashSet(Arrays.asList("*")))
+                .operations(new HashSet())
+                .build();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void GIVEN_AuthZ_handler_WHEN_authz_policy_with_invalid_service_THEN_load_fails(String serviceName) throws AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
-        final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        authorizationHandler.registerService("ServiceA", serviceOps);
         assertThrows(AuthorizationException.class,
-                () ->authorizationHandler.loadAuthorizationPolicy("ServiceA", getAuthZPolicyWithDuplicateId()));
+                () ->authorizationHandler.loadAuthorizationPolicy(serviceName, Collections.singletonList(getAuthZPolicy())));
     }
 
     @Test
@@ -133,6 +143,21 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerService("ServiceB", serviceOps_2);
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceC",
                 Permission.builder().principal("*").operation("*").resource(null).build()));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void GIVEN_AuthZ_handler_WHEN_service_registered_with_empty_name_THEN_errors(String serviceName) throws AuthorizationException {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
+        final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerService(serviceName, serviceOps));
+    }
+
+    @Test
+    void GIVEN_AuthZ_handler_WHEN_service_registered_without_operation_THEN_errors() throws AuthorizationException {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
+        final Set<String> emptyOps = new HashSet<>();
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerService("ServiceA", emptyOps));
     }
 
     @Test
@@ -314,24 +339,61 @@ public class AuthorizationHandlerTest {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
 
         // invalid service fails
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("",
+        Exception exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("",
                 Collections.singletonList(getAuthZPolicy())));
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy(null,
+        assertTrue(exception.getMessage().contains("Service name is not specified"));
+
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy(null,
                 Collections.singletonList(getAuthZPolicy())));
+        assertTrue(exception.getMessage().contains("Service name is not specified"));
+
         // adding null config fails
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA", null));
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA", new ArrayList<>()));
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA", null));
+        assertTrue(exception.getMessage().contains("policies is null/empty"));
 
-        // When kernel cannot identify a principal service then load fails
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA", new ArrayList<>()));
+        assertTrue(exception.getMessage().contains("policies is null/empty"));
+
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
                 Collections.singletonList(getAuthZPolicy())));
+        assertTrue(exception.getMessage().contains("Service not registered"));
 
-        // Empty principal should fail to load
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
-                Collections.singletonList(getAuthZPolicyWithEmptySources())));
+        // register the service
+        authorizationHandler.registerService("ServiceA", new HashSet(Arrays.asList("Op")));
+        // Empty principal should fail to load now
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
+                Collections.singletonList(getAuthZPolicyWithEmptyPrincipal())));
+        assertTrue(exception.getMessage().contains("Malformed policy with invalid/empty principal"));
+
+        // Now let the mock return null
+        when(mockKernel.findServiceTopic(anyString())).thenReturn(null);
+        // When kernel cannot identify a principal service then load fails
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
+                Collections.singletonList(getAuthZPolicy())));
+        assertTrue(exception.getMessage().contains("auth policy are not valid services"));
+
+        // Now let the mock return mock topics
+        when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
+        // Ops which are not registered should fail to load
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
+                Collections.singletonList(getAuthZPolicy())));
+        assertTrue(exception.getMessage().contains("Operation not registered"));
 
         // Empty operations should fail to load
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
+        exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
                 Collections.singletonList(getAuthZPolicyWithEmptyOp())));
+        assertTrue(exception.getMessage().contains("Malformed policy with invalid/empty operations"));
+
+        // duplicate policyId should fails
+        exception = assertThrows(AuthorizationException.class,
+                () ->authorizationHandler.loadAuthorizationPolicy("ServiceA", getAuthZPolicyWithDuplicateId()));
+        assertTrue(exception.getMessage().contains("Malformed policy with duplicate policy"));
+
+        // empty policy Id should fail
+        exception = assertThrows(AuthorizationException.class,
+                () ->authorizationHandler.loadAuthorizationPolicy("ServiceA",
+                        Collections.singletonList(getAuthZPolicyWithEmptyPolicyId())));
+        assertTrue(exception.getMessage().contains("Malformed policy with empty/null policy "));
+
     }
 }
