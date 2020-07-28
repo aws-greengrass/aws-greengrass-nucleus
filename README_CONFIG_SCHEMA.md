@@ -69,9 +69,10 @@ services:
       script:
       timeout: # optional. timeout in number of seconds. Default to 120 sec.
       setenv: # key-value environment variables. optional, can override the parent 'setenv'
+      skipif: onpath <executable>|exists <file> # optional
 
     install:
-      skipif: onpath <executable>|exists <file>
+      skipif: onpath <executable>|exists <file> # optional
       script:
       timeout: # optional. timeout in number of seconds. Default to 120 sec.
       setenv: # key-value environment variables. optional, can override the parent 'setenv'
