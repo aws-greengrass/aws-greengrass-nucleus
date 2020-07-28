@@ -40,6 +40,7 @@ import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String RUNTIME_STORE_NAMESPACE_TOPIC = "runtime";
+    public static final String PRIVATE_STORE_NAMESPACE_TOPIC = "_private";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_DEPENDENCIES_NAMESPACE_TOPIC = "dependencies";
     public static final String SERVICE_NAME_KEY = "serviceName";
@@ -49,6 +50,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
 
     @Getter
     protected final Topics config;
+    private final Topics privateConfig;
 
     //TODO: make the field private
     @Getter
@@ -68,27 +70,37 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     // Service logger instance
     protected final Logger logger;
 
-
     /**
      * Constructor for EvergreenService.
      *
      * @param topics root Configuration topic for this service
      */
     public EvergreenService(Topics topics) {
+        this(topics, topics.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
+    }
+
+    /**
+     * Constructor for EvergreenService.
+     *
+     * @param topics        root Configuration topic for this service
+     * @param privateConfig root configuration topic for the service's private config which must not be shared
+     */
+    public EvergreenService(Topics topics, Topics privateConfig) {
         this.config = topics;
+        this.privateConfig = privateConfig;
         this.context = topics.getContext();
 
         // TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
-        this.logger = LogManager.getLogger(getName());
-        logger.dfltKv(SERVICE_NAME_KEY, getName());
+        this.logger = LogManager.getLogger(getServiceName()).createChild();
+        logger.dfltKv(SERVICE_NAME_KEY, getServiceName());
         logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
 
         this.externalDependenciesTopic =
                 topics.createLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).dflt(new ArrayList<String>());
         this.externalDependenciesTopic.withParentNeedsToKnow(false);
-        this.lifecycle = new Lifecycle(this, logger);
+        this.lifecycle = new Lifecycle(this, logger, privateConfig);
 
         initDependenciesTopic();
         periodicityInformation = Periodicity.of(this);
@@ -321,8 +333,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * @throws InputValidationException if the provided arguments are invalid.
      */
     public synchronized void addOrUpdateDependency(EvergreenService dependentEvergreenService,
-                                                   DependencyType dependencyType,
-                                                   boolean isDefault) throws InputValidationException {
+                                                   DependencyType dependencyType, boolean isDefault)
+            throws InputValidationException {
         if (dependentEvergreenService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
@@ -442,6 +454,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     public String getName() {
+        return getServiceName();
+    }
+
+    private String getServiceName() {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 
@@ -450,31 +466,43 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Get the config topics for service local data-store during runtime.
-     * content under runtimeConfig will not be affected by DeploymentService or DeploymentService roll-back.
+     * Get the config topics for service local data-store during runtime. content under runtimeConfig will not be
+     * affected by DeploymentService or DeploymentService roll-back.
+     *
      * @return
      */
     public Topics getRuntimeConfig() {
         return config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC);
     }
 
+    public Topics getPrivateConfig() {
+        return privateConfig;
+    }
+
     protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)
             throws InputValidationException, ServiceLoadException {
         HashMap<EvergreenService, DependencyType> ret = new HashMap<>();
         for (String dependency : dependencyList) {
-            String[] dependencyInfo = dependency.split(":");
-            if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
-                throw new InputValidationException("Bad dependency syntax");
-            }
-            Pair<EvergreenService, DependencyType> dep =
-                    parseSingleDependency(dependencyInfo[0], dependencyInfo.length > 1 ? dependencyInfo[1] : null);
-            ret.put(dep.getLeft(), dep.getRight());
+            Pair<String, DependencyType> dep = parseSingleDependency(dependency);
+            ret.put(context.get(Kernel.class).locate(dep.getLeft()), dep.getRight());
         }
         return ret;
     }
 
-    private Pair<EvergreenService, DependencyType> parseSingleDependency(String name, String typeString)
-            throws InputValidationException, ServiceLoadException {
+    /**
+     * Parse a string into a dependency specification.
+     *
+     * @param dependency string in the format of one service dependency
+     * @return a pair of dependency name and type
+     * @throws InputValidationException if the dependency string has invalid format
+     */
+    public static Pair<String, DependencyType> parseSingleDependency(String dependency)
+            throws InputValidationException {
+        String[] dependencyInfo = dependency.split(":");
+        if (dependencyInfo.length == 0 || dependencyInfo.length > 2) {
+            throw new InputValidationException("Bad dependency syntax");
+        }
+        String typeString = dependencyInfo.length > 1 ? dependencyInfo[1] : null;
         DependencyType type = null;
         if (typeString != null && !typeString.isEmpty()) {
             // do "friendly" match
@@ -489,8 +517,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             }
         }
 
-        EvergreenService d = context.get(Kernel.class).locate(name);
-        return new Pair<>(d, type == null ? DependencyType.HARD : type);
+        return new Pair<>(dependencyInfo[0], type == null ? DependencyType.HARD : type);
     }
 
     private synchronized void setupDependencies(Iterable<String> dependencyList)

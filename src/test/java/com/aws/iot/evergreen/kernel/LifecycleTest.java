@@ -1,9 +1,9 @@
 package com.aws.iot.evergreen.kernel;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.State;
@@ -39,6 +39,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -96,6 +98,8 @@ public class LifecycleTest {
         }
 
         lenient().when(evergreenService.getConfig()).thenReturn(config);
+        lenient().when(evergreenService.getRuntimeConfig()).thenReturn(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC));
+        lenient().when(evergreenService.getPrivateConfig()).thenReturn(config.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
         lenient().when(evergreenService.getContext()).thenReturn(context);
         lenient().when(evergreenService.dependencyReady()).thenReturn(true);
     }
@@ -111,7 +115,7 @@ public class LifecycleTest {
 
     @Test
     public void GIVEN_state_new_WHEN_requestStart_called_THEN_install_invoked() throws InterruptedException {
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
 
         lifecycle.initLifecycleThread();
@@ -125,7 +129,7 @@ public class LifecycleTest {
     @Test
     public void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
         //GIVEN
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
 
         CountDownLatch installInterrupted = new CountDownLatch(1);
@@ -162,7 +166,7 @@ public class LifecycleTest {
     @Test
     public void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException {
         // GIVEN
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig());
         initLifecycleState(lifecycle, State.INSTALLED);
 
         CountDownLatch startupInterrupted = new CountDownLatch(1);
@@ -207,7 +211,7 @@ public class LifecycleTest {
     @Test
     public void GIVEN_state_running_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
-        lifecycle = spy(new Lifecycle(evergreenService, logger));
+        lifecycle = spy(new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.INSTALLED);
 
         CountDownLatch startupInterrupted = new CountDownLatch(1);
@@ -247,7 +251,7 @@ public class LifecycleTest {
     @Test
     public void GIVEN_state_install_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
-        lifecycle = spy(new Lifecycle(evergreenService, logger));
+        lifecycle = spy(new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.INSTALLED);
 
         CountDownLatch startupInterrupted = new CountDownLatch(1);
@@ -297,7 +301,7 @@ public class LifecycleTest {
         }).when(evergreenService).startup();
 
         // GIVEN
-        lifecycle = new Lifecycle(evergreenService, logger);
+        lifecycle = new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig());
         initLifecycleState(lifecycle, State.INSTALLED);
 
         CountDownLatch processed = new CountDownLatch(1);
@@ -332,7 +336,7 @@ public class LifecycleTest {
 
     @Test
     void GIVEN_state_running_WHEN_errored_3_times_THEN_broken() throws InterruptedException {
-        lifecycle = spy(new Lifecycle(evergreenService, logger));
+        lifecycle = spy(new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.NEW);
 
         CountDownLatch reachedRunning1 = new CountDownLatch(1);
@@ -377,7 +381,7 @@ public class LifecycleTest {
         Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
         context.put(Clock.class, clock);
 
-        lifecycle = spy(new Lifecycle(evergreenService, logger));
+        lifecycle = spy(new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.NEW);
 
         CountDownLatch reachedRunning1 = new CountDownLatch(1);

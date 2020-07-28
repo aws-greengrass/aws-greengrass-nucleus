@@ -12,11 +12,16 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
+import com.aws.iot.evergreen.util.DependencyOrder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -40,12 +45,14 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -77,6 +84,9 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Path packageStorePath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path kernelAltsPath;
 
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;
@@ -106,6 +116,8 @@ public class Kernel {
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
+        context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
+        context.put(BootstrapManager.class, new BootstrapManager(this));
         context.put(Clock.class, Clock.systemUTC());
     }
 
@@ -127,8 +139,28 @@ public class Kernel {
     /**
      * Startup the Kernel and all services.
      */
+    @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
-        kernelLifecycle.launch();
+        KernelAlternatives kernelAlts = new KernelAlternatives(getKernelAltsPath());
+        context.put(KernelAlternatives.class, kernelAlts);
+        DeploymentStage stage = kernelAlts.determineDeploymentStage();
+
+        switch (stage) {
+            case BOOTSTRAP:
+                // TODO: load pending bootstrap tasks. Start with one execution here. Flip symlinks. Update task list.
+                // System.exit(?)
+                break;
+            case KERNEL_ACTIVATION:
+            case KERNEL_ROLLBACK:
+                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
+                context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
+                deploymentsQueue.add(kernelAlts.loadPersistedDeployment());
+                // fall through to launch kernel
+            default:
+                kernelLifecycle.launch();
+                break;
+        }
         return this;
     }
 
@@ -168,21 +200,9 @@ public class Kernel {
 
         final HashSet<EvergreenService> pendingDependencyServices = new LinkedHashSet<>();
         getMain().putDependenciesIntoSet(pendingDependencyServices);
-        final HashSet<EvergreenService> dependencyFoundServices = new LinkedHashSet<>();
-        while (!pendingDependencyServices.isEmpty()) {
-            int sz = pendingDependencyServices.size();
-            pendingDependencyServices.removeIf(pendingService -> {
-                if (dependencyFoundServices.containsAll(pendingService.getDependencies().keySet())) {
-                    dependencyFoundServices.add(pendingService);
-                    return true;
-                }
-                return false;
-            });
-            if (sz == pendingDependencyServices.size()) {
-                // didn't find anything to remove, there must be a cycle
-                break;
-            }
-        }
+        final LinkedHashSet<EvergreenService> dependencyFoundServices = new DependencyOrder<EvergreenService>()
+                .computeOrderedDependencies(pendingDependencyServices, s -> s.getDependencies().keySet());
+
         return cachedOD = dependencyFoundServices;
     }
 

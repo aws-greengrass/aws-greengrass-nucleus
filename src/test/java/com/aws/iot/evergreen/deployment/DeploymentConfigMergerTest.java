@@ -1,5 +1,31 @@
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.Crashable;
+import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.activator.DefaultActivator;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
+import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,30 +50,8 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
-
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.Crashable;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
-import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.when;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -76,9 +80,7 @@ public class DeploymentConfigMergerTest {
             throws Exception {
         EvergreenService oldService = createMockEvergreenService("oldService");
         EvergreenService existingService = createMockEvergreenService("existingService");
-        Collection<EvergreenService> orderedDependencies = Arrays.asList(
-                oldService, existingService
-        );
+        Collection<EvergreenService> orderedDependencies = Arrays.asList(oldService, existingService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
 
         Map<String, Object> newConfig = new HashMap<>();
@@ -131,9 +133,8 @@ public class DeploymentConfigMergerTest {
 
         EvergreenService existingService = createMockEvergreenService("existingService", kernel);
 
-        Collection<EvergreenService> orderedDependencies = Arrays.asList(
-                oldService, existingService, existingAutoStartService
-        );
+        Collection<EvergreenService> orderedDependencies =
+                Arrays.asList(oldService, existingService, existingAutoStartService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
 
         Map<String, Object> newConfig = new HashMap<>();
@@ -177,13 +178,14 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully() throws Exception {
+    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully()
+            throws Exception {
         // GIVEN
         EvergreenService mockService = mock(EvergreenService.class);
         // service is in BROKEN state before merge
-        when(mockService.getState()).thenReturn(State.BROKEN);
-        when(mockService.getStateModTime()).thenReturn((long) 1);
-        when(mockService.reachedDesiredState()).thenReturn(false);
+        doReturn(State.BROKEN).when(mockService).getState();
+        doReturn((long) 1).when(mockService).getStateModTime();
+        doReturn(false).when(mockService).reachedDesiredState();
         CountDownLatch serviceStarted = new CountDownLatch(1);
         new Thread(() -> {
             try {
@@ -195,7 +197,7 @@ public class DeploymentConfigMergerTest {
         }).start();
 
         // assert waitForServicesToStart didn't finish
-        assertFalse(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertFalse(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
 
         // WHEN
         // use doReturn() here: https://stackoverflow.com/questions/11121772
@@ -203,7 +205,7 @@ public class DeploymentConfigMergerTest {
         doReturn(true).when(mockService).reachedDesiredState();
 
         // THEN
-        assertTrue(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertTrue(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -230,9 +232,13 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() {
+    public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
 
@@ -280,6 +286,13 @@ public class DeploymentConfigMergerTest {
         ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+
+        DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        when(bootstrapManager.isBootstrapRequired(any())).thenReturn(false);
+        when(context.get(BootstrapManager.class)).thenReturn(bootstrapManager);
+        when(context.get(DefaultActivator.class)).thenReturn(new DefaultActivator(kernel));
 
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);

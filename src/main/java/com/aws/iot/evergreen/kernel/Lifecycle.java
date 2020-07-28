@@ -46,6 +46,7 @@ import javax.annotation.Nonnull;
 @SuppressFBWarnings(value = "JLM_JSR166_UTILCONCURRENT_MONITORENTER",
         justification = "We're synchronizing on the desired state list which is fine")
 public class Lifecycle {
+    public static final String LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC = "bootstrap";
     public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
@@ -122,10 +123,11 @@ public class Lifecycle {
      *
      * @param evergreenService service that this is the lifecycle for
      * @param logger           service's logger
+     * @param topics           config namespace for storing the state topic
      */
-    public Lifecycle(EvergreenService evergreenService, Logger logger) {
+    public Lifecycle(EvergreenService evergreenService, Logger logger, Topics topics) {
         this.evergreenService = evergreenService;
-        this.stateTopic = initStateTopic(evergreenService.getConfig());
+        this.stateTopic = initStateTopic(topics);
         this.logger = logger;
     }
 
