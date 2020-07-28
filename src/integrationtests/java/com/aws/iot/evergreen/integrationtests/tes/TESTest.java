@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.integrationtests.tes;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
@@ -12,12 +13,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +50,7 @@ class TESTest extends BaseITCase {
     private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
 
     @BeforeEach
-    void setupKernel() throws IOException {
+    void setupKernel() throws IOException, DeviceConfigurationException {
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
@@ -62,7 +65,8 @@ class TESTest extends BaseITCase {
         try {
             kernel.shutdown();
         } finally {
-            deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION), thingInfo);
+            deviceProvisioningHelper.cleanThing(IotSdkClientFactory.getIotClient(AWS_REGION,
+                    Collections.singleton(InvalidRequestException.class)), thingInfo);
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
                     roleName, roleAliasName, thingInfo.getCertificateArn());
         }
@@ -100,7 +104,7 @@ class TESTest extends BaseITCase {
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
 
-    private void provision(Kernel kernel) throws IOException {
+    private void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName,

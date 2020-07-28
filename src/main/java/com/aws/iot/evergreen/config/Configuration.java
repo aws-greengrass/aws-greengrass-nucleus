@@ -92,6 +92,17 @@ public class Configuration {
         return root.findTopics(path);
     }
 
+    /**
+     * Find, but do not create if missing, a node in the
+     * config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find the Topics
+     */
+    @Nullable
+    public Node findNode(String... path) {
+        return root.findNode(path);
+    }
+
     public Topics getRoot() {
         return root;
     }
@@ -120,11 +131,22 @@ public class Configuration {
      * @param map       map to merge
      */
     public void mergeMap(long timestamp, Map<Object, Object> map) {
+        this.updateMap(timestamp, map, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
+    }
+
+    /**
+     * Merges a Map into this configuration. The merge will resolve platform.
+     *
+     * @param timestamp     last modified time for the configuration values
+     * @param map           map to merge
+     * @param updateBehavior the updateBehavior of each node to be merged in
+     */
+    public void updateMap(long timestamp, Map<Object, Object> map, UpdateBehaviorTree updateBehavior) {
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
         }
-        root.mergeMap(timestamp, (Map<Object, Object>) resolvedPlatformMap);
+        root.updateFromMap(timestamp, (Map<Object, Object>) resolvedPlatformMap, updateBehavior);
     }
 
     public Map<String, Object> toPOJO() {

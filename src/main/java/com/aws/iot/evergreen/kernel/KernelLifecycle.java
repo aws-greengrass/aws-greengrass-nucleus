@@ -151,6 +151,51 @@ public class KernelLifecycle {
         kernel.orderedDependencies().forEach(EvergreenService::requestStart);
     }
 
+    /**
+     * Shutdown all services in dependency order.
+     *
+     * @param timeoutSeconds timeout seconds for waiting all services to shutdown. Use -1 to wait infinitely.
+     */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    public void stopAllServices(int timeoutSeconds) {
+        EvergreenService[] d = kernel.orderedDependencies().toArray(new EvergreenService[0]);
+
+        CompletableFuture<?>[] arr = new CompletableFuture[d.length];
+        for (int i = d.length - 1; i >= 0; --i) { // shutdown in reverse order
+            String serviceName = d[i].getName();
+            try {
+                arr[i] = d[i].close();
+                arr[i].whenComplete((v, t) -> {
+                    if (t != null) {
+                        logger.atError("service-shutdown-error", t)
+                                .kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
+                    }
+                });
+            } catch (Throwable t) {
+                logger.atError("service-shutdown-error", t)
+                        .kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
+                arr[i] = CompletableFuture.completedFuture(Optional.empty());
+            }
+        }
+
+        try {
+            CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
+            logger.atInfo().log("Waiting for services to shutdown");
+            if (timeoutSeconds == -1) {
+                combinedFuture.get();
+                return;
+            }
+            combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            List<String> unclosedServices = IntStream.range(0, arr.length)
+                    .filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
+                    .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
+            logger.atError("services-shutdown-errored", e)
+                    .kv("unclosedServices", unclosedServices)
+                    .log();
+        }
+    }
+
     public void shutdown() {
         shutdown(30);
     }
@@ -169,38 +214,7 @@ public class KernelLifecycle {
         close(tlog);
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
-            EvergreenService[] d = kernel.orderedDependencies().toArray(new EvergreenService[0]);
-
-            CompletableFuture<?>[] arr = new CompletableFuture[d.length];
-            for (int i = d.length - 1; i >= 0; --i) { // shutdown in reverse order
-                String serviceName = d[i].getName();
-                try {
-                    arr[i] = d[i].close();
-                    arr[i].whenComplete((v, t) -> {
-                        if (t != null) {
-                            logger.atError("service-shutdown-error", t)
-                                    .kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
-                        }
-                    });
-                } catch (Throwable t) {
-                    logger.atError("service-shutdown-error", t)
-                            .kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
-                    arr[i] = CompletableFuture.completedFuture(Optional.empty());
-                }
-            }
-
-            try {
-                CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(arr);
-                logger.atInfo().log("Waiting for services to shutdown");
-                combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-            } catch (ExecutionException | InterruptedException | TimeoutException e) {
-                List<String> unclosedServices = IntStream.range(0, arr.length)
-                        .filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
-                        .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
-                logger.atError("services-shutdown-errored", e)
-                        .kv("unclosedServices", unclosedServices)
-                        .log();
-            }
+            stopAllServices(timeoutSeconds);
 
             // Wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);

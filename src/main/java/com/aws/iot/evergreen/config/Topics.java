@@ -6,11 +6,15 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -192,21 +196,105 @@ public class Topics extends Node implements Iterable<Node> {
         return n;
     }
 
+    protected Node findNode(String... path) {
+        int limit = path.length - 1;
+        Topics n = this;
+        for (int i = 0; i < limit && n != null; i++) {
+            n = n.findInteriorChild(path[i]);
+        }
+        return n == null ? null : n.getChild(path[limit]);
+    }
+
     /**
      * Add the given map to this Topics tree.
      *
-     * @param lastModified last modified time
-     * @param map          map to merge in
+     * @param lastModified  last modified time
+     * @param map           map to merge in
+     * @param mergeBehavior mergeBehavior
      */
-    public void mergeMap(long lastModified, Map<Object, Object> map) {
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
+    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull UpdateBehaviorTree mergeBehavior) {
+        if (map == null) {
+            logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
+            return;
+        }
+        Set<String> childrenToRemove = new HashSet<>(children.keySet());
+
         map.forEach((okey, value) -> {
             String key = okey.toString();
-            if (value instanceof Map) {
-                createInteriorChild(key).mergeMap(lastModified, (Map) value);
-            } else {
-                createLeafChild(key).withNewerValue(lastModified, value);
+            childrenToRemove.remove(key);
+            updateChild(lastModified, key, value, mergeBehavior);
+        });
+
+        childrenToRemove.forEach(childName -> {
+            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName);
+            if (childMergeBehavior == null) {
+                childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
+            }
+
+            // remove the existing child if its merge behavior is not present and root merge behavior is REPLACE
+            if (childMergeBehavior == null
+                    && mergeBehavior.getDefaultBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
+                remove(children.get(childName));
+                return;
+            }
+
+            // remove the existing child if its merge behavior is REPLACE
+            if (childMergeBehavior != null
+                    && childMergeBehavior.getDefaultBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
+                remove(children.get(childName));
             }
         });
+    }
+
+    private void updateChild(long lastModified, String key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
+        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key);
+        if (childMergeBehavior == null) {
+            childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
+        }
+
+        if (childMergeBehavior == null) {
+            childMergeBehavior = mergeBehavior;
+        }
+
+        switch (childMergeBehavior.getDefaultBehavior()) {
+            case MERGE:
+                mergeChild(lastModified, key, value, childMergeBehavior);
+                break;
+            case REPLACE:
+                replaceChild(lastModified, key, value, childMergeBehavior);
+                break;
+            default:
+        }
+    }
+
+    private void mergeChild(long lastModified, String key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
+        if (value instanceof Map) {
+            createInteriorChild(key).updateFromMap(lastModified, (Map) value, mergeBehavior);
+        } else {
+            createLeafChild(key).withNewerValue(lastModified, value);
+        }
+    }
+
+    private void replaceChild(long lastModified, String key, Object value,
+                              @Nonnull UpdateBehaviorTree childMergeBehavior) {
+        Node existingChild = children.get(key);
+        // if new node is a container node
+        if (value instanceof Map) {
+            // if existing child is a leaf node
+            // TODO: handle node type change between container/leaf node
+            if (existingChild != null && !(existingChild instanceof Topics)) {
+                remove(existingChild);
+            }
+            createInteriorChild(key).updateFromMap(lastModified, (Map) value, childMergeBehavior);
+        // if new node is a leaf node
+        } else {
+            // if existing child is a container node
+            if (existingChild != null && !(existingChild instanceof Topic)) {
+                remove(existingChild);
+            }
+            createLeafChild(key).withNewerValue(lastModified, value);
+        }
     }
 
     @Override
@@ -266,13 +354,10 @@ public class Topics extends Node implements Iterable<Node> {
      * @param newValue Map of new values for this topics
      */
     public void replaceAndWait(Map<Object, Object> newValue) {
-        context.runOnPublishQueueAndWait(() -> replaceNode(newValue));
-    }
-
-    private void replaceNode(Map<Object, Object> newValue) {
-        children.clear();
-        mergeMap(System.currentTimeMillis(), newValue);
-        this.fire(WhatHappened.changed);
+        context.runOnPublishQueueAndWait(() ->
+                updateFromMap(System.currentTimeMillis(), newValue,
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))
+        );
     }
 
     protected void childChanged(WhatHappened what, Node child) {
@@ -291,7 +376,20 @@ public class Topics extends Node implements Iterable<Node> {
             return;
         }
 
-        if (parent != null && parentNeedsToKnow()) {
+        if (child.modtime > this.modtime || children.isEmpty()) {
+            this.modtime = child.modtime;
+        } else {
+            this.modtime = children.values().stream().max((node, other) -> {
+                if (node.modtime == other.modtime) {
+                    return 0;
+                }
+                if (node.modtime < other.modtime) {
+                    return -1;
+                }
+                return 1;
+            }).get().modtime;
+        }
+        if (parentNeedsToKnow()) {
             parent.childChanged(what, child);
         }
     }
