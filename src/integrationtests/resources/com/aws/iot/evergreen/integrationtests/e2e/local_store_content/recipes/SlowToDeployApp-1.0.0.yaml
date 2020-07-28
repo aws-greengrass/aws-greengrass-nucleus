@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-ComponentName: SlowToDeployApp
+ComponentName: {{SlowToDeployApp}}
 Description: An app that takes some time to install so as to slow down deployments
 Publisher: Me
 Version: '1.0.0'
