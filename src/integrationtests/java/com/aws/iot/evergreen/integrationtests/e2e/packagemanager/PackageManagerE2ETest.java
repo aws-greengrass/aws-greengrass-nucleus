@@ -47,6 +47,7 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
     private static PackageManager packageManager;
     private static DependencyResolver dependencyResolver;
     private static Path packageStorePath;
+    private final String kernelIntegTestPkgName = getTestComponentNameInCloud("KernelIntegTest");
 
     @BeforeEach
     void setupKernel() throws Exception {
@@ -67,6 +68,7 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
     @AfterEach
     void tearDown() throws IOException {
         kernel.shutdown();
+        cleanup();
     }
 
     @Test
@@ -74,7 +76,7 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
     void GIVEN_package_identifier_WHEN_request_package_from_cms_service_THEN_package_downloaded_with_artifacts()
             throws Exception {
         PackageIdentifier pkgIdt
-                = new PackageIdentifier("KernelIntegTest", new Semver("1.0.0", SemverType.NPM));
+                = new PackageIdentifier(kernelIntegTestPkgName, new Semver("1.0.0", SemverType.NPM));
         List<PackageIdentifier> pkgList = new ArrayList<>();
         pkgList.add(pkgIdt);
         Future<Void> testFuture = packageManager.preparePackages(pkgList);
@@ -84,9 +86,9 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
         assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
         assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml").toFile(), anExistingFile());
+        assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve(kernelIntegTestPkgName + "-1.0.0.yaml").toFile(), anExistingFile());
 
-        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0")
+        assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0")
                                                 .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
     }
 
@@ -95,9 +97,9 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
     void GIVEN_package_identifier_WHEN_resolve_dependencies_and_prepare_THEN_package_and_dependencies_downloaded_with_artifacts()
             throws Exception {
         List<String> rootPackageList = new ArrayList<>();
-        rootPackageList.add("KernelIntegTest");
+        rootPackageList.add(kernelIntegTestPkgName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
-        configList.add(new DeploymentPackageConfiguration("KernelIntegTest", true, "1.0.0",
+        configList.add(new DeploymentPackageConfiguration(kernelIntegTestPkgName, true, "1.0.0",
                                                           Collections.emptyMap()));
         DeploymentDocument testDeploymentDocument
                 = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
@@ -118,13 +120,13 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
             assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
             assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTest-1.0.0.yaml").toFile(),
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve(kernelIntegTestPkgName + "-1.0.0.yaml").toFile(),
                     anExistingFile());
-            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("KernelIntegTestDependency-1.0.0.yaml").toFile(),
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve(getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml").toFile(),
                     anExistingFile());
-            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("Log-2.0.0.yaml").toFile(), anExistingFile());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve(getTestComponentNameInCloud("Log") + "-2.0.0.yaml").toFile(), anExistingFile());
 
-            assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("KernelIntegTest").resolve("1.0.0").resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
+            assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0").resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
         }
     }
 }
