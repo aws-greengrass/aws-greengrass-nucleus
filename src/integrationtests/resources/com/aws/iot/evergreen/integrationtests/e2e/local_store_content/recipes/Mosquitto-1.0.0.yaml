@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-ComponentName: Mosquitto
+ComponentName: {{Mosquitto}}
 Description: Mosquitto MQTT Server
 Publisher: Eclipse Foundation
 Version: '1.0.0'
@@ -18,6 +18,6 @@ Lifecycle:
     script: echo "By mosquitto signing off!"
 Dependencies:
   all:
-    GreenSignal:
+    {{GreenSignal}}:
       VersionRequirements: "=1.0.0"
 
