@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-ComponentName: NonDisruptableService
+ComponentName: {{NonDisruptableService}}
 Description: A service that can be performing important task so should not be restarted if not safe
 Publisher: Me
 Version: '1.0.0'

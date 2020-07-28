@@ -29,8 +29,6 @@ import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,9 +66,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
         initKernel();
 
-        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
-        // pre-load contents to package store
-        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        // pre-load contents to package storea
+        FileUtils.copyFolderRecursively(e2eTestPkgStoreDir, kernel.getPackageStorePath());
     }
 
     @AfterEach
