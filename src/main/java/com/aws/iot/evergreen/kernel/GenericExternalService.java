@@ -135,7 +135,7 @@ public class GenericExternalService extends EvergreenService {
                             LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
             boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
             if (!completedInTime) {
-                String msg = String.format("Bootstrap step timed out after '%s' seconds.", timeoutInSec);
+                String msg = String.format("Bootstrap step timed out after '%d' seconds.", timeoutInSec);
                 throw new TimeoutException(msg);
             }
 
