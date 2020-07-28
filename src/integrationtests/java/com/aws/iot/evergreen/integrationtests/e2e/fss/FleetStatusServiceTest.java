@@ -140,8 +140,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertThat(fleetStatusDetails1.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder("Mosquitto", "SomeService", "CustomerApp", "GreenSignal", "main"));
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
-            if (componentStatusDetails.getComponentName().equals("SomeService") ||
-                    componentStatusDetails.getComponentName().equals("CustomerApp")) {
+            if (!componentStatusDetails.getComponentName().equals("main")) {
                 assertEquals(arn.toString(), componentStatusDetails.getFleetConfigArn());
             }
         });

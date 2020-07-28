@@ -223,8 +223,6 @@ public class DeploymentService extends EvergreenService {
                     //  removed from a thing group. Empty configuration is treated as a valid config for a group but
                     //  not treated as removal.
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
-                        //if (pkgConfig.isRootComponent()) {
-                        //}
                         Map<Object, Object> pkgDetails = new HashMap<>();
                         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
                         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_VERSION_KEY,
