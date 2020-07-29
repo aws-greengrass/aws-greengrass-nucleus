@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
     protected static final String FCS_GAMMA_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
-    protected static final Region BETA_REGION = Region.US_EAST_1;
+    protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
 
     protected final Logger logger = LogManager.getLogger(this.getClass());
@@ -87,7 +87,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected String thingGroupName;
     protected CreateThingGroupResponse thingGroupResp;
     protected DeviceProvisioningHelper deviceProvisioningHelper =
-            new DeviceProvisioningHelper(BETA_REGION.toString(), System.out);
+            new DeviceProvisioningHelper(GAMMA_REGION.toString(), System.out);
 
     @TempDir
     protected static Path tempRootDir;
@@ -99,11 +99,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected Kernel kernel;
 
     protected static final IotClient iotClient = IotSdkClientFactory
-            .getIotClient(BETA_REGION.toString(), Collections.singleton(InvalidRequestException.class));
+            .getIotClient(GAMMA_REGION.toString(), Collections.singleton(InvalidRequestException.class));
     private static AWSEvergreen fcsClient;
     protected static final AWSEvergreen cmsClient =
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, BETA_REGION.toString())).build();
+            new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, GAMMA_REGION.toString())).build();
     private static final PackageIdentifier[] testComponents = {
             createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
             createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
@@ -146,7 +146,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected void initKernel() throws IOException, DeviceConfigurationException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, BETA_REGION.toString());
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
     }
 
     /**
@@ -242,7 +242,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                    FCS_GAMMA_ENDPOINT, BETA_REGION.toString());
+                    FCS_GAMMA_ENDPOINT, GAMMA_REGION.toString());
             fcsClient = AWSEvergreenClientBuilder.standard()
                     .withEndpointConfiguration(endpointConfiguration).build();
         }
