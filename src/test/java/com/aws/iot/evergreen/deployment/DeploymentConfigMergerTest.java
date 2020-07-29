@@ -38,6 +38,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.WAIT_SVC_START_POLL_INTERVAL_MILLISEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -80,9 +83,7 @@ public class DeploymentConfigMergerTest {
             throws Exception {
         EvergreenService oldService = createMockEvergreenService("oldService");
         EvergreenService existingService = createMockEvergreenService("existingService");
-        Collection<EvergreenService> orderedDependencies = Arrays.asList(
-                oldService, existingService
-        );
+        Collection<EvergreenService> orderedDependencies = Arrays.asList(oldService, existingService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
 
         Map<String, Object> newConfig = new HashMap<>();
@@ -135,9 +136,8 @@ public class DeploymentConfigMergerTest {
 
         EvergreenService existingService = createMockEvergreenService("existingService", kernel);
 
-        Collection<EvergreenService> orderedDependencies = Arrays.asList(
-                oldService, existingService, existingAutoStartService
-        );
+        Collection<EvergreenService> orderedDependencies =
+                Arrays.asList(oldService, existingService, existingAutoStartService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
 
         Map<String, Object> newConfig = new HashMap<>();
@@ -181,13 +181,19 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully() throws Exception {
+    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully()
+            throws Exception {
         // GIVEN
         EvergreenService mockService = mock(EvergreenService.class);
+
         // service is in BROKEN state before merge
-        when(mockService.getState()).thenReturn(State.BROKEN);
-        when(mockService.getStateModTime()).thenReturn((long) 1);
-        when(mockService.reachedDesiredState()).thenReturn(false);
+        final AtomicReference<State> mockState = new AtomicReference<>(State.BROKEN);
+        doAnswer((invocation) -> mockState.get()).when(mockService).getState();
+        doReturn((long) 1).when(mockService).getStateModTime();
+
+        final AtomicBoolean mockReachedDesiredState = new AtomicBoolean(false);
+        doAnswer((invocation) -> mockReachedDesiredState.get()).when(mockService).reachedDesiredState();
+
         CountDownLatch serviceStarted = new CountDownLatch(1);
         new Thread(() -> {
             try {
@@ -199,15 +205,14 @@ public class DeploymentConfigMergerTest {
         }).start();
 
         // assert waitForServicesToStart didn't finish
-        assertFalse(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertFalse(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
 
         // WHEN
-        // use doReturn() here: https://stackoverflow.com/questions/11121772
-        doReturn(State.RUNNING).when(mockService).getState();
-        doReturn(true).when(mockService).reachedDesiredState();
+        mockState.set(State.RUNNING);
+        mockReachedDesiredState.set(true);
 
         // THEN
-        assertTrue(serviceStarted.await(3*WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertTrue(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
     }
 
     @Test

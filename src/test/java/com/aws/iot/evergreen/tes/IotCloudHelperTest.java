@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.tes;
 
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +27,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class IotCloudHelperTest {
-    private static final String CLOUD_RESPONSE = "HELLO WORLD";
+    private static final byte[] CLOUD_RESPONSE = "HELLO WORLD".getBytes(StandardCharsets.UTF_8);
+    private static final int STATUS_CODE = 200;
     private static final String HOST = "localhost";
     private static final String IOT_CREDENTIALS_PATH = "MOCK_PATH/get.json";
 
@@ -43,17 +45,19 @@ public class IotCloudHelperTest {
     public void GIVEN_valid_creds_WHEN_send_request_called_THEN_success() throws Exception {
         when(mockConnectionManager.getConnection()).thenReturn(mockConnection);
         when(mockConnectionManager.getHost()).thenReturn(HOST);
+        when(mockHttpStream.getResponseStatusCode()).thenReturn(STATUS_CODE);
         doAnswer(invocationArgs -> {
             HttpStreamResponseHandler handler = (HttpStreamResponseHandler)invocationArgs.getArguments()[1];
-            handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE.getBytes(StandardCharsets.UTF_8));
+            handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE);
             handler.onResponseComplete(mockHttpStream, 0);
             return mockHttpStream;
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        final String creds = cloudHelper.sendHttpRequest(mockConnectionManager,
+        final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager,
                 IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
-        assertEquals(CLOUD_RESPONSE, creds);
+        assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
+        assertEquals(STATUS_CODE, response.getStatusCode());
     }
 
     @Test
@@ -67,15 +71,39 @@ public class IotCloudHelperTest {
             request.getBodyStream().sendRequestBody(byteBuffer);
             assertArrayEquals(body, byteBuffer.array());
             HttpStreamResponseHandler handler = invocationArgs.getArgument(1);
-            handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE.getBytes(StandardCharsets.UTF_8));
+            handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE);
             handler.onResponseComplete(mockHttpStream, 0);
             return mockHttpStream;
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        final String creds = cloudHelper.sendHttpRequest(mockConnectionManager,
+        final byte[] creds = cloudHelper.sendHttpRequest(mockConnectionManager,
                 IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB,
-                body);
-        assertEquals(CLOUD_RESPONSE, creds);
+                body).getResponseBody();
+        assertArrayEquals(CLOUD_RESPONSE, creds);
+    }
+
+    @Test
+    public void GIVEN_error_code_once_WHEN_send_request_called_THEN_retry_and_success() throws Exception {
+        when(mockConnectionManager.getConnection()).thenReturn(mockConnection);
+        when(mockConnectionManager.getHost()).thenReturn(HOST);
+        when(mockHttpStream.getResponseStatusCode()).thenReturn(STATUS_CODE);
+        doAnswer(invocationArgs -> {
+            HttpStreamResponseHandler handler = (HttpStreamResponseHandler) invocationArgs.getArguments()[1];
+            handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE);
+            // error code not 0, fail to complete
+            handler.onResponseComplete(mockHttpStream, 1);
+            return mockHttpStream;
+        }).doAnswer(invocationArgs -> {
+            HttpStreamResponseHandler handler = (HttpStreamResponseHandler) invocationArgs.getArguments()[1];
+            handler.onResponseBody(mockHttpStream, CLOUD_RESPONSE);
+            handler.onResponseComplete(mockHttpStream, 0);
+            return mockHttpStream;
+        }).when(mockConnection).makeRequest(any(), any());
+        IotCloudHelper cloudHelper = new IotCloudHelper();
+        final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager, IOT_CREDENTIALS_PATH,
+                CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
+        assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
+        assertEquals(STATUS_CODE, response.getStatusCode());
     }
 }

@@ -281,6 +281,7 @@ public class DeploymentConfigMerger {
         //   services: MERGE
         //     *: REPLACE
         //       runtime: MERGE
+        //       _private: MERGE
         //     AUTH_TOKEN: MERGE
 
         UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
@@ -289,6 +290,8 @@ public class DeploymentConfigMerger {
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE);
         UpdateBehaviorTree serviceRuntimeMergeBehavior =
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
+        UpdateBehaviorTree servicePrivateMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
 
         rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
         servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
@@ -296,6 +299,8 @@ public class DeploymentConfigMerger {
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
         insideServiceMergeBehavior.getChildOverride().put(
                 EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride().put(
+                EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
 
         return rootMergeBehavior;
     }
