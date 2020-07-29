@@ -424,7 +424,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // wait for merge to complete
         //TODO: wait on the future returned by mergeInNewConfig. mainRestarted is required due to race condition
         // mentioned in DeploymentConfigMergerL120 is fixed.
-        assertTrue(mainRestarted.await(45, TimeUnit.SECONDS));
+        mainRestarted.await(30, TimeUnit.SECONDS);
         EvergreenService main = kernel.locate("main");
         assertEquals(State.RUNNING, main.getState());
         EvergreenService sleeperB = kernel.locate("sleeperB");
