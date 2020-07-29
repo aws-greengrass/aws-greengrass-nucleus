@@ -22,9 +22,12 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,8 +65,10 @@ public class FleetStatusService extends EvergreenService {
     private final Kernel kernel;
     private final String architecture;
     private final String platform;
-    private final ScheduledFuture<?> periodicUpdateFuture;
+    private ScheduledFuture<?> periodicUpdateFuture;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
+    private static AtomicReference<Boolean> isMqttConnectionInterrupted = new AtomicReference<>(false);
+    private static AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.MIN);
     private static final Map<String, EvergreenService> evergreenServiceMap =
             new ConcurrentHashMap<>();
     private Map<String, Set<String>> packageToGroupsMappingCache;
@@ -71,6 +76,22 @@ public class FleetStatusService extends EvergreenService {
             new ConcurrentHashMap<>();
     private int periodicUpdateIntervalMs;
     private boolean isDeploymentInProgress;
+
+    @Getter
+    public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+        @Override
+        public void onConnectionInterrupted(int errorCode) {
+            isMqttConnectionInterrupted.set(true);
+            periodicUpdateFuture.cancel(false);
+        }
+
+        @Override
+        public void onConnectionResumed(boolean sessionPresent) {
+            isMqttConnectionInterrupted.set(false);
+            handleMqttConnectionResumed();
+            schedulePeriodicFssDataUpdate();
+        }
+    };
 
     /**
      * Constructor for FleetStatusService.
@@ -103,6 +124,12 @@ public class FleetStatusService extends EvergreenService {
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.IOT_JOBS,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
+        schedulePeriodicFssDataUpdate();
+
+        this.mqttClient.addToCallbackEvents(callbacks);
+    }
+
+    private void schedulePeriodicFssDataUpdate() {
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFssData, periodicUpdateIntervalMs,
                 periodicUpdateIntervalMs, TimeUnit.MILLISECONDS);
@@ -129,6 +156,10 @@ public class FleetStatusService extends EvergreenService {
             logger.atInfo().log("Not updating FSS data on a periodic basis since there is an ongoing deployment.");
             return;
         }
+        if (isMqttConnectionInterrupted.get()) {
+            logger.atInfo().log("Not updating FSS data on a periodic basis since MQTT connection is interrupted.");
+            return;
+        }
         logger.atInfo().log("Updating FSS data on a periodic basis.");
         Map<String, EvergreenService> evergreenServiceMap = new HashMap<>();
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
@@ -143,6 +174,7 @@ public class FleetStatusService extends EvergreenService {
             overAllStatus.set(getOverallStatusBasedOnServiceState(evergreenService));
         });
         updateFleetStatusServiceData(evergreenServiceMap, overAllStatus.get());
+        lastPeriodicUpdateTime.set(Instant.now());
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -156,6 +188,16 @@ public class FleetStatusService extends EvergreenService {
         logger.atInfo().log("Updating Fleet Status service for deployment job with ID: {}",
                 deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString());
         isDeploymentInProgress = false;
+        updateEventTriggeredFssData();
+        return true;
+    }
+
+    private void updateEventTriggeredFssData() {
+        if (isMqttConnectionInterrupted.get()) {
+            logger.atInfo().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
+            return;
+        }
+
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
         overAllStatus.set(OverallStatus.HEALTHY);
 
@@ -169,11 +211,25 @@ public class FleetStatusService extends EvergreenService {
         // Add all the removed dependencies to the collection of services to update.
         removedDependencies.forEach(evergreenServiceMap::putIfAbsent);
         updateFleetStatusServiceData(evergreenServiceMap, overAllStatus.get());
-        return true;
+    }
+
+    private void handleMqttConnectionResumed() {
+        // If the last periodic update was missed, update the fleet status service for all running services.
+        // Else update only the statuses of the services whose status changed (if any).
+        if (lastPeriodicUpdateTime.get().plusMillis(periodicUpdateIntervalMs).isBefore(Instant.now())) {
+            updatePeriodicFssData();
+        } else {
+            updateEventTriggeredFssData();
+        }
     }
 
     private void updateFleetStatusServiceData(Map<String, EvergreenService> evergreenServiceMap,
                                               OverallStatus overAllStatus) {
+        if (isMqttConnectionInterrupted.get()) {
+            logger.atInfo().log("Not updating fleet status data since MQTT connection is interrupted.");
+            return;
+        }
+
         // If there are no evergreen services to be updated, do not send an update.
         if (evergreenServiceMap.isEmpty()) {
             return;

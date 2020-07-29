@@ -29,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
@@ -40,10 +41,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID;
@@ -84,6 +83,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     @Captor
     private ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor;
     @Captor
+    private ArgumentCaptor<MqttClientConnectionEvents> mqttClientConnectionEventsArgumentCaptor;
+    @Captor
     private ArgumentCaptor<GlobalStateChangeListener> addGlobalStateChangeListenerArgumentCaptor;
 
     private ScheduledThreadPoolExecutor ses;
@@ -97,7 +98,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
     @Test
     public void GIVEN_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
-            throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
@@ -185,7 +186,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
     @Test
     public void GIVEN_component_status_changes_to_broken_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
-            throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
@@ -260,8 +261,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data()
-            throws InterruptedException, TimeoutException, ExecutionException {
+    public void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
 
@@ -294,10 +294,50 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
     }
 
+    @Test
+    public void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() {
+        // Set up all the topics
+        Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
+                .thenReturn(periodicUpdateIntervalMsTopic);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
+        when(mockEvergreenService1.getName()).thenReturn("MockService");
+        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
+
+        // Create the fleet status service instance
+        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
+                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService.startup();
+
+        HashMap<String, Object> map = new HashMap<>();
+
+        // Update the job status for an ongoing deployment to IN_PROGRESS.
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        consumerArgumentCaptor.getValue().apply(map);
+
+        mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
+
+        // Update the state of an EG service.
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockEvergreenService1, State.INSTALLED, State.RUNNING);
+
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        consumerArgumentCaptor.getValue().apply(map);
+
+        fleetStatusService.shutdown();
+
+        // Verify that an MQTT message with the components status is uploaded.
+        verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
+    }
+
 
     @Test
-    public void GIVEN_auto_start_component_status_change_WHEN_deployment_finishes_THEN_No_MQTT_Sent_with_fss_data()
-            throws InterruptedException, TimeoutException, ExecutionException {
+    public void GIVEN_auto_start_component_status_change_WHEN_deployment_finishes_THEN_No_MQTT_Sent_with_fss_data() {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
 
@@ -334,8 +374,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_auto_start_component_WHEN_periodic_update_triggerd_THEN_No_MQTT_Sent_with_fss_data()
-            throws InterruptedException, TimeoutException, ExecutionException {
+    public void GIVEN_auto_start_component_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent_with_fss_data()
+            throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
 
@@ -363,7 +403,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
     @Test
     public void GIVEN_component_status_change_WHEN_periodic_update_triggered_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
-            throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
+            throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
@@ -426,7 +466,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
     @Test
     public void GIVEN_component_removed_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
-            throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
@@ -492,7 +532,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
     @Test
     public void GIVEN_after_deployment_WHEN_component_status_changes_to_broken_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
-            throws InterruptedException, TimeoutException, ExecutionException, ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
@@ -557,8 +597,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
 
     @Test
-    public void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent()
-            throws InterruptedException, TimeoutException, ExecutionException {
+    public void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
 
@@ -586,5 +625,168 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
+    }
+
+    @Test
+    public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_event_triggered_fss_data()
+            throws ServiceLoadException, IOException {
+        // Set up all the topics
+        Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
+        Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
+        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
+        Topic pkgTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
+        Topic groupTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
+        Map<String, Node> pkgDetails = new HashMap<>();
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, groupTopic1);
+        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
+        pkgTopics.children.putAll(pkgDetails);
+        deploymentGroupTopics.children.put("MockService", pkgTopics);
+        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
+        Map<EvergreenService, DependencyType> evergreenServiceDependencyTypeMap = new HashMap<>();
+        evergreenServiceDependencyTypeMap.put(mockEvergreenService2, DependencyType.HARD);
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockEvergreenService1.getName()).thenReturn("MockService");
+        when(mockEvergreenService1.getServiceConfig()).thenReturn(config);
+        when(mockEvergreenService1.getState()).thenReturn(State.RUNNING);
+        when(mockEvergreenService2.getName()).thenReturn("MockService2");
+        when(mockEvergreenService2.getServiceConfig()).thenReturn(config);
+        when(mockEvergreenService2.getState()).thenReturn(State.RUNNING);
+        when(mockEvergreenService1.getDependencies()).thenReturn(evergreenServiceDependencyTypeMap);
+        when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
+        when(mockKernel.locate("MockService2")).thenReturn(mockEvergreenService2);
+        when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockEvergreenService1, mockEvergreenService2));
+        when(mockDeploymentService.getConfig()).thenReturn(config);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+        when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
+                .thenReturn(periodicUpdateIntervalMsTopic);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
+        when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
+
+        // Create the fleet status service instance
+        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
+                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService.startup();
+
+        // Update the job status for an ongoing deployment to SUCCEEDED.
+        HashMap<String, Object> map = new HashMap<>();
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        consumerArgumentCaptor.getValue().apply(map);
+
+        mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
+
+        // Update the state of an EG service.
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockEvergreenService1, State.INSTALLED, State.RUNNING);
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockEvergreenService2, State.INSTALLED, State.RUNNING);
+
+        // Update the job status for an ongoing deployment to SUCCEEDED.
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        consumerArgumentCaptor.getValue().apply(map);
+
+        mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
+
+        fleetStatusService.shutdown();
+
+        // Verify that an MQTT message with the components' status is uploaded.
+        verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
+
+        PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
+        assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
+        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        ObjectMapper mapper = new ObjectMapper();
+        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
+        assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals("testThing", fleetStatusDetails.getThing());
+        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
+        assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
+        assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
+        assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(0).getState());
+        assertEquals("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", fleetStatusDetails.getComponentStatusDetails().get(1).getFleetConfigArn());
+        assertEquals("MockService2", fleetStatusDetails.getComponentStatusDetails().get(1).getComponentName());
+        assertNull(fleetStatusDetails.getComponentStatusDetails().get(1).getStatusDetails());
+        assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(1).getState());
+        assertEquals("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", fleetStatusDetails.getComponentStatusDetails().get(1).getFleetConfigArn());
+    }
+
+
+    @Test
+    public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
+            throws InterruptedException, ServiceLoadException, IOException {
+        // Set up all the topics
+        Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
+        Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
+        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
+        Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
+        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
+        Map<String, Node> pkgDetails = new HashMap<>();
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
+        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
+        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
+        pkgTopics.children.putAll(pkgDetails);
+        deploymentGroupTopics.children.put("MockService", pkgTopics);
+        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockEvergreenService1.getName()).thenReturn("MockService");
+        when(mockEvergreenService1.getServiceConfig()).thenReturn(config);
+        when(mockEvergreenService1.getState()).thenReturn(State.RUNNING);
+        when(mockEvergreenService1.getDependencies()).thenReturn(new ConcurrentHashMap<>());
+        when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
+        when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockEvergreenService1));
+        when(mockDeploymentService.getConfig()).thenReturn(config);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+        when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
+                .thenReturn(periodicUpdateIntervalMsTopic);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
+        when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
+
+        // Create the fleet status service instance
+        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
+                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService.startup();
+        mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
+
+        Thread.sleep(4_000);
+
+        mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
+
+        Thread.sleep(2_000);
+        fleetStatusService.shutdown();
+
+        // Verify that an MQTT message with the components' status is uploaded.
+        verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
+
+        PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
+        assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
+        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        ObjectMapper mapper = new ObjectMapper();
+        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
+        assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals("testThing", fleetStatusDetails.getThing());
+        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverAllStatus());
+        assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
+        assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
+        assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
+        assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(0).getState());
+        assertEquals("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", fleetStatusDetails.getComponentStatusDetails().get(0).getFleetConfigArn());
     }
 }
