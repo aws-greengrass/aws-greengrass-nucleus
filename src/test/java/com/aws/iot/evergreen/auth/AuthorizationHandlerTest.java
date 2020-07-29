@@ -126,52 +126,52 @@ public class AuthorizationHandlerTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    void GIVEN_AuthZ_handler_WHEN_authz_policy_with_invalid_service_THEN_load_fails(String serviceName) throws AuthorizationException {
+    void GIVEN_AuthZ_handler_WHEN_authz_policy_with_invalid_component_THEN_load_fails(String componentName) throws AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         assertThrows(AuthorizationException.class,
-                () ->authorizationHandler.loadAuthorizationPolicy(serviceName, Collections.singletonList(getAuthZPolicy())));
+                () ->authorizationHandler.loadAuthorizationPolicy(componentName, Collections.singletonList(getAuthZPolicy())));
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_twice_THEN_errors() throws AuthorizationException {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_twice_THEN_errors() throws AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        authorizationHandler.registerService("ServiceA", serviceOps);
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
 
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerService("ServiceA", serviceOps));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent("ServiceA", serviceOps));
         final Set<String> serviceOps_2 = new HashSet<>(Arrays.asList("OpA"));
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerService("ServiceA", serviceOps_2));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent("ServiceA", serviceOps_2));
 
-        // Another service can be registered
-        authorizationHandler.registerService("ServiceB", serviceOps_2);
+        // Another component can be registered
+        authorizationHandler.registerComponent("ServiceB", serviceOps_2);
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceC",
                 Permission.builder().principal("*").operation("*").resource(null).build()));
     }
 
     @ParameterizedTest
     @NullAndEmptySource
-    void GIVEN_AuthZ_handler_WHEN_service_registered_with_empty_name_THEN_errors(String serviceName) throws AuthorizationException {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_with_empty_name_THEN_errors(String componentName) throws AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerService(serviceName, serviceOps));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent(componentName, serviceOps));
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_without_operation_THEN_errors() throws AuthorizationException {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_without_operation_THEN_errors() throws AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         final Set<String> emptyOps = new HashSet<>();
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerService("ServiceA", emptyOps));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent("ServiceA", emptyOps));
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_works() throws Exception {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        authorizationHandler.registerService("ServiceA", serviceOps);
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
 
         Set<String> serviceOpsB = new HashSet<>(Arrays.asList("OpD", "OpE"));
-        authorizationHandler.registerService("ServiceB", serviceOpsB);
+        authorizationHandler.registerComponent("ServiceB", serviceOpsB);
 
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(getAuthZPolicy()));
         authorizationHandler.loadAuthorizationPolicy("ServiceB", Collections.singletonList(getAuthZPolicyB()));
@@ -198,7 +198,7 @@ public class AuthorizationHandlerTest {
         assertTrue(authorizationHandler.isAuthorized("ServiceB",
                 Permission.builder().principal("ServiceC").operation("OpE").resource(null).build()));
 
-        // Services are not allowed to be accessed from other principals
+        // Components are not allowed to be accessed from other principals
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compC").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
@@ -206,7 +206,7 @@ public class AuthorizationHandlerTest {
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
                 Permission.builder().principal("compA").operation("OpE").resource(null).build()));
 
-        // Services are not allowed to be accessed for non allowed ops
+        // Components are not allowed to be accessed for non allowed ops
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compB").operation("Op").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
@@ -214,7 +214,7 @@ public class AuthorizationHandlerTest {
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
                 Permission.builder().principal("ServiceD").operation("Op").resource(null).build()));
 
-        // services are not allowed to be accessed from * principal
+        // Components are not allowed to be accessed from * principal
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("*").operation("OpA").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
@@ -224,7 +224,7 @@ public class AuthorizationHandlerTest {
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
                 Permission.builder().principal("random").operation("OpD").resource(null).build()));
 
-        // services are not allowed to be accessed for * operation
+        // Components are not allowed to be accessed for * operation
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("*").resource(null).build()));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceB",
@@ -232,12 +232,12 @@ public class AuthorizationHandlerTest {
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_for_star_operation_works() throws Exception {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_operation_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        authorizationHandler.registerService("ServiceA", serviceOps);
-        authorizationHandler.registerService("ServiceB", serviceOps);
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+        authorizationHandler.registerComponent("ServiceB", serviceOps);
 
         AuthorizationPolicy policy = getStarOperationsAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(policy));
@@ -279,7 +279,7 @@ public class AuthorizationHandlerTest {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
-        authorizationHandler.registerService("ServiceA", serviceOps);
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
 
         AuthorizationPolicy policy = getStarResourceAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(policy));
@@ -296,11 +296,11 @@ public class AuthorizationHandlerTest {
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_for_star_source_works() throws Exception {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_source_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        authorizationHandler.registerService("ServiceA", serviceOps);
-        authorizationHandler.registerService("ServiceB", serviceOps);
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+        authorizationHandler.registerComponent("ServiceB", serviceOps);
 
         AuthorizationPolicy policy = getStarSourcesAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicy("ServiceA", Collections.singletonList(policy));
@@ -341,14 +341,14 @@ public class AuthorizationHandlerTest {
     void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
 
-        // invalid service fails
+        // invalid component fails
         Exception exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("",
                 Collections.singletonList(getAuthZPolicy())));
-        assertTrue(exception.getMessage().contains("Service name is not specified"));
+        assertTrue(exception.getMessage().contains("Component name is not specified"));
 
         exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy(null,
                 Collections.singletonList(getAuthZPolicy())));
-        assertTrue(exception.getMessage().contains("Service name is not specified"));
+        assertTrue(exception.getMessage().contains("Component name is not specified"));
 
         // adding null config fails
         exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA", null));
@@ -359,10 +359,10 @@ public class AuthorizationHandlerTest {
 
         exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
                 Collections.singletonList(getAuthZPolicy())));
-        assertTrue(exception.getMessage().contains("Service not registered"));
+        assertTrue(exception.getMessage().contains("Component not registered"));
 
-        // register the service
-        authorizationHandler.registerService("ServiceA", new HashSet(Arrays.asList("Op")));
+        // register the component
+        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
         // Empty principal should fail to load now
         exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
                 Collections.singletonList(getAuthZPolicyWithEmptyPrincipal())));
@@ -370,10 +370,10 @@ public class AuthorizationHandlerTest {
 
         // Now let the mock return null
         when(mockKernel.findServiceTopic(anyString())).thenReturn(null);
-        // When kernel cannot identify a principal service then load fails
+        // When kernel cannot identify a principal component then load fails
         exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicy("ServiceA",
                 Collections.singletonList(getAuthZPolicy())));
-        assertTrue(exception.getMessage().contains("auth policy are not valid services"));
+        assertTrue(exception.getMessage().contains("auth policy are not valid components"));
 
         // Now let the mock return mock topics
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
