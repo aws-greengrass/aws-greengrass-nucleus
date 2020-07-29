@@ -1,6 +1,6 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-ComponentName: KernelIntegTestDependency
+ComponentName: {{KernelIntegTestDependency}}
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
@@ -19,6 +19,6 @@ Lifecycle:
       script: brew install git
 Dependencies:
   all:
-    Log:
+    {{Log}}:
       VersionRequirements: '2.0'
       DependencyType: Soft

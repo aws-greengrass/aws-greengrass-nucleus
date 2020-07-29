@@ -281,6 +281,7 @@ public class DeploymentConfigMerger {
         //   services: MERGE
         //     *: REPLACE
         //       runtime: MERGE
+        //       _private: MERGE
         //     AUTH_TOKEN: MERGE
 
         UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);

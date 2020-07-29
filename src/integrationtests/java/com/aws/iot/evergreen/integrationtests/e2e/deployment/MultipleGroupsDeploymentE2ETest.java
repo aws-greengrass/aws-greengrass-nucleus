@@ -96,8 +96,8 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("SomeService")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("SomeService")::getState, eventuallyEval(is(State.FINISHED)));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
@@ -132,7 +132,7 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat("Incorrect component version running",
-                kernel.locate("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
+                getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
                 is("0.9.1"));
     }
 
@@ -176,9 +176,9 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.RUNNING)));
         assertThat("Incorrect component version running",
-                kernel.locate("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
+                getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
                 is("0.9.1"));
     }
 
@@ -224,9 +224,8 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThrows(ServiceLoadException.class, () -> {
-            EvergreenService service = kernel.locate("SomeService");
+            EvergreenService service = getCloudDeployedComponent("SomeService");
             logger.atInfo().log("Service is " + service.getName());
-
         });
     }
 }

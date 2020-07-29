@@ -21,14 +21,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -36,6 +41,7 @@ public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
     public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
+    public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
     public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
     public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
     public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
@@ -70,12 +76,12 @@ public class GenericExternalService extends EvergreenService {
             }
 
             logger.atInfo("service-config-change").kv("configNode", child.getFullName()).log();
-            if (child.childOf("shutdown")) {
+            if (child.childOf(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC)) {
                 return;
             }
 
             // Reinstall for changes to the install script or if the package version changed
-            if (child.childOf("install") || child.childOf(VERSION_CONFIG_KEY)) {
+            if (child.childOf(LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)) {
                 requestReinstall();
                 return;
             }
@@ -94,11 +100,58 @@ public class GenericExternalService extends EvergreenService {
                 : "exit(" + ((exitCode << 24) >> 24) + ")";
     }
 
+    /**
+     * Run the command under 'bootstrap' and returns the exit code. The timeout can be configured with 'timeout' field
+     * in seconds. If not configured, by default, it times out after 2 minutes.
+     *
+     * @return exit code of process; null if no bootstrap command found.
+     * @throws InterruptedException when the command execution is interrupted.
+     * @throws TimeoutException     when the command execution times out.
+     */
     @Override
-    public synchronized void install() throws InterruptedException {
+    public synchronized Integer bootstrap() throws InterruptedException, TimeoutException {
+        // this is redundant because all lifecycle processes should have been before calling this method.
+        // stopping here again to be safer
         stopAllLifecycleProcesses();
 
-        if (run("install", null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
+        CountDownLatch timeoutLatch = new CountDownLatch(1);
+        AtomicInteger atomicExitCode = new AtomicInteger();
+
+        // run the command at background thread so that the main thread can handle it when it times out
+        // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
+        // signature changes to deal with timeout, so we decided to go with background thread.
+        try (Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+            atomicExitCode.set(exitCode);
+            timeoutLatch.countDown();
+        }, lifecycleProcesses).getRight()) {
+            if (exec == null) {
+                // no bootstrap command found
+                return null;
+            }
+
+            // timeout handling
+            int timeoutInSec = (int) config
+                    .findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, TIMEOUT_NAMESPACE_TOPIC);
+            boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
+            if (!completedInTime) {
+                String msg = String.format("Bootstrap step timed out after '%d' seconds.", timeoutInSec);
+                throw new TimeoutException(msg);
+            }
+
+        } catch (IOException e) {
+            logger.atError("bootstrap-process-close-error").setCause(e).log("Error closing process at bootstrap step.");
+            // No need to return special error code here because the exit code is handled by atomicExitCode.
+        }
+
+        return atomicExitCode.get();
+    }
+
+    @Override
+    protected synchronized void install() throws InterruptedException {
+        stopAllLifecycleProcesses();
+
+        if (run(LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
     }
@@ -106,7 +159,7 @@ public class GenericExternalService extends EvergreenService {
     // Synchronize startup() and shutdown() as both are non-blocking, but need to have coordination
     // to operate properly
     @Override
-    public synchronized void startup() throws InterruptedException {
+    protected synchronized void startup() throws InterruptedException {
         stopAllLifecycleProcesses();
 
         long startingStateGeneration = getStateGeneration();
@@ -188,10 +241,10 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    public synchronized void shutdown() {
+    protected synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
         try {
-            run("shutdown", null, lifecycleProcesses);
+            run(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
             return;
@@ -309,8 +362,9 @@ public class GenericExternalService extends EvergreenService {
     /**
      * Run one of the commands defined in the config on the command line.
      *
-     * @param name         name of the command to run ("run", "install", "start").
-     * @param background   IntConsumer to receive the exit code. If null, the command will timeout after 2 minutes.
+     * @param name         name of the command to run ("run", "install", "startup", "bootstrap").
+     * @param background   IntConsumer to and run the command as background process and receive the exit code. If null,
+     *                     the command will run as a foreground process and blocks indefinitely.
      * @param trackingList List used to track running processes.
      * @return the status of the run and the Exec.
      */
