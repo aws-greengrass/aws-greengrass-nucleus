@@ -40,6 +40,8 @@ public class PackageRecipe {
     @EqualsAndHashCode.Include
     private final String componentName;
 
+    private final String componentType;
+
     @EqualsAndHashCode.Include
     private Semver version;
 
@@ -62,7 +64,7 @@ public class PackageRecipe {
      * Constructor for Jackson to deserialize.
      *
      * @param recipeTemplateVersion Template version found in the Recipe file
-     * @param componentName           Name of the component
+     * @param componentName         Name of the component
      * @param version               Version of the package
      * @param description           Description metadata
      * @param publisher             Name of the publisher
@@ -71,6 +73,7 @@ public class PackageRecipe {
      * @param lifecycle             Lifecycle definitions
      * @param artifacts             Artifact definitions
      * @param dependencies          List of dependencies
+     * @param componentType         Type of component to be created
      * @throws SemverException if the semver fails to be created
      */
     @JsonCreator
@@ -79,13 +82,13 @@ public class PackageRecipe {
                          @JsonProperty("ComponentName") String componentName, @JsonProperty("Version") Semver version,
                          @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
                          @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
-                         @JsonProperty("Platforms") List<String> platforms,
-                         @JsonProperty("Lifecycle") @JsonDeserialize(
-                                 using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
+                         @JsonProperty("Platforms") List<String> platforms, @JsonProperty("Lifecycle") @JsonDeserialize(
+            using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
                          @JsonProperty("Artifacts") Map<String, List<URI>> artifacts,
-                         @JsonProperty("Dependencies") @JsonDeserialize(
-                                 using = DependencyMapDeserializer.class)
-                                     Map<String, RecipeDependencyProperties> dependencies) {
+                         @JsonProperty("Dependencies")
+                             @JsonDeserialize(using = DependencyMapDeserializer.class)
+                                     Map<String, RecipeDependencyProperties> dependencies,
+                         @JsonProperty("ComponentType") String componentType) {
 
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.componentName = componentName;
@@ -99,6 +102,7 @@ public class PackageRecipe {
         this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
         this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
+        this.componentType = componentType;
     }
 
     @JsonSerialize(using = SemverSerializer.class)
@@ -138,7 +142,7 @@ public class PackageRecipe {
                 Object value = entry.getValue();
                 if (!(value instanceof Map)) {
                     throw new IOException(String.format("Illegal dependency syntax in package recipe. Dependency %s "
-                                    + "should have a property map, but actually: %s", name, entry.getValue()));
+                            + "should have a property map, but actually: %s", name, entry.getValue()));
                 }
                 Map<String, String> propMap = (Map<String, String>) value;
                 String versionRequirements = "*";
@@ -157,7 +161,7 @@ public class PackageRecipe {
                             break;
                         default:
                             throw new IOException(String.format("Illegal dependency syntax in package recipe. "
-                                            + "Dependency %s has unknown keyword: %s", name, k));
+                                    + "Dependency %s has unknown keyword: %s", name, k));
                     }
                 }
 

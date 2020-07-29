@@ -156,6 +156,8 @@ class DeploymentTaskIntegrationTest {
     @Order(1)
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
             throws Exception {
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("raw",
+                EvergreenService.class.getName());
         outputMessagesToTimestamp.clear();
         final List<String> listOfExpectedMessages =
                 Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING, TEST_CUSTOMER_APP_STRING);
@@ -191,6 +193,9 @@ class DeploymentTaskIntegrationTest {
         assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
                 Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
         Slf4jLogAdapter.removeGlobalListener(listener);
+
+        // Check that ClassService is a raw EvergreenService and not a GenericExternalService
+        assertEquals(EvergreenService.class, kernel.locate("ClassService").getClass());
     }
 
     @Test

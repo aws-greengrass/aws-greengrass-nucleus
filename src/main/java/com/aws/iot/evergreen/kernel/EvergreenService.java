@@ -221,7 +221,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      *
      * @throws InterruptedException if the thread is interrupted while handling the error
      */
-    public void handleError() throws InterruptedException {
+    protected void handleError() throws InterruptedException {
     }
 
     /**

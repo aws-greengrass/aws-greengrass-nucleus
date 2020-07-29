@@ -148,7 +148,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     @Override
-    public void startup() throws InterruptedException {
+    protected void startup() throws InterruptedException {
         logger.info("Starting up the Deployment Service");
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
@@ -196,7 +196,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     @Override
-    public void shutdown() {
+    protected void shutdown() {
         receivedShutdown.set(true);
     }
 
