@@ -67,7 +67,7 @@ public class FleetStatusService extends EvergreenService {
     private final String platform;
     private ScheduledFuture<?> periodicUpdateFuture;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
-    private static AtomicReference<Boolean> isMqttConnectionInterrupted = new AtomicReference<>(false);
+    private static boolean isMqttConnectionInterrupted = false;
     private static AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.MIN);
     private static final Map<String, EvergreenService> evergreenServiceMap =
             new ConcurrentHashMap<>();
@@ -81,13 +81,13 @@ public class FleetStatusService extends EvergreenService {
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
-            isMqttConnectionInterrupted.set(true);
+            isMqttConnectionInterrupted = true;
             periodicUpdateFuture.cancel(false);
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            isMqttConnectionInterrupted.set(false);
+            isMqttConnectionInterrupted = false;
             handleMqttConnectionResumed();
             schedulePeriodicFssDataUpdate();
         }
@@ -156,7 +156,7 @@ public class FleetStatusService extends EvergreenService {
             logger.atInfo().log("Not updating FSS data on a periodic basis since there is an ongoing deployment.");
             return;
         }
-        if (isMqttConnectionInterrupted.get()) {
+        if (isMqttConnectionInterrupted) {
             logger.atInfo().log("Not updating FSS data on a periodic basis since MQTT connection is interrupted.");
             return;
         }
@@ -193,7 +193,7 @@ public class FleetStatusService extends EvergreenService {
     }
 
     private void updateEventTriggeredFssData() {
-        if (isMqttConnectionInterrupted.get()) {
+        if (isMqttConnectionInterrupted) {
             logger.atInfo().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
             return;
         }
@@ -225,7 +225,7 @@ public class FleetStatusService extends EvergreenService {
 
     private void updateFleetStatusServiceData(Map<String, EvergreenService> evergreenServiceMap,
                                               OverallStatus overAllStatus) {
-        if (isMqttConnectionInterrupted.get()) {
+        if (isMqttConnectionInterrupted) {
             logger.atInfo().log("Not updating fleet status data since MQTT connection is interrupted.");
             return;
         }
