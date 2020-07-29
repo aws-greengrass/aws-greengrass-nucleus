@@ -104,7 +104,7 @@ class TESTest extends BaseITCase {
 
         // Should serve cached credentials when network disabled
         try {
-            networkUtils.disconnectMqtt();
+            networkUtils.disconnectNetwork();
             con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
             status = con.getResponseCode();
@@ -120,7 +120,7 @@ class TESTest extends BaseITCase {
             con.disconnect();
             assertEquals(response.toString(), newResponse.toString());
         } finally {
-            networkUtils.recoverMqtt();
+            networkUtils.recoverNetwork();
         }
 
     }
