@@ -65,7 +65,7 @@ public class IPCService extends EvergreenService {
      * pushed to the IPCService config store
      */
     @Override
-    public void startup() {
+    protected void startup() {
         logger.atInfo().setEventType("ipc-starting").log();
         try {
             port = listen();
@@ -112,7 +112,7 @@ public class IPCService extends EvergreenService {
      * Shutdown the IPC server.
      */
     @Override
-    public void shutdown() throws InterruptedException {
+    protected void shutdown() throws InterruptedException {
         logger.atInfo().setEventType("ipc-shutdown").log();
         workerGroup.shutdownGracefully();
         bossGroup.shutdownGracefully();
@@ -124,7 +124,7 @@ public class IPCService extends EvergreenService {
      * IPCService will only transition to errored state if the server socket is not able to bind or accept connections.
      */
     @Override
-    public void handleError() {
+    protected void handleError() {
 
     }
 }
