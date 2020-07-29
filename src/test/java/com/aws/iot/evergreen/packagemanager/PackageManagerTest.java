@@ -122,8 +122,8 @@ class PackageManagerTest {
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         packageManager.downloadArtifactsIfNecessary(pkgId,
-                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null),
-                        new ComponentArtifact(new URI("greengrass:binary2"), null)));
+                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null),
+                        new ComponentArtifact(new URI("greengrass:binary2"), null, null)));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -140,7 +140,7 @@ class PackageManagerTest {
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         packageManager.downloadArtifactsIfNecessary(pkgId,
-                Collections.singletonList(new ComponentArtifact(new URI("s3://bucket/path/to/key"), null)));
+                Collections.singletonList(new ComponentArtifact(new URI("s3://bucket/path/to/key"), null, null)));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(s3Downloader, times(1)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -156,7 +156,7 @@ class PackageManagerTest {
 
         Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
                 .downloadArtifactsIfNecessary(pkgId,
-                        Collections.singletonList(new ComponentArtifact(new URI("docker:image1"), null))));
+                        Collections.singletonList(new ComponentArtifact(new URI("docker:image1"), null, null))));
         assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
 
@@ -167,7 +167,7 @@ class PackageManagerTest {
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
                 .downloadArtifactsIfNecessary(pkgId,
-                        Collections.singletonList(new ComponentArtifact(new URI("binary1"), null))));
+                        Collections.singletonList(new ComponentArtifact(new URI("binary1"), null, null))));
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 

@@ -19,7 +19,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -66,6 +65,9 @@ public class S3Downloader implements ArtifactDownloader {
         String key = s3PathMatcher.group(2);
 
         // Get artifact from S3
+        // TODO : Calculating hash for integrity check nees the whole object in memory,
+        //  However it could be an issue in the case of large files, need to evaluate if
+        //  there's a way to get around this
         byte[] artifactObject = getObject(bucket, key, artifact, packageIdentifier);
 
         // Perform integrity check
@@ -109,12 +111,9 @@ public class S3Downloader implements ArtifactDownloader {
     private void performIntegrityCheck(byte[] artifactObject, ComponentArtifact artifact,
                                        PackageIdentifier packageIdentifier) throws PackageDownloadException {
         try {
-            String checksum =
-                    new String(Base64.getDecoder().decode(artifact.getChecksum().getBytes(StandardCharsets.UTF_8)),
-                            StandardCharsets.UTF_8);
-            String digest =
-                    new String(MessageDigest.getInstance(artifact.getAlgorithm()).digest(artifactObject), StandardCharsets.UTF_8);
-            if (!digest.equals(checksum)) {
+            String digest = Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance(artifact.getAlgorithm()).digest(artifactObject));
+            if (!digest.equals(artifact.getChecksum())) {
                 // Handle failure in integrity check
                 throw new PackageDownloadException(
                         String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, packageIdentifier.getName(),
@@ -136,3 +135,4 @@ public class S3Downloader implements ArtifactDownloader {
         return pathStrings[pathStrings.length - 1];
     }
 }
+

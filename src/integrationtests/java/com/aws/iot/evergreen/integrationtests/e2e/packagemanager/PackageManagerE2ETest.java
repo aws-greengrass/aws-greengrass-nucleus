@@ -231,7 +231,7 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
                 new PackageRecipe(recipeToClone.getRecipeTemplateVersion(), "AppWithS3Artifacts",
                         recipeToClone.getVersion(), recipeToClone.getDescription(), recipeToClone.getPublisher(),
                         recipeToClone.getPackageParameters(), recipeToClone.getPlatforms(),
-                        recipeToClone.getLifecycle(), artifacts, Collections.emptyMap());
+                        recipeToClone.getLifecycle(), artifacts, Collections.emptyMap(), recipeToClone.getComponentType());
         SerializerFactory.getRecipeSerializer().writeValue(
                 packageStorePath.resolve(RECIPE_DIRECTORY).resolve("AppWithS3Artifacts-1.0.0.yaml").toFile(),
                 appWithS3Artifacts);

@@ -221,7 +221,8 @@ public class CredentialRequestHandler implements HttpHandler {
         // TODO: Add cache
         try {
             final JsonNode credentials = deserializeCredentials(iotCloudHelper
-                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null).toString());
+                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null)
+                    .toString());
             return AwsSessionCredentials
                     .create(credentials.get(ACCESS_KEY_UPSTREAM_STR).asText(),
                             credentials.get(SECRET_ACCESS_UPSTREAM_STR).asText(),

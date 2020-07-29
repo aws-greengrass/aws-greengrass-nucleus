@@ -44,8 +44,8 @@ public class S3DownloaderTest {
 
     private static final String VALID_ARTIFACT_URI = "s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt";
     private static final String INVALID_ARTIFACT_URI = "s3/eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt";
-    private static final String VALID_ARTIFACT_CHECKSUM =
-            "U0hBLTI1NmNoZWNrc3VtOxzvv73vv701ECM4MO+/vWBpJO+/vWXvv70sYu+/vQA8Au+/vSXvv70zR++/vWDvv70S77+9";
+    private static final String VALID_ARTIFACT_CHECKSUM = "StbR1g+686nCVhEJERUYNWhBqXskG6b3n9CG8vVekgM=";
+    private static final String VALID_ALGORITHM = "SHA-256";
     private static final String VALID_ARTIFACT_CONTENT = "Sample artifact content";
     private static final String TEST_COMPONENT_NAME = "ComponentWithS3Artifacts";
     private static final String TEST_COMPONENT_VERSION = "1.0.0";
@@ -73,10 +73,8 @@ public class S3DownloaderTest {
         Path artifactFilePath =
                 Files.write(Paths.get("/tmp/artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        String checksum = new String(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)),
-                StandardCharsets.UTF_8);
-        String checksumWithAlgorithm = "SHA-256checksum" + checksum;
-        String encoded = Base64.getEncoder().encodeToString(checksumWithAlgorithm.getBytes(StandardCharsets.UTF_8));
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
 
         Context mockContext = mock(Context.class);
         when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
@@ -91,7 +89,7 @@ public class S3DownloaderTest {
         }
         s3Downloader.downloadToPath(
                 new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
-                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), encoded), saveToPath);
+                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM), saveToPath);
         byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
         assertThat("Content of downloaded file should be same as the artifact content",
                 Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
@@ -106,7 +104,7 @@ public class S3DownloaderTest {
         Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
         assertThrows(InvalidArtifactUriException.class, () -> s3Downloader.downloadToPath(
                 new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
-                new ComponentArtifact(new URI(INVALID_ARTIFACT_URI), "somechecksum"), saveToPath));
+                new ComponentArtifact(new URI(INVALID_ARTIFACT_URI), "somechecksum", VALID_ALGORITHM), saveToPath));
         TestHelper.cleanDirectory(testCache);
     }
 
@@ -115,8 +113,7 @@ public class S3DownloaderTest {
         Path artifactFilePath =
                 Files.write(Paths.get("/tmp/artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        String checksumWithAlgorithm = "SHA-256checksumRandomString";
-        String encoded = Base64.getEncoder().encodeToString(checksumWithAlgorithm.getBytes(StandardCharsets.UTF_8));
+        String checksum = Base64.getEncoder().encodeToString("WrongChecksum".getBytes(StandardCharsets.UTF_8));
 
         Context mockContext = mock(Context.class);
         when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
@@ -131,7 +128,7 @@ public class S3DownloaderTest {
         }
         assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
                 new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
-                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), encoded), saveToPath));
+                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM), saveToPath));
         TestHelper.cleanDirectory(testCache);
         TestHelper.cleanDirectory(artifactFilePath);
         mockContext.close();
@@ -142,10 +139,8 @@ public class S3DownloaderTest {
         Path artifactFilePath =
                 Files.write(Paths.get("/tmp/artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        String checksum = new String(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)),
-                StandardCharsets.UTF_8);
-        String checksumWithAlgorithm = "RandomAlgorithmchecksum" + checksum;
-        String encoded = Base64.getEncoder().encodeToString(checksumWithAlgorithm.getBytes(StandardCharsets.UTF_8));
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
 
         Context mockContext = mock(Context.class);
         when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
@@ -157,7 +152,7 @@ public class S3DownloaderTest {
         Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
         assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
                 new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
-                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), encoded), saveToPath));
+                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, "WrongAlgorithm"), saveToPath));
         TestHelper.cleanDirectory(testCache);
         TestHelper.cleanDirectory(artifactFilePath);
         mockContext.close();
@@ -173,7 +168,8 @@ public class S3DownloaderTest {
         Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
         assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
                 new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
-                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM), saveToPath));
+                new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM, VALID_ALGORITHM),
+                saveToPath));
         TestHelper.cleanDirectory(testCache);
         mockContext.close();
     }

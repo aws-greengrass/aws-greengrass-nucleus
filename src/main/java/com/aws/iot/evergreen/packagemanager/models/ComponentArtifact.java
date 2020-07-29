@@ -19,7 +19,8 @@ public class ComponentArtifact {
      * Constructor.
      *
      * @param artifactUri artifactUri
-     * @param checksum checksum
+     * @param checksum artifact checksum
+     * @param algorithm algorithm used to calculate checksum
      */
     @JsonCreator
     public ComponentArtifact(@JsonProperty("Uri") URI artifactUri,
