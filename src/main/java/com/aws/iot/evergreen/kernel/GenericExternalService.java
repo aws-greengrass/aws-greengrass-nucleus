@@ -148,7 +148,7 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    public synchronized void install() throws InterruptedException {
+    protected synchronized void install() throws InterruptedException {
         stopAllLifecycleProcesses();
 
         if (run(LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
@@ -159,7 +159,7 @@ public class GenericExternalService extends EvergreenService {
     // Synchronize startup() and shutdown() as both are non-blocking, but need to have coordination
     // to operate properly
     @Override
-    public synchronized void startup() throws InterruptedException {
+    protected synchronized void startup() throws InterruptedException {
         stopAllLifecycleProcesses();
 
         long startingStateGeneration = getStateGeneration();
@@ -241,7 +241,7 @@ public class GenericExternalService extends EvergreenService {
     }
 
     @Override
-    public synchronized void shutdown() {
+    protected synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
         try {
             run(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
