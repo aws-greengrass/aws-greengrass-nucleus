@@ -13,7 +13,7 @@ import java.io.IOException;
 
 public abstract class NetworkUtils {
     protected final String[] MQTT_PORTS = {"8883", "443"};
-    protected final String[] NETWORK_PORTS = {"8443", "443"};
+    protected final String[] NETWORK_PORTS = {"443"};
     protected static final Logger logger = LogManager.getLogger(NetworkUtils.class);
 
     private enum Platform {

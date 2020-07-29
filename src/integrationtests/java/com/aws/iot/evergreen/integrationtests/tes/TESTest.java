@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Tag("E2E")
+@Tag("E2E-INTRUSIVE")
 class TESTest extends BaseITCase {
     private Kernel kernel;
     private ThingInfo thingInfo;
