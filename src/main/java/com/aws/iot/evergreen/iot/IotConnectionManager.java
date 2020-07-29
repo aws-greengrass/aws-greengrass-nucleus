@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.util.Coerce;
 import software.amazon.awssdk.crt.http.HttpClientConnection;
 import software.amazon.awssdk.crt.http.HttpClientConnectionManager;
 import software.amazon.awssdk.crt.http.HttpClientConnectionManagerOptions;
+import software.amazon.awssdk.crt.http.HttpException;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
@@ -75,7 +76,7 @@ public class IotConnectionManager implements Closeable {
     public HttpClientConnection getConnection() throws AWSIotException {
         try {
             return connManager.acquireConnection().get(TIMEOUT_FOR_CONNECTION_SETUP_SECONDS, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (InterruptedException | ExecutionException | TimeoutException | HttpException e) {
             LOGGER.error("Getting connection failed for endpoint {} with error {} ", connManager.getUri(), e);
             throw new AWSIotException(e);
         }

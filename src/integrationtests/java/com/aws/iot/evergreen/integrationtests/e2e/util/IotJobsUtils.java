@@ -8,6 +8,7 @@ package com.aws.iot.evergreen.integrationtests.e2e.util;
 import com.amazonaws.arn.Arn;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
+import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AddThingToThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CancelJobRequest;
@@ -131,13 +132,13 @@ public final class IotJobsUtils {
             DeleteRoleAliasRequest deleteRoleAliasRequest =
                     DeleteRoleAliasRequest.builder().roleAlias(roleAliasName).build();
             iotClient.deleteRoleAlias(deleteRoleAliasRequest);
-        } catch (ResourceNotFoundException e) {
+        } catch (ResourceNotFoundException | NoSuchEntityException e) {
             // Ignore as role alias does not exist
         }
         try {
             DeleteRoleRequest deleteRoleRequest = DeleteRoleRequest.builder().roleName(roleName).build();
             iamClient.deleteRole(deleteRoleRequest);
-        } catch (ResourceNotFoundException e) {
+        } catch (ResourceNotFoundException | NoSuchEntityException e) {
             // Ignore as role alias does not exist
         }
     }
