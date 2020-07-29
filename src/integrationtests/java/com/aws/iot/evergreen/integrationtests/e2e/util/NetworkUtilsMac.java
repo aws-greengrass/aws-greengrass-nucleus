@@ -25,4 +25,14 @@ public class NetworkUtilsMac extends NetworkUtils {
     public void recoverMqtt() throws InterruptedException, IOException {
         logger.atWarn("connection-recover").log(Exec.sh(String.format(commandFormat, upOperation)));
     }
+
+    @Override
+    public void disconnectNetwork() throws InterruptedException, IOException {
+        logger.atWarn("connection-loss").log(Exec.sh(String.format(commandFormat, downOperation)));
+    }
+
+    @Override
+    public void recoverNetwork() throws InterruptedException, IOException {
+        logger.atWarn("connection-recover").log(Exec.sh(String.format(commandFormat, upOperation)));
+    }
 }
