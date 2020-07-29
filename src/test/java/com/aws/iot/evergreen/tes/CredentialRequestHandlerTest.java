@@ -460,12 +460,9 @@ public class CredentialRequestHandlerTest {
 
     @Test
     public void GIVEN_credential_handler_WHEN_called_get_credentials_provider_THEN_returns_success() throws Exception {
-        Instant expirationTime = Instant.now().minus(Duration.ofMinutes(1));
-        String responseStr = String.format(RESPONSE_STR, expirationTime.toString());
-        IotCloudResponse mockResponse = new IotCloudResponse(responseStr.getBytes(StandardCharsets.UTF_8), 200);
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(mockResponse);
-        CredentialRequestHandler handler = new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper,
-                mockConnectionManager);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
+        CredentialRequestHandler handler =
+                new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
         final AwsCredentials creds = handler.getAwsCredentials();
         final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
         final String expectedVerb = "GET";

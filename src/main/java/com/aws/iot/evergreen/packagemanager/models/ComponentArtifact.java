@@ -3,31 +3,24 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.net.URI;
 
 @Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class ComponentArtifact {
-    private URI artifactUri;
-    private String checksum;
-    private String algorithm;
 
-    /**
-     * Constructor.
-     *
-     * @param artifactUri artifactUri
-     * @param checksum artifact checksum
-     * @param algorithm algorithm used to calculate checksum
-     */
-    @JsonCreator
-    public ComponentArtifact(@JsonProperty("Uri") URI artifactUri,
-                             @JsonProperty("Checksum") String checksum,
-                             @JsonProperty("Algorithm") String algorithm) {
-        this.artifactUri = artifactUri;
-        this.checksum = checksum;
-        this.algorithm = algorithm;
-    }
+    @JsonProperty("Uri")
+    private URI artifactUri;
+
+    @JsonProperty("Checksum")
+    private String checksum;
+
+    @JsonProperty("Algorithm")
+    private String algorithm;
 }

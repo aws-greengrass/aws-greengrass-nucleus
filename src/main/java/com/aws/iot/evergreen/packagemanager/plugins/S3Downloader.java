@@ -65,7 +65,7 @@ public class S3Downloader implements ArtifactDownloader {
         String key = s3PathMatcher.group(2);
 
         // Get artifact from S3
-        // TODO : Calculating hash for integrity check nees the whole object in memory,
+        // TODO : Calculating hash for integrity check needs the whole object in memory,
         //  However it could be an issue in the case of large files, need to evaluate if
         //  there's a way to get around this
         byte[] artifactObject = getObject(bucket, key, artifact, packageIdentifier);

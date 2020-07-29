@@ -14,11 +14,8 @@ import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
-import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.util.SerializerFactory;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 import org.junit.jupiter.api.AfterEach;
@@ -27,28 +24,13 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
-import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -66,9 +48,6 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
     private static DependencyResolver dependencyResolver;
     private static Path packageStorePath;
     private final String kernelIntegTestPkgName = getTestComponentNameInCloud("KernelIntegTest");
-
-    @TempDir
-    private Path tempDir;
 
     @BeforeEach
     void setupKernel() throws Exception {
@@ -155,12 +134,9 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
     @Order(3)
     void GIVEN_package_with_s3_artifacts_WHEN_deployed_THEN_download_artifacts_from_customer_s3_and_perform_integrity_check()
             throws Exception {
-        // TODO : Remove after Component Management Service supports checksum calculation
-        //  on create/update component APIS
-        createComponentLocallyWithS3Artifacts();
-
+        String appWithS3ArtifactsPackageName = getTestComponentNameInCloud("AppWithS3Artifacts");
         List<String> rootPackageList = new ArrayList<>();
-        rootPackageList.add("AppWithS3Artifacts");
+        rootPackageList.add(appWithS3ArtifactsPackageName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
         configList.add(new DeploymentPackageConfiguration("AppWithS3Artifacts", true, "1.0.0", Collections.emptyMap()));
         DeploymentDocument testDeploymentDocument =
@@ -181,59 +157,11 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
             assertThat(packageStorePath.toFile(), anExistingDirectory());
             assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
             assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
-            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).resolve("AppWithS3Artifacts-1.0.0.yaml").toFile(),
-                    anExistingFile());
-            assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve("AppWithS3Artifacts").resolve("1.0.0")
-                    .resolve("artifact.txt").toFile(), anExistingFile());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY)
+                    .resolve(appWithS3ArtifactsPackageName + "-1.0.0" + ".yaml").toFile(), anExistingFile());
+            assertThat(
+                    packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName).resolve("1.0.0")
+                            .resolve("artifact.txt").toFile(), anExistingFile());
         }
-    }
-
-    // TODO : Remove when Component Management Service supports adding checksum to recipes
-    private void createComponentLocallyWithS3Artifacts() throws Exception {
-        // Create artifact object in S3
-        Path artifactFilePath =
-                Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList("Sample artifact content"),
-                        StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        String bucketName = "eg-e2e-component-artifacts-test" + UUID.randomUUID().toString();
-
-        try {
-            s3Client.createBucket(
-                    CreateBucketRequest.builder().bucket(bucketName).build());
-        } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
-            // No-op if bucket exists
-        }
-        s3Client.putObject(PutObjectRequest.builder().bucket(bucketName)
-                        .key("AppWithS3Artifacts/artifact" + ".txt").build(),
-                RequestBody.fromBytes(Files.readAllBytes(artifactFilePath)));
-
-        // Calculate checksum
-        String checksum = new String(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)),
-                StandardCharsets.UTF_8);
-        String encodedChecksum = Base64.getEncoder().encodeToString(checksum.getBytes(StandardCharsets.UTF_8));
-
-        // Clean up temporary artifact file
-        Files.delete(artifactFilePath);
-
-        // Construct ComponentArtifact object
-        Map<String, List<ComponentArtifact>> artifacts = Collections.singletonMap("all", Collections.singletonList(
-                new ComponentArtifact(new URI("s3://" + bucketName + "/AppWithS3Artifacts/artifact.txt"),
-                        encodedChecksum, "SHA-256")));
-
-        // Deserialize an existing recipe for cloning required data
-        Path recipePath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content/recipes").toURI())
-                .resolve("CustomerApp-1.0.0.yaml");
-        byte[] recipeContent = Files.readAllBytes(recipePath);
-        PackageRecipe recipeToClone =
-                SerializerFactory.getRecipeSerializer().readValue(recipeContent, PackageRecipe.class);
-
-        // Write a recipe with S3 artifact and checksum locally
-        PackageRecipe appWithS3Artifacts =
-                new PackageRecipe(recipeToClone.getRecipeTemplateVersion(), "AppWithS3Artifacts",
-                        recipeToClone.getVersion(), recipeToClone.getDescription(), recipeToClone.getPublisher(),
-                        recipeToClone.getPackageParameters(), recipeToClone.getPlatforms(),
-                        recipeToClone.getLifecycle(), artifacts, Collections.emptyMap(), recipeToClone.getComponentType());
-        SerializerFactory.getRecipeSerializer().writeValue(
-                packageStorePath.resolve(RECIPE_DIRECTORY).resolve("AppWithS3Artifacts-1.0.0.yaml").toFile(),
-                appWithS3Artifacts);
     }
 }

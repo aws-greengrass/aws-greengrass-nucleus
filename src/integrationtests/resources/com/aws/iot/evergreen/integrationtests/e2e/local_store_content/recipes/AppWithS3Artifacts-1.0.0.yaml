@@ -1,0 +1,23 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: {{AppWithS3Artifacts}}
+Description: An application with artifacts in S3
+Publisher: Me
+Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
+  - windows
+Lifecycle:
+  all:
+    run: |-
+      sleep 2
+      echo "Hello evergreen"
+Artifacts:
+  all:
+    - Uri: s3://evergreen-e2e-test-artifacts/AppWithS3Artifacts-1.0.0/artifact.txt
+Dependencies:
+  all:
+      {{Mosquitto}}:
+        VersionRequirements: 1.0.0
