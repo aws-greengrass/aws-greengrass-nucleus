@@ -19,7 +19,7 @@ Lifecycle:
       script: brew install git
 Artifacts:
   all:
-    - Uri: greengrass:kernel_integ_test_artifact.txt
+  - greengrass:kernel_integ_test_artifact.txt
 Dependencies:
   all:
     {{Log}}:

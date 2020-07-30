@@ -16,8 +16,4 @@ Lifecycle:
       echo "Hello evergreen"
 Artifacts:
   all:
-    - Uri: s3://evergreen-e2e-test-artifacts/AppWithS3Artifacts-1.0.0/artifact.txt
-Dependencies:
-  all:
-      {{Mosquitto}}:
-        VersionRequirements: 1.0.0
+  - s3://{{eg-e2e-test-artifacts}}/AppWithS3Artifacts-1.0.0/artifact.txt

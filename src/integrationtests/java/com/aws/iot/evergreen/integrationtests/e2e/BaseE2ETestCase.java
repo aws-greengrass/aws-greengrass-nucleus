@@ -35,7 +35,6 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
-import com.aws.iot.evergreen.util.S3SdkClientFactory;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -48,8 +47,9 @@ import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
-import software.amazon.awssdk.services.iam.model.DeleteRolePolicyRequest;
+import software.amazon.awssdk.services.iam.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
+import software.amazon.awssdk.services.iam.model.DetachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -65,8 +65,11 @@ import software.amazon.awssdk.services.s3.model.DeleteBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.File;
 import java.io.IOException;
@@ -105,19 +108,21 @@ public class BaseE2ETestCase implements AutoCloseable {
             + "    \"Statement\": [\n" + "        {\n" + "            \"Effect\": \"Allow\",\n"
             + "            \"Action\": [\n" + "                \"s3:Get*\",\n" + "                \"s3:List*\"\n"
             + "            ],\n" + "            \"Resource\": \"*\"\n" + "        }\n" + "    ]\n" + "}";
-    protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX = "evergreen-e2e-test-artifacts";
+    protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX = "eg-e2e-test-artifacts";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET =
             TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + UUID.randomUUID().toString();
 
     protected static final Logger logger = LogManager.getLogger(BaseE2ETestCase.class);
 
     private final static String testComponentSuffix = "_" + UUID.randomUUID().toString();
+    protected static String tesRolePolicyArn;
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
     protected CreateThingGroupResponse thingGroupResp;
+
     protected DeviceProvisioningHelper deviceProvisioningHelper =
             new DeviceProvisioningHelper(GAMMA_REGION.toString(), System.out);
 
@@ -137,7 +142,7 @@ public class BaseE2ETestCase implements AutoCloseable {
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, GAMMA_REGION.toString())).build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
-    protected static S3Client s3Client;
+    protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
     private static final PackageIdentifier[] componentsWithArtifactsInGG =
             {createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
@@ -160,21 +165,26 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     @BeforeAll
     static void beforeAll() throws Exception {
-        uploadTestComponentsToCms(true, componentsWithArtifactsInGG);
-        uploadTestComponentsToCms(true, componentsWithArtifactsInS3);
+        initializePackageStore();
+
+        uploadTestComponentsToCms(componentsWithArtifactsInGG);
         uploadComponentArtifactsToGG(componentsWithArtifactsInGG);
+        commitTestComponentsToCms(componentsWithArtifactsInGG);
+
+        // Self hosted artifacts must exist in S3 before creating a component version
+        createS3BucketsForTestComponentArtifacts();
         uploadComponentArtifactToS3(componentsWithArtifactsInS3);
+        uploadTestComponentsToCms(componentsWithArtifactsInS3);
+        commitTestComponentsToCms(componentsWithArtifactsInS3);
+
     }
 
     @AfterAll
     static void afterAll() {
         try {
-            for (PackageIdentifier component : componentsWithArtifactsInGG) {
-                DeleteComponentResult result = GreengrassPackageServiceHelper
-                        .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
-                assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
-            }
-            for (PackageIdentifier component : componentsWithArtifactsInS3) {
+            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInGG));
+            allComponents.addAll(Arrays.asList(componentsWithArtifactsInS3));
+            for (PackageIdentifier component : allComponents) {
                 DeleteComponentResult result = GreengrassPackageServiceHelper
                         .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
@@ -192,15 +202,24 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.add(thingGroupName);
     }
 
-    protected void initKernel() throws IOException, DeviceConfigurationException {
+    protected void initKernel() throws IOException, DeviceConfigurationException, InterruptedException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
         setupTesRoleAndAlias();
-        s3Client = kernel.getContext().get(S3SdkClientFactory.class).getS3Client();
+    }
+
+    private static void initializePackageStore() throws Exception {
+        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
+
+        e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
+        // copy to tmp directory
+        FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
+
+        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
     }
 
     /**
-     * Load recipes and artifacts from local store and publish components to CMS.
+     * Load recipes from local store and publish components to CMS.
      * Directory tree layout should follow the local component store. e.g.
      * src/integrationtests/resources/com/aws/iot/evergreen/integrationtests/e2e
      * └── local_store_content
@@ -212,19 +231,9 @@ public class BaseE2ETestCase implements AutoCloseable {
      *         ├── KernelIntegTest-1.0.0.yaml
      *         └── KernelIntegTestDependency-1.0.0.yaml
      *
-     * @param commit whether to call commitComponent with the created components
      * @param pkgIds list of component identifiers
      */
-    private static void uploadTestComponentsToCms(boolean commit, PackageIdentifier... pkgIds)
-            throws IOException, PackagingException {
-        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
-
-        e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
-        // copy to tmp directory
-        FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
-
-        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
-
+    private static void uploadTestComponentsToCms(PackageIdentifier... pkgIds) throws IOException, PackagingException {
         List<String> errors = new ArrayList<>();
         for (PackageIdentifier pkgId : pkgIds) {
             try {
@@ -233,15 +242,21 @@ public class BaseE2ETestCase implements AutoCloseable {
                 // Don't fail the test if the component exists
                 errors.add(e.getMessage());
             }
+        }
+        if (!errors.isEmpty()) {
+            logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
+        }
+    }
 
-            if (commit) {
-                try {
-                    GreengrassPackageServiceHelper.commitComponent(cmsClient, pkgId.getName(),
-                            pkgId.getVersion().toString());
-                } catch (InvalidInputException e) {
-                    // Don't fail the test if the component is already committed
-                    errors.add(e.getMessage());
-                }
+    private static void commitTestComponentsToCms(PackageIdentifier... pkgIds) {
+        List<String> errors = new ArrayList<>();
+        for (PackageIdentifier pkgId : pkgIds) {
+            try {
+                GreengrassPackageServiceHelper
+                        .commitComponent(cmsClient, pkgId.getName(), pkgId.getVersion().toString());
+            } catch (InvalidInputException e) {
+                // Don't fail the test if the component is already committed
+                errors.add(e.getMessage());
             }
         }
         if (!errors.isEmpty()) {
@@ -268,7 +283,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         for (String cloudPkgName: componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
             content = content.replaceAll("\\{\\{" + localPkgName + "}}", cloudPkgName);
-            content = content.replaceAll(TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX, TEST_COMPONENT_ARTIFACTS_S3_BUCKET);
+            content = content.replaceAll("\\{\\{" + TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + "}}", TEST_COMPONENT_ARTIFACTS_S3_BUCKET);
         }
 
         testRecipePath = e2eTestPackageStore.resolveRecipePath(pkgIdCloud);
@@ -300,6 +315,17 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
+    protected static void createS3BucketsForTestComponentArtifacts() {
+        try {
+            s3Client.createBucket(
+                    CreateBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
+        } catch (BucketAlreadyExistsException e) {
+            logger.atError().setCause(e).log("Bucket name is taken, please retry the tests");
+        } catch (BucketAlreadyOwnedByYouException e) {
+            // No-op if bucket exists
+        }
+    }
+
     // TODO : Fast follow item to change all e2e tests to upload artifacts to S3
     //  instead of the component management service
     protected static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
@@ -313,17 +339,13 @@ public class BaseE2ETestCase implements AutoCloseable {
             } else {
                 for (File artifact : artifactFiles) {
                     try {
-                        s3Client.createBucket(
-                                CreateBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
-                    } catch (BucketAlreadyExistsException e) {
-                        logger.atError().setCause(e).log("Bucket name is taken, please retry the tests");
-                    } catch (BucketAlreadyOwnedByYouException e) {
-                        // No-op if bucket exists
+                        // Path is <bucket>/<component_name>-<component>_<component_version>/<filename>
+                        s3Client.putObject(PutObjectRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET)
+                                .key(pkgIdLocal.getName() + "-" + pkgIdLocal.getVersion().toString() + "/" + artifact
+                                        .getName()).build(), RequestBody.fromFile(artifact));
+                    } catch (S3Exception e) {
+                        logger.atError().setCause(e).log("Could not upload artifacts to S3");
                     }
-                    // Path is <bucket>/<component_name>-<component>_<component_version>/<filename>
-                    s3Client.putObject(PutObjectRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET)
-                            .key(pkgIdLocal.getName() + "-" + pkgIdLocal.getVersion().toString() + "/" + artifact
-                                    .getName()).build(), RequestBody.fromFile(artifact));
                 }
             }
 
@@ -334,11 +356,17 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             ListObjectsResponse objectsInArtifactsBucket = s3Client.listObjects(
                     ListObjectsRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
-            objectsInArtifactsBucket.contents().stream().map(obj -> s3Client.deleteObject(
-                    DeleteObjectRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).key(obj.key()).build()));
+            for (S3Object artifact : objectsInArtifactsBucket.contents()) {
+                s3Client.deleteObject(
+                        DeleteObjectRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).key(artifact.key())
+                                .build());
+            }
             s3Client.deleteBucket(DeleteBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
+        } catch (NoSuchKeyException | NoSuchBucketException e) {
+            // No-op
         } catch (S3Exception e) {
-            logger.atInfo().log("Could not clean up test component artifacts");
+            logger.atInfo().addKeyValue("error-message", e.getMessage())
+                    .log("Could not clean up test component artifacts");
         }
     }
 
@@ -402,15 +430,23 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected void setupTesRoleAndAlias() {
+    protected void setupTesRoleAndAlias() throws InterruptedException {
         try {
-            deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+            deviceProvisioningHelper
+                    .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
 
             CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
-                    CreatePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME).policyDocument(TES_ROLE_POLICY_DOCUMENT)
-                            .description("Defines permissions to access AWS services for E2E test device TES role").build());
-            iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(createPolicyResponse.policy().arn()).build());
+                    CreatePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME)
+                            .policyDocument(TES_ROLE_POLICY_DOCUMENT)
+                            .description("Defines permissions to access AWS services for E2E test device TES role")
+                            .build());
+            tesRolePolicyArn = createPolicyResponse.policy().arn();
+            iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME)
+                    .policyArn(tesRolePolicyArn).build());
+            // There seems to be a consistency problem in IAM, For IoT creds endpoint
+            // to be able to assume the role the sleep is needed
+            Thread.sleep(5000);
         } catch (EntityAlreadyExistsException e) {
             // No-op if resources already exist
         }
@@ -419,11 +455,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static void cleanUpTesRoleAndAlias() {
         try {
             iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
-            iamClient.deleteRolePolicy(
-                    DeleteRolePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME).roleName(TES_ROLE_NAME).build());
+            iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn).build());
             iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
+            iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn).build());
         } catch (ResourceNotFoundException | NoSuchEntityException e) {
-            logger.atError().setCause(e).log("Could not clean up TES resources");
+            logger.atInfo().addKeyValue("error-message", e.getMessage()).log("Could not clean up TES resources");
         }
     }
 

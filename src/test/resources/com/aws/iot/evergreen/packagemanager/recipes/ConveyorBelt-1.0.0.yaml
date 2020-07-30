@@ -17,7 +17,7 @@ Lifecycle:
       script: brew install git
 Artifacts:
   all:
-    - Uri: %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
+  - Uri: %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
 Dependencies:
   Log:
     VersionRequirements: '2.0'

@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.tes.TokenExchangeService;
 import com.aws.iot.evergreen.util.S3SdkClientFactory;
+import com.aws.iot.evergreen.util.Utils;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -70,8 +71,14 @@ public class S3Downloader implements ArtifactDownloader {
         //  there's a way to get around this
         byte[] artifactObject = getObject(bucket, key, artifact, packageIdentifier);
 
+        // TODO : There is ongoing discussion on whether integrity check should be made mandatory
+        //  and who should own calculating checksums i.e. customer vs greengrass cloud. Until
+        //  that is resolved, integrity check here is made optional, it will be performed only if
+        //  the downloaded recipe has checksum that can be used for validation
         // Perform integrity check
-        performIntegrityCheck(artifactObject, artifact, packageIdentifier);
+        if (!Utils.isEmpty(artifact.getChecksum()) && !Utils.isEmpty(artifact.getAlgorithm())) {
+            performIntegrityCheck(artifactObject, artifact, packageIdentifier);
+        }
 
         // Save file to store
         Files.write(saveToPath.resolve(extractFileName(key)), artifactObject, StandardOpenOption.CREATE,
@@ -90,8 +97,8 @@ public class S3Downloader implements ArtifactDownloader {
             return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
         } catch (S3Exception e) {
             throw new PackageDownloadException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, packageIdentifier.getName(),
-                            packageIdentifier.getVersion().toString(), artifact.getArtifactUri(),
+                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifact.getArtifactUri(),
+                            packageIdentifier.getName(), packageIdentifier.getVersion().toString(),
                             "Failed to get artifact object from S3"), e);
         }
     }
@@ -116,16 +123,16 @@ public class S3Downloader implements ArtifactDownloader {
             if (!digest.equals(artifact.getChecksum())) {
                 // Handle failure in integrity check
                 throw new PackageDownloadException(
-                        String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, packageIdentifier.getName(),
-                                packageIdentifier.getVersion().toString(), artifact.getArtifactUri(),
+                        String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifact.getArtifactUri(),
+                                packageIdentifier.getName(), packageIdentifier.getVersion().toString(),
                                 "Integrity check for downloaded artifact failed"));
             }
-            logger.atInfo().setEventType("download-artifact").addKeyValue("packageIdentifier", packageIdentifier)
+            logger.atDebug().setEventType("download-artifact").addKeyValue("packageIdentifier", packageIdentifier)
                     .addKeyValue("artifactUri", artifact.getArtifactUri()).log("Passed integrity check");
         } catch (NoSuchAlgorithmException e) {
             throw new PackageDownloadException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, packageIdentifier.getName(),
-                            packageIdentifier.getVersion().toString(), artifact.getArtifactUri(),
+                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifact.getArtifactUri(),
+                            packageIdentifier.getName(), packageIdentifier.getVersion().toString(),
                             "Algorithm requested for artifact checksum is not supported"), e);
         }
     }

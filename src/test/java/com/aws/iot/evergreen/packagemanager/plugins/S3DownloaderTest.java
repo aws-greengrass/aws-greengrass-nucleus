@@ -106,6 +106,38 @@ public class S3DownloaderTest {
     }
 
     @Test
+    void GIVEN_s3_artifact_uri_WHEN_download_recipe_with_no_checksum_specified_THEN_succeed() throws Exception {
+        Context mockContext = mock(Context.class);
+        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path artifactFilePath =
+                Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
+                        StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        try {
+
+            when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
+            when(kernel.getContext()).thenReturn(mockContext);
+            ResponseBytes responseBytes = mock(ResponseBytes.class);
+            when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
+            when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(responseBytes);
+
+            Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
+            if (Files.notExists(saveToPath)) {
+                Files.createDirectories(saveToPath);
+            }
+            s3Downloader.downloadToPath(
+                    new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), null, null), saveToPath);
+            byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
+            assertThat("Content of downloaded file should be same as the artifact content",
+                    Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
+        } finally {
+            TestHelper.cleanDirectory(testCache);
+            TestHelper.cleanDirectory(artifactFilePath);
+            mockContext.close();
+        }
+    }
+
+    @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_uri_THEN_fail() throws Exception {
         Path testCache = TestHelper.getPathForLocalTestCache();
         try {
