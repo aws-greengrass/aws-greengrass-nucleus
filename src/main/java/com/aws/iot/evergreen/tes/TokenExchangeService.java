@@ -69,22 +69,31 @@ public class TokenExchangeService extends EvergreenService {
     }
 
     @Override
+    public void postInject() {
+        super.postInject();
+        try {
+            authZHandler.registerComponent(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
+            authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
+        } catch (AuthorizationException e) {
+            serviceErrored(e.toString());
+        }
+    }
+
+    @Override
     @SuppressWarnings("PMD.CloseResource")
     protected void startup() {
         // TODO: Support tes restart with change in configuration like port, roleAlias.
         logger.atInfo().addKeyValue(PORT_TOPIC, port)
                 .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias).log("Starting Token Server at port {}", port);
         try {
-            authZHandler.registerService(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
-            authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
             validateConfig();
-            server = new HttpServerImpl(port, credentialRequestHandler);
             credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
+            server = new HttpServerImpl(port, credentialRequestHandler);
             server.start();
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
             reportState(State.RUNNING);
-        } catch (IOException | IllegalArgumentException | AuthorizationException e) {
+        } catch (IOException | IllegalArgumentException e) {
             serviceErrored(e.toString());
         }
     }

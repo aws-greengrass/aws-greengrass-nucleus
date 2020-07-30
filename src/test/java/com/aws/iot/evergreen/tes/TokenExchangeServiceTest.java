@@ -118,7 +118,7 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
         assertEquals(MOCK_ROLE_ALIAS, stringArgumentCaptor.getValue());
 
 
-        verify(mockAuthZHandler).registerService(stringArgumentCaptor.capture(), operationsCaptor.capture());
+        verify(mockAuthZHandler).registerComponent(stringArgumentCaptor.capture(), operationsCaptor.capture());
         assertEquals(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
         assertTrue(operationsCaptor.getValue().contains(TokenExchangeService.AUTHZ_TES_OPERATION));
 
@@ -191,12 +191,12 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
                 mockAuthZHandler));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
-        doThrow(AuthorizationException.class).when(mockAuthZHandler).registerService(any(), any());
+        doThrow(AuthorizationException.class).when(mockAuthZHandler).registerComponent(any(), any());
         tes.startup();
         assertEquals(State.ERRORED, stateArgumentCaptor.getValue());
 
         // this time make loadAuthorizationPolicy throw
-        doNothing().when(mockAuthZHandler).registerService(any(), any());
+        doNothing().when(mockAuthZHandler).registerComponent(any(), any());
         doThrow(AuthorizationException.class).when(mockAuthZHandler).loadAuthorizationPolicy(any(), any());
         tes.startup();
         assertEquals(State.ERRORED, stateArgumentCaptor.getValue());

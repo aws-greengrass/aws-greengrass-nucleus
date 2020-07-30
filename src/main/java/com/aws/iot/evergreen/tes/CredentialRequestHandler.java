@@ -87,8 +87,6 @@ public class CredentialRequestHandler implements HttpHandler {
         this.iotConnectionManager = connectionManager;
         this.authNHandler = authenticationHandler;
         this.authZHandler = authZHandler;
-        this.tesCache.put(this.iotCredentialsPath, new TESCache());
-        this.tesCache.get(iotCredentialsPath).expiry = Instant.now(clock);
     }
 
     /**
@@ -97,6 +95,8 @@ public class CredentialRequestHandler implements HttpHandler {
      */
     public void setIotCredentialsPath(String iotRoleAlias) {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
+        this.tesCache.put(this.iotCredentialsPath, new TESCache());
+        this.tesCache.get(iotCredentialsPath).expiry = Instant.now(clock);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class CredentialRequestHandler implements HttpHandler {
         } catch (Throwable e) {
             // Dont let the server crash, swallow problems with a 5xx
             LOGGER.atInfo().log("Request failed due to e", e);
-            generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
+            generateError(exchange, HttpURLConnection.HTTP_INTERNAL_ERROR);
         }
     }
 

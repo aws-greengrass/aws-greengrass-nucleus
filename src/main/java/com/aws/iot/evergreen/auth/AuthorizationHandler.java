@@ -8,7 +8,6 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
-import sun.jvm.hotspot.asm.Register;
 
 import java.util.Collections;
 import java.util.HashSet;

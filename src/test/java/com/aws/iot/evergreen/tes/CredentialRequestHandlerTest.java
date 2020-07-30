@@ -10,8 +10,6 @@ import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
-import com.aws.iot.evergreen.iot.IotCloudHelper;
-import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.core.JsonParseException;
@@ -112,6 +110,28 @@ public class CredentialRequestHandlerTest {
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
         verify(mockStream, times(1)).write(serializedResponse);
         mockStream.close();
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_called_handle_with_unknown_error_THEN_5xx_returned() throws Exception {
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        Headers mockheaders = mock(Headers.class);
+        when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
+        when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
+        when(mockAuthNHandler.doAuthentication(AUTHN_TOKEN)).thenReturn("ComponentA");
+
+        handler.handle(mockExchange);
+
+        int expectedStatus = 500;
+        int expectedResponseLength = -1;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
     }
 
     @Test

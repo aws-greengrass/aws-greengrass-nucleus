@@ -1,7 +1,6 @@
 package com.aws.iot.evergreen.integrationtests.tes;
 
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -26,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -66,7 +65,7 @@ class TESTest extends BaseITCase {
         });
         kernel.launch();
         assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
-        // Let tes start the http server
+        // Let IAM role get created, it takes some time before role becomes active
         Thread.sleep(5000);
     }
 
@@ -108,7 +107,7 @@ class TESTest extends BaseITCase {
         assertThat(response.toString(), matchesPattern(
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
-    
+
     @Test
     void GIVEN_iot_role_alias_WHEN_tes_is_queried_without_auth_header_THEN_403_returned() throws Exception {
         String urlString = kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).getOnce().toString();
@@ -131,7 +130,7 @@ class TESTest extends BaseITCase {
 
     }
 
-    private void provision(Kernel kernel) throws IOException {
+    private void provision(Kernel kernel) throws Exception {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName,
