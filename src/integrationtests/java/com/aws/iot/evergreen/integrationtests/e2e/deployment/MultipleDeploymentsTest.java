@@ -85,7 +85,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
 
         // Wait for all jobs to finish
         for (DeploymentJobHelper helper : helpers) {
-            assertTrue(helper.jobCompleted.await(2, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
+            assertTrue(helper.jobCompleted.await(5, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
 
             IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));

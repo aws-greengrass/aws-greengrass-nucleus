@@ -100,7 +100,7 @@ class AuthenticationHandlerTest {
         EvergreenService testService = new EvergreenService(
                 config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME));
         AuthenticationHandler.registerAuthToken(testService);
-        Object authToken = testService.getRuntimeConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce();
+        Object authToken = testService.getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce();
 
         assertNotNull(authToken);
         assertEquals(SERVICE_NAME, config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, AUTH_TOKEN_LOOKUP_KEY, (String) authToken)

@@ -1,0 +1,28 @@
+services:
+  main:
+    dependencies:
+      - service_with_just_bootstrap
+      - service_with_just_bootstrap_and_should_timeout
+      - service_with_just_bootstrap_and_timeout_configured
+
+  service_with_just_bootstrap:
+    lifecycle:
+      bootstrap:
+        posix: exit 147
+        windows: powershell -command exit 147
+
+  service_with_just_bootstrap_and_should_timeout:
+    lifecycle:
+      bootstrap:
+        posix: sleep 121
+        windows: powershell -command sleep 121
+
+  service_with_just_bootstrap_and_configured_timeout:
+    lifecycle:
+      bootstrap:
+        posix:
+          script: sleep 5 && exit 147
+          timeout: 10
+        windows:
+          script: powershell -command sleep 5 && exit 147
+          timeout: 10

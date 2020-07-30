@@ -14,3 +14,5 @@ Lifecycle:
 Dependencies:
   Mosquitto:
     VersionRequirements: 1.0.0
+  ClassService:
+    VersionRequirements: 1.0.0

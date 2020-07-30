@@ -29,8 +29,6 @@ import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,9 +66,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
         initKernel();
 
-        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
-        // pre-load contents to package store
-        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        // pre-load contents to package storea
+        FileUtils.copyFolderRecursively(e2eTestPkgStoreDir, kernel.getPackageStorePath());
     }
 
     @AfterEach
@@ -126,10 +123,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
         kernel.launch();
 
-        assertTrue(jobInProgress.await(5, TimeUnit.MINUTES));
-        // sleep to let IoT cloud accept the jobInProgress request.
-        // TODO: A more proper fix is at https://sim.amazon.com/issues/P37649819
-        Thread.sleep(3000);
+        assertTrue(jobInProgress.await(2, TimeUnit.MINUTES));
+
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();
@@ -143,7 +138,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
             networkUtils.disconnectMqtt();
 
             // Wait for the deployment to finish offline
-            assertTrue(jobCompleted.await(3, TimeUnit.MINUTES));
+            assertTrue(jobCompleted.await(5, TimeUnit.MINUTES));
             assertTrue(connectionInterrupted.await(2, TimeUnit.MINUTES));
         } finally {
             networkUtils.recoverMqtt();
@@ -154,7 +149,12 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         Thread.sleep(DNS_CACHE_TTL.plus(Duration.ofSeconds(1)).toMillis());
 
         // Wait for the IoT job to be updated and marked as successful
+        // The reason for making the timeout as 7 min is because it has been observed that if the update job status was
+        // invoked just before the connection recovers it can block the call for total timeout of 5 mins,
+        // without successfully updating the status of the job in cloud. After this timeout expires the status will
+        // be updated again as part of the onConnectionResumed callback. Additional 2 mins are for this status
+        // to get updated
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(),
-                Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.SUCCEEDED));
     }
 }

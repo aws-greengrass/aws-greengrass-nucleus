@@ -21,6 +21,8 @@ import static com.aws.iot.evergreen.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,10 +42,16 @@ class ShellRunnerTest extends EGServiceTestUtil {
     @BeforeEach
     void beforeEach() {
         Topics config = initializeMockedConfig();
-        Topics serviceRuntimeTopics = mock(Topics.class);
+        Topics servicePrivateTopics = mock(Topics.class);
+        Topic mockTopic = mock(Topic.class);
 
-        when(config.lookupTopics(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC)).thenReturn(serviceRuntimeTopics);
-        when(serviceRuntimeTopics.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
+        when(config.lookupTopics(EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC)).thenReturn(servicePrivateTopics);
+        when(servicePrivateTopics.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
+        when(servicePrivateTopics.createLeafChild(anyString())).thenReturn(mockTopic);
+        when(mockTopic.withParentNeedsToKnow(false)).thenReturn(mockTopic);
+        when(mockTopic.withValue(any())).thenReturn(mockTopic);
+        when(mockTopic.addValidator(any())).thenReturn(mockTopic);
+
         when(kernel.getWorkPath()).thenReturn(tempDir);
         evergreenService = new EvergreenService(config);
     }

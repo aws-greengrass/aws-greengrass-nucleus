@@ -12,11 +12,16 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
+import com.aws.iot.evergreen.util.DependencyOrder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -37,25 +42,33 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
  * Evergreen-kernel.
  */
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
 
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
+    public static final String SERVICE_CLASS_TOPIC_KEY = "class";
+    public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
+    public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
+
     @Getter
     private final Context context;
     @Getter
@@ -77,6 +90,9 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Path packageStorePath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path kernelAltsPath;
 
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;
@@ -106,7 +122,13 @@ public class Kernel {
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
+        context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
+        context.put(BootstrapManager.class, new BootstrapManager(this));
         context.put(Clock.class, Clock.systemUTC());
+        Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
+        typeToClassMap.put("generic", GenericExternalService.class.getName());
+        typeToClassMap.put("lambda", "com.aws.iot.evergreen.lambdamanager.UserLambdaService");
+        context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
     }
 
     /**
@@ -127,8 +149,28 @@ public class Kernel {
     /**
      * Startup the Kernel and all services.
      */
+    @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
-        kernelLifecycle.launch();
+        KernelAlternatives kernelAlts = new KernelAlternatives(getKernelAltsPath());
+        context.put(KernelAlternatives.class, kernelAlts);
+        DeploymentStage stage = kernelAlts.determineDeploymentStage();
+
+        switch (stage) {
+            case BOOTSTRAP:
+                // TODO: load pending bootstrap tasks. Start with one execution here. Flip symlinks. Update task list.
+                // System.exit(?)
+                break;
+            case KERNEL_ACTIVATION:
+            case KERNEL_ROLLBACK:
+                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
+                context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
+                deploymentsQueue.add(kernelAlts.loadPersistedDeployment());
+                // fall through to launch kernel
+            default:
+                kernelLifecycle.launch();
+                break;
+        }
         return this;
     }
 
@@ -168,21 +210,9 @@ public class Kernel {
 
         final HashSet<EvergreenService> pendingDependencyServices = new LinkedHashSet<>();
         getMain().putDependenciesIntoSet(pendingDependencyServices);
-        final HashSet<EvergreenService> dependencyFoundServices = new LinkedHashSet<>();
-        while (!pendingDependencyServices.isEmpty()) {
-            int sz = pendingDependencyServices.size();
-            pendingDependencyServices.removeIf(pendingService -> {
-                if (dependencyFoundServices.containsAll(pendingService.getDependencies().keySet())) {
-                    dependencyFoundServices.add(pendingService);
-                    return true;
-                }
-                return false;
-            });
-            if (sz == pendingDependencyServices.size()) {
-                // didn't find anything to remove, there must be a cycle
-                break;
-            }
-        }
+        final LinkedHashSet<EvergreenService> dependencyFoundServices = new DependencyOrder<EvergreenService>()
+                .computeOrderedDependencies(pendingDependencyServices, s -> s.getDependencies().keySet());
+
         return cachedOD = dependencyFoundServices;
     }
 
@@ -192,9 +222,8 @@ public class Kernel {
     }
 
     /**
-     * When a config file gets read, it gets woven together from fragments from
-     * multiple sources.  This writes a fresh copy of the config file, as it is,
-     * after the weaving-together process.
+     * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
+     * copy of the config file, as it is, after the weaving-together process.
      *
      * @param p Path to write the effective config into
      */
@@ -261,10 +290,20 @@ public class Kernel {
 
             Class<?> clazz = null;
             if (serviceRootTopics != null) {
-                Node n = serviceRootTopics.findLeafChild("class");
+                Node n = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
+                String cn = null;
 
-                if (n != null) {
-                    String cn = Coerce.toString(n);
+                if (n == null) {
+                    n = serviceRootTopics.findLeafChild(SERVICE_TYPE_TOPIC_KEY);
+                    if (n != null) {
+                        cn = ((Map<String, String>) context.getvIfExists(SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
+                                .get(Coerce.toString(n).toLowerCase());
+                    }
+                } else {
+                    cn = Coerce.toString(n);
+                }
+
+                if (cn != null) {
                     try {
                         clazz = Class.forName(cn);
                     } catch (Throwable ex) {

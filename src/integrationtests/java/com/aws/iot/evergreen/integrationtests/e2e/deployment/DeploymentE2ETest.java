@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
@@ -34,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -41,6 +43,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -97,8 +101,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("SomeService").getState());
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("SomeService").getState());
     }
 
     @Test
@@ -122,15 +126,16 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId)
                 .thingName(thingInfo.getThingName()).build()).execution().statusDetails().detailsMap().get("error");
         assertThat(deploymentError, StringContains.containsString(
-                "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: Mosquitto. Version constraints from upstream packages:"));
-        assertThat(deploymentError, StringContains.containsString("SomeService-v1.0.0=1.0.0"));
-        assertThat(deploymentError, StringContains.containsString("SomeOldService-v0.9.0==0.9.0"));
+                "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: " + getTestComponentNameInCloud("Mosquitto")));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "-v1.0.0=1.0.0"));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "-v0.9.0==0.9.0"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_deploy_fix_THEN_service_run_and_job_is_successful(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
+        ignoreExceptionUltimateCauseWithMessage(context, "Service "
+                + getTestComponentNameInCloud("CustomerApp") + " in broken state after deployment");
 
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
@@ -144,7 +149,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.FAILED));
         // CustomerApp should be in BROKEN state
-        assertEquals(State.BROKEN, kernel.locate("CustomerApp").getState());
+        assertEquals(State.BROKEN, getCloudDeployedComponent("CustomerApp").getState());
 
         // Create another job with a fix to the faulty service (CustomerApp-0.9.1).
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
@@ -158,13 +163,14 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         // Ensure that main is FINISHED and CustomerApp is RUNNING.
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertEquals(State.RUNNING, kernel.locate("CustomerApp").getState());
+        assertEquals(State.RUNNING, getCloudDeployedComponent("CustomerApp").getState());
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_deployment_fails_due_to_service_broken_WHEN_failure_policy_is_rollback_THEN_deployment_is_rolled_back_and_job_fails(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseWithMessage(context, "Service CustomerApp in broken state after deployment");
+        ignoreExceptionUltimateCauseWithMessage(context, "Service "
+                + getTestComponentNameInCloud("CustomerApp") + " in broken state after deployment");
 
         // Deploy some services that can be used for verification later
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
@@ -194,11 +200,11 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // Main should be INSTALLED state and CustomerApp should be stopped and removed
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("RedSignal")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("YellowSignal")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("CustomerApp").getState());
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto").getState());
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal").getState());
+        assertThat(getCloudDeployedComponent("RedSignal")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("YellowSignal")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("CustomerApp").getState());
+        assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("Mosquitto").getState());
+        assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("GreenSignal").getState());
 
         // IoT Job should have failed with correct message.
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE.name(), iotClient
@@ -262,8 +268,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
-        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService")
+        assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+        assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig()
                 .find("version").getOnce());
 
         Slf4jLogAdapter.removeGlobalListener(logListener);
@@ -338,10 +344,52 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
-        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService")
+        assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+        assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig()
                 .find("version").getOnce());
 
         Slf4jLogAdapter.removeGlobalListener(logListener);
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
+    void GIVEN_updating_Component_WHEN_removing_field_from_recipe_THEN_kernel_config_remove_corresponding_field() throws Exception {
+        // CustomerApp 0.9.1 has 'startup' key in lifecycle
+        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(10), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        EvergreenService customerApp = getCloudDeployedComponent("CustomerApp");
+        assertNotNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("startup"));
+
+        // update with some local data
+        customerApp.getRuntimeConfig().lookup("runtimeKey").withValue("val");
+
+        // Second deployment to update CustomerApp, replace 'startup' key with 'run' key.
+        SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
+                .withTargetName(thingGroupName)
+                .withTargetType(THING_GROUP_TARGET_TYPE)
+                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        customerApp = getCloudDeployedComponent("CustomerApp");
+        // assert local data is not affected
+        assertEquals("val", customerApp.getRuntimeConfig().findLeafChild("runtimeKey").getOnce());
+        // assert updated service have 'startup' key removed.
+        assertNotNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("run"));
+        assertNull(customerApp.getConfig().findTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC).getChild("startup"));
+        assertThat(customerApp::getState, eventuallyEval(is(State.FINISHED)));
     }
 }

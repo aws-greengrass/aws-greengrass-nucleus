@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.deployment.exceptions.ConnectionUnavailableException;
+import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
 import com.aws.iot.evergreen.deployment.model.DeploymentTaskMetadata;
@@ -246,6 +247,14 @@ public class IotJobsHelper implements InjectionActions {
     @Override
     @SuppressFBWarnings
     public void postInject() {
+        try {
+            deviceConfiguration.validate();
+        } catch (DeviceConfigurationException e) {
+            // TODO: If the device configurations are updated later, while the kernel is running,
+            //  then device should attempt to connect to AWS Iot cloud again
+            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
+            return;
+        }
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
@@ -475,8 +484,9 @@ public class IotJobsHelper implements InjectionActions {
                 // in that case don't add a cancellation deployment because it can't be added to the front of the queue
                 // we will just have to let current deployment finish
                 Deployment deployment = new Deployment(DeploymentType.IOT_JOBS, UUID.randomUUID().toString(), true);
-                if (deploymentsQueue.isEmpty() && currentDeployment != null && DeploymentType.IOT_JOBS
-                        .equals(currentDeployment.getDeploymentType()) && deploymentsQueue.offer(deployment)) {
+                if (deploymentsQueue.isEmpty() && currentDeployment != null && currentDeployment.isCancellable()
+                        && DeploymentType.IOT_JOBS.equals(currentDeployment.getDeploymentType())
+                        && deploymentsQueue.offer(deployment)) {
                     logger.atInfo().log("Added cancellation deployment to the queue");
                 }
             }

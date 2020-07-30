@@ -23,6 +23,7 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
+@SuppressWarnings("PMD.DataClass")
 @ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
 public class TokenExchangeService extends EvergreenService {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
@@ -69,7 +70,7 @@ public class TokenExchangeService extends EvergreenService {
 
     @Override
     @SuppressWarnings("PMD.CloseResource")
-    public void startup() {
+    protected void startup() {
         // TODO: Support tes restart with change in configuration like port, roleAlias.
         logger.atInfo().addKeyValue(PORT_TOPIC, port)
                 .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias).log("Starting Token Server at port {}", port);
@@ -89,7 +90,7 @@ public class TokenExchangeService extends EvergreenService {
     }
 
     @Override
-    public void shutdown() {
+    protected void shutdown() {
         logger.atInfo().log("TokenExchangeService is shutting down!");
         if (server != null) {
             server.stop();
