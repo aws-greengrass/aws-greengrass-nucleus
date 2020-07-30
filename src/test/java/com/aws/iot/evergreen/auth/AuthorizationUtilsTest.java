@@ -6,6 +6,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,10 +18,13 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
-public class AuthorizationPolicyTest {
+public class AuthorizationUtilsTest {
 
     private Configuration config;
 
@@ -43,20 +47,16 @@ public class AuthorizationPolicyTest {
                 config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
 
                 Topics pubsub = config.findTopics("services").findTopics("pubsub").findTopics();
-                List<AuthorizationPolicy> authorizationPolicyList = AuthorizationPolicy
+                List<AuthorizationPolicy> authorizationPolicyList = AuthorizationUtils
                     .parseAuthorizationPolicy(pubsub);
                 assertEquals(1, authorizationPolicyList.size());
 
                 AuthorizationPolicy policy = authorizationPolicyList.get(0);
-                assertEquals("policyId1", policy.getPolicyId());
-                assertEquals("access to pubsub topics", policy.getPolicyDescription());
-                assertTrue(policy.getOperations().contains("publish"));
-                assertTrue(policy.getOperations().contains("subscribe"));
-                assertTrue(policy.getPrincipals().contains("ServiceName"));
-                assertTrue(policy.getPrincipals().contains("mqtt"));
-                assertTrue(policy.getResources().contains("/topic/1/#"));
-                assertTrue(policy.getResources().contains("/longer/topic/example/"));
-                assertTrue(policy.getResources().contains("*"));
+                assertThat("policyId1", equalTo(policy.getPolicyId()));
+                assertThat("access to pubsub topics", equalTo(policy.getPolicyDescription()));
+                assertThat(policy.getOperations(), containsInAnyOrder("publish", "subscribe"));
+                assertThat(policy.getPrincipals(), containsInAnyOrder("ServiceName", "mqtt"));
+                assertThat(policy.getResources(), containsInAnyOrder("/topic/1/#", "/longer/topic/example/", "*"));
         }
     }
 
@@ -69,18 +69,16 @@ public class AuthorizationPolicyTest {
                 config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
 
                 Topics pubsub = config.findTopics("services").findTopics("pubsub_no_description");
-                List<AuthorizationPolicy> authorizationPolicyList = AuthorizationPolicy
+                List<AuthorizationPolicy> authorizationPolicyList = AuthorizationUtils
                         .parseAuthorizationPolicy(pubsub);
                 assertEquals(1, authorizationPolicyList.size());
 
                 AuthorizationPolicy policy = authorizationPolicyList.get(0);
-                assertEquals("policyId1", policy.getPolicyId());
-                assertNull(policy.getPolicyDescription());
-                assertTrue(policy.getOperations().contains("publish"));
-                assertTrue(policy.getOperations().contains("subscribe"));
-                assertTrue(policy.getPrincipals().contains("ServiceName"));
-                assertTrue(policy.getPrincipals().contains("mqtt"));
-                assertNull(policy.getResources());
+                assertThat("policyId1", equalTo(policy.getPolicyId()));
+                assertThat(policy.getOperations(), containsInAnyOrder("publish", "subscribe"));
+                assertThat(policy.getPrincipals(), containsInAnyOrder("ServiceName", "mqtt"));
+                assertThat(policy.getPolicyDescription(), Matchers.nullValue());
+                assertThat(policy.getResources(), Matchers.nullValue());
         }
     }
 
@@ -93,7 +91,7 @@ public class AuthorizationPolicyTest {
             config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
 
             Topics pubsub = config.findTopics("services").findTopics("pubsub_no_operations");
-            assertThrows(NullPointerException.class, () -> AuthorizationPolicy
+            assertThrows(NullPointerException.class, () -> AuthorizationUtils
                     .parseAuthorizationPolicy(pubsub));
         }
     }

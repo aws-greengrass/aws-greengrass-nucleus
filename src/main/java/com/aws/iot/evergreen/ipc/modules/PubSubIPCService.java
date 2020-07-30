@@ -3,9 +3,10 @@ package com.aws.iot.evergreen.ipc.modules;
 
 import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.auth.AuthorizationPolicy;
+import com.aws.iot.evergreen.auth.AuthorizationUtils;
+import com.aws.iot.evergreen.auth.Permission;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
@@ -37,7 +38,7 @@ import javax.inject.Inject;
 @ImplementsService(name = "pubsub", autostart = true)
 public class PubSubIPCService extends EvergreenService {
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
-    private static final String destinationString = "destination";
+    private static final String DESTINATION_STRING = "destination";
 
     @Inject
     private IPCRouter router;
@@ -52,14 +53,6 @@ public class PubSubIPCService extends EvergreenService {
         super(c);
     }
 
-    private void updateAuthConfig(Node config) throws AuthorizationException {
-        List<AuthorizationPolicy> authorizationPolicyList = AuthorizationPolicy
-                .parseAuthorizationPolicy(config.parent);
-        if (authorizationPolicyList != null) {
-            authorizationHandler.loadAuthorizationPolicy(this.getName(), authorizationPolicyList);
-        }
-    }
-
     @Override
     public void postInject() {
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.PUBSUB;
@@ -71,12 +64,12 @@ public class PubSubIPCService extends EvergreenService {
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
         try {
-            authorizationHandler.registerService(this.getName(), new HashSet<String>(opCodes));
+            authorizationHandler.registerComponent(this.getName(), new HashSet<String>(opCodes));
             //Initialize auth config
             updateAuthConfig(this.config);
         } catch (AuthorizationException e) {
             logger.atError().setEventType("ipc-initialize-pubsub-authorization-error").setCause(e)
-                    .addKeyValue(destinationString, destination.name())
+                    .addKeyValue(DESTINATION_STRING, destination.name())
                     .log("Failed to initialize the Pub/Sub service with the Authorization module.");
         }
 
@@ -87,10 +80,11 @@ public class PubSubIPCService extends EvergreenService {
                         return;
                     }
                     try {
-                        updateAuthConfig(newv);
+                        //If there is a change in a node, reload the entire config
+                        updateAuthConfig(this.config);
                     } catch (AuthorizationException e) {
                         logger.atError().setEventType("ipc-load-authorization-config-error").setCause(e)
-                                .addKeyValue(destinationString, destination.name())
+                                .addKeyValue(DESTINATION_STRING, destination.name())
                                 .log("Failed to load the Pub/Sub Authorization config.");
                     }
                 });
@@ -99,11 +93,11 @@ public class PubSubIPCService extends EvergreenService {
         try {
             router.registerServiceCallback(destination.getValue(), this::handleMessage);
             logger.atInfo().setEventType("ipc-register-request-handler")
-                    .addKeyValue(destinationString, destination.name())
+                    .addKeyValue(DESTINATION_STRING, destination.name())
                     .log();
         } catch (IPCException e) {
             logger.atError().setEventType("ipc-register-request-handler-error").setCause(e)
-                    .addKeyValue(destinationString, destination.name())
+                    .addKeyValue(DESTINATION_STRING, destination.name())
                     .log("Failed to register service callback to destination");
         }
     }
@@ -128,16 +122,19 @@ public class PubSubIPCService extends EvergreenService {
                 case SUBSCRIBE:
                     PubSubSubscribeRequest subscribeRequest =
                             CBOR_MAPPER.readValue(applicationMessage.getPayload(), PubSubSubscribeRequest.class);
+                    doAuthorization(opCode.toString(), context.getServiceName(), subscribeRequest.getTopic());
                     pubSubGenericResponse = agent.subscribe(subscribeRequest, context);
                     break;
                 case PUBLISH:
-                    PubSubPublishRequest readRequest =
+                    PubSubPublishRequest publishRequest =
                             CBOR_MAPPER.readValue(applicationMessage.getPayload(), PubSubPublishRequest.class);
-                    pubSubGenericResponse = agent.publish(readRequest);
+                    doAuthorization(opCode.toString(), context.getServiceName(), publishRequest.getTopic());
+                    pubSubGenericResponse = agent.publish(publishRequest);
                     break;
                 case UNSUBSCRIBE:
                     PubSubUnsubscribeRequest unsubscribeRequest =
                             CBOR_MAPPER.readValue(applicationMessage.getPayload(), PubSubUnsubscribeRequest.class);
+                    doAuthorization(opCode.toString(), context.getServiceName(), unsubscribeRequest.getTopic());
                     pubSubGenericResponse = agent.unsubscribe(unsubscribeRequest, context);
                     break;
                 default:
@@ -154,6 +151,9 @@ public class PubSubIPCService extends EvergreenService {
             try {
                 PubSubGenericResponse response =
                         new PubSubGenericResponse(PubSubResponseStatus.InternalError, e.getMessage());
+                //if (e instanceof AuthorizationException) {
+                //    response.setStatus(PubSubResponseStatus.Unauthorized);
+                //}
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
                                 .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();
@@ -167,4 +167,23 @@ public class PubSubIPCService extends EvergreenService {
         }
         return fut;
     }
+
+    private void updateAuthConfig(Topics config) throws AuthorizationException {
+        List<AuthorizationPolicy> authorizationPolicyList = AuthorizationUtils
+                .parseAuthorizationPolicy(config);
+        if (authorizationPolicyList != null) {
+            authorizationHandler.loadAuthorizationPolicy(this.getName(), authorizationPolicyList);
+        }
+    }
+
+    private void doAuthorization(String opCode, String serviceName, String topic) throws AuthorizationException {
+        authorizationHandler.isAuthorized(
+                this.getName(),
+                Permission.builder()
+                        .principal(serviceName)
+                        .operation(opCode.toLowerCase())
+                        .resource(topic)
+                        .build());
+    }
+
 }

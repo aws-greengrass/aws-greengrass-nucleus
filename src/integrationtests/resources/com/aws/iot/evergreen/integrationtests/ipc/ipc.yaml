@@ -26,3 +26,18 @@ services:
           powershell -command sleep 100
         posix:
           sleep 100
+  pubsub:
+    AccessControl:
+      policyId1:
+        policyDescription: "access to pubsub topics"
+        principals:
+          - "ServiceName"
+          - "mqtt"
+        operations:
+          - "publish"
+          - "subscribe"
+          - "unsubscribe"
+        resources:
+          - "/topic/1/#"
+          - "/longer/topic/example/"
+          - "*"

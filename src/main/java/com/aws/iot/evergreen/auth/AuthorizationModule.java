@@ -6,8 +6,8 @@ package com.aws.iot.evergreen.auth;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.util.Utils;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 4 value set of destination,principal,operation,resource.
  */
 public class AuthorizationModule {
-    ConcurrentHashMap<String, List<Permission>> permissions = new ConcurrentHashMap<>();
+    ConcurrentHashMap<String, Set<Permission>> permissions = new ConcurrentHashMap<>();
 
     /**
      * Add permission for the given input set.
@@ -35,7 +35,7 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        permissions.computeIfAbsent(destination, a -> new ArrayList<>()).add(permission);
+        permissions.computeIfAbsent(destination, a -> new HashSet<>()).add(permission);
     }
 
     /**
@@ -59,7 +59,7 @@ public class AuthorizationModule {
         if (!permissions.containsKey(destination)) {
             return false;
         }
-        List<Permission> permissionsForDest = permissions.get(destination);
+        Set<Permission> permissionsForDest = permissions.get(destination);
         return permissionsForDest.contains(permission);
     }
 }
