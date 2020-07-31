@@ -113,7 +113,7 @@ class AuthenticationHandlerTest {
                 ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
 
         ConnectionContext authContext =
-                auth.doAuth(new FrameReader.Message(applicationMessage.toByteArray()), mock(SocketAddress.class));
+                auth.doAuthentication(new FrameReader.Message(applicationMessage.toByteArray()), mock(SocketAddress.class));
 
         assertNotNull(authContext);
         assertEquals(SERVICE_NAME, authContext.getServiceName());
@@ -130,7 +130,7 @@ class AuthenticationHandlerTest {
                 ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTH_API_VERSION).build();
 
         assertThrows(UnauthenticatedException.class, () -> auth
-                .doAuth(new FrameReader.Message(applicationMessage.toByteArray()), mock(SocketAddress.class)));
+                .doAuthentication(new FrameReader.Message(applicationMessage.toByteArray()), mock(SocketAddress.class)));
     }
 
     @Test
@@ -149,7 +149,7 @@ class AuthenticationHandlerTest {
                         new FrameReader.Message(applicationMessage.toByteArray()), FrameReader.FrameType.REQUEST);
 
         ConnectionContext requestCtx = new ConnectionContext("ABC", mock(SocketAddress.class), mock(IPCRouter.class));
-        doReturn(requestCtx).when(mockAuth).doAuth(any(), any());
+        doReturn(requestCtx).when(mockAuth).doAuthentication(any(), any());
 
         mockAuth.handleAuth(mockCtx, requestFrame);
 
@@ -177,7 +177,7 @@ class AuthenticationHandlerTest {
 
         UnauthenticatedException ex = new UnauthenticatedException("No Auth!");
         ignoreException(context, ex);
-        doThrow(ex).when(mockAuth).doAuth(any(), any());
+        doThrow(ex).when(mockAuth).doAuthentication(any(), any());
 
         // WHEN
         FrameReader.MessageFrame requestFrame =

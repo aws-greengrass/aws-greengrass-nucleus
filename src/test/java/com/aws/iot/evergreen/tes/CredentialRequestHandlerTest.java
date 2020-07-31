@@ -114,7 +114,8 @@ public class CredentialRequestHandlerTest {
     }
 
     @Test
-    public void GIVEN_credential_handler_WHEN_called_handle_with_unknown_error_THEN_5xx_returned() throws Exception {
+    public void GIVEN_credential_handler_WHEN_called_handle_with_unknown_error_THEN_5xx_returned(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, NullPointerException.class);
         CredentialRequestHandler handler = new CredentialRequestHandler(
                 mockCloudHelper,
                 mockConnectionManager,

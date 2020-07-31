@@ -116,7 +116,7 @@ public class CredentialRequestHandler implements HttpHandler {
             generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
         } catch (Throwable e) {
             // Dont let the server crash, swallow problems with a 5xx
-            LOGGER.atInfo().log("Request failed due to {}", e.getMessage());
+            LOGGER.atInfo().log("Request failed due to ", e);
             generateError(exchange, HttpURLConnection.HTTP_INTERNAL_ERROR);
         } finally {
             exchange.close();

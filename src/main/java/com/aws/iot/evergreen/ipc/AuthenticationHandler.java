@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
@@ -65,7 +66,7 @@ public class AuthenticationHandler implements InjectionActions {
      * @return RequestContext containing the server name if validated.
      * @throws UnauthenticatedException thrown if not authorized, or any other error happens.
      */
-    public ConnectionContext doAuth(FrameReader.Message message, SocketAddress remoteAddress)
+    public ConnectionContext doAuthentication(FrameReader.Message message, SocketAddress remoteAddress)
             throws UnauthenticatedException {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
@@ -95,14 +96,14 @@ public class AuthenticationHandler implements InjectionActions {
         if (service == null) {
             throw new UnauthenticatedException("Auth token not found");
         }
-        return (String) service.getOnce();
+        return Coerce.toString(service.getOnce());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
         if (message.destination == BuiltInServiceDestinationCode.AUTH.getValue()) {
             try {
-                ConnectionContext context = doAuth(message.message, ctx.channel().remoteAddress());
+                ConnectionContext context = doAuthentication(message.message, ctx.channel().remoteAddress());
                 ctx.channel().attr(IPCChannelHandler.CONNECTION_CONTEXT_KEY).set(context);
                 logger.atInfo().setEventType("ipc-client-authenticated").addKeyValue("clientContext", context).log();
 
