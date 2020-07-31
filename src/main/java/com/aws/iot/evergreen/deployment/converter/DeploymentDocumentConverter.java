@@ -79,11 +79,10 @@ public final class DeploymentDocumentConverter {
      */
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
-                .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
+                .timestamp(config.getCreationTimestamp())
+                .failureHandlingPolicy(config.getFailureHandlingPolicy())
+                .deploymentSafetyPolicy(config.getDeploymentSafetyPolicy())
                 .rootPackages(new ArrayList<>()).deploymentPackageConfigurationList(new ArrayList<>())
-                // TODO : When Fleet Configuration Service supports deployment safety policy,
-                //  read this from the fleet config
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
                 .build();
 
         String groupName;

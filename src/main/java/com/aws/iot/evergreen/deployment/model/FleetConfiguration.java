@@ -36,4 +36,6 @@ public class FleetConfiguration {
     private Long creationTimestamp;
 
     private FailureHandlingPolicy failureHandlingPolicy;
+
+    private DeploymentSafetyPolicy deploymentSafetyPolicy;
 }

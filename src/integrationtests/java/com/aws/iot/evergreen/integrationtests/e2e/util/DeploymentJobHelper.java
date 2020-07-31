@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.util;
 
+import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.PackageInfo;
@@ -36,6 +37,7 @@ public class DeploymentJobHelper {
                         .configurationArn(generateMockConfigurationArn(String.format("job/helper:%s", index)))
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                        .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
                         .packages(Collections.singletonMap(targetPkgName, new PackageInfo(true, "1.0.0", null)))
                         .build()
         );

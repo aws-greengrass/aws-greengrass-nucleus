@@ -13,6 +13,7 @@ import java.io.IOException;
 
 public abstract class NetworkUtils {
     protected final String[] MQTT_PORTS = {"8883", "443"};
+    protected final String[] NETWORK_PORTS = {"443"};
     protected static final Logger logger = LogManager.getLogger(NetworkUtils.class);
 
     private enum Platform {
@@ -44,4 +45,8 @@ public abstract class NetworkUtils {
     public abstract void disconnectMqtt() throws InterruptedException, IOException;
 
     public abstract void recoverMqtt() throws InterruptedException, IOException;
+
+    public abstract void disconnectNetwork() throws InterruptedException, IOException;
+
+    public abstract void recoverNetwork() throws InterruptedException, IOException;
 }

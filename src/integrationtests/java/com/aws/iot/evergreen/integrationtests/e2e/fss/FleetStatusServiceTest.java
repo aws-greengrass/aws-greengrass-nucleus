@@ -6,7 +6,6 @@
 package com.aws.iot.evergreen.integrationtests.e2e.fss;
 
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
@@ -31,7 +30,9 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -93,7 +94,6 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
@@ -102,11 +102,12 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
+        String someServiceName = getCloudDeployedComponent("SomeService").getName();
+
         // Second deployment to remove some services deployed previously
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
@@ -115,8 +116,8 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("SomeService").getState());
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("SomeService").getState());
 
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
         assertEquals(2, mqttMessagesList.get().size());
@@ -129,6 +130,11 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                 .withResource(String.format(FLEET_STATUS_ARN_RESOURCE_PREFIX, "thinggroup/" + thingGroupName, "1"))
                 .build();
 
+        Set<String> userComponentsCloudName = new HashSet<>();
+        userComponentsCloudName.add(getCloudDeployedComponent("Mosquitto").getName());
+        userComponentsCloudName.add(getCloudDeployedComponent("CustomerApp").getName());
+        userComponentsCloudName.add(getCloudDeployedComponent("GreenSignal").getName());
+        userComponentsCloudName.add(someServiceName);
         // Check the MQTT messages.
         MqttMessage receivedMqttMessage1 = mqttMessagesList.get().get(0);
         assertNotNull(receivedMqttMessage1.getPayload());
@@ -138,9 +144,13 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
         assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails1.getThingGroups());
         assertThat(fleetStatusDetails1.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
-                containsInAnyOrder("Mosquitto", "SomeService", "CustomerApp", "GreenSignal", "main"));
+                containsInAnyOrder(getCloudDeployedComponent("Mosquitto").getName(), someServiceName,
+                        getCloudDeployedComponent("CustomerApp").getName(),
+                        getCloudDeployedComponent("GreenSignal").getName(),
+                        "main", "pubsubipc", "IPCService", "FleetStatusService", "lifecycleipc", "configstoreipc",
+                        "SafeSystemUpdate", "DeploymentService", "servicediscovery"));
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
-            if (!componentStatusDetails.getComponentName().equals("main")) {
+            if (userComponentsCloudName.contains(componentStatusDetails.getComponentName())) {
                 assertEquals(arn.toString(), componentStatusDetails.getFleetConfigArn());
             }
         });
@@ -153,9 +163,9 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverallStatus());
         assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails2.getThingGroups());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
-                containsInAnyOrder("SomeService"));
+                containsInAnyOrder(someServiceName));
         assertEquals("", fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArn());
-        assertEquals("SomeService", fleetStatusDetails2.getComponentStatusDetails().get(0).getComponentName());
+        assertEquals(someServiceName, fleetStatusDetails2.getComponentStatusDetails().get(0).getComponentName());
 
     }
 }
