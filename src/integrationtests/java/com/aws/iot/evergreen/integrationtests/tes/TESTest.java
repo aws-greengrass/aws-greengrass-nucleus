@@ -115,8 +115,7 @@ class TESTest extends BaseITCase {
             networkUtils.disconnectNetwork();
             con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
-            status = con.getResponseCode();
-            assertEquals(status, 200);
+            assertEquals(con.getResponseCode(), HTTP_200);
             StringBuilder newResponse = new StringBuilder();
             try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
                 String newResponseLine = in.readLine();
