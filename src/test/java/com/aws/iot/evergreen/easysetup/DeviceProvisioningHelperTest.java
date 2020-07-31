@@ -170,14 +170,18 @@ public class DeviceProvisioningHelperTest {
         Kernel kernel = new Kernel()
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 
-        String thingArn = Arn.builder().withService("testService")
-                .withRegion(TEST_REGION).withAccountId("12345").withPartition("testPartition").withResource("testResoruce")
-                .build().toString();
+        String thingArn = getThingArn();
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
                 new DeviceProvisioningHelper.ThingInfo(thingArn, "thingname", "certarn", "certid", "certpem",
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
                         "credEndpoint"), TEST_REGION);
         assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
+    }
+
+    private String getThingArn() {
+        return Arn.builder().withService("testService")
+                .withRegion(TEST_REGION).withAccountId("12345").withPartition("testPartition").withResource("testResoruce")
+                .build().toString();
     }
 
     @Test
@@ -197,9 +201,7 @@ public class DeviceProvisioningHelperTest {
                 .thenReturn(listAttachedPoliciesResponse);
         when(listAttachedPoliciesResponse.policies()).thenReturn(
                 Collections.singletonList(Policy.builder().policyName("policyName").policyArn("policyArn").build()));
-        String thingArn = Arn.builder().withService("testService")
-                .withRegion(TEST_REGION).withAccountId("12345").withPartition("testPartition").withResource("testResoruce")
-                .build().toString();
+        String thingArn = getThingArn();
 
         deviceProvisioningHelper.cleanThing(iotClient,
                 new DeviceProvisioningHelper.ThingInfo(thingArn, "thingname", "certarn", "certid", "certpem",

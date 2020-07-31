@@ -135,7 +135,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         FleetStatusDetails fleetStatusDetails1 = DESERIALIZER.readValue(receivedMqttMessage1.getPayload(), FleetStatusDetails.class);
         assertEquals(thingInfo.getThingName(), fleetStatusDetails1.getThing());
         assertEquals("1.0.0", fleetStatusDetails1.getGgcVersion());
-        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
         assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails1.getThingGroups());
         assertThat(fleetStatusDetails1.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder("Mosquitto", "SomeService", "CustomerApp", "GreenSignal", "main"));
@@ -150,7 +150,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         FleetStatusDetails fleetStatusDetails2 = DESERIALIZER.readValue(receivedMqttMessage2.getPayload(), FleetStatusDetails.class);
         assertEquals(thingInfo.getThingName(), fleetStatusDetails2.getThing());
         assertEquals("1.0.0", fleetStatusDetails2.getGgcVersion());
-        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverAllStatus());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverallStatus());
         assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails2.getThingGroups());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder("SomeService"));

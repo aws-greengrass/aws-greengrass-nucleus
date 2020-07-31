@@ -34,7 +34,7 @@ public class FleetStatusDetails {
     private String thingGroups;
 
     @JsonProperty("overallDeviceStatus")
-    private OverallStatus overAllStatus;
+    private OverallStatus overallStatus;
 
     @JsonProperty("sequenceNumber")
     private long sequenceNumber;
