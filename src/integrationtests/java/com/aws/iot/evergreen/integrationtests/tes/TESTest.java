@@ -97,7 +97,7 @@ class TESTest extends BaseITCase {
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");
         con.setRequestProperty ("Authorization", token);
-        assertEquals(con.getResponseCode(), HTTP_200);
+        assertEquals(HTTP_200, con.getResponseCode());
         StringBuilder response = new StringBuilder();
         try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
             String responseLine = in.readLine();
@@ -115,7 +115,8 @@ class TESTest extends BaseITCase {
             networkUtils.disconnectNetwork();
             con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
-            assertEquals(con.getResponseCode(), HTTP_200);
+            con.setRequestProperty ("Authorization", token);
+            assertEquals(HTTP_200, con.getResponseCode());
             StringBuilder newResponse = new StringBuilder();
             try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
                 String newResponseLine = in.readLine();
@@ -142,14 +143,14 @@ class TESTest extends BaseITCase {
         con.setRequestMethod("GET");
 
         // We are not setting auth header
-        assertEquals(con.getResponseCode(), HTTP_403);
+        assertEquals(HTTP_403, con.getResponseCode());
         con.disconnect();
 
         // Set Auth header to invalid value now
         con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");
         con.setRequestProperty ("Authorization", "Invalid token");
-        assertEquals(con.getResponseCode(), HTTP_403);
+        assertEquals(HTTP_403, con.getResponseCode());
         con.disconnect();
 
     }
