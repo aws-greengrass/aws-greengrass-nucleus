@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 class KernelTest extends BaseITCase {
     private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
             {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
-                    //                    new ExpectedStdoutPattern(0, "tick-tock", "ticktock did not execute 3 times", 3),
+                    new ExpectedStdoutPattern(0, "tick-tock", "ticktock did not execute 3 times", 3),
                     new ExpectedStdoutPattern(0, "ANSWER=42", "global setenv"),
                     new ExpectedStdoutPattern(0, "EVERGREEN_UID=", "generated unique token"),
                     new ExpectedStdoutPattern(0, "JUSTME=fancy a spot of tea?", "local setenv in main service"),
@@ -183,7 +183,7 @@ class KernelTest extends BaseITCase {
     void GIVEN_WHEN_kernel_restarts_with_a_new_config_THEN_it_should_start_with_the_new_config() {
     }
 
-        @SuppressWarnings("PMD.AssignmentInOperand")
+    @SuppressWarnings("PMD.AssignmentInOperand")
     private Consumer<EvergreenStructuredLogMessage> getLogListener() {
         return evergreenStructuredLogMessage -> {
             String stdoutStr = evergreenStructuredLogMessage.getContexts().get("stdout");
