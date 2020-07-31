@@ -319,6 +319,7 @@ public class DeploymentService extends EvergreenService {
         logger.atInfo().kv("DeploymentId", deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
+
         DeploymentTask deploymentTask;
         boolean cancellable = true;
         if (Deployment.DeploymentStage.DEFAULT.equals(deployment.getDeploymentStage())) {

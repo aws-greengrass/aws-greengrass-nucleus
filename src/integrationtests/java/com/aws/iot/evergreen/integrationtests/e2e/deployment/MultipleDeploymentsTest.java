@@ -109,7 +109,6 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
             SetConfigurationRequest setRequest = new SetConfigurationRequest()
                     .withTargetName(thingGroupName)
                     .withTargetType(THING_GROUP_TARGET_TYPE)
-                    .withFailureHandlingPolicy(com.amazonaws.services.evergreen.model.FailureHandlingPolicy.DO_NOTHING)
                     .addPackagesEntry(helper.targetPkgName, new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
 
             PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
