@@ -99,8 +99,8 @@ jobs:
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
-          mvn -ntp install -DskipTests
-          mvn -ntp -f src/test/evergreen-kernel-benchmark install
+          mvn -ntp -U install -DskipTests
+          mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
         if: matrix.os == 'Linux'
   e2e-test:
     runs-on: [self-hosted, Linux, greengrass]
@@ -118,7 +118,7 @@ jobs:
           # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build Tests
-        run: mvn -ntp generate-test-sources generate-test-resources test-compile -DskipTests
+        run: mvn -ntp -U generate-test-sources generate-test-resources test-compile -DskipTests
       - name: Run E2E Tests in parallel
         run: mvn -ntp surefire:test@integration-tests -Dgroups="E2E" -DexcludedGroups="" -Dsurefire.argLine="" -DforkCount=3C -DreuseForks=false
       - name: Run intrusive E2E Tests serially
@@ -140,7 +140,7 @@ jobs:
         with:
           java-version: 1.8
       - name: Publish with Maven
-        run: mvn -ntp --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
+        run: mvn -ntp -U --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
       - run: sudo apt-get install -y awscli
       - name: Upload to S3
         run: aws s3 cp target/Evergreen.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
