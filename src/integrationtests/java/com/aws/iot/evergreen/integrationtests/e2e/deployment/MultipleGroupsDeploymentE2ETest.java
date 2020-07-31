@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
@@ -76,7 +75,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
@@ -87,7 +85,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(secondThingGroupResponse.thingGroupName())
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
 
@@ -109,7 +106,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
@@ -123,7 +119,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(secondThingGroupResponse.thingGroupName())
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -143,7 +138,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
@@ -158,7 +152,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(secondThingGroupResponse.thingGroupName())
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -168,7 +161,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest3 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
 
@@ -189,7 +181,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
@@ -204,7 +195,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(secondThingGroupResponse.thingGroupName())
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -214,7 +204,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         SetConfigurationRequest setRequest3 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.1")
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
         PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);

@@ -109,7 +109,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
 
     @SuppressWarnings({"SleepWhileInLoop"})
     @Override
-    public void startup() throws InterruptedException {
+    protected void startup() throws InterruptedException {
         // startup() is invoked on it's own thread
         reportState(State.RUNNING);
 

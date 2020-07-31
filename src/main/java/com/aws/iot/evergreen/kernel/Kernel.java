@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -59,10 +60,15 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 /**
  * Evergreen-kernel.
  */
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
 
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
+    public static final String SERVICE_CLASS_TOPIC_KEY = "class";
+    public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
+    public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
+
     @Getter
     private final Context context;
     @Getter
@@ -119,6 +125,10 @@ public class Kernel {
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
         context.put(BootstrapManager.class, new BootstrapManager(this));
         context.put(Clock.class, Clock.systemUTC());
+        Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
+        typeToClassMap.put("generic", GenericExternalService.class.getName());
+        typeToClassMap.put("lambda", "com.aws.iot.evergreen.lambdamanager.UserLambdaService");
+        context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
     }
 
     /**
@@ -212,9 +222,8 @@ public class Kernel {
     }
 
     /**
-     * When a config file gets read, it gets woven together from fragments from
-     * multiple sources.  This writes a fresh copy of the config file, as it is,
-     * after the weaving-together process.
+     * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
+     * copy of the config file, as it is, after the weaving-together process.
      *
      * @param p Path to write the effective config into
      */
@@ -281,10 +290,20 @@ public class Kernel {
 
             Class<?> clazz = null;
             if (serviceRootTopics != null) {
-                Node n = serviceRootTopics.findLeafChild("class");
+                Node n = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
+                String cn = null;
 
-                if (n != null) {
-                    String cn = Coerce.toString(n);
+                if (n == null) {
+                    n = serviceRootTopics.findLeafChild(SERVICE_TYPE_TOPIC_KEY);
+                    if (n != null) {
+                        cn = ((Map<String, String>) context.getvIfExists(SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
+                                .get(Coerce.toString(n).toLowerCase());
+                    }
+                } else {
+                    cn = Coerce.toString(n);
+                }
+
+                if (cn != null) {
                     try {
                         clazz = Class.forName(cn);
                     } catch (Throwable ex) {
