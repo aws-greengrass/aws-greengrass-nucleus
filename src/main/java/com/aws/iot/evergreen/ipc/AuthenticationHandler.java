@@ -5,7 +5,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.exceptions.IPCClientNotAuthorizedException;
+import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.ipc.services.auth.AuthRequest;
 import com.aws.iot.evergreen.ipc.services.auth.AuthResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
@@ -26,11 +27,11 @@ import static com.aws.iot.evergreen.ipc.common.ResponseHelper.sendResponse;
 
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthHandler implements InjectionActions {
+public class AuthenticationHandler implements InjectionActions {
     public static final String AUTH_TOKEN_LOOKUP_KEY = "_AUTH_TOKENS";
     public static final String SERVICE_UNIQUE_ID_KEY = "_UID";
     public static final int AUTH_API_VERSION = 1;
-    private static final Logger logger = LogManager.getLogger(AuthHandler.class);
+    private static final Logger logger = LogManager.getLogger(AuthenticationHandler.class);
 
     @Inject
     private Configuration config;
@@ -63,35 +64,46 @@ public class AuthHandler implements InjectionActions {
      * @param message       incoming message frame to be validated.
      * @param remoteAddress remote address the client is connected from
      * @return RequestContext containing the server name if validated.
-     * @throws IPCClientNotAuthorizedException thrown if not authorized, or any other error happens.
+     * @throws UnauthenticatedException thrown if not authorized, or any other error happens.
      */
-    public ConnectionContext doAuth(FrameReader.Message message, SocketAddress remoteAddress)
-            throws IPCClientNotAuthorizedException {
+    public ConnectionContext doAuthentication(FrameReader.Message message, SocketAddress remoteAddress)
+            throws UnauthenticatedException {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         AuthRequest authRequest;
         try {
             authRequest = IPCUtil.decode(applicationMessage.getPayload(), AuthRequest.class);
         } catch (IOException e) {
-            throw new IPCClientNotAuthorizedException("Fail to decode Auth message", e);
+            throw new UnauthenticatedException("Fail to decode Auth message", e);
         }
 
-        String authToken = authRequest.getAuthToken();
-        // Lookup the provided auth token to associate it with a service (or reject it)
-        String serviceName = (String) config.lookup(EvergreenService.SERVICES_NAMESPACE_TOPIC,
-                AUTH_TOKEN_LOOKUP_KEY, authToken).getOnce();
-
-        if (serviceName == null) {
-            throw new IPCClientNotAuthorizedException("Auth token not found");
-        }
+        String serviceName = doAuthentication(authRequest.getAuthToken());
         return new ConnectionContext(serviceName, remoteAddress, router);
+    }
+
+    /**
+     * Lookup the provided auth token to associate it with a service (or reject it).
+     * @param authToken token to be looked up.
+     * @return service name to which the token is associated.
+     * @throws UnauthenticatedException if token is invalid or unassociated.
+     */
+    public String doAuthentication(String authToken) throws UnauthenticatedException {
+        if (authToken == null) {
+            throw new UnauthenticatedException("Invalid auth token");
+        }
+        Topic service = config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                AUTH_TOKEN_LOOKUP_KEY, authToken);
+        if (service == null) {
+            throw new UnauthenticatedException("Auth token not found");
+        }
+        return Coerce.toString(service.getOnce());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     void handleAuth(ChannelHandlerContext ctx, FrameReader.MessageFrame message) throws IOException {
         if (message.destination == BuiltInServiceDestinationCode.AUTH.getValue()) {
             try {
-                ConnectionContext context = doAuth(message.message, ctx.channel().remoteAddress());
+                ConnectionContext context = doAuthentication(message.message, ctx.channel().remoteAddress());
                 ctx.channel().attr(IPCChannelHandler.CONNECTION_CONTEXT_KEY).set(context);
                 logger.atInfo().setEventType("ipc-client-authenticated").addKeyValue("clientContext", context).log();
 
