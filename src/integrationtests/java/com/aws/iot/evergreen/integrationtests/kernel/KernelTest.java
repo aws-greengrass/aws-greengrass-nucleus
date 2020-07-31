@@ -153,36 +153,6 @@ class KernelTest extends BaseITCase {
         Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
-    // TODO add two more test
-    @Test
-    void WHEN_kernel_restarts_with_a_new_config_THEN_it_should_start_with_the_new_config() throws Exception {
-        // launch kernel 1st time
-        kernel = new Kernel().parseArgs().launch();
-
-        // only main
-        assertEquals(9, kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.size());
-
-
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-
-        // add log listener to verify stdout pattern
-        Consumer<EvergreenStructuredLogMessage> logListener = getLogListener();
-        Slf4jLogAdapter.addGlobalListener(logListener);
-
-        // launch kernel 2nd time
-        kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
-        kernel.launch();
-
-        testGroup(0);
-        kernel.shutdown();
-
-    }
-
-    @Test
-    void GIVEN_WHEN_kernel_restarts_with_a_new_config_THEN_it_should_start_with_the_new_config() {
-    }
-
     @SuppressWarnings("PMD.AssignmentInOperand")
     private Consumer<EvergreenStructuredLogMessage> getLogListener() {
         return evergreenStructuredLogMessage -> {
