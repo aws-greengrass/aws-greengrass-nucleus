@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -34,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Tag("E2E")
+@Tag("E2E-INTRUSIVE")
 class TESTest extends BaseITCase {
     private Kernel kernel;
     private ThingInfo thingInfo;
@@ -42,6 +43,7 @@ class TESTest extends BaseITCase {
     private String roleId;
     private String roleName;
     private String roleAliasName;
+    private NetworkUtils networkUtils;
     private static final String AWS_REGION = "us-east-1";
     private static final String TES_ROLE_NAME = "e2etest-TES_INTEG_ROLE";
     private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
@@ -54,6 +56,7 @@ class TESTest extends BaseITCase {
         roleId = UUID.randomUUID().toString();
         roleName = TES_ROLE_NAME + roleId;
         roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
+        networkUtils = NetworkUtils.getByPlatform();
         provision(kernel);
     }
 
@@ -98,6 +101,28 @@ class TESTest extends BaseITCase {
         con.disconnect();
         assertThat(response.toString(), matchesPattern(
                 "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
+
+        // Should serve cached credentials when network disabled
+        try {
+            networkUtils.disconnectNetwork();
+            con = (HttpURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+            status = con.getResponseCode();
+            assertEquals(status, 200);
+            StringBuilder newResponse = new StringBuilder();
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+                String newResponseLine = in.readLine();
+                while (newResponseLine != null) {
+                    newResponse.append(newResponseLine);
+                    newResponseLine = in.readLine();
+                }
+            }
+            con.disconnect();
+            assertEquals(response.toString(), newResponse.toString());
+        } finally {
+            networkUtils.recoverNetwork();
+        }
+
     }
 
     private void provision(Kernel kernel) throws IOException, DeviceConfigurationException {

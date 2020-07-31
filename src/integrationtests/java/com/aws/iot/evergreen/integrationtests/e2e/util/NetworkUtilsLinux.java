@@ -27,6 +27,16 @@ public class NetworkUtilsLinux extends NetworkUtils {
         modifyPolicy(disableOption, "connection-recover", MQTT_PORTS);
     }
 
+    @Override
+    public void disconnectNetwork() throws InterruptedException, IOException {
+        modifyPolicy(enableOption, "connection-loss", NETWORK_PORTS);
+    }
+
+    @Override
+    public void recoverNetwork() throws InterruptedException, IOException {
+        modifyPolicy(disableOption, "connection-recover", NETWORK_PORTS);
+    }
+
     private void modifyPolicy(String option, String eventName, String... ports) throws InterruptedException,
             IOException {
         for (String port : ports) {
