@@ -262,7 +262,7 @@ class GenericExternalServiceTest extends BaseITCase {
             }
         });
 
-        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
+        assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 
         GenericExternalService serviceWithJustBootstrap =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap");
@@ -287,7 +287,7 @@ class GenericExternalServiceTest extends BaseITCase {
             }
         });
 
-        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
+        assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 
         GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");
