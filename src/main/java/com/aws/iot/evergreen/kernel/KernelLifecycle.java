@@ -97,24 +97,23 @@ public class KernelLifecycle {
 
         try {
             if (kernelCommandLine.getProvidedConfigPathName() != null) {
-                // If a config file is provided, kernel will use the provided file as a new base and disregard the existing config and tlog
+                // If a config file is provided, kernel will use the provided file as a new base
+                // and ignore existing config and tlog files.
                 // This ideally should only used for testing and not in production
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
-
             } else {
-                // if tlog presents, read the tlog first, because the yaml config file will not be up to date
+                // if tlog presents, read the tlog first, because the yaml config file may not be up to date
                 if (Files.exists(transactionLogPath)) {
                     kernel.getConfig().read(transactionLogPath);
                 }
 
-                // if configuration file is available, merge it with file's last mod timestamp
+                // if configuration file is available, merge it. It will be merged with file's last modified timestamp
                 if (Files.exists(configurationFile)) {
                     kernel.getConfig().read(configurationFile);
                 }
             }
 
             // write new tlog and config files
-            //            Files.deleteIfExists(transactionLogPath);
             kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
             kernel.writeEffectiveConfig(configurationFile);
 
