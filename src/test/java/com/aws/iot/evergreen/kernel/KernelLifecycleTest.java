@@ -13,7 +13,6 @@ import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.ipc.IPCService;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -41,7 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -62,10 +61,11 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(EGExtension.class)
 class KernelLifecycleTest {
-    Kernel mockKernel;
-    KernelCommandLine mockKernelCommandLine;
-    KernelLifecycle kernelLifecycle;
-    Context mockContext;
+    private Kernel mockKernel;
+    private KernelCommandLine mockKernelCommandLine;
+    private KernelLifecycle kernelLifecycle;
+    private Context mockContext;
+    private Configuration mockConfig;
 
     @TempDir
     protected Path tempRootDir;
@@ -76,7 +76,7 @@ class KernelLifecycleTest {
 
         mockKernel = mock(Kernel.class);
         mockContext = mock(Context.class);
-        Configuration mockConfig = mock(Configuration.class);
+        mockConfig = mock(Configuration.class);
         when(mockConfig.getRoot()).thenReturn(mock(Topics.class));
         when(mockKernel.getConfig()).thenReturn(mockConfig);
         when(mockKernel.getContext()).thenReturn(mockContext);
@@ -89,23 +89,11 @@ class KernelLifecycleTest {
 
         mockKernelCommandLine = spy(new KernelCommandLine(mockKernel));
         kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine);
-        mockKernel.setKernelLifecycle(kernelLifecycle);
-        mockKernel.setKernelCommandLine(mockKernelCommandLine);
     }
 
     @AfterEach
     void afterEach() {
         kernelLifecycle.shutdown();
-    }
-
-    @Test
-    void GIVEN_kernel_WHEN_launch_and_main_not_found_THEN_throws_RuntimeException(ExtensionContext context) throws Exception {
-        doThrow(ServiceLoadException.class).when(mockKernel).locate(eq("main"));
-
-        ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
-        RuntimeException ex = assertThrows(RuntimeException.class, kernelLifecycle::launch);
-        assertEquals(RuntimeException.class, ex.getClass());
-        assertEquals(ServiceLoadException.class, ex.getCause().getClass());
     }
 
     @Test
@@ -134,37 +122,50 @@ class KernelLifecycleTest {
     }
 
     @Test
+    void GIVEN_provided_external_config_WHEN_read_THEN_read_external_config() throws Exception {
+        String providedConfigPathName = "external_config.yaml";
+        when(mockKernelCommandLine.getProvidedConfigPathName()).thenReturn(providedConfigPathName);
+
+        kernelLifecycle.launch();
+        verify(mockConfig).read(eq(providedConfigPathName));
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+    }
+
+    @Test
+    void GIVEN_unable_to_read_config_WHEN_read_THEN_throw_RuntimeException(ExtensionContext context) throws Exception {
+        String providedConfigPathName = "not_exist_config.yaml";
+        when(mockKernelCommandLine.getProvidedConfigPathName()).thenReturn(providedConfigPathName);
+        when(mockKernel.getConfig().read(any(String.class))).thenThrow(new IOException());
+
+        ignoreExceptionOfType(context, IOException.class);
+
+        assertThrows(RuntimeException.class, () -> kernelLifecycle.launch());
+        verify(mockConfig).read(eq(providedConfigPathName));
+    }
+
+    @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_config_read_from_disk() throws Exception {
-        EvergreenService mockMain = mock(EvergreenService.class);
-        doReturn(mockMain).when(mockKernel).locate(eq("main"));
-
-        Configuration mockConfig = spy(mockKernel.getConfig());
-        mockKernel.setConfig(mockConfig);
-        doReturn(mockConfig).when(mockConfig).read(any(Path.class)); // Do nothing when "read" on Config
-
         // Create configYaml so that the kernel will try to read it in
         File configYaml = mockKernel.getConfigPath().resolve("config.yaml").toFile();
         configYaml.createNewFile();
 
         kernelLifecycle.launch();
-        verify(mockKernel.getConfig()).read(any(Path.class));
+        verify(mockKernel.getConfig()).read(eq(configYaml.toPath()));
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
     }
 
     @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_tlog_read_from_disk() throws Exception {
-        EvergreenService mockMain = mock(EvergreenService.class);
-        doReturn(mockMain).when(mockKernel).locate(eq("main"));
-
-        Configuration mockConfig = spy(mockKernel.getConfig());
-        mockKernel.setConfig(mockConfig);
-        doReturn(mockConfig).when(mockConfig).read(any(Path.class)); // Do nothing when "read" on Config
-
         // Create configTlog so that the kernel will try to read it in
         File configTlog = mockKernel.getConfigPath().resolve("config.tlog").toFile();
         configTlog.createNewFile();
 
         kernelLifecycle.launch();
-        verify(mockKernel.getConfig()).read(any(Path.class));
+        verify(mockKernel.getConfig()).read(eq(configTlog.toPath()));
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
     }
 
     @Test
@@ -172,7 +173,7 @@ class KernelLifecycleTest {
         EvergreenService mockMain = mock(EvergreenService.class);
         doReturn(mockMain).when(mockKernel).locate(eq("main"));
 
-//        mockKernelCommandLine.haveRead = true;
+        //        mockKernelCommandLine.haveRead = true;
 
         kernelLifecycle.launch();
         Path configPath = mockKernel.getConfigPath().resolve("config.yaml");
@@ -237,22 +238,23 @@ class KernelLifecycleTest {
         doReturn(fut).when(service4).close();
         doThrow(new RuntimeException("Service5")).when(badService5).close();
 
-        doReturn(Arrays.asList(badService1, service2, service3, service4, badService5)).when(mockKernel).orderedDependencies();
+        doReturn(Arrays.asList(badService1, service2, service3, service4, badService5)).when(mockKernel)
+                .orderedDependencies();
 
         // Check that logging of exceptions works as expected
         // Expect 5 then 1 because our OD is 1->5, so reversed is 5->1.
         CountDownLatch seenErrors = new CountDownLatch(2);
         Pair<CompletableFuture<Void>, Consumer<EvergreenStructuredLogMessage>> listener =
                 TestUtils.asyncAssertOnConsumer((m) -> {
-            if("service-shutdown-error".equals(m.getEventType())) {
-                if (seenErrors.getCount() == 2) {
-                    assertEquals("Service5", m.getCause().getMessage());
-                } else if (seenErrors.getCount() == 1) {
-                    assertEquals("Service1", m.getCause().getMessage());
-                }
-                seenErrors.countDown();
-            }
-        }, -1);
+                    if ("service-shutdown-error".equals(m.getEventType())) {
+                        if (seenErrors.getCount() == 2) {
+                            assertEquals("Service5", m.getCause().getMessage());
+                        } else if (seenErrors.getCount() == 1) {
+                            assertEquals("Service1", m.getCause().getMessage());
+                        }
+                        seenErrors.countDown();
+                    }
+                }, -1);
 
         ignoreExceptionUltimateCauseWithMessage(context, "Service5");
         ignoreExceptionUltimateCauseWithMessage(context, "Service1");
