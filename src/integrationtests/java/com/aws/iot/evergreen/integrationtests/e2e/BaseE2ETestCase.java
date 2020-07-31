@@ -13,6 +13,7 @@ import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
+import com.amazonaws.services.evergreen.model.ForbiddenException;
 import com.amazonaws.services.evergreen.model.InvalidInputException;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
@@ -298,6 +299,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected static void uploadComponentArtifactsToGG(PackageIdentifier... pkgIds) throws IOException {
+        List<String> errors = new ArrayList<>();
         for (PackageIdentifier pkgId : pkgIds) {
             PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
             Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
@@ -307,9 +309,17 @@ public class BaseE2ETestCase implements AutoCloseable {
                         .log("Skip artifact upload. No artifacts found");
             } else {
                 for (File artifact : artifactFiles) {
-                    GreengrassPackageServiceHelper
-                            .createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
-                                    pkgId.getVersion().toString());
+                    try {
+                        GreengrassPackageServiceHelper
+                                .createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
+                                        pkgId.getVersion().toString());
+                    } catch (InvalidInputException | ForbiddenException e) {
+                        // Don't fail the test if the component is already committed
+                        errors.add(e.getMessage());
+                    }
+                }
+                if (!errors.isEmpty()) {
+                    logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
                 }
             }
         }
