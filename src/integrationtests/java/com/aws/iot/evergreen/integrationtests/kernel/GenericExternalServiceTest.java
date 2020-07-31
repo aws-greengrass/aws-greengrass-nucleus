@@ -252,7 +252,17 @@ class GenericExternalServiceTest extends BaseITCase {
     @Test
     void GIVEN_bootstrap_command_WHEN_bootstrap_THEN_command_runs_and_returns_exit_code() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
+
+        CountDownLatch mainFinished = new CountDownLatch(1);
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
+            }
+        });
+
+        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
 
         GenericExternalService serviceWithJustBootstrap =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap");
@@ -260,14 +270,24 @@ class GenericExternalServiceTest extends BaseITCase {
         assertEquals(147, serviceWithJustBootstrap.bootstrap());
 
         GenericExternalService serviceWithJustBootstrapAndConfiguredTimeout =
-                (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_configured_timeout");
+                (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_timeout_configured");
         assertEquals(147, serviceWithJustBootstrapAndConfiguredTimeout.bootstrap());
     }
 
     @Test
     void GIVEN_bootstrap_command_WHEN_runs_longer_than_120_sec_THEN_timeout_exception_is_thrown() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString());
+        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
+
+        CountDownLatch mainFinished = new CountDownLatch(1);
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
+            }
+        });
+
+        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
 
         GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");

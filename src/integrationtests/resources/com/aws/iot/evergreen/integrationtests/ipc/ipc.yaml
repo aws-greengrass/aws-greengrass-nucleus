@@ -5,8 +5,6 @@ services:
       - IPCService
       - mqtt
       - ServiceName
-    lifecycle:
-
   mqtt:
     dependencies:
       - IPCService

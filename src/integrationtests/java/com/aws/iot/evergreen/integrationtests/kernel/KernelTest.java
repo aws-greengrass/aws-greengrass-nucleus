@@ -16,7 +16,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -28,16 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
-import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -72,14 +64,6 @@ class KernelTest extends BaseITCase {
     @AfterEach
     void afterEach() {
         kernel.shutdown();
-    }
-
-    @Test
-    void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException(ExtensionContext context) {
-        kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
-        ignoreExceptionWithMessage(context, "Cannot load main service");
-        assertThrows(RuntimeException.class, () -> kernel.launch());
     }
 
     @Test
