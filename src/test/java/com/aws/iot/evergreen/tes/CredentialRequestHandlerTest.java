@@ -461,8 +461,12 @@ public class CredentialRequestHandlerTest {
     @Test
     public void GIVEN_credential_handler_WHEN_called_get_credentials_provider_THEN_returns_success() throws Exception {
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(ROLE_ALIAS, mockCloudHelper, mockConnectionManager);
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
         final AwsCredentials creds = handler.getAwsCredentials();
         final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
         final String expectedVerb = "GET";

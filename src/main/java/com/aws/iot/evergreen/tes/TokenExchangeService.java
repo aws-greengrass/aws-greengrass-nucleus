@@ -56,11 +56,14 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
                                 AuthorizationHandler authZHandler) {
         super(topics);
         // TODO: Add support for other params like role Aliases
-        // TODO : Needs Fix - following subscriptions won't be effective if this service or
-        //  the http server doesn't restart when port/roleAlias changes
-        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
-                .subscribe((why, newv) -> port = Coerce.toInt(newv));
+        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
+                .dflt(DEFAULT_PORT)
+                .subscribe((why, newv) ->
+                        port = Coerce.toInt(newv));
 
+        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
+                .subscribe((why, newv) ->
+                        iotRoleAlias = Coerce.toString(newv));
 
         // TODO: Add support for overriding this from config
         this.authZPolicy = getDefaultAuthZPolicy();
@@ -122,9 +125,12 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
 
     List<AuthorizationPolicy> getDefaultAuthZPolicy() {
         String defaultPolicyDesc = "Default TokenExchangeService policy";
-        return Arrays.asList(AuthorizationPolicy.builder().policyId(UUID.randomUUID().toString())
-                .policyDescription(defaultPolicyDesc).principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION))).build());
+        return Arrays.asList(AuthorizationPolicy.builder()
+                .policyId(UUID.randomUUID().toString())
+                .policyDescription(defaultPolicyDesc)
+                .principals(new HashSet(Arrays.asList("*")))
+                .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
+                .build());
     }
 
     @Override

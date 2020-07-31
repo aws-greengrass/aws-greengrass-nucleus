@@ -33,6 +33,7 @@ import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
+import com.aws.iot.evergreen.tes.CredentialRequestHandler;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -207,6 +208,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
         setupTesRoleAndAlias();
+        kernel.getContext().get(CredentialRequestHandler.class).setIotCredentialsPath(TES_ROLE_ALIAS_NAME);
     }
 
     private static void initializePackageStore() throws Exception {
