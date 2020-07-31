@@ -65,7 +65,7 @@ public class DeploymentService extends EvergreenService {
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     // TODO: These should probably become configurable parameters eventually
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(3).toMillis();
+    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(15).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
 
