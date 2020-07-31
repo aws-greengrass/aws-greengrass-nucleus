@@ -56,45 +56,21 @@ public class KernelLifecycle {
      * Startup the Kernel and all services.
      */
     public void launch() {
-        logger.atInfo().log("root path = {}. config path = {}", kernel.getRootPath(),
-                kernel.getConfigPath());
-        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
-        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
-        try {
-            if (kernelCommandLine.haveRead) {
-                // new config file came in from the outside
-                kernel.writeEffectiveConfig(configurationFile);
-                Files.deleteIfExists(transactionLogPath);
-            } else {
-                // Prefer the tlog because the yaml config file will not be up to date
-                if (Files.exists(transactionLogPath)) {
-                    kernel.getConfig().read(transactionLogPath);
-                }
-                if (Files.exists(configurationFile)) {
-                    kernel.getConfig().read(configurationFile);
-                }
-                if (!Files.exists(transactionLogPath) && !Files.exists(configurationFile)) {
-                    kernel.getConfig()
-                            .lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, kernelCommandLine.mainServiceName,
-                                    EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-                }
-            }
-            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath);
-            tlog.flushImmediately(true);
-        } catch (IOException ioe) {
-            logger.atError().setEventType("system-config-error").setCause(ioe).log();
-            throw new RuntimeException(ioe);
-        }
+        logger.atInfo().log("root path = {}. config path = {}", kernel.getRootPath(), kernel.getConfigPath());
+
+        kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, KernelCommandLine.MAIN_SERVICE_NAME,
+                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+
+        initConfigAndTlog();
 
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
 
         try {
-            mainService = kernel.locate(kernelCommandLine.mainServiceName);
+            mainService = kernel.locate(KernelCommandLine.MAIN_SERVICE_NAME);
         } catch (ServiceLoadException sle) {
-            RuntimeException rte =
-                    new RuntimeException("Cannot load main service", sle);
+            RuntimeException rte = new RuntimeException("Cannot load main service", sle);
             logger.atError("system-boot-error", rte).log();
             throw rte;
         }
@@ -112,6 +88,43 @@ public class KernelLifecycle {
         kernel.writeEffectiveConfig();
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
+    }
+
+    private void initConfigAndTlog() {
+        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
+        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
+
+
+        try {
+            if (kernelCommandLine.getProvidedConfigPathName() != null) {
+                // If a config file is provided, kernel will use the provided file as a new base and disregard the existing config and tlog
+                // This ideally should only used for testing and not in production
+                kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
+
+            } else {
+                // if tlog presents, read the tlog first, because the yaml config file will not be up to date
+                if (Files.exists(transactionLogPath)) {
+                    kernel.getConfig().read(transactionLogPath);
+                }
+
+                // if configuration file is available, merge it with file's last mod timestamp
+                if (Files.exists(configurationFile)) {
+                    kernel.getConfig().read(configurationFile);
+                }
+            }
+
+            // write new tlog and config files
+            //            Files.deleteIfExists(transactionLogPath);
+            kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+            kernel.writeEffectiveConfig(configurationFile);
+
+            // hook tlog to config
+            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath).flushImmediately(true);
+        } catch (IOException ioe) {
+            logger.atError().setEventType("kernel-read-config-error").setCause(ioe).log();
+            throw new RuntimeException(ioe);
+        }
+
     }
 
     private Queue<String> findBuiltInServicesAndPlugins() {
@@ -167,13 +180,12 @@ public class KernelLifecycle {
                 arr[i] = d[i].close();
                 arr[i].whenComplete((v, t) -> {
                     if (t != null) {
-                        logger.atError("service-shutdown-error", t)
-                                .kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
+                        logger.atError("service-shutdown-error", t).kv(EvergreenService.SERVICE_NAME_KEY, serviceName)
+                                .log();
                     }
                 });
             } catch (Throwable t) {
-                logger.atError("service-shutdown-error", t)
-                        .kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
+                logger.atError("service-shutdown-error", t).kv(EvergreenService.SERVICE_NAME_KEY, serviceName).log();
                 arr[i] = CompletableFuture.completedFuture(Optional.empty());
             }
         }
@@ -187,12 +199,10 @@ public class KernelLifecycle {
             }
             combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
-            List<String> unclosedServices = IntStream.range(0, arr.length)
-                    .filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
-                    .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
-            logger.atError("services-shutdown-errored", e)
-                    .kv("unclosedServices", unclosedServices)
-                    .log();
+            List<String> unclosedServices =
+                    IntStream.range(0, arr.length).filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
+                            .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
+            logger.atError("services-shutdown-errored", e).kv("unclosedServices", unclosedServices).log();
         }
     }
 

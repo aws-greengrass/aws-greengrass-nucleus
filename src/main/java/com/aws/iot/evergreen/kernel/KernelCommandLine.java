@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +31,8 @@ import static com.aws.iot.evergreen.packagemanager.PackageStore.CONTEXT_PACKAGE_
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
+    public static final String MAIN_SERVICE_NAME = "main";
+
     private static final Logger logger = LogManager.getLogger(KernelCommandLine.class);
     private static final String HOME_DIR_PREFIX = "~/";
     private static final String ROOT_DIR_PREFIX = "~root/";
@@ -38,8 +41,9 @@ public class KernelCommandLine {
     private static final String PACKAGE_DIR_PREFIX = "~packages/";
 
     private final Kernel kernel;
-    boolean haveRead = false;
-    String mainServiceName = "main";
+
+    @Getter
+    private String providedConfigPathName;
     private String[] args;
     private String arg;
     private int argpos = 0;
@@ -73,20 +77,9 @@ public class KernelCommandLine {
             switch (arg.toLowerCase()) {
                 case "--config":
                 case "-i":
-                    try {
-                        String configArg = getArg();
-                        Objects.requireNonNull(configArg, "-i or --config requires an argument");
-                        kernel.getConfig().read(deTilde(configArg));
-                        haveRead = true;
-                    } catch (IOException ex) {
-                        // Usually we don't want to log and throw at the same time because it can produce duplicate logs
-                        // if the handler of the exception also logs. However since we use structured logging, I
-                        // decide to log the error so that the future logging parser can parse the exceptions.
-                        RuntimeException rte =
-                                new RuntimeException(String.format("Can't read the config file %s", arg), ex);
-                        logger.atError().setEventType("parse-args-error").setCause(rte).log();
-                        throw rte;
-                    }
+                    String configArg = getArg();
+                    Objects.requireNonNull(configArg, "-i or --config requires an argument");
+                    providedConfigPathName = deTilde(configArg);
                     break;
                 case "--root":
                 case "-r":
@@ -134,8 +127,7 @@ public class KernelCommandLine {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
                     kernel.getWorkPath(), kernel.getPackageStorePath());
         } catch (IOException e) {
-            RuntimeException rte =
-                    new RuntimeException("Cannot create all required directories", e);
+            RuntimeException rte = new RuntimeException("Cannot create all required directories", e);
             logger.atError("system-boot-error", rte).log();
             throw rte;
         }

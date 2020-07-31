@@ -172,7 +172,7 @@ class KernelLifecycleTest {
         EvergreenService mockMain = mock(EvergreenService.class);
         doReturn(mockMain).when(mockKernel).locate(eq("main"));
 
-        mockKernelCommandLine.haveRead = true;
+//        mockKernelCommandLine.haveRead = true;
 
         kernelLifecycle.launch();
         Path configPath = mockKernel.getConfigPath().resolve("config.yaml");
