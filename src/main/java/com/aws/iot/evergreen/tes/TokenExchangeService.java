@@ -55,15 +55,16 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
                                 CredentialRequestHandler credentialRequestHandler,
                                 AuthorizationHandler authZHandler) {
         super(topics);
-        // TODO: Add support for other params like role Aliases
         topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
                 .dflt(DEFAULT_PORT)
                 .subscribe((why, newv) ->
                         port = Coerce.toInt(newv));
 
         topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
-                .subscribe((why, newv) ->
-                        iotRoleAlias = Coerce.toString(newv));
+                .subscribe((why, newv) -> {
+                    iotRoleAlias = Coerce.toString(newv);
+                    credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
+                });
 
         // TODO: Add support for overriding this from config
         this.authZPolicy = getDefaultAuthZPolicy();
@@ -75,7 +76,7 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
     public void postInject() {
         super.postInject();
         try {
-            authZHandler.registerComponent(this.getName(), new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)));
+            authZHandler.registerComponent(this.getName(), new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
             authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
         } catch (AuthorizationException e) {
             serviceErrored(e.toString());
@@ -90,7 +91,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
                 .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias).log("Starting Token Server at port {}", port);
         try {
             validateConfig();
-            credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
             server = new HttpServerImpl(port, credentialRequestHandler);
             server.start();
             // Get port from the server, in case no port was specified and server started on a random port
@@ -128,8 +128,8 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
         return Arrays.asList(AuthorizationPolicy.builder()
                 .policyId(UUID.randomUUID().toString())
                 .policyDescription(defaultPolicyDesc)
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)))
                 .build());
     }
 
