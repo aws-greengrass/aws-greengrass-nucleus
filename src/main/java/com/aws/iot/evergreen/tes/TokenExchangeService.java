@@ -13,6 +13,8 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,7 +27,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 
 @SuppressWarnings("PMD.DataClass")
 @ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
-public class TokenExchangeService extends EvergreenService {
+public class TokenExchangeService extends EvergreenService implements AwsCredentialsProvider {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String PORT_TOPIC = "port";
     public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "TokenExchangeService";
@@ -129,5 +131,10 @@ public class TokenExchangeService extends EvergreenService {
                 .principals(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet(Arrays.asList(AUTHZ_TES_OPERATION)))
                 .build());
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+        return credentialRequestHandler.getAwsCredentials();
     }
 }

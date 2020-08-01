@@ -20,7 +20,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,8 +54,8 @@ public class PackageRecipe {
 
     private final Map<String, Object> lifecycle;
 
-    // TODO: Migrate to artifact objects, this is only a list of URLs at the moment
-    private final Map<String, List<URI>> artifacts;
+
+    private final Map<String, List<ComponentArtifact>> artifacts;
 
     private final Map<String, RecipeDependencyProperties> dependencies;
 
@@ -84,7 +83,7 @@ public class PackageRecipe {
                          @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
                          @JsonProperty("Platforms") List<String> platforms, @JsonProperty("Lifecycle") @JsonDeserialize(
             using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
-                         @JsonProperty("Artifacts") Map<String, List<URI>> artifacts,
+                         @JsonProperty("Artifacts") Map<String, List<ComponentArtifact>> artifacts,
                          @JsonProperty("Dependencies")
                              @JsonDeserialize(using = DependencyMapDeserializer.class)
                                      Map<String, RecipeDependencyProperties> dependencies,

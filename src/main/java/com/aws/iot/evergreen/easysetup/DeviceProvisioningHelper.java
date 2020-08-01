@@ -72,7 +72,7 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
     // TODO : Remove once global components are implemented
     public static final String GREENGRASS_SERVICE_ENDPOINT =
-            "https://corl1ybge2.execute-api.us-east-1.amazonaws.com/Beta";
+            "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
             .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"RecipeTemplateVersion\": \"2020-01-25\",\n"
                     + "\t\"ComponentName\": \"TokenExchangeService\",\n"

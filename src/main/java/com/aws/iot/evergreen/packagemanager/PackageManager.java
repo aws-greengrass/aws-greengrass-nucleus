@@ -11,14 +11,17 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
+import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
+import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.util.Coerce;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -39,8 +42,11 @@ import javax.inject.Inject;
 public class PackageManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageManager.class);
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
+    private static final String S3_SCHEME = "S3";
     private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
+
+    private final S3Downloader s3ArtifactsDownloader;
 
     private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
 
@@ -55,6 +61,7 @@ public class PackageManager implements InjectionActions {
     /**
      * PackageManager constructor.
      *
+     * @param s3ArtifactsDownloader          s3ArtifactsDownloader
      * @param greengrassArtifactDownloader   greengrassArtifactDownloader
      * @param greengrassPackageServiceHelper greengrassPackageServiceHelper
      * @param executorService                executorService
@@ -62,9 +69,11 @@ public class PackageManager implements InjectionActions {
      * @param kernel                         kernel
      */
     @Inject
-    public PackageManager(GreengrassRepositoryDownloader greengrassArtifactDownloader,
+    public PackageManager(S3Downloader s3ArtifactsDownloader,
+                          GreengrassRepositoryDownloader greengrassArtifactDownloader,
                           GreengrassPackageServiceHelper greengrassPackageServiceHelper,
                           ExecutorService executorService, PackageStore packageStore, Kernel kernel) {
+        this.s3ArtifactsDownloader = s3ArtifactsDownloader;
         this.greengrassArtifactDownloader = greengrassArtifactDownloader;
         this.greengrassPackageServiceHelper = greengrassPackageServiceHelper;
         this.executorService = executorService;
@@ -143,14 +152,14 @@ public class PackageManager implements InjectionActions {
     }
 
     private void preparePackage(PackageIdentifier packageIdentifier)
-            throws PackageLoadingException, PackageDownloadException {
+            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
             Map artifacts = pkg.getArtifacts();
             if (!artifacts.isEmpty()) {
                 downloadArtifactsIfNecessary(packageIdentifier,
-                                             (List<URI>) PlatformResolver.resolvePlatform(artifacts));
+                        (List<ComponentArtifact>) PlatformResolver.resolvePlatform(artifacts));
             }
             logger.atInfo("prepare-package-finished").kv("packageIdentifier", packageIdentifier).log();
         } catch (PackageLoadingException | PackageDownloadException e) {
@@ -177,8 +186,8 @@ public class PackageManager implements InjectionActions {
         return packageRecipe;
     }
 
-    void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<URI> artifactList)
-            throws PackageLoadingException, PackageDownloadException {
+    void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<ComponentArtifact> artifacts)
+            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
         Path packageArtifactDirectory = packageStore.resolveArtifactDirectoryPath(packageIdentifier);
         if (!Files.exists(packageArtifactDirectory) || !Files.isDirectory(packageArtifactDirectory)) {
             try {
@@ -190,13 +199,14 @@ public class PackageManager implements InjectionActions {
             }
         }
 
-        List<URI> artifactsNeedToDownload = determineArtifactsNeedToDownload(packageArtifactDirectory, artifactList);
+        List<ComponentArtifact> artifactsToDownload =
+                determineArtifactsNeedToDownload(packageArtifactDirectory, artifacts);
         logger.atDebug().setEventType("downloading-package-artifacts")
                 .addKeyValue("packageIdentifier", packageIdentifier)
-                .addKeyValue("artifactsNeedToDownload", artifactsNeedToDownload).log();
+                .addKeyValue("artifactsNeedToDownload", artifactsToDownload).log();
 
-        for (URI artifact : artifactsNeedToDownload) {
-            ArtifactDownloader downloader = selectArtifactDownloader(artifact);
+        for (ComponentArtifact artifact : artifactsToDownload) {
+            ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
             try {
                 downloader.downloadToPath(packageIdentifier, artifact, packageArtifactDirectory);
             } catch (IOException e) {
@@ -207,7 +217,8 @@ public class PackageManager implements InjectionActions {
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
-    private List<URI> determineArtifactsNeedToDownload(Path packageArtifactDirectory, List<URI> artifacts) {
+    private List<ComponentArtifact> determineArtifactsNeedToDownload(Path packageArtifactDirectory,
+                                                      List<ComponentArtifact> artifacts) {
         //TODO implement proper idempotency logic to determine what artifacts need to download
         return artifacts;
     }
@@ -217,7 +228,9 @@ public class PackageManager implements InjectionActions {
         if (GREENGRASS_SCHEME.equals(scheme)) {
             return greengrassArtifactDownloader;
         }
-
+        if (S3_SCHEME.equals(scheme)) {
+            return s3ArtifactsDownloader;
+        }
         throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
     }
 
