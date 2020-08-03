@@ -17,7 +17,7 @@ services:
         posix: sleep 121
         windows: powershell -command sleep 121
 
-  service_with_just_bootstrap_and_configured_timeout:
+  service_with_just_bootstrap_and_timeout_configured:
     lifecycle:
       bootstrap:
         posix:

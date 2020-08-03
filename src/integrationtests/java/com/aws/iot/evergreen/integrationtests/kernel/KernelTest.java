@@ -16,7 +16,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -30,9 +29,7 @@ import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -70,19 +67,9 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_config_missing_main_WHEN_kernel_launches_THEN_throw_RuntimeException(ExtensionContext context) {
-        kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config_missing_main.yaml").toString());
-        ignoreExceptionWithMessage(context, "Cannot load main service");
-        assertThrows(RuntimeException.class, () -> kernel.launch());
-    }
-
-    @Test
     void GIVEN_config_path_not_given_WHEN_kernel_launches_THEN_load_empty_main_service() throws Exception {
         // launch kernel without config arg
-        kernel = new Kernel();
-        kernel.parseArgs().toString();
-        kernel.launch();
+        kernel = new Kernel().parseArgs().launch();
 
         // verify
         EvergreenService mainService = kernel.locate("main");
@@ -105,8 +92,7 @@ class KernelTest extends BaseITCase {
         testGroup(0);
         System.out.println("Group 0 passed, now for the harder stuff");
 
-        kernel.findServiceTopic("main")
-                .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC)
+        kernel.findServiceTopic("main").find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC)
                 .withValue("echo NEWMAIN");
         testGroup(1);
 
@@ -116,6 +102,39 @@ class KernelTest extends BaseITCase {
         Slf4jLogAdapter.removeGlobalListener(logListener);
 
         kernel.shutdown();
+    }
+
+    @Test
+    void GIVEN_expected_stdout_patterns_WHEN_kernel_is_restarted_THEN_all_expected_patterns_are_seen()
+            throws Exception {
+
+        // add log listener to verify stdout pattern
+        Consumer<EvergreenStructuredLogMessage> logListener = getLogListener();
+        Slf4jLogAdapter.addGlobalListener(logListener);
+
+        // launch kernel 1st time
+        kernel = new Kernel();
+        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+        kernel.launch();
+
+        testGroup(0);
+
+        kernel.shutdown();
+
+        // reset pattern and countdown latches
+        for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
+            pattern.reset();
+            CountDownLatch existingCdl = COUNT_DOWN_LATCHES.get(pattern.group);
+            COUNT_DOWN_LATCHES.put(pattern.group,
+                    new CountDownLatch(existingCdl == null ? 1 : (int) (existingCdl.getCount() + 1)));
+        }
+
+        // launch kernel 2nd time with empty arg but same root dir, as specified in the base IT case
+        kernel = new Kernel().parseArgs().launch();
+        testGroup(0);
+        kernel.shutdown();
+
+        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
     @SuppressWarnings("PMD.AssignmentInOperand")
@@ -267,16 +286,15 @@ class KernelTest extends BaseITCase {
         List<ExpectedStateTransition> actualTransitions = new LinkedList<>();
         AtomicInteger currentGroup = new AtomicInteger();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            actualTransitions.add(new ExpectedStateTransition(service.getName(), oldState, newState, currentGroup.get()));
+            actualTransitions
+                    .add(new ExpectedStateTransition(service.getName(), oldState, newState, currentGroup.get()));
             if (expectedStateTransitionList.isEmpty()) {
                 return;
             }
 
-            expectedStateTransitionList.stream()
-                    .filter(x -> x.group == currentGroup.get() && !x.seen)
+            expectedStateTransitionList.stream().filter(x -> x.group == currentGroup.get() && !x.seen)
                     .filter(expected -> service.getName().equals(expected.serviceName) && (oldState.equals(expected.was)
-                            || expected.was == null) && newState.equals(expected.current))
-                    .forEach(expected -> {
+                            || expected.was == null) && newState.equals(expected.current)).forEach(expected -> {
                 LogManager.getLogger(getClass())
                         .info("Just saw state event for service {}: {} => {}", expected.serviceName, expected.was,
                                 expected.current);
