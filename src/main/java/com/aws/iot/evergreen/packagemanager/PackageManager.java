@@ -123,7 +123,7 @@ public class PackageManager implements InjectionActions {
         } catch (PackageDownloadException e) {
             logger.atInfo("list-package-versions")
                   .addKeyValue(PACKAGE_NAME_KEY, packageName)
-                  .log("Failed when calling Component Management Service to list available versions");
+                  .log("Failed when calling Component Management Service to list available versions", e);
         }
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
