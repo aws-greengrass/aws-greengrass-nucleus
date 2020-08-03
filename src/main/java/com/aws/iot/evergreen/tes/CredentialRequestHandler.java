@@ -15,11 +15,14 @@ import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -207,6 +210,28 @@ public class CredentialRequestHandler implements HttpHandler {
         tesCache.get(iotCredentialsPath).expiry = newExpiry;
         tesCache.get(iotCredentialsPath).credentials = response;
         return response;
+    }
+
+    /**
+     * API for kernel to directly fetch credentials from TES instead of using HTTP server.
+     *
+     * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
+     */
+    public AwsCredentials getAwsCredentials() {
+        LOGGER.atDebug("Got request for credentials");
+        try {
+            // Call to getCredentials will make sure cached credentials can be utilized
+            final byte[] credentialsResponse = getCredentials();
+            Map<String, String> credentials =
+                    OBJECT_MAPPER.readValue(credentialsResponse, new TypeReference<Map<String, String>>() {
+                    });
+            return AwsSessionCredentials
+                    .create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR), credentials.get(SECRET_ACCESS_DOWNSTREAM_STR),
+                            credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
+        } catch (IOException e) {
+            LOGGER.atError().setCause(e).log("Error in retrieving AwsCredentials from TES");
+            return null;
+        }
     }
 
     private byte[] translateToAwsSdkFormat(final String credentials) throws AWSIotException {

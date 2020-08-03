@@ -129,4 +129,39 @@ class PackageManagerE2ETest extends BaseE2ETestCase {
             assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0").resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
         }
     }
+
+    @Test
+    @Order(3)
+    void GIVEN_package_with_s3_artifacts_WHEN_deployed_THEN_download_artifacts_from_customer_s3_and_perform_integrity_check()
+            throws Exception {
+        String appWithS3ArtifactsPackageName = getTestComponentNameInCloud("AppWithS3Artifacts");
+        List<String> rootPackageList = new ArrayList<>();
+        rootPackageList.add(appWithS3ArtifactsPackageName);
+        List<DeploymentPackageConfiguration> configList = new ArrayList<>();
+        configList.add(new DeploymentPackageConfiguration("AppWithS3Artifacts", true, "1.0.0", Collections.emptyMap()));
+        DeploymentDocument testDeploymentDocument =
+                DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
+                        .deploymentPackageConfigurationList(configList)
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("test").build();
+        try (Context context = new Context()) {
+            Topics groupToRootPackagesTopics =
+                    Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookup(pkg)
+                    .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            List<PackageIdentifier> resolutionResult =
+                    dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
+            Future<Void> testFuture = packageManager.preparePackages(resolutionResult);
+            testFuture.get(10, TimeUnit.SECONDS);
+
+            // Validate artifact was downloaded and integrity check passed
+            assertThat(packageStorePath.toFile(), anExistingDirectory());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
+            assertThat(packageStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
+            assertThat(packageStorePath.resolve(RECIPE_DIRECTORY)
+                    .resolve(appWithS3ArtifactsPackageName + "-1.0.0" + ".yaml").toFile(), anExistingFile());
+            assertThat(
+                    packageStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName).resolve("1.0.0")
+                            .resolve("artifact.txt").toFile(), anExistingFile());
+        }
+    }
 }
