@@ -5,10 +5,8 @@
 
 package com.aws.iot.evergreen.fss;
 
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.DeploymentStatusKeeper;
@@ -43,14 +41,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Function;
 
-import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID;
+import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
-import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
@@ -117,20 +113,16 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
-        Topic pkgTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic groupTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
-                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Map<String, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, groupTopic1);
-        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
-        pkgTopics.children.putAll(pkgDetails);
-        deploymentGroupTopics.children.put("MockService", pkgTopics);
-        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
-        Map<EvergreenService, DependencyType> evergreenServiceDependencyTypeMap = new HashMap<>();
-        evergreenServiceDependencyTypeMap.put(mockEvergreenService2, DependencyType.HARD);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put("MockService", groupTopic1);
+        groupsTopics2.children.put("MockService2", groupTopic1);
+        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
+        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
@@ -140,14 +132,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(mockEvergreenService2.getName()).thenReturn("MockService2");
         when(mockEvergreenService2.getServiceConfig()).thenReturn(config);
         when(mockEvergreenService2.getState()).thenReturn(State.RUNNING);
-        when(mockEvergreenService1.getDependencies()).thenReturn(evergreenServiceDependencyTypeMap);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
-        when(mockKernel.locate("MockService2")).thenReturn(mockEvergreenService2);
         when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockEvergreenService1, mockEvergreenService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -186,7 +174,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -205,18 +192,16 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
-        Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
-                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Map<String, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
-        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
-        pkgTopics.children.putAll(pkgDetails);
-        deploymentGroupTopics.children.put("MockService", pkgTopics);
-        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put("MockService", groupTopic1);
+        groupsTopics2.children.put("MockService2", groupTopic1);
+        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
+        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
@@ -224,12 +209,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(mockEvergreenService1.getServiceConfig()).thenReturn(config);
         when(mockEvergreenService1.getState()).thenReturn(State.BROKEN);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockEvergreenService1));
 
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -263,7 +246,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -347,31 +329,26 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
-        Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
-                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Map<String, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
-        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
-        pkgTopics.children.putAll(pkgDetails);
-        deploymentGroupTopics.children.put("MockService", pkgTopics);
-        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put("MockService", groupTopic1);
+        groupsTopics2.children.put("MockService2", groupTopic1);
+        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
+        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         when(mockEvergreenService1.getName()).thenReturn("MockService");
         when(mockEvergreenService1.getServiceConfig()).thenReturn(config);
         when(mockEvergreenService1.getState()).thenReturn(State.RUNNING);
-        when(mockEvergreenService1.getDependencies()).thenReturn(new ConcurrentHashMap<>());
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockEvergreenService1));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -381,7 +358,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
                 mockDeploymentStatusKeeper, mockKernel);
         fleetStatusService.startup();
 
-        Thread.sleep(6_000);
+        Thread.sleep(5_000);
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
@@ -393,7 +370,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -407,9 +383,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Set<EvergreenService> evergreenServices = new HashSet<>();
         evergreenServices.add(mockEvergreenService1);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
@@ -421,7 +398,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singletonList(mockDeploymentService));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -455,7 +431,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
 
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -470,30 +445,25 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
-        Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
-                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Map<String, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
-        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
-        pkgTopics.children.putAll(pkgDetails);
-        deploymentGroupTopics.children.put("MockService", pkgTopics);
-        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put("MockService", groupTopic1);
+        groupsTopics2.children.put("MockService2", groupTopic1);
+        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
+        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
-        when(mockEvergreenService1.getName()).thenReturn("MockService");
         when(mockEvergreenService1.getServiceConfig()).thenReturn(config);
         when(mockEvergreenService1.getState()).thenReturn(State.BROKEN);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
 
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -517,7 +487,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -561,20 +530,16 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
-        Topic pkgTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic groupTopic1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
-                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Map<String, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, groupTopic1);
-        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
-        pkgTopics.children.putAll(pkgDetails);
-        deploymentGroupTopics.children.put("MockService", pkgTopics);
-        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
-        Map<EvergreenService, DependencyType> evergreenServiceDependencyTypeMap = new HashMap<>();
-        evergreenServiceDependencyTypeMap.put(mockEvergreenService2, DependencyType.HARD);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put("MockService", groupTopic1);
+        groupsTopics2.children.put("MockService2", groupTopic1);
+        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
+        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
@@ -584,14 +549,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(mockEvergreenService2.getName()).thenReturn("MockService2");
         when(mockEvergreenService2.getServiceConfig()).thenReturn(config);
         when(mockEvergreenService2.getState()).thenReturn(State.RUNNING);
-        when(mockEvergreenService1.getDependencies()).thenReturn(evergreenServiceDependencyTypeMap);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
-        when(mockKernel.locate("MockService2")).thenReturn(mockEvergreenService2);
         when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockEvergreenService1, mockEvergreenService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -638,7 +599,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -658,31 +618,25 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, "testGroup", allGroupTopics);
-        Topic t = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.10");
-        Topic t1 = Topic.of(context, GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
-                "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Map<String, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, t);
-        pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, t1);
-        Topics pkgTopics = Topics.of(context, "MockService", deploymentGroupTopics);
-        pkgTopics.children.putAll(pkgDetails);
-        deploymentGroupTopics.children.put("MockService", pkgTopics);
-        allGroupTopics.children.put(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentGroupTopics);
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put("MockService", groupTopic1);
+        groupsTopics2.children.put("MockService2", groupTopic1);
+        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
+        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
-        when(mockEvergreenService1.getName()).thenReturn("MockService");
         when(mockEvergreenService1.getServiceConfig()).thenReturn(config);
         when(mockEvergreenService1.getState()).thenReturn(State.RUNNING);
-        when(mockEvergreenService1.getDependencies()).thenReturn(new ConcurrentHashMap<>());
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        when(mockKernel.locate("MockService")).thenReturn(mockEvergreenService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockEvergreenService1));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS))
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
@@ -710,7 +664,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
-        assertEquals("testGroup", fleetStatusDetails.getThingGroups());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());

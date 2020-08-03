@@ -30,8 +30,6 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,8 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID;
-import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -73,7 +70,6 @@ public class FleetStatusService extends EvergreenService {
     private static AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.MIN);
     private static final Map<String, EvergreenService> evergreenServiceMap = new ConcurrentHashMap<>();
     private static final Map<String, EvergreenService> removedDependencies = new ConcurrentHashMap<>();
-    private Map<String, Set<String>> componentsToGroupsMappingCache;
     private int periodicUpdateIntervalMs;
     private boolean isDeploymentInProgress;
 
@@ -132,6 +128,8 @@ public class FleetStatusService extends EvergreenService {
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.IOT_JOBS,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
+                this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         schedulePeriodicFssDataUpdate();
 
         this.mqttClient.addToCallbackEvents(callbacks);
@@ -167,7 +165,6 @@ public class FleetStatusService extends EvergreenService {
         logger.atDebug().log("Updating FSS data on a periodic basis.");
         Map<String, EvergreenService> evergreenServiceMap = new HashMap<>();
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
-        overAllStatus.set(OverallStatus.HEALTHY);
 
         // Get all running services from the kernel to update the fleet status.
         this.kernel.orderedDependencies().forEach(evergreenService -> {
@@ -183,7 +180,6 @@ public class FleetStatusService extends EvergreenService {
         String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
         if (JobStatus.IN_PROGRESS.toString().equals(status)) {
             isDeploymentInProgress = true;
-            componentsToGroupsMappingCache = null;
             return true;
         }
         logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
@@ -200,7 +196,6 @@ public class FleetStatusService extends EvergreenService {
         }
 
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
-        overAllStatus.set(OverallStatus.HEALTHY);
 
         // Check if the removed dependency is still running (Probably as a dependant service to another service).
         // If so, then remove it from the removedDependencies collection.
@@ -239,12 +234,24 @@ public class FleetStatusService extends EvergreenService {
         }
 
         List<ComponentStatusDetails> components = new ArrayList<>();
-        Set<String> groupNamesSet = new HashSet<>();
-        Map<String, Set<String>> componentsToGroupsMapping = getComponentsToGroupsMapping(groupNamesSet);
 
+        Topics componentsToGroupsTopics = null;
+        try {
+            EvergreenService deploymentService = this.kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            componentsToGroupsTopics = deploymentService.getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+        } catch (ServiceLoadException e) {
+            logger.atError().cause(e).log("Unable to locate {} service while uploading FSS data",
+                    DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+        }
+
+        Topics finalComponentsToGroupsTopics = componentsToGroupsTopics;
         evergreenServiceMap.forEach((serviceName, service) -> {
-            String thingGroups = componentsToGroupsMapping.getOrDefault(service.getName(), new HashSet<>()).stream()
-                    .map(String::valueOf).collect(Collectors.joining(","));
+            String thingGroups = "";
+            if (finalComponentsToGroupsTopics != null) {
+                Topics groupsTopics = finalComponentsToGroupsTopics.lookupTopics(service.getName());
+                thingGroups = groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                        .map(String::valueOf).collect(Collectors.joining(","));
+            }
 
             Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
             ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
@@ -256,14 +263,12 @@ public class FleetStatusService extends EvergreenService {
             components.add(componentStatusDetails);
         });
 
-        String thingGroups = groupNamesSet.stream().map(String::valueOf).collect(Collectors.joining(","));
         FleetStatusDetails fleetStatusDetails = FleetStatusDetails.builder()
                 .overallStatus(overAllStatus)
                 .componentStatusDetails(components)
                 .architecture(this.architecture)
                 .platform(this.platform)
                 .thing(thingName)
-                .thingGroups(thingGroups)
                 .ggcVersion(this.kernelVersion)
                 .sequenceNumber(sequenceNumber.getAndIncrement())
                 .build();
@@ -277,67 +282,10 @@ public class FleetStatusService extends EvergreenService {
         }
     }
 
-    private Map<String, Set<String>> getComponentsToGroupsMapping(Set<String> groupNamesSet) {
-        if (this.componentsToGroupsMappingCache != null) {
-            return this.componentsToGroupsMappingCache;
-        }
-        List<String> pendingComponentsList = new LinkedList<>();
-
-        try {
-            EvergreenService deploymentService = this.kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
-            Topics groupsToRootComponents =
-                    deploymentService.getConfig().lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
-
-            this.componentsToGroupsMappingCache = new ConcurrentHashMap<>();
-
-            // Get all the groups associated to the root components.
-            groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
-                Topics groupTopics = (Topics) groupNode;
-                String groupName = groupTopics.getName();
-                groupNamesSet.add(groupName);
-
-                groupTopics.iterator().forEachRemaining(pkgNode -> {
-                    Topics componentTopics = (Topics) pkgNode;
-                    Topic lookup = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
-                    String groupDeploymentId = (String) lookup.getOnce();
-                        Set<String> groupDeploymentIdSet = this.componentsToGroupsMappingCache
-                                .getOrDefault(componentTopics.getName(), new HashSet<>());
-                        groupDeploymentIdSet.add(groupDeploymentId);
-                        componentsToGroupsMappingCache.put(componentTopics.getName(), groupDeploymentIdSet);
-                        pendingComponentsList.add(componentTopics.getName());
-                });
-            });
-        } catch (ServiceLoadException e) {
-            return componentsToGroupsMappingCache;
-        }
-
-        // Associate the groups to the dependant services based on the services it is depending on.
-        while (!pendingComponentsList.isEmpty()) {
-            String componentName = pendingComponentsList.get(0);
-            try {
-                EvergreenService evergreenService = this.kernel.locate(componentName);
-                Set<String> groupNamesForComponent = componentsToGroupsMappingCache
-                        .getOrDefault(evergreenService.getName(), new HashSet<>());
-
-                evergreenService.getDependencies().forEach((evergreenService1, dependencyType) -> {
-                    pendingComponentsList.add(evergreenService1.getName());
-                    Set<String> groupNamesForDependentComponent = componentsToGroupsMappingCache
-                            .getOrDefault(evergreenService1.getName(), new HashSet<>());
-                    groupNamesForDependentComponent.addAll(groupNamesForComponent);
-                    componentsToGroupsMappingCache.put(evergreenService1.getName(), groupNamesForDependentComponent);
-                });
-            } catch (ServiceLoadException ex) {
-                logger.atError().cause(ex).log("Unable to get status for {}.", componentName);
-            }
-            pendingComponentsList.remove(0);
-        }
-        return componentsToGroupsMappingCache;
-    }
-
     private OverallStatus getOverallStatusBasedOnServiceState(OverallStatus overallStatus,
                                                               EvergreenService evergreenService) {
         if (State.BROKEN.equals(evergreenService.getState())
-                || overallStatus.equals(OverallStatus.UNHEALTHY)) {
+                || OverallStatus.UNHEALTHY.equals(overallStatus)) {
             return OverallStatus.UNHEALTHY;
         }
         return OverallStatus.HEALTHY;
@@ -357,7 +305,6 @@ public class FleetStatusService extends EvergreenService {
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
-        componentsToGroupsMappingCache = null;
     }
 
     /**

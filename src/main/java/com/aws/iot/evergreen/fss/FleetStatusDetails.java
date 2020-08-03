@@ -30,9 +30,6 @@ public class FleetStatusDetails {
     @JsonProperty("thing")
     private String thing;
 
-    @JsonProperty("thingGroups")
-    private String thingGroups;
-
     @JsonProperty("overallDeviceStatus")
     private OverallStatus overallStatus;
 

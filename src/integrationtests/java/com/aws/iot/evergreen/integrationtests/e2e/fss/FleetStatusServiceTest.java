@@ -142,7 +142,6 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(thingInfo.getThingName(), fleetStatusDetails1.getThing());
         assertEquals("1.0.0", fleetStatusDetails1.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
-        assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails1.getThingGroups());
         assertThat(fleetStatusDetails1.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder(getCloudDeployedComponent("Mosquitto").getName(), someServiceName,
                         getCloudDeployedComponent("CustomerApp").getName(),
@@ -161,11 +160,9 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(thingInfo.getThingName(), fleetStatusDetails2.getThing());
         assertEquals("1.0.0", fleetStatusDetails2.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverallStatus());
-        assertEquals(String.format("thinggroup/%s", thingGroupName), fleetStatusDetails2.getThingGroups());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder(someServiceName));
         assertEquals("", fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArn());
         assertEquals(someServiceName, fleetStatusDetails2.getComponentStatusDetails().get(0).getComponentName());
-
     }
 }
