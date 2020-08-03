@@ -29,9 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
@@ -451,10 +449,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         boolean running = cdl.await(1, TimeUnit.SECONDS);
         Slf4jLogAdapter.removeGlobalListener(listener);
         assertTrue(running, "Deployment service must be running");
-    }
-
-    private void mockGroupToRootPackageMappingStubs2() {
-
     }
 
     private void mockGroupToRootPackageMappingStubs() {
