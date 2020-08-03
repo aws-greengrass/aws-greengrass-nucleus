@@ -138,8 +138,8 @@ public class FleetStatusService extends EvergreenService {
         // If the last periodic update was missed, update the fleet status service for all running services.
         // Else update only the statuses of the services whose status changed (if any) and if the method is called
         // due to a MQTT connection resumption.
-        if (isDuringConnectionResumed &&
-                lastPeriodicUpdateTime.get().plusMillis(periodicUpdateIntervalMs).isBefore(Instant.now())) {
+        if (isDuringConnectionResumed
+                && lastPeriodicUpdateTime.get().plusMillis(periodicUpdateIntervalMs).isBefore(Instant.now())) {
             updatePeriodicFssData();
         } else if (isDuringConnectionResumed) {
             updateEventTriggeredFssData();
