@@ -67,7 +67,7 @@ public class FleetStatusService extends EvergreenService {
     private ScheduledFuture<?> periodicUpdateFuture;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private static volatile boolean isConnected = true;
-    private static AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.MIN);
+    private static AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.now());
     private static final Map<String, EvergreenService> evergreenServiceMap = new ConcurrentHashMap<>();
     private static final Map<String, EvergreenService> removedDependencies = new ConcurrentHashMap<>();
     private int periodicUpdateIntervalMs;
@@ -84,8 +84,7 @@ public class FleetStatusService extends EvergreenService {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             isConnected = true;
-            handleMqttConnectionResumed();
-            schedulePeriodicFssDataUpdate();
+            schedulePeriodicFssDataUpdate(true);
         }
     };
 
@@ -119,7 +118,7 @@ public class FleetStatusService extends EvergreenService {
                     periodicUpdateIntervalMs = Coerce.toInt(newv);
                     if (periodicUpdateFuture != null) {
                         periodicUpdateFuture.cancel(false);
-                        schedulePeriodicFssDataUpdate();
+                        schedulePeriodicFssDataUpdate(false);
                     }
                 });
 
@@ -130,12 +129,21 @@ public class FleetStatusService extends EvergreenService {
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
-        schedulePeriodicFssDataUpdate();
+        schedulePeriodicFssDataUpdate(false);
 
         this.mqttClient.addToCallbackEvents(callbacks);
     }
 
-    private void schedulePeriodicFssDataUpdate() {
+    private void schedulePeriodicFssDataUpdate(boolean isDuringConnectionResumed) {
+        // If the last periodic update was missed, update the fleet status service for all running services.
+        // Else update only the statuses of the services whose status changed (if any) and if the method is called
+        // due to a MQTT connection resumption.
+        if (lastPeriodicUpdateTime.get().plusMillis(periodicUpdateIntervalMs).isBefore(Instant.now())) {
+            updatePeriodicFssData();
+        } else if (isDuringConnectionResumed) {
+            updateEventTriggeredFssData();
+        }
+
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFssData, periodicUpdateIntervalMs,
                 periodicUpdateIntervalMs, TimeUnit.MILLISECONDS);
@@ -209,16 +217,6 @@ public class FleetStatusService extends EvergreenService {
         updateFleetStatusServiceData(evergreenServiceMap, overAllStatus.get());
         evergreenServiceMap.clear();
         removedDependencies.clear();
-    }
-
-    private void handleMqttConnectionResumed() {
-        // If the last periodic update was missed, update the fleet status service for all running services.
-        // Else update only the statuses of the services whose status changed (if any).
-        if (lastPeriodicUpdateTime.get().plusMillis(periodicUpdateIntervalMs).isBefore(Instant.now())) {
-            updatePeriodicFssData();
-        } else {
-            updateEventTriggeredFssData();
-        }
     }
 
     private void updateFleetStatusServiceData(Map<String, EvergreenService> evergreenServiceMap,
@@ -315,5 +313,12 @@ public class FleetStatusService extends EvergreenService {
     public void updateRemovedDependencies(Set<EvergreenService> removedEgDependencies) {
         removedEgDependencies.forEach(evergreenService ->
                 removedDependencies.put(evergreenService.getName(), evergreenService));
+    }
+
+    /**
+     * Used for unit tests only.
+     */
+    public void clearEvergreenServiceMap() {
+        evergreenServiceMap.clear();
     }
 }

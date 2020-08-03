@@ -72,7 +72,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
         // creating new IoT job here.
-        Thread.sleep(10_000);
+        TimeUnit.SECONDS.sleep(10);
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
@@ -160,6 +160,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(thingInfo.getThingName(), fleetStatusDetails2.getThing());
         assertEquals("1.0.0", fleetStatusDetails2.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverallStatus());
+        assertEquals(1, fleetStatusDetails2.getComponentStatusDetails().size());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder(someServiceName));
         assertEquals("", fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArn());

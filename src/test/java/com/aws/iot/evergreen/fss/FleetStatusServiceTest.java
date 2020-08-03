@@ -23,6 +23,7 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -106,9 +107,11 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     @AfterEach
     public void cleanUp() {
         fleetStatusService.shutdown();
+        fleetStatusService.clearEvergreenServiceMap();
     }
 
     @Test
+    @Order(1)
     public void GIVEN_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws ServiceLoadException, IOException {
         // Set up all the topics
@@ -188,6 +191,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(2)
     public void GIVEN_component_status_changes_to_broken_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
             throws ServiceLoadException, IOException {
         // Set up all the topics
@@ -255,6 +259,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(3)
     public void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
@@ -286,6 +291,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(4)
     public void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "100000");
@@ -325,6 +331,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(5)
     public void GIVEN_component_status_change_WHEN_periodic_update_triggered_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
@@ -379,6 +386,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(6)
     public void GIVEN_component_removed_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws ServiceLoadException, IOException {
         // Set up all the topics
@@ -442,6 +450,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(7)
     public void GIVEN_after_deployment_WHEN_component_status_changes_to_broken_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
             throws ServiceLoadException, IOException {
         // Set up all the topics
@@ -498,6 +507,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
 
     @Test
+    @Order(8)
     public void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_MS, "3000");
@@ -527,6 +537,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    @Order(9)
     public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_event_triggered_fss_data()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
@@ -615,6 +626,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
 
     @Test
+    @Order(10)
     public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
