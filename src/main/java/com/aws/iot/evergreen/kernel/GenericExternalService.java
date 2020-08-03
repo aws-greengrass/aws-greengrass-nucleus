@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Pair;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -109,6 +110,8 @@ public class GenericExternalService extends EvergreenService {
      * @throws TimeoutException     when the command execution times out.
      */
     @Override
+    @SuppressFBWarnings(value = {"RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE", "NP_LOAD_OF_KNOWN_NULL_VALUE"},
+            justification = "Known false-positives")
     public synchronized Integer bootstrap() throws InterruptedException, TimeoutException {
         // this is redundant because all lifecycle processes should have been before calling this method.
         // stopping here again to be safer
