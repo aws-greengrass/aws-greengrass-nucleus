@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
@@ -365,7 +366,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
                 mockDeploymentStatusKeeper, mockKernel);
         fleetStatusService.startup();
 
-        Thread.sleep(5_000);
+
+        TimeUnit.SECONDS.sleep(5);
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
@@ -530,7 +532,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
 
-        Thread.sleep(5_000);
+        TimeUnit.SECONDS.sleep(5);
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
@@ -661,11 +663,11 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         fleetStatusService.startup();
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
 
-        Thread.sleep(4_000);
+        TimeUnit.SECONDS.sleep(4);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
 
-        Thread.sleep(2_000);
+        TimeUnit.SECONDS.sleep(1);
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
