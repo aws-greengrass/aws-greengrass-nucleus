@@ -51,7 +51,6 @@ import static org.hamcrest.core.Is.is;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class CredentialRequestHandlerTest {
-
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String AUTHN_TOKEN = "random authN token";
     private static final String ACCESS_KEY_ID = "ASIA";
@@ -115,6 +114,7 @@ public class CredentialRequestHandlerTest {
     }
 
     @Test
+    @SuppressWarnings("PMD.CloseResource")
     public void GIVEN_credential_handler_WHEN_called_handle_with_unknown_error_THEN_5xx_returned(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, NullPointerException.class);
         CredentialRequestHandler handler = new CredentialRequestHandler(
@@ -348,7 +348,7 @@ public class CredentialRequestHandlerTest {
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         int expectedStatus = 400;
-        byte[] expectedResponse = String.format("TES responded with status code: %d", expectedStatus).getBytes();
+        byte[] expectedResponse = String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 2 minutes
         assertTrue(handler.areCredentialsValid());
         Instant expirationTime = Instant.now().plus(Duration.ofMinutes(CLOUD_4XX_ERROR_CACHE_IN_MIN));
@@ -383,7 +383,7 @@ public class CredentialRequestHandlerTest {
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         int expectedStatus = 500;
-        byte[] expectedResponse = String.format("TES responded with status code: %d", expectedStatus).getBytes();
+        byte[] expectedResponse = String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 1 minute
         assertTrue(handler.areCredentialsValid());
         Instant expirationTime = Instant.now().plus(Duration.ofMinutes(CLOUD_5XX_ERROR_CACHE_IN_MIN));
@@ -417,7 +417,8 @@ public class CredentialRequestHandlerTest {
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         int expectedStatus = 300;
-        byte[] expectedResponse = String.format("TES responded with status code: %d", expectedStatus).getBytes();
+        byte[] expectedResponse =
+                String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 5 minutes
         assertTrue(handler.areCredentialsValid());
         Instant expirationTime = Instant.now().plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
@@ -431,7 +432,8 @@ public class CredentialRequestHandlerTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void GIVEN_connection_error_WHEN_called_handle_THEN_expire_immediately() throws Exception {
+    public void GIVEN_connection_error_WHEN_called_handle_THEN_expire_immediately(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, AWSIotException.class);
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any())).thenThrow(AWSIotException.class);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);

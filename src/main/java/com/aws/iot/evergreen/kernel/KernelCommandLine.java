@@ -5,8 +5,6 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -26,7 +24,6 @@ import java.util.Objects;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
 import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
-import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_SERVICE_CRED_PROVIDER;
 import static com.aws.iot.evergreen.packagemanager.PackageStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
 
@@ -101,10 +98,6 @@ public class KernelCommandLine {
         kernel.getConfig().lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
 
-        // Always initialize default credential provider, can be overridden before launch if needed
-        // TODO: This should be replaced by a Token Exchange Service credential provider
-        AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
-        kernel.getContext().put(CONTEXT_SERVICE_CRED_PROVIDER, credentialsProvider);
         // Endpoint for Beta CMS in us-east-1
         // TODO: Once service is available in multiple regions, this should not be a static config and
         // use the region value to determine endpoint
