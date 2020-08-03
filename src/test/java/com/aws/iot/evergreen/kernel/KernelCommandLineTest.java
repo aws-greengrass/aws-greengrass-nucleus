@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.kernel;
 
-import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -76,21 +74,6 @@ class KernelCommandLineTest {
         ignoreExceptionWithMessage(context, exceptionMessage);
         RuntimeException thrown = assertThrows(RuntimeException.class, kernel::parseArgs);
         assertThat(thrown.getMessage(), is(exceptionMessage));
-    }
-
-    @Test
-    void GIVEN_unable_to_read_config_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context)
-            throws IOException {
-        Kernel mockKernel = mock(Kernel.class);
-        Configuration mockConfig = mock(Configuration.class);
-        when(mockKernel.getConfig()).thenReturn(mockConfig);
-        when(mockConfig.read(anyString())).thenThrow(IOException.class);
-
-        KernelCommandLine kcl = new KernelCommandLine(mockKernel);
-        String exceptionMessage = "Can't read the config file test.yaml";
-        ignoreExceptionWithMessage(context, exceptionMessage);
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> kcl.parseArgs("-i", "test.yaml"));
-        assertThat(ex.getMessage(), is(exceptionMessage));
     }
 
     @Test
