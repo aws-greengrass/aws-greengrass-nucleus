@@ -432,7 +432,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("1.0.0", fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-
+        
+        fleetStatusDetails.getComponentStatusDetails().forEach(System.out::println);
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());

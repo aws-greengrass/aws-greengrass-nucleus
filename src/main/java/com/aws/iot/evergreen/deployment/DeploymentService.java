@@ -127,11 +127,12 @@ public class DeploymentService extends EvergreenService {
      * @param packageManager         {@link PackageManager}
      * @param kernelConfigResolver   {@link KernelConfigResolver}
      * @param deploymentConfigMerger {@link DeploymentConfigMerger}
+     * @param deploymentConfigMerger {@link Kernel}
      */
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
                       DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      Context context) {
+                      Context context, Kernel kernel) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -140,6 +141,7 @@ public class DeploymentService extends EvergreenService {
         this.deploymentConfigMerger = deploymentConfigMerger;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.context = context;
+        this.kernel = kernel;
     }
 
     @Override
@@ -458,7 +460,7 @@ public class DeploymentService extends EvergreenService {
         while (!pendingComponentsList.isEmpty()) {
             String componentName = pendingComponentsList.get(0);
             try {
-                EvergreenService evergreenService = this.kernel.locate(componentName);
+                EvergreenService evergreenService = kernel.locate(componentName);
                 Map<Object, Object> groupNamesForComponent = (Map<Object, Object>) componentsToGroupsMappingCache
                         .getOrDefault(evergreenService.getName(), new HashMap<>());
 
