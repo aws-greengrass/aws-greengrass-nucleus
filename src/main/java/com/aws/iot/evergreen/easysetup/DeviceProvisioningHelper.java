@@ -311,7 +311,7 @@ public class DeviceProvisioningHelper {
      */
     public void updateKernelConfigWithTesRoleInfo(Kernel kernel, String roleAliasName) {
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        tesTopics.lookupTopics(PARAMETERS_CONFIG_KEY).createLeafChild(IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
+        tesTopics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
     }
 
     // TODO : Remove once global packages are supported
