@@ -209,7 +209,7 @@ class IPCServicesTest {
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
-        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
 
         AtomicInteger numCalls = new AtomicInteger();
         Pair<CompletableFuture<Void>, Consumer<String>> p = asyncAssertOnConsumer((a) -> {
@@ -222,14 +222,14 @@ class IPCServicesTest {
             }
         }, 2);
 
-        c.subscribe(p.getRight());
-        custom.createLeafChild("abc").withValue("ABC");
-        custom.createLeafChild("DDF").withValue("ddf");
+        c.subscribeToConfigurationUpdate("ServiceName", p.getRight());
+        configuration.createLeafChild("abc").withValue("ABC");
+        configuration.createLeafChild("DDF").withValue("ddf");
 
         try {
-            p.getLeft().get(1, TimeUnit.SECONDS);
+            p.getLeft().get(10, TimeUnit.SECONDS);
         } finally {
-            custom.remove();
+            configuration.remove();
         }
     }
 
@@ -245,10 +245,10 @@ class IPCServicesTest {
 
         try {
             // Can read individual value
-            assertEquals("ABC", c.read("abc"));
+            assertEquals("ABC", c.getConfiguration("ServiceName", "abc"));
 
             // Can read nested values
-            Map<String, Object> val = (Map<String, Object>) c.read("DDF");
+            Map<String, Object> val = (Map<String, Object>) c.getConfiguration("ServiceName", "DDF");
             assertThat(val, aMapWithSize(1));
             assertThat(val, IsMapContaining.hasKey("A"));
             assertThat(val.get("A"), is("C"));
