@@ -1,3 +1,6 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.iot.evergreen.packagemanager.plugins;
 
 import com.amazonaws.AmazonClientException;
@@ -8,13 +11,14 @@ import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
+import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
+import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,13 +41,14 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     }
 
     @Override
-    public void downloadToPath(PackageIdentifier packageIdentifier, URI artifactUri, Path saveToPath)
-            throws IOException, PackageDownloadException {
+    public void downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
+            throws IOException, PackageDownloadException, InvalidArtifactUriException {
         logger.atInfo().setEventType("download-artifact-from-greengrass-repo")
-                .addKeyValue("packageIdentifier", packageIdentifier).addKeyValue("artifactUri", artifactUri).log();
+                .addKeyValue("packageIdentifier", packageIdentifier).addKeyValue("artifactUri",
+                artifact.getArtifactUri().toString()).log();
 
         String preSignedUrl = getArtifactDownloadURL(packageIdentifier,
-                                                     artifactUri.getSchemeSpecificPart());
+                                                     artifact.getArtifactUri().getSchemeSpecificPart());
         URL url = new URL(preSignedUrl);
         HttpURLConnection httpConn = connect(url);
 

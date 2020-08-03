@@ -3,18 +3,26 @@
 
 package com.aws.iot.evergreen.tes;
 
+import com.aws.iot.evergreen.auth.AuthorizationHandler;
+import com.aws.iot.evergreen.auth.Permission;
+import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
 import com.aws.iot.evergreen.iot.IotConnectionManager;
 import com.aws.iot.evergreen.iot.model.IotCloudResponse;
+import com.aws.iot.evergreen.ipc.AuthenticationHandler;
+import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -24,10 +32,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import javax.inject.Inject;
 
 public class CredentialRequestHandler implements HttpHandler {
     private static final Logger LOGGER = LogManager.getLogger(CredentialRequestHandler.class);
-    public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     private static final String CREDENTIALS_UPSTREAM_STR = "credentials";
     private static final String ACCESS_KEY_UPSTREAM_STR = "accessKeyId";
     private static final String ACCESS_KEY_DOWNSTREAM_STR = "AccessKeyId";
@@ -39,14 +47,20 @@ public class CredentialRequestHandler implements HttpHandler {
     private static final String EXPIRATION_DOWNSTREAM_STR = "Expiration";
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    public static final String AUTH_HEADER = "Authorization";
+    public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
     public static final int CLOUD_4XX_ERROR_CACHE_IN_MIN = 2;
     public static final int CLOUD_5XX_ERROR_CACHE_IN_MIN = 1;
     public static final int UNKNOWN_ERROR_CACHE_IN_MIN = 5;
 
-    private final String iotCredentialsPath;
+    private String iotCredentialsPath;
 
     private final IotCloudHelper iotCloudHelper;
+
+    private final AuthenticationHandler authNHandler;
+
+    private final AuthorizationHandler authZHandler;
 
     private final IotConnectionManager iotConnectionManager;
 
@@ -63,35 +77,67 @@ public class CredentialRequestHandler implements HttpHandler {
     /**
      * Constructor.
      *
-     * @param iotRoleAlias      Iot role alias configured by the customer in AWS account.
      * @param cloudHelper       {@link IotCloudHelper} for making http requests to cloud.
      * @param connectionManager {@link IotConnectionManager} underlying connection manager for cloud.
+     * @param authenticationHandler {@link AuthenticationHandler} authN module for authenticating requests.
+     * @param authZHandler {@link AuthorizationHandler} authZ module for authorizing requests.
      */
-    public CredentialRequestHandler(final String iotRoleAlias, final IotCloudHelper cloudHelper,
-                                    final IotConnectionManager connectionManager) {
-        this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
+    @Inject
+    public CredentialRequestHandler(final IotCloudHelper cloudHelper,
+                                    final IotConnectionManager connectionManager,
+                                    final AuthenticationHandler authenticationHandler,
+                                    final AuthorizationHandler authZHandler) {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
+        this.authNHandler = authenticationHandler;
+        this.authZHandler = authZHandler;
+    }
+
+    /**
+     * Set the role alias.
+     * @param iotRoleAlias  Iot role alias configured by the customer in AWS account.
+     */
+    public void setIotCredentialsPath(String iotRoleAlias) {
+        this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
         this.tesCache.put(this.iotCredentialsPath, new TESCache());
         this.tesCache.get(iotCredentialsPath).expiry = Instant.now(clock);
     }
 
     @Override
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void handle(final HttpExchange exchange) throws IOException {
-        final byte[] credentials = getCredentials();
-        exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);
-        exchange.getResponseBody().write(credentials);
-        exchange.close();
+        try {
+            doAuth(exchange);
+            final byte[] credentials = getCredentials();
+            exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);
+            exchange.getResponseBody().write(credentials);
+        } catch (AuthorizationException e) {
+            LOGGER.atInfo().log("Request is not authorized");
+            generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
+        } catch (UnauthenticatedException e) {
+            LOGGER.atInfo().log("Request denied due to invalid token");
+            generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
+        } catch (Throwable e) {
+            // Dont let the server crash, swallow problems with a 5xx
+            LOGGER.atInfo().log("Request failed due to ", e);
+            generateError(exchange, HttpURLConnection.HTTP_INTERNAL_ERROR);
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void generateError(HttpExchange exchange, int statusCode) throws IOException {
+        exchange.sendResponseHeaders(statusCode, -1);
     }
 
     /**
      * API for kernel to directly fetch credentials from TES instead of using HTTP server.
-     *
+     * Note that it bypasses authN/authZ, so should be used carefully.
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
         byte[] response;
-        LOGGER.debug("Got request for credentials");
+        LOGGER.debug("Got request for credentials, querying iot {}", iotCredentialsPath);
 
         if (areCredentialsValid()) {
             response = tesCache.get(iotCredentialsPath).credentials;
@@ -163,8 +209,29 @@ public class CredentialRequestHandler implements HttpHandler {
 
         tesCache.get(iotCredentialsPath).expiry = newExpiry;
         tesCache.get(iotCredentialsPath).credentials = response;
-
         return response;
+    }
+
+    /**
+     * API for kernel to directly fetch credentials from TES instead of using HTTP server.
+     *
+     * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
+     */
+    public AwsCredentials getAwsCredentials() {
+        LOGGER.atDebug("Got request for credentials");
+        try {
+            // Call to getCredentials will make sure cached credentials can be utilized
+            final byte[] credentialsResponse = getCredentials();
+            Map<String, String> credentials =
+                    OBJECT_MAPPER.readValue(credentialsResponse, new TypeReference<Map<String, String>>() {
+                    });
+            return AwsSessionCredentials
+                    .create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR), credentials.get(SECRET_ACCESS_DOWNSTREAM_STR),
+                            credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
+        } catch (IOException e) {
+            LOGGER.atError().setCause(e).log("Error in retrieving AwsCredentials from TES");
+            return null;
+        }
     }
 
     private byte[] translateToAwsSdkFormat(final String credentials) throws AWSIotException {
@@ -181,6 +248,19 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.error("Received malformed credential input", e);
             throw new AWSIotException(e);
         }
+    }
+
+    private void doAuth(final HttpExchange exchange) throws UnauthenticatedException, AuthorizationException {
+        // if header is not present, then authToken would be null and authNhandler would throw
+        String authNToken = exchange.getRequestHeaders().getFirst(AUTH_HEADER);
+        String clientService = authNHandler.doAuthentication(authNToken);
+        authZHandler.isAuthorized(
+                TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS,
+                Permission.builder()
+                        .principal(clientService)
+                        .operation(TokenExchangeService.AUTHZ_TES_OPERATION)
+                        .resource(null)
+                        .build());
     }
 
     private String parseExpiryFromResponse(final String credentials) throws AWSIotException {

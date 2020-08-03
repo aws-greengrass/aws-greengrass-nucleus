@@ -5,6 +5,7 @@ import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
+import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
@@ -78,7 +79,8 @@ class GreengrassRepositoryDownloaderTest {
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
-        downloader.downloadToPath(pkgId, new URI("greengrass:artifactName"), saveToPath);
+        downloader.downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:artifactName"), null, null),
+                saveToPath);
 
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
@@ -106,7 +108,9 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
-        assertThrows(IOException.class, () -> downloader.downloadToPath(pkgId, new URI("greengrass:binary"), null));
+        assertThrows(IOException.class, () -> downloader.downloadToPath(pkgId, new ComponentArtifact(new URI(
+                "greengrass:binary"), null, null),
+                null));
     }
 
     @Test

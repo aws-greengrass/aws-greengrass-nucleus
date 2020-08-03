@@ -38,7 +38,7 @@ public class EGServiceTestUtil {
     protected Topic stateTopic;
 
     @Mock
-    protected Topic requiresTopic;
+    protected Topic dependenciesTopic;
 
     @Mock
     protected Topics runtimeStoreTopic;
@@ -57,10 +57,10 @@ public class EGServiceTestUtil {
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC))).thenReturn(runtimeStoreTopic);
         lenient().when(config.lookupTopics(eq(PRIVATE_STORE_NAMESPACE_TOPIC))).thenReturn(privateStoreTopic);
         lenient().when(privateStoreTopic.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
-        when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(requiresTopic);
+        when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(dependenciesTopic);
         when(config.getName()).thenReturn(serviceFullName);
-        when(requiresTopic.dflt(Mockito.any())).thenReturn(requiresTopic);
-        when(requiresTopic.getOnce()).thenReturn(new ArrayList<>());
+        when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);
+        when(dependenciesTopic.getOnce()).thenReturn(new ArrayList<>());
         when(config.getContext()).thenReturn(context);
         lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
         lenient().when(context.get(Kernel.class)).thenReturn(mock(Kernel.class));

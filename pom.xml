@@ -155,6 +155,10 @@
             <artifactId>iam</artifactId>
         </dependency>
         <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.zeroturnaround</groupId>
             <artifactId>zt-process-killer</artifactId>
             <version>1.10</version>
