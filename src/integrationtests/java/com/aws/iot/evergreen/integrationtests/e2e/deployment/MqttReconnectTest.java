@@ -65,7 +65,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
         initKernel();
 
-        // pre-load contents to package storea
+        // pre-load contents to package storage
         FileUtils.copyFolderRecursively(e2eTestPkgStoreDir, kernel.getPackageStorePath());
     }
 

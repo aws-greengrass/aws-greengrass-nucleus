@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.tes.LazyCredentialProvider;
 import lombok.Getter;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -18,8 +19,8 @@ public class S3SdkClientFactory {
     private final S3Client s3Client;
 
     @Inject
-    public S3SdkClientFactory(DeviceConfiguration deviceConfiguration) {
-        this.s3Client =
-                S3Client.builder().region(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()))).build();
+    public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
+        this.s3Client = S3Client.builder().credentialsProvider(credentialsProvider)
+                .region(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()))).build();
     }
 }

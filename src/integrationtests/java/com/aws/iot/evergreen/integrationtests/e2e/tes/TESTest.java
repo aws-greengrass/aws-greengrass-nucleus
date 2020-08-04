@@ -1,4 +1,4 @@
-package com.aws.iot.evergreen.integrationtests.tes;
+package com.aws.iot.evergreen.integrationtests.e2e.tes;
 
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
@@ -8,6 +8,9 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.tes.CredentialRequestHandler;
 import com.aws.iot.evergreen.tes.TokenExchangeService;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -15,14 +18,17 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.services.iot.model.InvalidRequestException;
+import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -53,9 +59,13 @@ class TESTest extends BaseITCase {
     private static final String AWS_REGION = "us-east-1";
     private static final String TES_ROLE_NAME = "e2etest-TES_INTEG_ROLE";
     private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
+    private static final Logger logger = LogManager.getLogger(TESTest.class);
+    @TempDir
+    static Path tempDir;
 
     @BeforeAll
     static void setupKernel() throws Exception {
+        System.setProperty("root", tempDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
         deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
@@ -72,8 +82,12 @@ class TESTest extends BaseITCase {
         });
         kernel.launch();
         assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
-        // Let IAM role get created, it takes some time before role becomes active
-        Thread.sleep(5000);
+
+        while(!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
+                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+            logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME).log("Waiting 5 seconds for TES to get credentials that work");
+            Thread.sleep(5_000);
+        }
     }
 
     @AfterAll
