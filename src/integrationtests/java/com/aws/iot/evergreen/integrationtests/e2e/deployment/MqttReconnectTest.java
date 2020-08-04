@@ -44,6 +44,7 @@ import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_S
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
@@ -83,26 +84,29 @@ public class MqttReconnectTest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(ExtensionContext context) throws Exception {
+    void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
+            ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
+        ignoreExceptionWithMessage(context,
+                "No valid versions were found for this package based on provided requirement");
 
         CountDownLatch jobInProgress = new CountDownLatch(1);
         CountDownLatch jobCompleted = new CountDownLatch(1);
         CountDownLatch connectionInterrupted = new CountDownLatch(1);
 
         // Create Job
-        SetConfigurationRequest setRequest = new SetConfigurationRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        SetConfigurationRequest setRequest =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
         String jobId = publishResult.getJobId();
 
         // Subscribe to persisted deployment status
-        Topics deploymentServiceTopics = kernel.getConfig()
-                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
-        Topics processedDeployments = deploymentServiceTopics.lookupTopics(
-                RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
+        Topics deploymentServiceTopics =
+                kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS);
+        Topics processedDeployments =
+                deploymentServiceTopics.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
             if (!(newValue instanceof Topic)) {
                 return;
@@ -126,8 +130,9 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         NetworkUtils networkUtils = NetworkUtils.getByPlatform();
         Consumer<EvergreenStructuredLogMessage> logListener = m -> {
             String message = m.getMessage();
-            if (UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG.equals(message) && m.getCause().getCause() instanceof MqttException
-                    || UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG.equals(message)) {
+            if (UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG.equals(message) && m.getCause()
+                    .getCause() instanceof MqttException || UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG
+                    .equals(message)) {
                 connectionInterrupted.countDown();
             }
         };
@@ -152,7 +157,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         // without successfully updating the status of the job in cloud. After this timeout expires the status will
         // be updated again as part of the onConnectionResumed callback. Additional 2 mins are for this status
         // to get updated
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(),
-                Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        IotJobsUtils
+                .waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(), Duration.ofMinutes(7),
+                        s -> s.equals(JobExecutionStatus.SUCCEEDED));
     }
 }

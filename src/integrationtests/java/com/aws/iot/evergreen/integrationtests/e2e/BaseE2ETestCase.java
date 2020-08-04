@@ -57,6 +57,7 @@ import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
+import software.amazon.awssdk.services.iot.model.DeleteConflictException;
 import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
@@ -82,7 +83,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -149,7 +149,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected Kernel kernel;
 
     protected static final IotClient iotClient = IotSdkClientFactory
-            .getIotClient(GAMMA_REGION.toString(), Collections.singleton(InvalidRequestException.class));
+            .getIotClient(GAMMA_REGION.toString(), new HashSet<>(Arrays.asList(InvalidRequestException.class,
+                    DeleteConflictException.class)));
     private static AWSEvergreen fcsClient;
     protected static final AWSEvergreen cmsClient =
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
