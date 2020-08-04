@@ -148,7 +148,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
                         logger.atInfo().setEventType("service-update-finish").log();
                     }).get();
                 } catch (ExecutionException e) {
-                    logger.atError("service-update-error", e).log();
+                    logger.atError().setEventType("service-update-error")
+                            .log("Run update actions errored", e);
                 }
             }
         }
