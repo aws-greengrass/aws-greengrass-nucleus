@@ -142,14 +142,13 @@ public class UpdateSystemSafelyService extends EvergreenService {
             } else {
                 logger.atDebug().setEventType("service-update-scheduled").log();
                 try {
-                    kernel.getContext().get(ExecutorService.class).submit(() -> {
+                    context.get(ExecutorService.class).submit(() -> {
                         logger.atInfo().setEventType("service-update-start").log();
                         runUpdateActions();
                         logger.atInfo().setEventType("service-update-finish").log();
                     }).get();
-                } catch (InterruptedException | ExecutionException e) {
-                    logger.atError().setEventType("service-update-interrupted")
-                            .log("Run update actions was interrupted", e);
+                } catch (ExecutionException e) {
+                    logger.atError("service-update-error", e).log();
                 }
             }
         }
