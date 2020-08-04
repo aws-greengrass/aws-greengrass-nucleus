@@ -93,12 +93,17 @@ public class GenericExternalService extends EvergreenService {
             }
         });
 
-        AuthenticationHandler.registerAuthToken(this);
     }
 
     public static String exit2String(int exitCode) {
         return exitCode > 128 && exitCode < 129 + sigCodes.length ? sigCodes[exitCode - 129]
                 : "exit(" + ((exitCode << 24) >> 24) + ")";
+    }
+
+    @Override
+    public void postInject() {
+        super.postInject();
+        AuthenticationHandler.registerAuthToken(this);
     }
 
     /**
