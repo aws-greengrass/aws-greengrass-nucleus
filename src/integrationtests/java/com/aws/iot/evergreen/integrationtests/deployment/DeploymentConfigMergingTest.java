@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -408,7 +409,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
 
-        deploymentFuture.get(30, TimeUnit.SECONDS);
+        DeploymentResult deploymentResult = deploymentFuture.get(30, TimeUnit.SECONDS);
+        assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
         EvergreenService main = kernel.locate("main");
         assertEquals(State.RUNNING, main.getState());
         EvergreenService sleeperB = kernel.locate("sleeperB");
