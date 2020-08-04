@@ -41,7 +41,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
 /**
@@ -51,19 +50,11 @@ public class ConfigStoreIPCAgent implements InjectionActions {
     // Map from connection --> Function to call when service config changes
     private static final Map<String, CopyOnWriteArraySet<ConnectionContext>> configUpdateSubscribersByService =
             new ConcurrentHashMap<>();
-    private static final Map<ConnectionContext, Consumer<String>> configUpdateListeners =
-            new ConcurrentHashMap<>();
+    private static final Map<ConnectionContext, Consumer<String>> configUpdateListeners = new ConcurrentHashMap<>();
     private static final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
             new ConcurrentHashMap<>();
     private static final int TIMEOUT_SECONDS = 30;
     private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
-
-    @Inject
-    private Kernel kernel;
-
-    @Inject
-    private ExecutorService executor;
-
     private final ChildChanged onConfigChange = (whatHappened, node) -> {
         if (node == null) {
             return;
@@ -86,19 +77,18 @@ public class ConfigStoreIPCAgent implements InjectionActions {
             return;
         }
 
-        // Ensure that the node which changed was part of component configuration/ runtime configuration
+        // Ensure that the node which changed was part of component configuration
         int configIndex = 2;
         if (!PARAMETERS_CONFIG_KEY.equals(nodePath[configIndex])) {
             return;
-        } else if (nodePath[configIndex].equals(RUNTIME_STORE_NAMESPACE_TOPIC)) {
-            // Do not send update event for runtime config changes to the owner service
-            // A service updates its own runtime config so it does not need to be updated for it
-            subscribers.stream().filter(ctx -> !ctx.getServiceName().equals(serviceName))
-                    .map(ctx -> configUpdateListeners.get(ctx)).forEach(c -> c.accept(nodePath[configIndex + 1]));
-        } else {
-            return;
         }
+        subscribers.stream().map(ctx -> configUpdateListeners.get(ctx))
+                .forEach(c -> c.accept(nodePath[configIndex + 1]));
     };
+    @Inject
+    private Kernel kernel;
+    @Inject
+    private ExecutorService executor;
 
     @Override
     public void postInject() {
@@ -189,23 +179,13 @@ public class ConfigStoreIPCAgent implements InjectionActions {
                     .build();
         }
 
-        // TODO : Ongoing discussion about handling runtime vs deployment managed component config
-        //  in IPC API's. This logic should be updated based on the outcome, for now, runtime config
-        //  takes precedence over dynamic configuration in the case of conflicts
-        Topics runtimeTopics = serviceTopic.findInteriorChild(RUNTIME_STORE_NAMESPACE_TOPIC);
-        Topics parametersTopics = serviceTopic.findInteriorChild(PARAMETERS_CONFIG_KEY);
-        if (runtimeTopics == null && parametersTopics == null) {
+        Topics componentConfigurationTopics = serviceTopic.findInteriorChild(PARAMETERS_CONFIG_KEY);
+        if (componentConfigurationTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.NoConfig)
-                    .errorMessage("Service has no runtime or dynamic config").build();
+                    .errorMessage("Component has no dynamic configuration").build();
         }
 
-        Node node = null;
-        if (runtimeTopics != null) {
-            node = runtimeTopics.getChild(request.getKey());
-        }
-        if (node == null && parametersTopics != null) {
-            node = parametersTopics.getChild(request.getKey());
-        }
+        Node node = componentConfigurationTopics.getChild(request.getKey());
         if (node == null) {
             return response.responseStatus(ConfigStoreResponseStatus.NotFound).errorMessage("Key not found").build();
         }
@@ -232,14 +212,21 @@ public class ConfigStoreIPCAgent implements InjectionActions {
      */
     public UpdateConfigurationResponse updateConfig(UpdateConfigurationRequest request, ConnectionContext context) {
         log.atDebug().kv("context", context).log("Config IPC config update request");
-        Topics serviceTopic = kernel.findServiceTopic(context.getServiceName());
+        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
         UpdateConfigurationResponse.UpdateConfigurationResponseBuilder response = UpdateConfigurationResponse.builder();
+
+        if (!context.getServiceName().equals(request.getComponentName())) {
+            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
+                    .errorMessage("Cross component " + "updates are not allowed").build();
+        }
+
+        Topics serviceTopic = kernel.findServiceTopic(context.getServiceName());
         if (serviceTopic == null) {
             return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Service not found")
                     .build();
         }
 
-        serviceTopic.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, request.getKey())
+        serviceTopic.lookup(PARAMETERS_CONFIG_KEY, request.getKey())
                 .withNewerValue(request.getTimestamp(), request.getValue());
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
