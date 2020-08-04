@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -91,10 +92,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
+        AtomicBoolean mainRestarted = new AtomicBoolean(false);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
+                mainRestarted.set(true);
             }
         });
         deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(),
@@ -102,7 +103,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .get(60, TimeUnit.SECONDS);
 
         // THEN
-        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertTrue(mainRestarted.get());
         assertThat((String) kernel.findServiceTopic("main")
                         .find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC).getOnce(),
                 containsString("echo Now we\\'re in phase 3"));
@@ -133,10 +134,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
+        AtomicBoolean mainRestarted = new AtomicBoolean(false);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
+                mainRestarted.set(true);
             }
         });
 
@@ -151,7 +152,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }}).get(60, TimeUnit.SECONDS);
 
         // THEN
-        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertTrue(mainRestarted.get());
         assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
         assertTrue(safeUpdateRegistered.get());
 
@@ -174,18 +175,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
-        CountDownLatch newServiceStarted = new CountDownLatch(1);
+        AtomicBoolean mainRestarted = new AtomicBoolean(false);
+        AtomicBoolean newServiceStarted = new AtomicBoolean(false);
 
         // Check that new_service starts and then main gets restarted
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("new_service") && newState.equals(State.RUNNING)) {
-                newServiceStarted.countDown();
+                newServiceStarted.set(true);
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.FINISHED)
+            if (newServiceStarted.get() && service.getName().equals("main") && newState.equals(State.FINISHED)
                     && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
+                mainRestarted.set(true);
             }
         });
 
@@ -209,8 +210,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }}).get(60, TimeUnit.SECONDS);
 
         // THEN
-        assertTrue(newServiceStarted.await(60, TimeUnit.SECONDS));
-        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertTrue(newServiceStarted.get());
     }
 
     @Test
@@ -226,27 +226,26 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
         kernel.launch();
-
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
-        CountDownLatch newService2Started = new CountDownLatch(1);
-        CountDownLatch newServiceStarted = new CountDownLatch(1);
+        AtomicBoolean mainRestarted = new AtomicBoolean(false);
+        AtomicBoolean newService2Started = new AtomicBoolean(false);
+        AtomicBoolean newServiceStarted = new AtomicBoolean(false);
 
         // Check that new_service2 starts, then new_service, and then main gets restarted
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("new_service2") && newState.equals(State.RUNNING)) {
-                newService2Started.countDown();
+                newService2Started.set(true);
             }
-            if (newService2Started.getCount() == 0 && service.getName().equals("new_service") && newState
+            if (newService2Started.get() && service.getName().equals("new_service") && newState
                     .equals(State.RUNNING)) {
-                newServiceStarted.countDown();
+                newServiceStarted.set(true);
             }
             // Only count main as started if its dependency (new_service) has already been started
-            if (newServiceStarted.getCount() == 0 && service.getName().equals("main") && newState.equals(State.FINISHED)
+            if (newServiceStarted.get()  && service.getName().equals("main") && newState.equals(State.FINISHED)
                     && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
+                mainRestarted.set(true);
             }
         });
 
@@ -276,9 +275,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }}).get(60, TimeUnit.SECONDS);
 
         // THEN
-        assertTrue(newService2Started.await(60, TimeUnit.SECONDS));
-        assertTrue(newServiceStarted.await(60, TimeUnit.SECONDS));
-        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertTrue(newService2Started.get());
+        assertTrue(newServiceStarted.get());
+        assertTrue(mainRestarted.get());
         assertThat(kernel.orderedDependencies().stream().map(EvergreenService::getName).collect(Collectors.toList()),
                 containsInRelativeOrder("new_service2", "new_service", "main"));
     }
@@ -408,29 +407,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
         lifecycle.put(LIFECYCLE_RUN_NAMESPACE_TOPIC,
                 ((String) lifecycle.get(LIFECYCLE_RUN_NAMESPACE_TOPIC)).replace("5", "10"));
 
+        Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
 
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
-        AtomicBoolean isSleeperAClosed = new AtomicBoolean(false);
-        CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if ("sleeperA".equals(service.getName()) && newState.isClosable()) {
-                isSleeperAClosed.set(true);
-            }
-            if(isSleeperAClosed.get() && "main".equals(service.getName()) && newState.equals(State.RUNNING)){
-                mainRestarted.countDown();
-            }
-        });
-
-        // wait for merge to complete
-        //TODO: wait on the future returned by mergeInNewConfig. mainRestarted is required due to race condition
-        // mentioned in DeploymentConfigMergerL120 is fixed.
-        mainRestarted.await(30, TimeUnit.SECONDS);
+        DeploymentResult deploymentResult = deploymentFuture.get(30, TimeUnit.SECONDS);
+        assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
         EvergreenService main = kernel.locate("main");
         assertEquals(State.RUNNING, main.getState());
         EvergreenService sleeperB = kernel.locate("sleeperB");
         assertEquals(State.RUNNING, sleeperB.getState());
-        //sleeperA should be closed
-        assertTrue(isSleeperAClosed.get());
         // ensure context finish all tasks
         kernel.getContext().runOnPublishQueueAndWait(() -> {});
         // ensuring config value for sleeperA is removed
@@ -466,12 +450,12 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
 
-        AtomicBoolean sawUpdatesCompleted = new AtomicBoolean();
+        CountDownLatch sawUpdatesCompleted = new CountDownLatch(1);
         AtomicBoolean unsafeToUpdate = new AtomicBoolean();
         AtomicBoolean safeToUpdate = new AtomicBoolean();
         Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
             if ("Yes! Updates completed".equals(m.getContexts().get("stdout"))) {
-                sawUpdatesCompleted.set(true);
+                sawUpdatesCompleted.countDown();
             }
             if ("Not SafeUpdate".equals(m.getContexts().get("stdout"))) {
                 unsafeToUpdate.set(true);
@@ -487,10 +471,12 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     "Merge should not happen within 2 seconds");
             assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
             assertFalse(safeToUpdate.get(), "Service should not yet be safe to update");
+            assertEquals(sawUpdatesCompleted.getCount(), 1,
+                    "Service should not call update done yet");
 
-            future.get(20, TimeUnit.SECONDS);
+            assertTrue(sawUpdatesCompleted.await(30, TimeUnit.SECONDS),
+                    "Service should have been called when the update was done");
             assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
-            assertTrue(sawUpdatesCompleted.get(), "Service should have been called when the update was done");
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }
@@ -525,7 +511,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }};
 
         AtomicBoolean sleeperBBroken = new AtomicBoolean(false);
-        CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
+        AtomicBoolean sleeperBRolledBack = new AtomicBoolean(false);
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("sleeperB")) {
                 if (newState.equals(State.ERRORED)) {
@@ -537,7 +523,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 }
                 if (sleeperBBroken.get() && newState.equals(State.RUNNING)) {
                     // Rollback should only count after error
-                    sleeperBRolledBack.countDown();
+                    sleeperBRolledBack.set(true);
                 }
             }
         };
@@ -549,7 +535,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // THEN
         // deployment should have errored and rolled back
-        assertTrue(sleeperBRolledBack.await(1, TimeUnit.SECONDS));
+        assertTrue(sleeperBRolledBack.get());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
 
         // Value set in listener should not have been rolled back
@@ -576,10 +562,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
+        AtomicBoolean mainRestarted = new AtomicBoolean(false);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
+                mainRestarted.set(true);
             }
         });
         AtomicBoolean safeUpdateSkipped= new AtomicBoolean();
@@ -602,7 +588,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }}).get(60, TimeUnit.SECONDS);
 
         // THEN
-        assertTrue(mainRestarted.await(60, TimeUnit.SECONDS));
+        assertTrue(mainRestarted.get());
         assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
         assertTrue(safeUpdateSkipped.get());
 
