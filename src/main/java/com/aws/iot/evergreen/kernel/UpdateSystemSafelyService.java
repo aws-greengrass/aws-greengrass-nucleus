@@ -148,7 +148,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
                         logger.atInfo().setEventType("service-update-finish").log();
                     }).get();
                 } catch (InterruptedException | ExecutionException e) {
-                    logger.atError("Run update actions was interrupted", e);
+                    logger.atError().setEventType("service-update-interrupted")
+                            .log("Run update actions was interrupted", e);
                 }
             }
         }

@@ -472,13 +472,12 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     "Merge should not happen within 2 seconds");
             assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
             assertFalse(safeToUpdate.get(), "Service should not yet be safe to update");
-            assertSame(sawUpdatesCompleted.getCount(), 1l,
+            assertEquals(sawUpdatesCompleted.getCount(), 1,
                     "Service should not call update done yet");
 
-            sawUpdatesCompleted.await(30, TimeUnit.SECONDS);
-            assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
-            assertSame(sawUpdatesCompleted.getCount(), 0l,
+            assertTrue(sawUpdatesCompleted.await(30, TimeUnit.SECONDS),
                     "Service should have been called when the update was done");
+            assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }
