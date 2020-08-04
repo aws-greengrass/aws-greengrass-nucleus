@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.auth.AuthorizationPolicy;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -55,16 +56,17 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
                                 CredentialRequestHandler credentialRequestHandler,
                                 AuthorizationHandler authZHandler) {
         super(topics);
-        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
-                .dflt(DEFAULT_PORT)
-                .subscribe((why, newv) ->
-                        port = Coerce.toInt(newv));
+        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT).subscribe((why, newv) -> {
+            port = Coerce.toInt(newv);
+            if (WhatHappened.changed.equals(why)) {
+                restartServer();
+            }
+        });
 
-        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
-                .subscribe((why, newv) -> {
-                    iotRoleAlias = Coerce.toString(newv);
-                    credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
-                });
+        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).subscribe((why, newv) -> {
+            iotRoleAlias = Coerce.toString(newv);
+            credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
+        });
 
         // TODO: Add support for overriding this from config
         this.authZPolicy = getDefaultAuthZPolicy();
@@ -131,6 +133,20 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
                 .principals(new HashSet<>(Arrays.asList("*")))
                 .operations(new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)))
                 .build());
+    }
+
+    private void restartServer() {
+        if (server != null) {
+            server.stop();
+        }
+        try {
+            server = new HttpServerImpl(port, this.credentialRequestHandler);
+            server.start();
+            logger.atInfo().log("Restarted Token Server at port {}", port);
+            setEnvVariablesForDependencies(server.getServerPort());
+        } catch (IOException | IllegalArgumentException e) {
+            serviceErrored(e.toString());
+        }
     }
 
     @Override

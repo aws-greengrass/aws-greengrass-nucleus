@@ -11,7 +11,9 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.tes.CredentialRequestHandler;
+import com.aws.iot.evergreen.tes.HttpServerImpl;
 import com.aws.iot.evergreen.tes.TokenExchangeService;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import org.junit.jupiter.api.AfterAll;
@@ -33,15 +35,20 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.PORT_TOPIC;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,7 +62,9 @@ class TESTest extends BaseITCase {
     private static String roleId;
     private static String roleName;
     private static String roleAliasName;
+    private static String newRoleAliasName;
     private static NetworkUtils networkUtils;
+    private static final int NEW_PORT = 2030;
     private static final String AWS_REGION = "us-east-1";
     private static final String TES_ROLE_NAME = "e2etest-TES_INTEG_ROLE";
     private static final String TES_ROLE_ALIAS_NAME = "e2etest-TES_INTEG_ROLE_ALIAS";
@@ -72,6 +81,7 @@ class TESTest extends BaseITCase {
         roleId = UUID.randomUUID().toString();
         roleName = TES_ROLE_NAME + roleId;
         roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
+        newRoleAliasName = "new" + roleAliasName;
         networkUtils = NetworkUtils.getByPlatform();
         provision(kernel);
         CountDownLatch tesRunning = new CountDownLatch(1);
@@ -99,6 +109,8 @@ class TESTest extends BaseITCase {
                     Collections.singleton(InvalidRequestException.class)), thingInfo);
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
                     roleName, roleAliasName, thingInfo.getCertificateArn());
+            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION), IamSdkClientFactory.getIamClient(),
+                    roleName, newRoleAliasName, thingInfo.getCertificateArn());
         }
     }
 
@@ -147,6 +159,29 @@ class TESTest extends BaseITCase {
             networkUtils.recoverNetwork();
         }
 
+        // Should fetch new credentials after updating roleAlias
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
+                .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(newRoleAliasName);
+        deviceProvisioningHelper.setupIoTRoleForTes(roleName, newRoleAliasName, thingInfo.getCertificateArn());
+        con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY)
+                .iterator().next().getName();
+        assertNotNull(token);
+        con.setRequestProperty("Authorization", token);
+        assertEquals(HTTP_200, con.getResponseCode());
+        StringBuilder newResponse = new StringBuilder();
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+            String newResponseLine = in.readLine();
+            while (newResponseLine != null) {
+                newResponse.append(newResponseLine);
+                newResponseLine = in.readLine();
+            }
+        }
+        con.disconnect();
+        assertThat(newResponse.toString(), matchesPattern(
+                "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
+        assertNotEquals(response.toString(), newResponse.toString());
     }
 
     @Test
@@ -178,6 +213,43 @@ class TESTest extends BaseITCase {
 
         assertNotNull(credentials.accessKeyId());
         assertNotNull(credentials.secretAccessKey());
+    }
+
+    @Test
+    void GIVEN_iot_role_alias_WHEN_port_changes_THEN_valid_credentials_are_returned_from_new_port() throws Exception {
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
+                .lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).withValue(NEW_PORT);
+        CountDownLatch serverRestarted = new CountDownLatch(1);
+        String expectedUri = "http://localhost:" + NEW_PORT + HttpServerImpl.URL;
+        AtomicReference<String> urlString = new AtomicReference<>();
+        kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).subscribe((why, newv) -> {
+            urlString.set(Coerce.toString(newv));
+            if (urlString.get().equals(expectedUri)) {
+                serverRestarted.countDown();
+            }
+        });
+        assertTrue(serverRestarted.await(5, TimeUnit.SECONDS));
+        URL url = new URL(urlString.get());
+        // Get the first token from the token map
+        String token =
+                kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY)
+                        .iterator().next().getName();
+        assertNotNull(token);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        con.setRequestProperty("Authorization", token);
+        assertEquals(HTTP_200, con.getResponseCode());
+        StringBuilder response = new StringBuilder();
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+            String responseLine = in.readLine();
+            while (responseLine != null) {
+                response.append(responseLine);
+                responseLine = in.readLine();
+            }
+        }
+        con.disconnect();
+        assertThat(response.toString(), matchesPattern(
+                "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
 
     private static void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
