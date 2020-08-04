@@ -97,6 +97,7 @@ public class KernelAlternatives {
      */
     public void prepareRollback() throws IOException {
         if (newDir.toFile().exists()) {
+            // TODO: newDir is not needed.
             Files.move(newDir, brokenDir, ATOMIC_MOVE);
             return;
         }
