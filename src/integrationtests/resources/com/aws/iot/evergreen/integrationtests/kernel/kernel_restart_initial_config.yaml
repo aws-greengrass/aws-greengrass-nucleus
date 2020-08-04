@@ -1,0 +1,19 @@
+services:
+  main:
+    dependencies:
+      - service_1 # will be removed in kernel_restart_new_config.yaml
+      - service_2 # will be updated in kernel_restart_new_config.yaml
+
+  service_1:
+    lifecycle:
+      run:
+        posix: echo "service_1"
+        windows: powershell -command echo "service_1"
+
+  service_2:
+    setenv:
+      key1: value1  # will be updated in kernel_restart_new_config.yaml
+    lifecycle:
+      run:
+        posix: echo "service_2"
+        windows: powershell -command echo "service_2"

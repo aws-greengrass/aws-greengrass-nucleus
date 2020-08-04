@@ -25,7 +25,6 @@ import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.TargetSelection;
 import software.amazon.awssdk.services.iot.model.TimeoutConfig;
 
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -59,8 +58,14 @@ public final class IotJobsUtils {
                 status = client.describeJobExecution(
                         DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingName).build()).execution()
                         .status();
-                if (condition.test(status)) {
-                    return;
+                // All statuses after and including SUCCEEDED are terminal, so they won't ever change
+                // which means we can stop querying
+                if (JobExecutionStatus.SUCCEEDED.ordinal() <= status.ordinal() || condition.test(status)) {
+                    if (condition.test(status)) {
+                        return;
+                    }
+                } else if (JobExecutionStatus.SUCCEEDED.ordinal() <= status.ordinal()) {
+                    throw new AssertionError("Job ended in state: " + status);
                 }
             } catch (ResourceNotFoundException e) {
                 lastException = e;

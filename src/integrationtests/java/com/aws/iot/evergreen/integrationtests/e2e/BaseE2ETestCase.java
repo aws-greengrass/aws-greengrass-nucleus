@@ -34,6 +34,7 @@ import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.tes.CredentialRequestHandler;
+import com.aws.iot.evergreen.tes.TokenExchangeService;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
@@ -56,6 +57,7 @@ import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
+import software.amazon.awssdk.services.iot.model.DeleteConflictException;
 import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
@@ -81,7 +83,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -106,17 +107,27 @@ public class BaseE2ETestCase implements AutoCloseable {
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
     protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias" + UUID.randomUUID().toString();
     private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy" + UUID.randomUUID().toString();
-    private static final String TES_ROLE_POLICY_DOCUMENT = "{\n" + "    \"Version\": \"2012-10-17\",\n"
-            + "    \"Statement\": [\n" + "        {\n" + "            \"Effect\": \"Allow\",\n"
-            + "            \"Action\": [\n" + "                \"s3:Get*\",\n" + "                \"s3:List*\"\n"
-            + "            ],\n" + "            \"Resource\": \"*\"\n" + "        }\n" + "    ]\n" + "}";
+    private static final String TES_ROLE_POLICY_DOCUMENT = "{\n"
+            + "    \"Version\": \"2012-10-17\",\n"
+            + "    \"Statement\": [\n"
+            + "        {\n"
+            + "            \"Effect\": \"Allow\",\n"
+            + "            \"Action\": [\n"
+            + "                \"greengrass:*\",\n"
+            + "                \"s3:Get*\",\n"
+            + "                \"s3:List*\"\n"
+            + "            ],\n"
+            + "            \"Resource\": \"*\"\n"
+            + "        }\n"
+            + "    ]\n"
+            + "}";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX = "eg-e2e-test-artifacts";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET =
             TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + UUID.randomUUID().toString();
 
     protected static final Logger logger = LogManager.getLogger(BaseE2ETestCase.class);
 
-    private final static String testComponentSuffix = "_" + UUID.randomUUID().toString();
+    private static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
     protected static String tesRolePolicyArn;
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
@@ -138,7 +149,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected Kernel kernel;
 
     protected static final IotClient iotClient = IotSdkClientFactory
-            .getIotClient(GAMMA_REGION.toString(), Collections.singleton(InvalidRequestException.class));
+            .getIotClient(GAMMA_REGION.toString(), new HashSet<>(Arrays.asList(InvalidRequestException.class,
+                    DeleteConflictException.class)));
     private static AWSEvergreen fcsClient;
     protected static final AWSEvergreen cmsClient =
             AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
@@ -208,7 +220,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
         setupTesRoleAndAlias();
-        kernel.getContext().get(CredentialRequestHandler.class).setIotCredentialsPath(TES_ROLE_ALIAS_NAME);
     }
 
     private static void initializePackageStore() throws Exception {
@@ -227,9 +238,9 @@ public class BaseE2ETestCase implements AutoCloseable {
      * src/integrationtests/resources/com/aws/iot/evergreen/integrationtests/e2e
      * └── local_store_content
      *     ├── artifacts
-     *     │   └── KernelIntegTest
-     *     │       └── 1.0.0
-     *     │           └── kernel_integ_test_artifact.txt
+     *     │  └── KernelIntegTest
+     *     │      └── 1.0.0
+     *     │          └── kernel_integ_test_artifact.txt
      *     └── recipes
      *         ├── KernelIntegTest-1.0.0.yaml
      *         └── KernelIntegTestDependency-1.0.0.yaml
@@ -456,11 +467,18 @@ public class BaseE2ETestCase implements AutoCloseable {
             tesRolePolicyArn = createPolicyResponse.policy().arn();
             iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME)
                     .policyArn(tesRolePolicyArn).build());
-            // There seems to be a consistency problem in IAM, For IoT creds endpoint
-            // to be able to assume the role the sleep is needed
-            Thread.sleep(5000);
         } catch (EntityAlreadyExistsException e) {
             // No-op if resources already exist
+        }
+
+        // Force context to create TES now to that it subscribes to the role alias changes
+        kernel.getContext().get(TokenExchangeService.class);
+
+        while(!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
+                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+            logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
+                    .log("Waiting 5 seconds for TES to get credentials that work");
+            Thread.sleep(5_000);
         }
     }
 

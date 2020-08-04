@@ -317,8 +317,12 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public final CompletableFuture<Void> close() {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+
         context.get(Executor.class).execute(() -> {
             logger.atInfo("service-close").log("Service is now closing");
+            // removing listeners on dependencies
+            dependencies.forEach((service, dependencyInfo) ->
+                    service.removeStateSubscriber(dependencyInfo.stateTopicSubscriber));
             try {
                 Periodicity t = periodicityInformation;
                 if (t != null) {

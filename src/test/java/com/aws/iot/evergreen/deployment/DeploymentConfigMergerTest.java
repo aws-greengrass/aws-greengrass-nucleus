@@ -293,7 +293,6 @@ public class DeploymentConfigMergerTest {
         ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
-
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
