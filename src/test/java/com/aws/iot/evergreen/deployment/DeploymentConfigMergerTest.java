@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -270,7 +269,6 @@ public class DeploymentConfigMergerTest {
         ArgumentCaptor<Crashable> cancelledTaskCaptor = ArgumentCaptor.forClass(Crashable.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
-        when(context.get(Executor.class)).thenReturn(mock(Executor.class));
 
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
@@ -295,7 +293,6 @@ public class DeploymentConfigMergerTest {
         ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
-        when(context.get(Executor.class)).thenReturn(Runnable::run);
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);

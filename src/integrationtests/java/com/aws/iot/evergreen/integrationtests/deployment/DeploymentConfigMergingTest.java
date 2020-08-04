@@ -57,6 +57,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -450,12 +451,12 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
 
-        AtomicBoolean sawUpdatesCompleted = new AtomicBoolean();
+        CountDownLatch sawUpdatesCompleted = new CountDownLatch(1);
         AtomicBoolean unsafeToUpdate = new AtomicBoolean();
         AtomicBoolean safeToUpdate = new AtomicBoolean();
         Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
             if ("Yes! Updates completed".equals(m.getContexts().get("stdout"))) {
-                sawUpdatesCompleted.set(true);
+                sawUpdatesCompleted.countDown();
             }
             if ("Not SafeUpdate".equals(m.getContexts().get("stdout"))) {
                 unsafeToUpdate.set(true);
@@ -471,10 +472,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     "Merge should not happen within 2 seconds");
             assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
             assertFalse(safeToUpdate.get(), "Service should not yet be safe to update");
+            assertSame(sawUpdatesCompleted.getCount(), 1l,
+                    "Service should not call update done yet");
 
-            future.get(20, TimeUnit.SECONDS);
+            sawUpdatesCompleted.await(30, TimeUnit.SECONDS);
             assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
-            assertTrue(sawUpdatesCompleted.get(), "Service should have been called when the update was done");
+            assertSame(sawUpdatesCompleted.getCount(), 0l,
+                    "Service should have been called when the update was done");
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }
