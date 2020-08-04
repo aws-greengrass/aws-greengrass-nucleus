@@ -552,8 +552,10 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 DependencyInfo dependencyInfo = dependencies.remove(dependency);
                 dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
             });
-            context.get(Kernel.class).clearODcache();
-            FleetStatusService fleetStatusService = context.get(FleetStatusService.class);
+            Kernel kernel = context.get(Kernel.class);
+            kernel.clearODcache();
+            FleetStatusService fleetStatusService = (FleetStatusService) kernel
+                    .locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
             if (fleetStatusService != null) {
                 fleetStatusService.updateRemovedDependencies(removedDependencies);
             }

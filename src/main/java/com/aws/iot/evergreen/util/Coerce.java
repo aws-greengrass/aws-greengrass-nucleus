@@ -118,6 +118,32 @@ public final class Coerce {
     }
 
     /**
+     * Convert object to long.
+     *
+     * @param o object to convert.
+     * @return the resulting long value.
+     */
+    public static long toLong(Object o) {
+        if (o instanceof Topic) {
+            o = ((Topic) o).getOnce();
+        }
+        if (o instanceof Boolean) {
+            return (Boolean) o ? 1 : 0;
+        }
+        if (o instanceof Number) {
+            return ((Number) o).longValue();
+        }
+        if (o != null) {
+            try {
+                return Long.parseLong(o.toString());
+            } catch (NumberFormatException ignore) {
+            }
+        }
+        return 0;
+    }
+
+
+    /**
      * Convert an object to string or null if it is null.
      *
      * @param o object to convert.

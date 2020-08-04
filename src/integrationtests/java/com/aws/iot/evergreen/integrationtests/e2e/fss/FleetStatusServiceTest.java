@@ -30,9 +30,8 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -130,12 +129,9 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                 .withResource(String.format(FLEET_STATUS_ARN_RESOURCE_PREFIX, "thinggroup/" + thingGroupName, "1"))
                 .build();
 
-        Set<String> userComponentsCloudName = new HashSet<>();
-        userComponentsCloudName.add(getCloudDeployedComponent("Mosquitto").getName());
-        userComponentsCloudName.add(getCloudDeployedComponent("CustomerApp").getName());
-        userComponentsCloudName.add(getCloudDeployedComponent("GreenSignal").getName());
-        userComponentsCloudName.add(someServiceName);
         // Check the MQTT messages.
+        // The first MQTT message should have all the services whose status changed during the first deployment.
+        // This will include the system and user components.
         MqttMessage receivedMqttMessage1 = mqttMessagesList.get().get(0);
         assertNotNull(receivedMqttMessage1.getPayload());
         FleetStatusDetails fleetStatusDetails1 = DESERIALIZER.readValue(receivedMqttMessage1.getPayload(), FleetStatusDetails.class);
@@ -149,11 +145,12 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                         "main", "pubsubipc", "IPCService", "FleetStatusService", "lifecycleipc", "configstoreipc",
                         "SafeSystemUpdate", "DeploymentService", "servicediscovery"));
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
-            if (userComponentsCloudName.contains(componentStatusDetails.getComponentName())) {
-                assertEquals(arn.toString(), componentStatusDetails.getFleetConfigArn());
-            }
+            assertEquals(Collections.singletonList(arn.toString()), componentStatusDetails.getFleetConfigArns());
         });
 
+        // The second MQTT message should contain only one component information which was removed during the second
+        // deployment.
+        // The configuration arns for that component should be empty to indicate that it was removed from all groups.
         MqttMessage receivedMqttMessage2 = mqttMessagesList.get().get(1);
         assertNotNull(receivedMqttMessage2.getPayload());
         FleetStatusDetails fleetStatusDetails2 = DESERIALIZER.readValue(receivedMqttMessage2.getPayload(), FleetStatusDetails.class);
@@ -163,7 +160,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(1, fleetStatusDetails2.getComponentStatusDetails().size());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder(someServiceName));
-        assertEquals("", fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArn());
+        assertEquals(Collections.emptyList(), fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArns());
         assertEquals(someServiceName, fleetStatusDetails2.getComponentStatusDetails().get(0).getComponentName());
     }
 }

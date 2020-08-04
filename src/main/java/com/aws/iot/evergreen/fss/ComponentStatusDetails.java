@@ -12,21 +12,19 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ComponentStatusDetails {
-    @JsonProperty("componentName")
     private String componentName;
 
-    @JsonProperty("version")
     private String version;
 
-    @JsonProperty("fleetConfigArn")
-    private String fleetConfigArn;
+    private List<String> fleetConfigArns;
 
-    @JsonProperty("statusDetails")
     private String statusDetails;
 
     @JsonProperty("status")
