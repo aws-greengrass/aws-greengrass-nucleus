@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -64,9 +65,14 @@ public class DeploymentConfigMerger {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
 
         if (DeploymentSafetyPolicy.CHECK_SAFETY.equals(deploymentDocument.getDeploymentSafetyPolicy())) {
-            kernel.getContext().get(UpdateSystemSafelyService.class)
-                    .addUpdateAction(deploymentDocument.getDeploymentId(),
-                            () -> updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture));
+            UpdateSystemSafelyService updateService = kernel.getContext().get(UpdateSystemSafelyService.class);
+            // running updateActionForDeployment in a separate thread so runOnPublishQueueAndWait would wait.
+            // addUpdateAction is run on publish queue thread and when executing on publish queue thread
+            // runOnPublishQueueAndWait does not wait.
+            updateService.addUpdateAction(deploymentDocument.getDeploymentId(), () ->
+                    kernel.getContext().get(Executor.class).execute(() ->
+                            updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture)
+                    ));
         } else {
             logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
             updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture);
