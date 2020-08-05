@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.ipc;
 
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
@@ -47,7 +48,10 @@ public class AuthenticationHandler implements InjectionActions {
         Topic uid = s.getPrivateConfig().createLeafChild(SERVICE_UNIQUE_ID_KEY).withParentNeedsToKnow(false);
         String authToken = Utils.generateRandomString(16).toUpperCase();
         uid.withValue(authToken);
-        Topic tokenTopic = s.getServiceConfig().parent.lookup(AUTH_TOKEN_LOOKUP_KEY, authToken);
+        Topics tokenTopics = s.getServiceConfig().parent.lookupTopics(AUTH_TOKEN_LOOKUP_KEY);
+        tokenTopics.withParentNeedsToKnow(false);
+
+        Topic tokenTopic = tokenTopics.createLeafChild(authToken);
 
         // If the auth token was already registered, that's an issue, so we will retry
         // generating a new token in that case
