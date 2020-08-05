@@ -24,7 +24,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -36,7 +39,12 @@ public class KernelConfigResolver {
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
-    private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
+    private static final Pattern CROSS_INTERPOLATION_REGEX =
+            Pattern.compile("\\{\\{([\\.\\w]+):([\\.\\w+]+):([\\.\\w]+)}}", Pattern.MULTILINE);
+    private static final String PARAM_NAMESPACE = "params";
+    private static final String PARAM_VALUE_SUFFIX = ".value";
+    private static final String PARAMETER_REFERENCE_FORMAT =
+            String.format(INTERPOLATION_FORMAT, PARAM_NAMESPACE, "%s" + PARAM_VALUE_SUFFIX);
     // Map from Namespace -> Key -> Function which returns the replacement value
     private final Map<String, Map<String, Function<PackageIdentifier, String>>> systemParameters = new HashMap<>();
 
@@ -77,7 +85,8 @@ public class KernelConfigResolver {
 
         Map<Object, Object> servicesConfig = new HashMap<>();
         for (PackageIdentifier packageToDeploy : packagesToDeploy) {
-            servicesConfig.put(packageToDeploy.getName(), getServiceConfig(packageToDeploy, document));
+            servicesConfig
+                    .put(packageToDeploy.getName(), getServiceConfig(packageToDeploy, document, packagesToDeploy));
         }
 
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
@@ -89,7 +98,8 @@ public class KernelConfigResolver {
     /*
      * Processes lifecycle section of each package and add it to the config.
      */
-    private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document)
+    private Map<Object, Object> getServiceConfig(PackageIdentifier packageIdentifier, DeploymentDocument document,
+                                                 List<PackageIdentifier> packagesToDeploy)
             throws PackageLoadingException {
 
         PackageRecipe packageRecipe = packageStore.getPackageRecipe(packageIdentifier);
@@ -101,7 +111,8 @@ public class KernelConfigResolver {
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
         for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
             resolvedLifecycleConfig.put(configKVPair.getKey(),
-                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
+                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier, packagesToDeploy,
+                            document));
         }
         resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
 
@@ -111,8 +122,8 @@ public class KernelConfigResolver {
 
         // Generate dependencies
         List<String> dependencyConfig = new ArrayList<>();
-        packageRecipe.getDependencies().forEach((name, prop) -> dependencyConfig.add(prop.getDependencyType() == null
-                ? name : name + ":" + prop.getDependencyType()));
+        packageRecipe.getDependencies().forEach((name, prop) -> dependencyConfig
+                .add(prop.getDependencyType() == null ? name : name + ":" + prop.getDependencyType()));
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
@@ -127,18 +138,20 @@ public class KernelConfigResolver {
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
     private Object interpolate(Object configValue, Set<PackageParameter> packageParameters,
-                               PackageIdentifier packageIdentifier) {
+                               PackageIdentifier packageIdentifier, List<PackageIdentifier> packagesToDeploy,
+                               DeploymentDocument document) {
         Object result = configValue;
 
         if (configValue instanceof String) {
-            result = replace((String) configValue, packageIdentifier, packageParameters);
+            result = replace((String) configValue, packageIdentifier, packageParameters, packagesToDeploy, document);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
             Map<Object, Object> resolvedChildConfig = new HashMap<>();
             for (Map.Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
-                        interpolate(childLifecycle.getValue(), packageParameters, packageIdentifier));
+                        interpolate(childLifecycle.getValue(), packageParameters, packageIdentifier, packagesToDeploy,
+                                document));
             }
             result = resolvedChildConfig;
         }
@@ -148,7 +161,8 @@ public class KernelConfigResolver {
     }
 
     private String replace(String stringValue, PackageIdentifier packageIdentifier,
-                           Set<PackageParameter> packageParameters) {
+                           Set<PackageParameter> packageParameters, List<PackageIdentifier> packagesToDeploy,
+                           DeploymentDocument document) {
         // Handle package parameters
         for (final PackageParameter parameter : packageParameters) {
             stringValue = stringValue
@@ -167,7 +181,51 @@ public class KernelConfigResolver {
             }
         }
 
+        // Handle cross-component parameters
+        Matcher matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
+
+        while (matcher.find()) {
+            String crossComponent = matcher.group(1);
+            Optional<PackageIdentifier> crossComponentIdentifier =
+                    packagesToDeploy.stream().filter(t -> t.getName().equals(crossComponent)).findFirst();
+            if (crossComponentIdentifier.isPresent()) {
+                String replacement = crossComponentLookup(document, crossComponentIdentifier.get(), matcher.group(2),
+                        matcher.group(3));
+                if (replacement != null) {
+                    stringValue = stringValue.replace(matcher.group(), replacement);
+                }
+            }
+        }
+
         return stringValue;
+    }
+
+    @Nullable
+    private String crossComponentLookup(DeploymentDocument document, PackageIdentifier crossedComponent,
+                                        String namespace, String value) {
+        // Handle cross-component system parameters
+        Map<String, Function<PackageIdentifier, String>> systemParams =
+                systemParameters.getOrDefault(namespace, Collections.emptyMap());
+        if (systemParams.containsKey(value)) {
+            return systemParams.get(value).apply(crossedComponent);
+        }
+
+        // Handle cross-component component parameters
+        if (namespace.equals(PARAM_NAMESPACE)) {
+            try {
+                PackageRecipe packageRecipe = packageStore.getPackageRecipe(crossedComponent);
+                Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
+                Optional<PackageParameter> potentialParameter =
+                        resolvedParams.stream().filter(p -> (p.getName() + PARAM_VALUE_SUFFIX).equals(value))
+                                .findFirst();
+                if (potentialParameter.isPresent()) {
+                    return potentialParameter.get().getValue();
+                }
+            } catch (PackageLoadingException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
 
