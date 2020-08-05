@@ -89,7 +89,7 @@ public class FleetStatusService extends EvergreenService {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             isConnected.set(true);
-            schedulePeriodicFssDataUpdate(true);
+            schedulePeriodicFleetStatusDataUpdate(true);
         }
     };
 
@@ -125,7 +125,7 @@ public class FleetStatusService extends EvergreenService {
                     periodicUpdateIntervalSec = Coerce.toInt(newv);
                     if (periodicUpdateFuture != null) {
                         periodicUpdateFuture.cancel(false);
-                        schedulePeriodicFssDataUpdate(false);
+                        schedulePeriodicFleetStatusDataUpdate(false);
                     }
                 });
 
@@ -145,25 +145,24 @@ public class FleetStatusService extends EvergreenService {
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
-        schedulePeriodicFssDataUpdate(false);
+        schedulePeriodicFleetStatusDataUpdate(false);
 
         this.mqttClient.addToCallbackEvents(callbacks);
     }
 
-    private void schedulePeriodicFssDataUpdate(boolean isDuringConnectionResumed) {
+    private void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
         // If the last periodic update was missed, update the fleet status service for all running services.
         // Else update only the statuses of the services whose status changed (if any) and if the method is called
         // due to a MQTT connection resumption.
-        if (isDuringConnectionResumed
-                && lastPeriodicUpdateTime.get().plusSeconds(periodicUpdateIntervalSec).isBefore(Instant.now())) {
-            updatePeriodicFssData();
+        if (lastPeriodicUpdateTime.get().plusSeconds(periodicUpdateIntervalSec).isBefore(Instant.now())) {
+            updatePeriodicFleetStatusData();
         } else if (isDuringConnectionResumed) {
-            updateEventTriggeredFssData();
+            updateEventTriggeredFleetStatusData();
         }
 
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
-        this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFssData, periodicUpdateIntervalSec,
-                periodicUpdateIntervalSec, TimeUnit.SECONDS);
+        this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
+                periodicUpdateIntervalSec, periodicUpdateIntervalSec, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -175,11 +174,11 @@ public class FleetStatusService extends EvergreenService {
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
-            updateFleetStatusServiceData(evergreenServiceSet, OverallStatus.UNHEALTHY);
+            uploadFleetStatusServiceData(evergreenServiceSet, OverallStatus.UNHEALTHY);
         }
     }
 
-    private void updatePeriodicFssData() {
+    private void updatePeriodicFleetStatusData() {
         // Do not update periodic updates if there is an ongoing deployment.
         if (isDeploymentInProgress.get()) {
             logger.atDebug().log("Not updating FSS data on a periodic basis since there is an ongoing deployment.");
@@ -198,13 +197,12 @@ public class FleetStatusService extends EvergreenService {
             evergreenServiceSet.add(evergreenService);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), evergreenService));
         });
-        updateFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
+        uploadFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
         lastPeriodicUpdateTime.set(Instant.now());
         config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)
                 .withValue(lastPeriodicUpdateTime.get().toEpochMilli());
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
         if (JobStatus.IN_PROGRESS.toString().equals(status)) {
@@ -214,11 +212,11 @@ public class FleetStatusService extends EvergreenService {
         logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
                 deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString());
         isDeploymentInProgress.set(false);
-        updateEventTriggeredFssData();
+        updateEventTriggeredFleetStatusData();
         return true;
     }
 
-    private void updateEventTriggeredFssData() {
+    private void updateEventTriggeredFleetStatusData() {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
             return;
@@ -237,11 +235,11 @@ public class FleetStatusService extends EvergreenService {
         synchronized (evergreenServiceSet) {
             evergreenServiceSet.addAll(removedDependenciesSet);
         }
-        updateFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
+        uploadFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
         removedDependenciesSet.clear();
     }
 
-    private void updateFleetStatusServiceData(Set<EvergreenService> evergreenServiceSet,
+    private void uploadFleetStatusServiceData(Set<EvergreenService> evergreenServiceSet,
                                               OverallStatus overAllStatus) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted.");
@@ -347,7 +345,6 @@ public class FleetStatusService extends EvergreenService {
         reportState(State.RUNNING);
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     @Override
     public void shutdown() {
         logger.atInfo().log("Stopping Fleet status service.");
