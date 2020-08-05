@@ -35,6 +35,8 @@ public class KernelConfigResolver {
 
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
+    public static final String ARTIFACTS_UNPACK_DIRECTORY_PLACEHOLDER = "{{artifacts.unpackDir}}";
+    public static final String KERNEL_ROOT_DIRECTORY_PLACEHOLDER = "{{kernel.root}}";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
     private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
     // Map from Namespace -> Key -> Function which returns the replacement value
@@ -127,7 +129,7 @@ public class KernelConfigResolver {
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
     private Object interpolate(Object configValue, Set<PackageParameter> packageParameters,
-                               PackageIdentifier packageIdentifier) {
+                               PackageIdentifier packageIdentifier) throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
@@ -148,12 +150,18 @@ public class KernelConfigResolver {
     }
 
     private String replace(String stringValue, PackageIdentifier packageIdentifier,
-                           Set<PackageParameter> packageParameters) {
+                           Set<PackageParameter> packageParameters) throws PackageLoadingException {
         // Handle package parameters
         for (final PackageParameter parameter : packageParameters) {
             stringValue = stringValue
                     .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
         }
+
+        //Handle directories
+        stringValue = stringValue.replace(ARTIFACTS_UNPACK_DIRECTORY_PLACEHOLDER,
+                packageStore.resolveAndSetupArtifactsUnpackDirectory(packageIdentifier).toAbsolutePath().toString());
+        stringValue = stringValue.replace(KERNEL_ROOT_DIRECTORY_PLACEHOLDER,
+                kernel.getRootPath().toAbsolutePath().toString());
 
         // Handle system parameter replacement
         for (Map.Entry<String, Map<String, Function<PackageIdentifier, String>>> namespaceEntry : systemParameters

@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.util.SerializerFactory;
+import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -38,6 +39,7 @@ public class PackageStore {
     public static final String CONTEXT_PACKAGE_STORE_DIRECTORY = "packageStoreDirectory";
     public static final String RECIPE_DIRECTORY = "recipes";
     public static final String ARTIFACT_DIRECTORY = "artifacts";
+    public static final String ARTIFACTS_UNPACK_DIRECTORY = "artifacts-unpack";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
@@ -46,8 +48,10 @@ public class PackageStore {
 
     private final Path artifactDirectory;
 
+    private final Path artifactsUnpackDirectory;
+
     /**
-     * Constructor. It will initialize both recipe and artifact directory.
+     * Constructor. It will initialize recipe, artifact and artifact unpack directory.
      *
      * @param packageStoreDirectory the root path for package store.
      * @throws PackagingException if fails to create recipe or artifact directory.
@@ -56,21 +60,12 @@ public class PackageStore {
     public PackageStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path packageStoreDirectory)
             throws PackagingException {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
-        if (!Files.exists(recipeDirectory)) {
-            try {
-                Files.createDirectories(recipeDirectory);
-            } catch (IOException e) {
-                throw new PackagingException(String.format("Failed to create recipe directory %s", recipeDirectory), e);
-            }
-        }
         this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
-        if (!Files.exists(artifactDirectory)) {
-            try {
-                Files.createDirectories(artifactDirectory);
-            } catch (IOException e) {
-                throw new PackagingException(String.format("Failed to create artifact directory %s", artifactDirectory),
-                        e);
-            }
+        this.artifactsUnpackDirectory = packageStoreDirectory.resolve(ARTIFACTS_UNPACK_DIRECTORY);
+        try {
+            Utils.createPaths(recipeDirectory, artifactDirectory, artifactsUnpackDirectory);
+        } catch (IOException e) {
+            throw new PackagingException("Failed to create necessary directories for package store", e);
         }
     }
 
@@ -187,7 +182,6 @@ public class PackageStore {
                 packageMetadataList.add(getPackageMetadata(new PackageIdentifier(packageName, version)));
             }
         }
-
         return packageMetadataList;
     }
 
@@ -215,6 +209,25 @@ public class PackageStore {
 
     private Path resolveRecipePath(String packageName, Semver packageVersion) {
         return recipeDirectory.resolve(String.format(RECIPE_FILE_NAME_FORMAT, packageName, packageVersion.getValue()));
+    }
+
+    /**
+     * Resolve the artifact unpack directory path and creates the directory if absent.
+     * @param packageIdentifier packageIdentifier
+     * @return artifact unpack directory path
+     * @throws PackageLoadingException if un-able to create artifact unpack directory path
+     */
+    public Path resolveAndSetupArtifactsUnpackDirectory(@NonNull PackageIdentifier packageIdentifier)
+            throws PackageLoadingException {
+        Path path = artifactsUnpackDirectory.resolve(packageIdentifier.getName())
+                .resolve(packageIdentifier.getVersion().getValue());
+        try {
+            Utils.createPaths(path);
+            return path;
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format(
+                    "Failed to create artifact unpack directory for %s", packageIdentifier.toString()), e);
+        }
     }
 
     private static String parsePackageNameFromFileName(String filename) {
