@@ -43,6 +43,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
@@ -76,7 +77,7 @@ class KernelConfigResolverTest {
     @BeforeEach
     void setupMocks() {
         path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
-        when(packageStore.resolveArtifactDirectoryPath(any())).thenReturn(path.toAbsolutePath());
+        lenient().when(packageStore.resolveArtifactDirectoryPath(any())).thenReturn(path.toAbsolutePath());
     }
 
     @Test

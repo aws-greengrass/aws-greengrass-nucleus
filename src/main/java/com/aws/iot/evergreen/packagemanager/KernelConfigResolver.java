@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,7 +41,7 @@ public class KernelConfigResolver {
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
     private static final Pattern CROSS_INTERPOLATION_REGEX =
-            Pattern.compile("\\{\\{([\\.\\w]+):([\\.\\w+]+):([\\.\\w]+)}}", Pattern.MULTILINE);
+            Pattern.compile("\\{\\{([\\.\\w]+):([\\.\\w+]+):([\\.\\w]+)}}");
     private static final String PARAM_NAMESPACE = "params";
     private static final String PARAM_VALUE_SUFFIX = ".value";
     private static final String PARAMETER_REFERENCE_FORMAT =
@@ -50,6 +51,7 @@ public class KernelConfigResolver {
 
     private final PackageStore packageStore;
     private final Kernel kernel;
+    private final Map<PackageIdentifier, PackageRecipe> recipeCache = new ConcurrentHashMap<>();
 
     /**
      * Constructor.
@@ -82,7 +84,6 @@ public class KernelConfigResolver {
      */
     public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                        List<String> rootPackages) throws PackageLoadingException {
-
         Map<Object, Object> servicesConfig = new HashMap<>();
         for (PackageIdentifier packageToDeploy : packagesToDeploy) {
             servicesConfig
@@ -92,7 +93,12 @@ public class KernelConfigResolver {
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
         // Services need to be under the services namespace in kernel config
-        return Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
+
+        Map<Object, Object> resolved = Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
+
+        // Clear recipe cache to keep our memory usage lower
+        recipeCache.clear();
+        return resolved;
     }
 
     /*
@@ -102,7 +108,7 @@ public class KernelConfigResolver {
                                                  List<PackageIdentifier> packagesToDeploy)
             throws PackageLoadingException {
 
-        PackageRecipe packageRecipe = packageStore.getPackageRecipe(packageIdentifier);
+        PackageRecipe packageRecipe = getPackageRecipe(packageIdentifier);
 
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
 
@@ -132,6 +138,14 @@ public class KernelConfigResolver {
                 .collect(Collectors.toMap(PackageParameter::getName, PackageParameter::getValue)));
 
         return resolvedServiceConfig;
+    }
+
+    private synchronized PackageRecipe getPackageRecipe(PackageIdentifier packageIdentifier)
+            throws PackageLoadingException {
+        if (!recipeCache.containsKey(packageIdentifier)) {
+            recipeCache.put(packageIdentifier, packageStore.getPackageRecipe(packageIdentifier));
+        }
+        return recipeCache.get(packageIdentifier);
     }
 
     /*
@@ -188,7 +202,9 @@ public class KernelConfigResolver {
             String crossComponent = matcher.group(1);
             Optional<PackageIdentifier> crossComponentIdentifier =
                     packagesToDeploy.stream().filter(t -> t.getName().equals(crossComponent)).findFirst();
-            if (crossComponentIdentifier.isPresent()) {
+
+            if (crossComponentIdentifier.isPresent() && componentCanReadParameterFrom(packageIdentifier,
+                    crossComponentIdentifier.get())) {
                 String replacement = crossComponentLookup(document, crossComponentIdentifier.get(), matcher.group(2),
                         matcher.group(3));
                 if (replacement != null) {
@@ -200,24 +216,32 @@ public class KernelConfigResolver {
         return stringValue;
     }
 
+    private boolean componentCanReadParameterFrom(PackageIdentifier component, PackageIdentifier canReadFrom) {
+        try {
+            PackageRecipe recipe = getPackageRecipe(component);
+            return recipe.getDependencies().containsKey(canReadFrom.getName());
+        } catch (PackageLoadingException e) {
+            return false;
+        }
+    }
+
     @Nullable
     private String crossComponentLookup(DeploymentDocument document, PackageIdentifier crossedComponent,
-                                        String namespace, String value) {
+                                        String namespace, String key) {
         // Handle cross-component system parameters
         Map<String, Function<PackageIdentifier, String>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
-        if (systemParams.containsKey(value)) {
-            return systemParams.get(value).apply(crossedComponent);
+        if (systemParams.containsKey(key)) {
+            return systemParams.get(key).apply(crossedComponent);
         }
 
         // Handle cross-component component parameters
         if (namespace.equals(PARAM_NAMESPACE)) {
             try {
-                PackageRecipe packageRecipe = packageStore.getPackageRecipe(crossedComponent);
+                PackageRecipe packageRecipe = getPackageRecipe(crossedComponent);
                 Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
                 Optional<PackageParameter> potentialParameter =
-                        resolvedParams.stream().filter(p -> (p.getName() + PARAM_VALUE_SUFFIX).equals(value))
-                                .findFirst();
+                        resolvedParams.stream().filter(p -> (p.getName() + PARAM_VALUE_SUFFIX).equals(key)).findFirst();
                 if (potentialParameter.isPresent()) {
                     return potentialParameter.get().getValue();
                 }
