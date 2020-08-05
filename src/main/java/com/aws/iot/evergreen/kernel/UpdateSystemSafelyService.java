@@ -10,6 +10,8 @@ import com.aws.iot.evergreen.dependency.State;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -139,11 +141,16 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 Thread.sleep(maxt - now);
             } else {
                 logger.atDebug().setEventType("service-update-scheduled").log();
-                context.runOnPublishQueueAndWait(() -> {
-                    logger.atInfo().setEventType("service-update-start").log();
-                    runUpdateActions();
-                    logger.atInfo().setEventType("service-update-finish").log();
-                });
+                try {
+                    context.get(ExecutorService.class).submit(() -> {
+                        logger.atInfo().setEventType("service-update-start").log();
+                        runUpdateActions();
+                        logger.atInfo().setEventType("service-update-finish").log();
+                    }).get();
+                } catch (ExecutionException e) {
+                    logger.atError().setEventType("service-update-error")
+                            .log("Run update actions errored", e);
+                }
             }
         }
     }

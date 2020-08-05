@@ -98,11 +98,11 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (closed.get()) {
             return;
         }
+        if (n == null || n.path().stream().anyMatch(a -> a != null && a.startsWith("_"))) {
+            return;  // Don't log entries whose name starts in '_'
+        }
         Tlogline tlogline;
         if (what == WhatHappened.childChanged && n instanceof Topic) {
-            if (n.getName().startsWith("_")) {
-                return;  // Don't log entries whose name starts in '_'
-            }
             Topic t = (Topic) n;
 
             tlogline = new Tlogline(t.getModtime(), t.getFullName(), WhatHappened.changed, t.getOnce());
