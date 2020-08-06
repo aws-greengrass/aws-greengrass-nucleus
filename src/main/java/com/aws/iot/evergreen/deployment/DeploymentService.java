@@ -35,6 +35,7 @@ import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -235,8 +236,7 @@ public class DeploymentService extends EvergreenService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
                                     statusDetails);
-                    deploymentDirectoryManager.persistLastSuccessfulDeployment(
-                            currentDeploymentTaskMetadata.getDeploymentDocument().getDeploymentId());
+                    deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
@@ -247,8 +247,7 @@ public class DeploymentService extends EvergreenService {
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
-                    deploymentDirectoryManager.persistLastFailedDeployment(
-                            currentDeploymentTaskMetadata.getDeploymentDocument().getDeploymentId());
+                    deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
         } catch (ExecutionException e) {
@@ -262,6 +261,7 @@ public class DeploymentService extends EvergreenService {
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                deploymentDirectoryManager.persistLastFailedDeployment();
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
                 currentDeploymentTaskMetadata.setDeploymentResultFuture(
@@ -339,6 +339,12 @@ public class DeploymentService extends EvergreenService {
         }
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
+        try {
+            deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
+                    deployment.getDeploymentDocumentObj().getDeploymentId());
+        } catch (IOException ioException) {
+            logger.atWarn().log("Unable to create deployment directory", ioException);
+        }
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 

@@ -155,16 +155,10 @@ public class Kernel {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
-        // Initialize directory managers after kernel root directory is set up
-        DeploymentDirectoryManager deploymentDirectoryManager = new DeploymentDirectoryManager(this);
-        context.put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
-        BootstrapManager bootstrapManager = new BootstrapManager(this);
-        context.put(BootstrapManager.class, bootstrapManager);
-        KernelAlternatives kernelAlts = new KernelAlternatives(bootstrapManager, deploymentDirectoryManager,
-                getKernelAltsPath());
-        context.put(KernelAlternatives.class, kernelAlts);
-
-        DeploymentStage stage = kernelAlts.determineDeploymentStage();
+        BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
+        DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
+        DeploymentStage stage = kernelCommandLine.getKernelAlternatives().determineDeploymentStage(
+                bootstrapManager, deploymentDirectoryManager);
 
         switch (stage) {
             case BOOTSTRAP:

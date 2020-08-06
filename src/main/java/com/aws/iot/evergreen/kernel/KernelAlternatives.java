@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
@@ -29,52 +30,39 @@ public class KernelAlternatives {
     private static final String CURRENT_DIR = "current";
     private static final String OLD_DIR = "old";
     private static final String BROKEN_DIR = "broken";
-    private static final String PREVIOUS_SUCCESS_DIR = "previousSuccess";
-    private static final String PREVIOUS_FAILURE_DIR = "previousFailure";
 
     private final Path altsDir;
     // Symlink to the current launch directory
-    @Getter
+    @Getter(AccessLevel.MODULE)
     private Path currentDir;
     // Symlink to the old launch directory during kernel update
-    @Getter
+    @Getter(AccessLevel.MODULE)
     private Path oldDir;
     // Symlink to the broken new launch directory during kernel update
-    @Getter
+    @Getter(AccessLevel.MODULE)
     private Path brokenDir;
-    // Symlink to the previous working launch directory after kernel update
-    private final Path previousSuccessDir;
-    // Symlink to the broken new launch directory after rollback from kernel update
-    private final Path previousFailureDir;
-
-    private final BootstrapManager bootstrapManager;
-    private final DeploymentDirectoryManager deploymentDirectoryManager;
 
     /**
      * Constructor for KernelAlternatives, which manages the alternative launch directory of Kernel.
      *
-     * @param bootstrapManager BootstrapManager instance to manage pending bootstrap tasks
-     * @param deploymentDirectoryManager DeploymentDirectoryManager instance to manage persisted deployment information
      * @param kernelAltsPath alternative launch directory of Kernel
      */
-    public KernelAlternatives(BootstrapManager bootstrapManager, DeploymentDirectoryManager deploymentDirectoryManager,
-                              Path kernelAltsPath) {
+    public KernelAlternatives(Path kernelAltsPath) {
         this.altsDir = kernelAltsPath.toAbsolutePath();
         this.currentDir = kernelAltsPath.resolve(CURRENT_DIR).toAbsolutePath();
         this.oldDir = kernelAltsPath.resolve(OLD_DIR).toAbsolutePath();
         this.brokenDir = kernelAltsPath.resolve(BROKEN_DIR).toAbsolutePath();
-        this.previousSuccessDir = kernelAltsPath.resolve(PREVIOUS_SUCCESS_DIR).toAbsolutePath();
-        this.previousFailureDir = kernelAltsPath.resolve(PREVIOUS_FAILURE_DIR).toAbsolutePath();
-        this.bootstrapManager = bootstrapManager;
-        this.deploymentDirectoryManager = deploymentDirectoryManager;
     }
 
     /**
      * Determine if Kernel is in update workflow from deployments and return deployment stage.
      *
+     * @param bootstrapManager BootstrapManager instance to manage pending bootstrap tasks
+     * @param deploymentDirectoryManager DeploymentDirectoryManager instance to manage persisted deployment information
      * @return DeploymentStage
      */
-    public Deployment.DeploymentStage determineDeploymentStage() {
+    public Deployment.DeploymentStage determineDeploymentStage(BootstrapManager bootstrapManager,
+                                                               DeploymentDirectoryManager deploymentDirectoryManager) {
         // TODO: validate if any directory is corrupted
         if (oldDir.toFile().exists()) {
             try {
@@ -102,9 +90,7 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void activationSucceeds() throws IOException {
-        cleanupAltDir(previousSuccessDir);
-        cleanupAltDir(previousFailureDir);
-        Files.createSymbolicLink(previousSuccessDir, Files.readSymbolicLink(oldDir).toAbsolutePath());
+        Utils.deleteFileRecursively(Files.readSymbolicLink(oldDir).toFile());
         Files.delete(oldDir);
     }
 
@@ -115,6 +101,7 @@ public class KernelAlternatives {
      */
     public void prepareRollback() throws IOException {
         if (!Files.exists(oldDir)) {
+            logger.atWarn().log("Cannot find the old launch directory to rollback to.");
             return;
         }
         Files.deleteIfExists(brokenDir);
@@ -129,9 +116,11 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void rollbackCompletes() throws IOException {
-        cleanupAltDir(previousFailureDir);
-        Files.createSymbolicLink(previousFailureDir, Files.readSymbolicLink(brokenDir).toAbsolutePath());
-        Files.deleteIfExists(brokenDir);
+        if (!Files.exists(brokenDir)) {
+            return;
+        }
+        Utils.deleteFileRecursively(Files.readSymbolicLink(brokenDir).toFile());
+        Files.delete(brokenDir);
     }
 
     /**
@@ -147,22 +136,19 @@ public class KernelAlternatives {
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
         Files.deleteIfExists(oldDir);
         Files.createSymbolicLink(oldDir, existingLaunchDir);
-        Files.deleteIfExists(currentDir);
-        Files.createSymbolicLink(currentDir, newLaunchDir);
+        setupLinkToDirectory(currentDir, newLaunchDir);
         logger.atInfo().log("Finish setup of launch directory for new Kernel");
     }
 
     /**
-     * Clean up files and directories, and remove symlink references.
+     * Set up a link to the directory.
      *
-     * @param path file path to cleanup
-     * @throws IOException if unable to delete
+     * @param link link to create
+     * @param directory path to link to
+     * @throws IOException on I/O error
      */
-    public void cleanupAltDir(Path path) throws IOException {
-        if (!Files.exists(path)) {
-            return;
-        }
-        Utils.deleteFileRecursively(Files.readSymbolicLink(path).toAbsolutePath().toFile());
-        Files.delete(path);
+    public void setupLinkToDirectory(Path link, Path directory) throws IOException {
+        Files.deleteIfExists(link);
+        Files.createSymbolicLink(link, directory);
     }
 }

@@ -5,11 +5,14 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
@@ -38,6 +41,13 @@ public class KernelCommandLine {
     private static final String PACKAGE_DIR_PREFIX = "~packages/";
 
     private final Kernel kernel;
+
+    @Getter(AccessLevel.PACKAGE)
+    private DeploymentDirectoryManager deploymentDirectoryManager;
+    @Getter(AccessLevel.PACKAGE)
+    private KernelAlternatives kernelAlternatives;
+    @Getter(AccessLevel.PACKAGE)
+    private BootstrapManager bootstrapManager;
 
     @Getter
     private String providedConfigPathName;
@@ -133,6 +143,14 @@ public class KernelCommandLine {
         // Register Kernel Loader as system service (platform-specific), if not exits
 
         kernel.getContext().put(CONTEXT_PACKAGE_STORE_DIRECTORY, kernel.getPackageStorePath());
+
+        // Initialize file and directory managers after kernel root directory is set up
+        deploymentDirectoryManager = new DeploymentDirectoryManager(kernel);
+        kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
+        kernelAlternatives = new KernelAlternatives(kernel.getKernelAltsPath());
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+        bootstrapManager = new BootstrapManager(kernel);
+        kernel.getContext().put(BootstrapManager.class, bootstrapManager);
     }
 
     /**

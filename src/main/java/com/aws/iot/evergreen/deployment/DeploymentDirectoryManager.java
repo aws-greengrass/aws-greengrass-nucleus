@@ -11,6 +11,8 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -23,10 +25,10 @@ import javax.inject.Inject;
  * Deployment directory manager preserves deployment artifacts for configuration rollback workflow and troubleshooting.
  */
 public class DeploymentDirectoryManager {
-    private static final String ROLLBACK_SNAPSHOT_FILE = "rollback_snapshot.tlog";
-    private static final String TARGET_CONFIG_FILE = "target_config.tlog";
-    private static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.json";
-    private static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.json";
+    static final String ROLLBACK_SNAPSHOT_FILE = "rollback_snapshot.tlog";
+    static final String TARGET_CONFIG_FILE = "target_config.tlog";
+    static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.ser";
+    static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.ser";
 
     private static final String PREVIOUS_SUCCESS_LINK = "previous-success";
     private static final String PREVIOUS_FAILURE_LINK = "previous-failure";
@@ -35,8 +37,11 @@ public class DeploymentDirectoryManager {
     private final Kernel kernel;
 
     private final Path deploymentsDir;
+    @Getter(AccessLevel.MODULE)
     private final Path previousSuccessDir;
+    @Getter(AccessLevel.MODULE)
     private final Path previousFailureDir;
+    @Getter(AccessLevel.MODULE)
     private final Path ongoingDir;
 
     /**
@@ -54,48 +59,42 @@ public class DeploymentDirectoryManager {
     }
 
     /**
-     * Persist the directory for the last failed deployment and clean up earlier deployments.
-     *
-     * @param fleetConfigArn the last deployment ID
+     * Persist the last failed deployment and clean up earlier deployments.
      */
-    public void persistLastFailedDeployment(String fleetConfigArn) {
-        persistPointerToLastFinishedDeployment(previousFailureDir, fleetConfigArn);
+    public void persistLastFailedDeployment() {
+        persistPointerToLastFinishedDeployment(previousFailureDir);
     }
 
     /**
-     * Persist the directory for the last successful deployment and clean up earlier deployments.
-     *
-     * @param fleetConfigArn Deployment fleet configuration ARN
+     * Persist the last successful deployment and clean up earlier deployments.
      */
-    public void persistLastSuccessfulDeployment(String fleetConfigArn) {
-        persistPointerToLastFinishedDeployment(previousSuccessDir, fleetConfigArn);
+    public void persistLastSuccessfulDeployment() {
+        persistPointerToLastFinishedDeployment(previousSuccessDir);
     }
 
-    private void persistPointerToLastFinishedDeployment(Path symlink, String fleetConfigArn) {
+    private void persistPointerToLastFinishedDeployment(Path symlink) {
         try {
-            Path deploymentPath = getDeploymentDirectoryPath(fleetConfigArn);
-            if (Files.isSymbolicLink(symlink)) {
-                Utils.deleteFileRecursively(Files.readSymbolicLink(symlink).toFile());
-            }
-            Utils.deleteFileRecursively(symlink.toFile());
+            Path deploymentPath = getDeploymentDirectoryPath();
+            cleanupPreviousDeployments(previousSuccessDir);
+            cleanupPreviousDeployments(previousFailureDir);
+
             Files.createSymbolicLink(symlink, deploymentPath);
             Files.delete(ongoingDir);
         } catch (IOException e) {
-            logger.atWarn().kv("fleetConfigArn", fleetConfigArn).log(
-                    "Unable to preserve artifacts from the last deployment");
+            logger.atWarn().log("Unable to preserve artifacts from the last deployment");
         }
     }
 
-    /**
-     * Write Deployment object to file.
-     *
-     * @param fleetConfigArn Deployment fleet configuration ARN
-     * @param deployment Deployment object
-     * @throws IOException on I/O error
-     */
-    public void writeDeploymentMetadata(String fleetConfigArn, Deployment deployment) throws IOException {
-        Path filePath = getDeploymentMetadataFilePath(fleetConfigArn);
-        writeDeploymentMetadata(filePath, deployment);
+    private void cleanupPreviousDeployments(Path symlink) {
+        if (!Files.exists(symlink)) {
+            return;
+        }
+        try {
+            Utils.deleteFileRecursively(Files.readSymbolicLink(symlink).toFile());
+            Files.delete(symlink);
+        } catch (IOException ioException) {
+            logger.atWarn().kv("link", symlink).log("Unable to clean up previous deployments", ioException);
+        }
     }
 
     /**
@@ -109,7 +108,7 @@ public class DeploymentDirectoryManager {
             throw new IOException("Deployment details can not be loaded from file " + ongoingDir);
         }
 
-        Path filePath = Files.readSymbolicLink(ongoingDir).toAbsolutePath().resolve(DEPLOYMENT_METADATA_FILE);
+        Path filePath = getDeploymentMetadataFilePath();
         writeDeploymentMetadata(filePath, deployment);
     }
 
@@ -131,7 +130,7 @@ public class DeploymentDirectoryManager {
             throw new IOException("Deployment details can not be loaded from file " + ongoingDir);
         }
 
-        Path filePath = Files.readSymbolicLink(ongoingDir).toAbsolutePath().resolve(DEPLOYMENT_METADATA_FILE);
+        Path filePath = getDeploymentMetadataFilePath();
         try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(filePath))) {
             return (Deployment) in.readObject();
         }
@@ -143,41 +142,28 @@ public class DeploymentDirectoryManager {
      * @param filepath File path to the config snapshot
      * @throws IOException if write fails
      */
-    public void takeSnapshot(Path filepath) throws IOException {
+    public void takeConfigSnapshot(Path filepath) throws IOException {
         kernel.writeEffectiveConfigAsTransactionLog(filepath);
     }
 
     /**
      * Resolve snapshot file path.
      *
-     * @param fleetConfigArn Deployment fleet configuration ARN
      * @return Path to snapshot file
      * @throws IOException on I/O errors
      */
-    public Path getSnapshotFilePath(String fleetConfigArn) throws IOException {
-        return getDeploymentDirectoryPath(fleetConfigArn).resolve(ROLLBACK_SNAPSHOT_FILE);
+    public Path getSnapshotFilePath() throws IOException {
+        return getDeploymentDirectoryPath().resolve(ROLLBACK_SNAPSHOT_FILE);
     }
 
     /**
      * Resolve target config file path.
      *
-     * @param fleetConfigArn Deployment fleet configuration ARN
      * @return Path to target config file
      * @throws IOException on I/O errors
      */
-    public Path getTargetConfigFilePath(String fleetConfigArn) throws IOException {
-        return getDeploymentDirectoryPath(fleetConfigArn).resolve(TARGET_CONFIG_FILE);
-    }
-
-    /**
-     * Resolve file path to persisted bootstrap task list.
-     *
-     * @param fleetConfigArn Deployment fleet configuration ARN
-     * @return Path to file
-     * @throws IOException on I/O errors
-     */
-    public Path getBootstrapTaskFilePath(String fleetConfigArn) throws IOException {
-        return getDeploymentDirectoryPath(fleetConfigArn).resolve(BOOTSTRAP_TASK_FILE);
+    public Path getTargetConfigFilePath() throws IOException {
+        return getDeploymentDirectoryPath().resolve(TARGET_CONFIG_FILE);
     }
 
     /**
@@ -187,25 +173,31 @@ public class DeploymentDirectoryManager {
      * @throws IOException on I/O errors
      */
     public Path getBootstrapTaskFilePath() throws IOException {
-        return Files.readSymbolicLink(ongoingDir).resolve(BOOTSTRAP_TASK_FILE);
+        return getDeploymentDirectoryPath().resolve(BOOTSTRAP_TASK_FILE);
     }
 
     /**
      * Resolve file path to persisted deployment metadata.
      *
-     * @param fleetConfigArn Deployment fleet configuration ARN
      * @return Path to file
      * @throws IOException on I/O errors
      */
-    public Path getDeploymentMetadataFilePath(String fleetConfigArn) throws IOException {
-        return getDeploymentDirectoryPath(fleetConfigArn).resolve(DEPLOYMENT_METADATA_FILE);
+    private Path getDeploymentMetadataFilePath() throws IOException {
+        return getDeploymentDirectoryPath().resolve(DEPLOYMENT_METADATA_FILE);
     }
 
-    private Path getDeploymentDirectoryPath(String fleetConfigArn) throws IOException {
-        return createNewDeploymentDirectoryIfNotExists(fleetConfigArn);
+    private Path getDeploymentDirectoryPath() throws IOException {
+        return Files.readSymbolicLink(ongoingDir).toAbsolutePath();
     }
 
-    private Path createNewDeploymentDirectoryIfNotExists(String fleetConfigArn) throws IOException {
+    /**
+     * Create or return the directory for a given deployment.
+     *
+     * @param fleetConfigArn Fleet configuration ARN of the deployment
+     * @return Path to the deployment directory
+     * @throws IOException on I/O errors
+     */
+    public Path createNewDeploymentDirectoryIfNotExists(String fleetConfigArn) throws IOException {
         Path path = deploymentsDir.resolve(getSafeFileName(fleetConfigArn));
         if (Files.exists(path) && Files.isDirectory(path)) {
             return path;
@@ -214,7 +206,7 @@ public class DeploymentDirectoryManager {
             Files.delete(path);
         }
         Utils.createPaths(path);
-        Utils.deleteFileRecursively(ongoingDir.toFile());
+        cleanupPreviousDeployments(ongoingDir);
         Files.createSymbolicLink(ongoingDir, path);
 
         return path;
