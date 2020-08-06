@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.util.CrashableFunction;
 import com.aws.iot.evergreen.util.Utils;
 
 import java.util.ArrayList;
@@ -21,9 +22,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -35,12 +36,14 @@ public class KernelConfigResolver {
 
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
-    public static final String ARTIFACTS_UNPACK_DIRECTORY_PLACEHOLDER = "{{artifacts.unpackDir}}";
-    public static final String KERNEL_ROOT_DIRECTORY_PLACEHOLDER = "{{kernel.root}}";
+    public static final String ARTIFACTS_NAMESPACE = "artifacts";
+    public static final String KERNEL_NAMESPACE = "kernel";
+    public static final String KERNEL_ROOT_PATH = "rootPath";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
     private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
     // Map from Namespace -> Key -> Function which returns the replacement value
-    private final Map<String, Map<String, Function<PackageIdentifier, String>>> systemParameters = new HashMap<>();
+    private final Map<String, Map<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>>>
+            systemParameters = new HashMap<>();
 
     private final PackageStore packageStore;
     private final Kernel kernel;
@@ -57,10 +60,19 @@ public class KernelConfigResolver {
         this.kernel = kernel;
 
         // More system parameters can be added over time by extending this map with new namespaces/keys
-        HashMap<String, Function<PackageIdentifier, String>> artifactNamespace = new HashMap<>();
-        artifactNamespace
-                .put("path", (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
-        systemParameters.put("artifacts", artifactNamespace);
+        HashMap<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> artifactNamespace
+                = new HashMap<>();
+        artifactNamespace.put("path",
+                (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        artifactNamespace.put("unpackPath",
+                (id) -> packageStore.resolveAndSetupArtifactsUnpackDirectory(id).toAbsolutePath().toString());
+        systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
+
+        HashMap<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> kernelNamespace
+                = new HashMap<>();
+        artifactNamespace.put(KERNEL_ROOT_PATH,
+                (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        systemParameters.put(KERNEL_NAMESPACE, kernelNamespace);
     }
 
     /**
@@ -81,7 +93,6 @@ public class KernelConfigResolver {
         for (PackageIdentifier packageToDeploy : packagesToDeploy) {
             servicesConfig.put(packageToDeploy.getName(), getServiceConfig(packageToDeploy, document));
         }
-
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
         // Services need to be under the services namespace in kernel config
@@ -101,7 +112,7 @@ public class KernelConfigResolver {
         // Interpolate parameters
         Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
         Set<PackageParameter> resolvedParams = resolveParameterValuesToUse(document, packageRecipe);
-        for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
+        for (Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
             resolvedLifecycleConfig.put(configKVPair.getKey(),
                     interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier));
         }
@@ -138,7 +149,7 @@ public class KernelConfigResolver {
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
             Map<Object, Object> resolvedChildConfig = new HashMap<>();
-            for (Map.Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
+            for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                         interpolate(childLifecycle.getValue(), packageParameters, packageIdentifier));
             }
@@ -157,27 +168,19 @@ public class KernelConfigResolver {
                     .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
         }
 
-        //Handle directories
-        stringValue = stringValue.replace(ARTIFACTS_UNPACK_DIRECTORY_PLACEHOLDER,
-                packageStore.resolveAndSetupArtifactsUnpackDirectory(packageIdentifier).toAbsolutePath().toString());
-        stringValue = stringValue.replace(KERNEL_ROOT_DIRECTORY_PLACEHOLDER,
-                kernel.getRootPath().toAbsolutePath().toString());
-
         // Handle system parameter replacement
-        for (Map.Entry<String, Map<String, Function<PackageIdentifier, String>>> namespaceEntry : systemParameters
-                .entrySet()) {
-            for (Map.Entry<String, Function<PackageIdentifier, String>> keyEntry : namespaceEntry.getValue()
-                    .entrySet()) {
+        for (Entry<String, Map<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>>>
+                namespaceEntry : systemParameters.entrySet()) {
+            for (Entry<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> keyEntry :
+                    namespaceEntry.getValue().entrySet()) {
                 String toReplace = String.format(INTERPOLATION_FORMAT, namespaceEntry.getKey(), keyEntry.getKey());
                 if (stringValue.contains(toReplace)) {
                     stringValue = stringValue.replace(toReplace, keyEntry.getValue().apply(packageIdentifier));
                 }
             }
         }
-
         return stringValue;
     }
-
 
     /*
      * Compute the config for main service
