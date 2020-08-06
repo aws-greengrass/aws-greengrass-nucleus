@@ -1,0 +1,31 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: GreengrassCore
+Description: GreengrassCore
+Publisher: Me
+Version: '2.0.0'
+Parameters:
+- name: jvmOptions
+  # TODO: consider change to nested structure
+  value: -Xms512m -Xmx512m
+  type: STRING
+Artifacts:
+  # TODO: add artifacts
+Lifecycle:
+  bootstrap:
+    posix:
+      script: |-
+        set -euo pipefail
+        KERNEL_ROOT={{kernel:rootPath}}
+        UNPACK_DIR={{artifacts:decompressedPath}}
+
+        unzip "{{artifacts:path}}/GreengrassCore-2.0.0.zip" -d "$UNPACK_DIR"
+
+        rm -r $KERNEL_ROOT/alts/current/*
+
+        echo "{{params:jvmOptions.value}}" > $KERNEL_ROOT/alts/current/launch.params
+        # TODO: calculate relativepath
+        ln -sf "$UNPACK_DIR" $KERNEL_ROOT/alts/current/distro
+        exit 100
+
+
