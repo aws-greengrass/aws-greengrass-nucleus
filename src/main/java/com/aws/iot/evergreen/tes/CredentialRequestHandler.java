@@ -35,6 +35,8 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.tes.HttpServerImpl.URL;
+
 public class CredentialRequestHandler implements HttpHandler {
     private static final Logger LOGGER = LogManager.getLogger(CredentialRequestHandler.class);
     private static final String IOT_CRED_PATH_KEY = "iotCredentialsPath";
@@ -111,6 +113,17 @@ public class CredentialRequestHandler implements HttpHandler {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void handle(final HttpExchange exchange) throws IOException {
         try {
+            if (!exchange.getRequestMethod().equals("GET")) {
+                LOGGER.atInfo().log("Unsupported http method for {}. GET is supported.", exchange.getRequestMethod());
+                generateError(exchange, HttpURLConnection.HTTP_BAD_METHOD);
+                return;
+            }
+            if (!exchange.getRequestURI().getPath().equals(URL)) {
+                LOGGER.atInfo().log("Unexpected URI: {}.",
+                        exchange.getRequestURI().getPath());
+                generateError(exchange, HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
+            }
             doAuth(exchange);
             final byte[] credentials = getCredentials();
             exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);

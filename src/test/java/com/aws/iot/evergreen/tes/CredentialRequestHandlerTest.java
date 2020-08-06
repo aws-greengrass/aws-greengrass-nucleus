@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 
 import java.io.OutputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -52,6 +53,8 @@ import static org.hamcrest.core.Is.is;
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class CredentialRequestHandlerTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String REQUEST_METHOD = "GET";
+    private static final URI TES_URI = URI.create(HttpServerImpl.URL);
     private static final String AUTHN_TOKEN = "random authN token";
     private static final String ACCESS_KEY_ID = "ASIA";
     private static final String SECRET_ACCESS_KEY = "FC8OGbRnCl1";
@@ -104,6 +107,8 @@ public class CredentialRequestHandlerTest {
         when(mockHeaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeaders);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         handler.handle(mockExchange);
         int expectedStatus = 200;
         byte[] serializedResponse = getExpectedResponse();
@@ -111,6 +116,43 @@ public class CredentialRequestHandlerTest {
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
         verify(mockStream, times(1)).write(serializedResponse);
         mockStream.close();
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_unsupported_request_method_THEN_return_405() throws Exception {
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        when(mockExchange.getRequestMethod()).thenReturn("POST");
+        handler.handle(mockExchange);
+
+        int expectedStatus = 405;
+        int expectedResponseLength = -1;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    public void GIVEN_credential_handler_WHEN_unsupported_uri_THEN_return_400() throws Exception {
+        CredentialRequestHandler handler = new CredentialRequestHandler(
+                mockCloudHelper,
+                mockConnectionManager,
+                mockAuthNHandler,
+                mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        HttpExchange mockExchange = mock(HttpExchange.class);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
+        when(mockExchange.getRequestURI()).thenReturn(URI.create("badURI"));
+        handler.handle(mockExchange);
+
+        int expectedStatus = 400;
+        int expectedResponseLength = -1;
+        verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
     }
 
     @Test
@@ -127,6 +169,8 @@ public class CredentialRequestHandlerTest {
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockAuthNHandler.doAuthentication(AUTHN_TOKEN)).thenThrow(NullPointerException.class);
 
         handler.handle(mockExchange);
@@ -149,6 +193,8 @@ public class CredentialRequestHandlerTest {
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockAuthNHandler.doAuthentication(AUTHN_TOKEN)).thenReturn("ComponentA");
 
         when(mockAuthZHandler.isAuthorized(any(), any())).thenThrow(AuthorizationException.class);
@@ -172,6 +218,8 @@ public class CredentialRequestHandlerTest {
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
         when(mockExchange.getRequestHeaders()).thenReturn(mockheaders);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockAuthNHandler.doAuthentication(AUTHN_TOKEN)).thenThrow(UnauthenticatedException.class);
 
         handler.handle(mockExchange);
@@ -224,6 +272,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         byte[] expectedResponse = ("TES responded with expired credentials: " + responseStr).getBytes();
@@ -285,6 +335,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         byte[] expectedReponse = ("Bad TES response: " + responseStr).getBytes();
@@ -314,6 +366,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         byte[] expectedResponse = "Failed to get credentials from TES".getBytes();
@@ -345,6 +399,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         int expectedStatus = 400;
@@ -380,6 +436,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         int expectedStatus = 500;
@@ -414,6 +472,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         int expectedStatus = 300;
@@ -449,6 +509,8 @@ public class CredentialRequestHandlerTest {
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
         when(mockExchange.getRequestHeaders()).thenReturn(mockHeader);
+        when(mockExchange.getRequestURI()).thenReturn(TES_URI);
+        when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockHeader.getFirst(anyString())).thenReturn("auth token");
         handler.handle(mockExchange);
         byte[] expectedResponse = "Failed to get connection".getBytes();
