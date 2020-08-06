@@ -27,6 +27,7 @@ import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.BindException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -118,7 +119,11 @@ class TESTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_iot_role_alias_WHEN_tes_is_queried_THEN_valid_credentials_are_returned() throws Exception {
+    void GIVEN_iot_role_alias_WHEN_tes_is_queried_THEN_valid_credentials_are_returned(ExtensionContext context)
+            throws Exception {
+        //
+        ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
+        ignoreExceptionUltimateCauseOfType(context, BindException.class);
         String urlString =
                 kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).getOnce().toString();
         assertNotNull(urlString);
@@ -133,7 +138,13 @@ class TESTest extends BaseITCase {
 
         // Should reject unsupported method
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        con.setRequestMethod("POST");
+        con.setDoOutput(true);
+        con.setRequestMethod("GET");
+        String requestBody = "random request body";
+        try (OutputStream outputStream = con.getOutputStream()) {
+            outputStream.write(requestBody.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+        }
         assertEquals(HttpURLConnection.HTTP_BAD_METHOD, con.getResponseCode());
         con.disconnect();
 
@@ -170,7 +181,10 @@ class TESTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_iot_role_alias_WHEN_tes_is_queried_without_auth_header_THEN_403_returned() throws Exception {
+    void GIVEN_iot_role_alias_WHEN_tes_is_queried_without_auth_header_THEN_403_returned(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
+        ignoreExceptionUltimateCauseOfType(context, BindException.class);
         String urlString =
                 kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).getOnce().toString();
         assertNotNull(urlString);
