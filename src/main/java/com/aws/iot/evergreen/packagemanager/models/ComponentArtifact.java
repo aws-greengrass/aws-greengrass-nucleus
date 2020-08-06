@@ -23,4 +23,9 @@ public class ComponentArtifact {
 
     @JsonProperty("Algorithm")
     private String algorithm;
+    
+    @Override
+    public String toString() {
+        return artifactUri.toString();
+    }
 }

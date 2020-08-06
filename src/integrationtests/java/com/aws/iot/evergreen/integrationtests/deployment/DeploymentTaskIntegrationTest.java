@@ -5,8 +5,6 @@
 
 package com.aws.iot.evergreen.integrationtests.deployment;
 
-import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.FindComponentVersionsByPlatformResult;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DefaultDeploymentTask;
@@ -24,9 +22,9 @@ import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
-import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,7 +53,6 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -77,9 +75,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(EGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -128,13 +123,6 @@ class DeploymentTaskIntegrationTest {
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
 
-        GreengrassPackageServiceClientFactory mockFactory = mock(GreengrassPackageServiceClientFactory.class);
-        kernel.getContext().put(GreengrassPackageServiceClientFactory.class, mockFactory);
-        AWSEvergreen mockEg = mock(AWSEvergreen.class);
-        when(mockEg.findComponentVersionsByPlatform(any())).thenReturn(
-                new FindComponentVersionsByPlatformResult().withComponents(Collections.emptyList()));
-        when(mockFactory.getCmsClient()).thenReturn(mockEg);
-
         kernel.launch();
 
         // get required instances from context
@@ -149,7 +137,8 @@ class DeploymentTaskIntegrationTest {
     }
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach(ExtensionContext context) {
+        ignoreExceptionOfType(context, PackageDownloadException.class);
         deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                 null);
         groupToRootComponentsTopics = deploymentServiceTopics.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, MOCK_GROUP_NAME);

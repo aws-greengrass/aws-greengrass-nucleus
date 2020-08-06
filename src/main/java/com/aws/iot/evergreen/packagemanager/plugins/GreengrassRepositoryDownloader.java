@@ -11,7 +11,6 @@ import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
-import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -30,8 +29,8 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
     private static final String CONTENT_DISPOSITION = "Content-Disposition";
     private static final String HTTP_HEADER_LOCATION = "Location";
-    private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT
-            = "Failed to download artifact %s for package %s-%s, http response from server was %d";
+    private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
+            "Failed to download artifact %s for package %s-%s";
 
     private final AWSEvergreen evgCmsClient;
 
@@ -42,32 +41,41 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
 
     @Override
     public void downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
-            throws IOException, PackageDownloadException, InvalidArtifactUriException {
+            throws IOException, PackageDownloadException {
         logger.atInfo().setEventType("download-artifact-from-greengrass-repo")
-                .addKeyValue("packageIdentifier", packageIdentifier).addKeyValue("artifactUri",
-                artifact.getArtifactUri().toString()).log();
-
-        String preSignedUrl = getArtifactDownloadURL(packageIdentifier,
-                                                     artifact.getArtifactUri().getSchemeSpecificPart());
-        URL url = new URL(preSignedUrl);
-        HttpURLConnection httpConn = connect(url);
+                .addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue("artifactUri", artifact.getArtifactUri().toString()).log();
 
         try {
-            int responseCode = httpConn.getResponseCode();
+            String preSignedUrl =
+                    getArtifactDownloadURL(packageIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
+            URL url = new URL(preSignedUrl);
+            HttpURLConnection httpConn = connect(url);
 
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                String disposition = httpConn.getHeaderField(CONTENT_DISPOSITION);
-                String filename = extractFilename(url, disposition);
+            try {
+                int responseCode = httpConn.getResponseCode();
 
-                try (InputStream inputStream = httpConn.getInputStream()) {
-                    Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    String disposition = httpConn.getHeaderField(CONTENT_DISPOSITION);
+                    String filename = extractFilename(url, disposition);
+
+                    try (InputStream inputStream = httpConn.getInputStream()) {
+                        Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+                //TODO handle the other status code
+            } finally {
+                if (httpConn != null) {
+                    httpConn.disconnect();
                 }
             }
-            //TODO handle the other status code
-        } finally {
-            if (httpConn != null) {
-                httpConn.disconnect();
+        } catch (PackageDownloadException e) {
+            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
+                throw e;
             }
+            logger.atInfo("download-artifact-from-greengrass-repo").addKeyValue("packageIdentifier", packageIdentifier)
+                    .addKeyValue("artifactUri", artifact.getArtifactUri())
+                    .log("Failed to download artifact, but found it locally, using that version", e);
         }
     }
 
@@ -77,19 +85,20 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
 
     String getArtifactDownloadURL(PackageIdentifier packageIdentifier, String artifactName)
             throws PackageDownloadException {
-        GetComponentArtifactRequest getComponentArtifactRequest
-                = new GetComponentArtifactRequest().withArtifactName(artifactName)
-                                                   .withComponentName(packageIdentifier.getName())
-                                                   .withComponentVersion(packageIdentifier.getVersion().toString())
-                                                   .withScope(packageIdentifier.getScope());
+        GetComponentArtifactRequest getComponentArtifactRequest =
+                new GetComponentArtifactRequest().withArtifactName(artifactName)
+                        .withComponentName(packageIdentifier.getName())
+                        .withComponentVersion(packageIdentifier.getVersion().toString())
+                        .withScope(packageIdentifier.getScope());
 
-        GetComponentArtifactResult getComponentArtifactResult = null;
         // TODO: This is horribly bad code, but unfortunately, the service is configured to return 302 redirect and
         // the auto-generated SDK does NOT like that. The only way to handle this at the moment is to catch the
         // exception for the redirect. This response code needs a revisit from the service side either to change the
         // response code or to gracefully respond instead of throwing exception
         try {
-            getComponentArtifactResult = evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
+            GetComponentArtifactResult getComponentArtifactResult =
+                    evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
+            return getComponentArtifactResult.getRedirectUrl();
         } catch (AmazonServiceException ase) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
             // Ideally service side response is fixed and this can be merged with the Client Exception handling
@@ -97,34 +106,17 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
             int responseStatus = ase.getStatusCode();
             Map<String, String> headers = ase.getHttpHeaders();
             if (responseStatus != HttpURLConnection.HTTP_MOVED_TEMP || !headers.containsKey(HTTP_HEADER_LOCATION)) {
-                logger.atError("download-artifact-from-greengrass-repo", ase)
-                      .addKeyValue("componentName", packageIdentifier.getName())
-                      .addKeyValue("componentVersion", packageIdentifier.getVersion())
-                      .addKeyValue("artifactName", artifactName)
-                      .addKeyValue("failureCode", responseStatus)
-                      .log();
-                throw new PackageDownloadException(String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT,
-                                                                 packageIdentifier.getName(),
-                                                                 packageIdentifier.getVersion().toString(),
-                                                                 artifactName, responseStatus),
-                                                   ase);
+                throw new PackageDownloadException(
+                        String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, packageIdentifier.getName(),
+                                packageIdentifier.getVersion().toString()), ase);
             }
             return headers.get(HTTP_HEADER_LOCATION);
         } catch (AmazonClientException ace) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
-            logger.atError("download-artifact-from-greengrass-repo", ace)
-                  .addKeyValue("componentName", packageIdentifier.getName())
-                  .addKeyValue("componentVersion", packageIdentifier.getVersion())
-                  .addKeyValue("artifactName", artifactName)
-                  .log();
-            throw new PackageDownloadException(String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT,
-                                                             packageIdentifier.getName(),
-                                                             packageIdentifier.getVersion().toString(),
-                                                             artifactName), ace);
+            throw new PackageDownloadException(
+                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, packageIdentifier.getName(),
+                            packageIdentifier.getVersion().toString()), ace);
         }
-
-        // This should be expected behavior
-        return (getComponentArtifactResult == null) ? null : getComponentArtifactResult.getRedirectUrl();
     }
 
     String extractFilename(URL preSignedUrl, String contentDisposition) {
