@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -28,7 +29,8 @@ import java.util.List;
 @ToString
 @EqualsAndHashCode
 // TODO: pull this class to a library to share with cloud services. SIM: https://sim.amazon.com/issues/P33788350
-public class DeploymentDocument {
+public class DeploymentDocument implements Serializable {
+    private static final long serialVersionUID = 0L;
 
     @JsonProperty("DeploymentId")
     private String deploymentId;

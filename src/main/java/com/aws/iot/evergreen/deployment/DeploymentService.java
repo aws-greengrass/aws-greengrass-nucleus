@@ -80,7 +80,8 @@ public class DeploymentService extends EvergreenService {
     private KernelConfigResolver kernelConfigResolver;
     @Inject
     private DeploymentConfigMerger deploymentConfigMerger;
-
+    @Inject
+    private DeploymentDirectoryManager deploymentDirectoryManager;
     @Inject
     private DeploymentStatusKeeper deploymentStatusKeeper;
 
@@ -124,7 +125,7 @@ public class DeploymentService extends EvergreenService {
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
                       DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      Context context) {
+                      DeploymentDirectoryManager deploymentDirectoryManager, Context context) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -132,6 +133,7 @@ public class DeploymentService extends EvergreenService {
         this.kernelConfigResolver = kernelConfigResolver;
         this.deploymentConfigMerger = deploymentConfigMerger;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
+        this.deploymentDirectoryManager = deploymentDirectoryManager;
         this.context = context;
     }
 
@@ -233,6 +235,8 @@ public class DeploymentService extends EvergreenService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
                                     statusDetails);
+                    deploymentDirectoryManager.persistLastSuccessfulDeployment(
+                            currentDeploymentTaskMetadata.getDeploymentDocument().getDeploymentId());
                 } else {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
@@ -243,6 +247,8 @@ public class DeploymentService extends EvergreenService {
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                    deploymentDirectoryManager.persistLastFailedDeployment(
+                            currentDeploymentTaskMetadata.getDeploymentDocument().getDeploymentId());
                 }
             }
         } catch (ExecutionException e) {

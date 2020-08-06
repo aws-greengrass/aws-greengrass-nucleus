@@ -5,24 +5,34 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.io.Serializable;
+
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
-public class Deployment {
+@SuppressFBWarnings(value = "SE_TRANSIENT_FIELD_NOT_RESTORED", justification = "The deployment is persisted and then "
+        + "restored to inject as an ongoing Deployment. The transient fields are not required.")
+public class Deployment implements Serializable {
+    private static final long serialVersionUID = 0L;
+
     @Setter
     private DeploymentDocument deploymentDocumentObj;
-    private String deploymentDocument;
+    private transient String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
     @EqualsAndHashCode.Include
     private String id;
-    private boolean isCancelled;
+    private transient boolean isCancelled;
+    @Setter
     private DeploymentStage deploymentStage;
+    @Setter
+    private String stageDetails;
     //TODO: Add interface to pass a method for status update
 
     /**

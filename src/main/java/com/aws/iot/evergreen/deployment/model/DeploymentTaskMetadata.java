@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @AllArgsConstructor
 public class DeploymentTaskMetadata {
+
     @NonNull @Getter
     private DeploymentTask deploymentTask;
     @NonNull

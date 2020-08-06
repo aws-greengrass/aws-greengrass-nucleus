@@ -50,6 +50,7 @@ public class KernelCommandLine {
     private static final String workPathName = "~root/work";
     private static final String packageStorePathName = "~root/packages";
     private static final String kernelAltsPathName = "~root/alts";
+    private static final String deploymentsPathName = "~root/deployments";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -116,9 +117,11 @@ public class KernelCommandLine {
         Exec.setDefaultEnv("HOME", kernel.getWorkPath().toString());
         kernel.setPackageStorePath(Paths.get(deTilde(packageStorePathName)).toAbsolutePath());
         kernel.setKernelAltsPath(Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath());
+        kernel.setDeploymentsPath(Paths.get(deTilde(deploymentsPathName)).toAbsolutePath());
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
-                    kernel.getWorkPath(), kernel.getPackageStorePath());
+                    kernel.getWorkPath(), kernel.getPackageStorePath(), kernel.getKernelAltsPath(),
+                    kernel.getDeploymentsPath());
         } catch (IOException e) {
             RuntimeException rte = new RuntimeException("Cannot create all required directories", e);
             logger.atError("system-boot-error", rte).log();

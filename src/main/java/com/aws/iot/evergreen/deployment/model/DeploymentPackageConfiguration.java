@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,7 +25,8 @@ import java.util.Map;
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
-public class DeploymentPackageConfiguration {
+public class DeploymentPackageConfiguration implements Serializable {
+    private static final long serialVersionUID = 0L;
 
     @JsonProperty("Name")
     private String packageName;

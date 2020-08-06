@@ -18,6 +18,10 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -173,13 +177,25 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     public void persistBootstrapTaskList() {
-        // TODO: write bootstrapTaskStatusList to writer
+        // TODO: write bootstrapTaskStatusList to Path persistedTaskFilePath
         // TODO: add file validation
     }
 
-    public void loadBootstrapTaskList() {
-        // TODO: read bootstrapTaskStatusList
+    /**
+     * Persist the bootstrap task list from file.
+     *
+     * @param persistedTaskFilePath path to the persisted file for bootstrap tasks
+     * @throws IOException on I/O error or when file path to persist bootstrap task list is not set (wrong usage)
+     * @throws ClassNotFoundException deserialization of the file content fails
+     */
+    public void loadBootstrapTaskList(Path persistedTaskFilePath) throws IOException, ClassNotFoundException {
         // TODO: validate file
+        Objects.requireNonNull(persistedTaskFilePath);
+
+        try (ObjectInputStream input = new ObjectInputStream(Files.newInputStream(persistedTaskFilePath))) {
+            bootstrapTaskStatusList.clear();
+            bootstrapTaskStatusList.addAll((List<BootstrapTaskStatus>) input.readObject());
+        }
     }
 
     /**

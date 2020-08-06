@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.util;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.File;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,9 +14,13 @@ import java.lang.reflect.Array;
 import java.nio.Buffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.CopyOption;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -580,6 +585,22 @@ public final class Utils {
     }
 
     /**
+     * Clean up a file or a directory recursively.
+     *
+     * @param filePath path to the file
+     * @return true if deletion is successful, false otherwise
+     */
+    public static boolean deleteFileRecursively(File filePath) {
+        File[] files = filePath.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                deleteFileRecursively(file);
+            }
+        }
+        return filePath.delete();
+    }
+
+    /**
      * Flip a Map from key->value to value->List(key).
      *
      * @param sourceMap map to flip
@@ -607,5 +628,30 @@ public final class Utils {
         } catch (IOException e) {
             return null;
         }
+    }
+
+    /**
+     * Copy directory tree recursively.
+     *
+     * @param src source path
+     * @param des destination path
+     * @param options options specifying how the copy should be done
+     * @throws IOException on I/O error
+     */
+    public static void copyFolderRecursively(Path src, Path des, CopyOption... options) throws IOException {
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Utils.createPaths(des.resolve(src.relativize(dir)));
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, des.resolve(src.relativize(file)), options);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }
