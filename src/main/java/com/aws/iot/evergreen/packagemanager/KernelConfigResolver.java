@@ -70,8 +70,7 @@ public class KernelConfigResolver {
 
         HashMap<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> kernelNamespace
                 = new HashMap<>();
-        artifactNamespace.put(KERNEL_ROOT_PATH,
-                (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> kernel.getRootPath().toAbsolutePath().toString());
         systemParameters.put(KERNEL_NAMESPACE, kernelNamespace);
     }
 

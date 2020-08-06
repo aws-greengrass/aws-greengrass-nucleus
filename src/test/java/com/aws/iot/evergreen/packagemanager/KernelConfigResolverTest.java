@@ -49,7 +49,8 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_RUN_KEY = "run";
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
-            "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
+            "echo installing service in Package %s with param {{params:%s_Param_1.value}}, " +
+                    "kernel rootPath as {{kernel:rootPath}} and unpack dir as {{artifacts:unpackPath}}";
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
             "echo running service in Package %s with param {{params:%s_Param_2.value}}";
     private static final String TEST_INPUT_PACKAGE_A = "PackageA";
@@ -94,7 +95,10 @@ class KernelConfigResolverTest {
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(packageStore.getPackageRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any()))
+                .thenReturn(Paths.get("/dummyUnpackDir"));
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(Paths.get("/dummyroot"));
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -140,7 +144,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(Paths.get("/dummyUnpackDir"));
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(Paths.get("/dummyroot"));
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -183,7 +190,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(Paths.get("/dummyUnpackDir"));
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(Paths.get("/dummyroot"));
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
@@ -206,12 +216,14 @@ class KernelConfigResolverTest {
         // Parameter value set in deployment will be used for lifecycle install section
         assertThat("If parameter value was set in deployment, it should be used",
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Package PackageA " + "with param PackageA_Param_1_value"));
+                equalTo("echo installing service in Package PackageA with param PackageA_Param_1_value," +
+                        " kernel rootPath as /dummyroot and unpack dir as /dummyUnpackDir"));
 
         // Parameter value was not set in deployment, so default will be used for lifecycle run section
         assertThat("If no parameter value was set in deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
-                equalTo("echo running service in Package " + "PackageA with param PackageA_Param_2_default_value"));
+                equalTo("echo running service in Package " + "PackageA with param " +
+                        "PackageA_Param_2_default_value"));
     }
 
     @Test
@@ -231,7 +243,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(Paths.get("/dummyUnpackDir"));
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(Paths.get("/dummyroot"));
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -262,7 +277,8 @@ class KernelConfigResolverTest {
 
         assertThat("If parameter value was set in previous deployment but not in current deployment, previously "
                         + "used values should be used", serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value"));
+                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value,"+
+                        " kernel rootPath as /dummyroot and unpack dir as /dummyUnpackDir"));
 
         assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
