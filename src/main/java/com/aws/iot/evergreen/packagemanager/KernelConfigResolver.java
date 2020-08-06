@@ -29,7 +29,6 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -47,8 +46,6 @@ public class KernelConfigResolver {
     public static final String ARTIFACTS_NAMESPACE = "artifacts";
     public static final String KERNEL_NAMESPACE = "kernel";
     public static final String KERNEL_ROOT_PATH = "rootPath";
-    private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
-    private static final String PARAMETER_REFERENCE_FORMAT = String.format(INTERPOLATION_FORMAT, "params", "%s.value");
     private static final String WORD_GROUP = "([\\.\\w]+)";
     // Pattern matches {{otherComponentName:parameterNamespace:parameterKey}}
     private static final Pattern CROSS_INTERPOLATION_REGEX =
@@ -57,7 +54,6 @@ public class KernelConfigResolver {
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
     static final String PARAM_NAMESPACE = "params";
     static final String PARAM_VALUE_SUFFIX = ".value";
-    static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String PATH_KEY = "path";
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
 
@@ -165,7 +161,7 @@ public class KernelConfigResolver {
     private Object interpolate(Object configValue, PackageIdentifier packageIdentifier,
                                List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>>
-                                       parameterAndDependencyCache) {
+                                       parameterAndDependencyCache) throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
@@ -190,7 +186,7 @@ public class KernelConfigResolver {
     private String replace(String stringValue, PackageIdentifier packageIdentifier,
                            List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                            Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>>
-                                   parameterAndDependencyCache) {
+                                   parameterAndDependencyCache) throws PackageLoadingException {
         // Handle some-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
         while (matcher.find()) {
@@ -244,9 +240,10 @@ public class KernelConfigResolver {
     @Nullable
     private String lookupParameterValueForComponent(
             Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>> parameterAndDependencyCache,
-            DeploymentDocument document, PackageIdentifier component, String namespace, String key) {
+            DeploymentDocument document, PackageIdentifier component, String namespace, String key)
+            throws PackageLoadingException {
         // Handle cross-component system parameters
-        Map<String, Function<PackageIdentifier, String>> systemParams =
+        Map<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
         if (systemParams.containsKey(key)) {
             return systemParams.get(key).apply(component);
@@ -269,6 +266,7 @@ public class KernelConfigResolver {
         }
         return null;
     }
+
     /*
      * Compute the config for main service
      */

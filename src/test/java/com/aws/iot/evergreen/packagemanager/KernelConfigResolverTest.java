@@ -286,7 +286,10 @@ class KernelConfigResolverTest {
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(packageStore.getPackageRecipe(package2)).thenReturn(package2Recipe);
         when(packageStore.getPackageRecipe(package3)).thenReturn(package3Recipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any()))
+                .thenReturn(Paths.get("/dummyUnpackDir"));
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(Paths.get("/dummyroot"));
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
