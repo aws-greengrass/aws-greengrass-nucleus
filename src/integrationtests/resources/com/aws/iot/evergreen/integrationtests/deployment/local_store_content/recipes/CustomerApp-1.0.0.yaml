@@ -16,3 +16,6 @@ Dependencies:
     VersionRequirements: 1.0.0
   ClassService:
     VersionRequirements: 1.0.0
+Artifacts:
+  all:
+    - Uri: greengrass:customerApp
