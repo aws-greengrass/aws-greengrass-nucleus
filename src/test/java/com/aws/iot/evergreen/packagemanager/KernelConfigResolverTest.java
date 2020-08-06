@@ -40,6 +40,9 @@ import java.util.stream.StreamSupport;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.ARTIFACTS_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.DECOMPRESSED_PATH_KEY;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.KERNEL_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.KERNEL_ROOT_PATH;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAM_NAMESPACE;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAM_VALUE_SUFFIX;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PATH_KEY;
@@ -57,7 +60,8 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
             "echo installing service in Package %s with param {{" + PARAM_NAMESPACE + ":%s_Param_1" + PARAM_VALUE_SUFFIX
-                    + "}}, kernel rootPath as {{kernel:rootPath}} and unpack dir as {{artifacts:unpackPath}}";
+                    + "}}, kernel rootPath as {{" + KERNEL_NAMESPACE + ":" + KERNEL_ROOT_PATH + "}} and " +
+                    "unpack dir as {{" + ARTIFACTS_NAMESPACE + ":" + DECOMPRESSED_PATH_KEY + "}}";
                     
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
             "echo running service in Package %s with param {{" + PARAM_NAMESPACE + ":%s_Param_2" + PARAM_VALUE_SUFFIX

@@ -55,6 +55,8 @@ public class KernelConfigResolver {
     static final String PARAM_NAMESPACE = "params";
     static final String PARAM_VALUE_SUFFIX = ".value";
     static final String PATH_KEY = "path";
+    static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
+
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
 
     // Map from Namespace -> Key -> Function which returns the replacement value
@@ -80,7 +82,7 @@ public class KernelConfigResolver {
                 = new HashMap<>();
         artifactNamespace.put(PATH_KEY,
                 (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
-        artifactNamespace.put("unpackPath",
+        artifactNamespace.put(DECOMPRESSED_PATH_KEY,
                 (id) -> packageStore.resolveAndSetupArtifactsUnpackDirectory(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
 
