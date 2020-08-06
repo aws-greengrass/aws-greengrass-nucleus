@@ -39,18 +39,17 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES
 import static com.aws.iot.evergreen.kernel.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
-
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
-    private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
+    private static final String WORD_GROUP = "([\\.\\w]+)";
     // Pattern matches {{otherComponentName:parameterNamespace:parameterKey}}
     private static final Pattern CROSS_INTERPOLATION_REGEX =
-            Pattern.compile("\\{\\{([\\.\\w]+):([\\.\\w+]+):([\\.\\w]+)}}");
+            Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + ":" + WORD_GROUP + "}}");
+    private static final Pattern SAME_INTERPOLATION_REGEX =
+            Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
     static final String PARAM_NAMESPACE = "params";
     static final String PARAM_VALUE_SUFFIX = ".value";
-    private static final String PARAMETER_REFERENCE_FORMAT =
-            String.format(INTERPOLATION_FORMAT, PARAM_NAMESPACE, "%s" + PARAM_VALUE_SUFFIX);
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String PATH_KEY = "path";
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
@@ -102,7 +101,6 @@ public class KernelConfigResolver {
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
         // Services need to be under the services namespace in kernel config
-
         return Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
     }
 
@@ -123,13 +121,9 @@ public class KernelConfigResolver {
         Map<Object, Object> resolvedServiceConfig = new HashMap<>();
 
         // Interpolate parameters
-        Map<Object, Object> resolvedLifecycleConfig = new HashMap<>();
-        for (Map.Entry<String, Object> configKVPair : packageRecipe.getLifecycle().entrySet()) {
-            resolvedLifecycleConfig.put(configKVPair.getKey(),
-                    interpolate(configKVPair.getValue(), resolvedParams, packageIdentifier, packagesToDeploy, document,
-                            parameterAndDependencyCache));
-        }
-        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, resolvedLifecycleConfig);
+        resolvedServiceConfig.put(EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                interpolate(packageRecipe.getLifecycle(), packageIdentifier, packagesToDeploy, document,
+                        parameterAndDependencyCache));
 
         if (!Utils.isEmpty(packageRecipe.getComponentType())) {
             resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, packageRecipe.getComponentType());
@@ -152,15 +146,14 @@ public class KernelConfigResolver {
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
-    private Object interpolate(Object configValue, Set<PackageParameter> packageParameters,
-                               PackageIdentifier packageIdentifier, List<PackageIdentifier> packagesToDeploy,
-                               DeploymentDocument document,
+    private Object interpolate(Object configValue, PackageIdentifier packageIdentifier,
+                               List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>>
                                        parameterAndDependencyCache) {
         Object result = configValue;
 
         if (configValue instanceof String) {
-            result = replace((String) configValue, packageIdentifier, packageParameters, packagesToDeploy, document,
+            result = replace((String) configValue, packageIdentifier, packagesToDeploy, document,
                     parameterAndDependencyCache);
         }
         if (configValue instanceof Map) {
@@ -168,8 +161,8 @@ public class KernelConfigResolver {
             Map<Object, Object> resolvedChildConfig = new HashMap<>();
             for (Map.Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
-                        interpolate(childLifecycle.getValue(), packageParameters, packageIdentifier, packagesToDeploy,
-                                document, parameterAndDependencyCache));
+                        interpolate(childLifecycle.getValue(), packageIdentifier, packagesToDeploy, document,
+                                parameterAndDependencyCache));
             }
             result = resolvedChildConfig;
         }
@@ -179,30 +172,22 @@ public class KernelConfigResolver {
     }
 
     private String replace(String stringValue, PackageIdentifier packageIdentifier,
-                           Set<PackageParameter> packageParameters, List<PackageIdentifier> packagesToDeploy,
-                           DeploymentDocument document,
+                           List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                            Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>>
                                    parameterAndDependencyCache) {
-        // Handle package parameters
-        for (final PackageParameter parameter : packageParameters) {
-            stringValue = stringValue
-                    .replace(String.format(PARAMETER_REFERENCE_FORMAT, parameter.getName()), parameter.getValue());
-        }
-
-        // Handle system parameter replacement
-        for (Map.Entry<String, Map<String, Function<PackageIdentifier, String>>> namespaceEntry : systemParameters
-                .entrySet()) {
-            for (Map.Entry<String, Function<PackageIdentifier, String>> keyEntry : namespaceEntry.getValue()
-                    .entrySet()) {
-                String toReplace = String.format(INTERPOLATION_FORMAT, namespaceEntry.getKey(), keyEntry.getKey());
-                if (stringValue.contains(toReplace)) {
-                    stringValue = stringValue.replace(toReplace, keyEntry.getValue().apply(packageIdentifier));
-                }
+        // Handle some-component parameters
+        Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
+        while (matcher.find()) {
+            String replacement =
+                    lookupParameterValueForComponent(parameterAndDependencyCache, document, packageIdentifier,
+                            matcher.group(1), matcher.group(2));
+            if (replacement != null) {
+                stringValue = stringValue.replace(matcher.group(), replacement);
             }
         }
 
         // Handle cross-component parameters
-        Matcher matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
+        matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
             String crossComponent = matcher.group(1);
@@ -211,9 +196,8 @@ public class KernelConfigResolver {
 
             if (crossComponentIdentifier.isPresent() && componentCanReadParameterFrom(packageIdentifier,
                     crossComponentIdentifier.get(), parameterAndDependencyCache)) {
-                String replacement =
-                        crossComponentLookup(parameterAndDependencyCache, document, crossComponentIdentifier.get(),
-                                matcher.group(2), matcher.group(3));
+                String replacement = lookupParameterValueForComponent(parameterAndDependencyCache, document,
+                        crossComponentIdentifier.get(), matcher.group(2), matcher.group(3));
                 if (replacement != null) {
                     stringValue = stringValue.replace(matcher.group(), replacement);
                 }
@@ -243,34 +227,33 @@ public class KernelConfigResolver {
     }
 
     @Nullable
-    private String crossComponentLookup(
+    private String lookupParameterValueForComponent(
             Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>> parameterAndDependencyCache,
-            DeploymentDocument document, PackageIdentifier crossedComponent, String namespace, String key) {
+            DeploymentDocument document, PackageIdentifier component, String namespace, String key) {
         // Handle cross-component system parameters
         Map<String, Function<PackageIdentifier, String>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
         if (systemParams.containsKey(key)) {
-            return systemParams.get(key).apply(crossedComponent);
+            return systemParams.get(key).apply(component);
         }
 
-        // Handle cross-component component parameters
+        // Handle component parameters
         if (namespace.equals(PARAM_NAMESPACE)) {
             try {
                 Set<PackageParameter> resolvedParams =
-                        resolveParameterValuesToUseWithCache(parameterAndDependencyCache, crossedComponent, document);
+                        resolveParameterValuesToUseWithCache(parameterAndDependencyCache, component, document);
                 Optional<PackageParameter> potentialParameter =
                         resolvedParams.stream().filter(p -> (p.getName() + PARAM_VALUE_SUFFIX).equals(key)).findFirst();
                 if (potentialParameter.isPresent()) {
                     return potentialParameter.get().getValue();
                 }
             } catch (PackageLoadingException e) {
-                LOGGER.atWarn().log(NO_RECIPE_ERROR_FORMAT, crossedComponent, e);
+                LOGGER.atWarn().log(NO_RECIPE_ERROR_FORMAT, component, e);
                 return null;
             }
         }
         return null;
     }
-
 
     /*
      * Compute the config for main service
