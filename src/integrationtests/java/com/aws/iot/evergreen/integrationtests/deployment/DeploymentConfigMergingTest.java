@@ -511,7 +511,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }};
 
         AtomicBoolean sleeperBBroken = new AtomicBoolean(false);
-        AtomicBoolean sleeperBRolledBack = new AtomicBoolean(false);
+        CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
         GlobalStateChangeListener listener = (service, oldState, newState) -> {
             if (service.getName().equals("sleeperB")) {
                 if (newState.equals(State.ERRORED)) {
@@ -523,7 +523,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 }
                 if (sleeperBBroken.get() && newState.equals(State.RUNNING)) {
                     // Rollback should only count after error
-                    sleeperBRolledBack.set(true);
+                    sleeperBRolledBack.countDown();
                 }
             }
         };
@@ -535,7 +535,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // THEN
         // deployment should have errored and rolled back
-        assertTrue(sleeperBRolledBack.get());
+        assertTrue(sleeperBRolledBack.await(10, TimeUnit.SECONDS));
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
 
         // Value set in listener should not have been rolled back

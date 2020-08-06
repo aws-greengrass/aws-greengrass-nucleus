@@ -9,6 +9,8 @@ import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
@@ -38,16 +40,20 @@ import static com.aws.iot.evergreen.kernel.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
 
+    private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
     private static final String INTERPOLATION_FORMAT = "{{%s:%s}}";
     // Pattern matches {{otherComponentName:parameterNamespace:parameterKey}}
     private static final Pattern CROSS_INTERPOLATION_REGEX =
             Pattern.compile("\\{\\{([\\.\\w]+):([\\.\\w+]+):([\\.\\w]+)}}");
-    private static final String PARAM_NAMESPACE = "params";
-    private static final String PARAM_VALUE_SUFFIX = ".value";
+    static final String PARAM_NAMESPACE = "params";
+    static final String PARAM_VALUE_SUFFIX = ".value";
     private static final String PARAMETER_REFERENCE_FORMAT =
             String.format(INTERPOLATION_FORMAT, PARAM_NAMESPACE, "%s" + PARAM_VALUE_SUFFIX);
+    static final String ARTIFACTS_NAMESPACE = "artifacts";
+    static final String PATH_KEY = "path";
+    private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
     // Map from Namespace -> Key -> Function which returns the replacement value
     private final Map<String, Map<String, Function<PackageIdentifier, String>>> systemParameters = new HashMap<>();
 
@@ -68,8 +74,8 @@ public class KernelConfigResolver {
         // More system parameters can be added over time by extending this map with new namespaces/keys
         HashMap<String, Function<PackageIdentifier, String>> artifactNamespace = new HashMap<>();
         artifactNamespace
-                .put("path", (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
-        systemParameters.put("artifacts", artifactNamespace);
+                .put(PATH_KEY, (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
     }
 
     /**
@@ -229,6 +235,7 @@ public class KernelConfigResolver {
                 PackageRecipe recipe = packageStore.getPackageRecipe(component);
                 return recipe.getDependencies().containsKey(canReadFrom.getName());
             } catch (PackageLoadingException e) {
+                LOGGER.atWarn().log(NO_RECIPE_ERROR_FORMAT, component, e);
                 return false;
             }
         }
@@ -257,6 +264,7 @@ public class KernelConfigResolver {
                     return potentialParameter.get().getValue();
                 }
             } catch (PackageLoadingException e) {
+                LOGGER.atWarn().log(NO_RECIPE_ERROR_FORMAT, crossedComponent, e);
                 return null;
             }
         }
