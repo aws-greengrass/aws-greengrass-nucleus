@@ -82,7 +82,7 @@ class PackageStoreTest {
         packageStore = new PackageStore(packageStoreRootPath.toAbsolutePath());
         recipeDirectory = packageStoreRootPath.resolve("recipes");
         artifactDirectory = packageStoreRootPath.resolve("artifacts");
-        artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-unpack");
+        artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-decompressed");
     }
 
     @Test
