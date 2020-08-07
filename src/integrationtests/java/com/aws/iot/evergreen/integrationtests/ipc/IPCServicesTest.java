@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.integrationtests.ipc;
 
+import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -10,6 +12,7 @@ import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
@@ -35,6 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -198,6 +202,69 @@ class IPCServicesTest {
         } finally {
             configuration.remove();
         }
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_to_validate_config_THEN_validate_event_can_be_sent_to_client()
+            throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        CountDownLatch eventReceivedByClient = new CountDownLatch(1);
+        c.subscribeToValidateConfiguration((configMap) -> {
+            assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
+            eventReceivedByClient.countDown();
+        });
+
+        ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
+        CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> validateResultFuture =
+                new CompletableFuture<>();
+        agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"),
+                validateResultFuture);
+        assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
+
+        agent.discardValidationReportTracker("ServiceName", validateResultFuture);
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
+            throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        CountDownLatch eventReceivedByClient = new CountDownLatch(1);
+        c.subscribeToValidateConfiguration((configMap) -> {
+            assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
+            eventReceivedByClient.countDown();
+        });
+
+        CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
+        ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
+        agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
+        assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
+
+        c.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
+        assertEquals(ConfigurationValidityStatus.VALID, responseTracker.get().getStatus());
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
+
+        CountDownLatch configUpdated = new CountDownLatch(1);
+        configToUpdate.subscribe((what, node) -> configUpdated.countDown());
+
+        c.updateConfiguration("ServiceName", "SomeKeyToUpdate", "SomeValueToUpdate", System.currentTimeMillis());
+
+        assertTrue(configUpdated.await(5, TimeUnit.SECONDS));
+        assertEquals("SomeValueToUpdate", configToUpdate.getOnce());
     }
 
     @Test

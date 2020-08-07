@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.iot.evergreen.builtin.services.configstore;
 
 import com.aws.iot.evergreen.config.ChildChanged;
@@ -28,8 +33,11 @@ import com.aws.iot.evergreen.ipc.services.configstore.ValidateConfigurationUpdat
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -51,22 +59,26 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 /**
  * Class to handle business logic for all ConfigStore requests over IPC.
  */
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class ConfigStoreIPCAgent implements InjectionActions {
+    private static final int TIMEOUT_SECONDS = 30;
+    private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
+
     // Map from component --> config update event subscribers
-    private static final Map<String, CopyOnWriteArraySet<ConnectionContext>> configUpdateSubscribersByService =
+    private final Map<String, CopyOnWriteArraySet<ConnectionContext>> configUpdateSubscribersByService =
             new ConcurrentHashMap<>();
     // Map from connection --> Function to call for triggering config change events
-    private static final Map<ConnectionContext, BiConsumer<String, String>> configUpdateListeners =
+    private final Map<ConnectionContext, BiConsumer<String, String>> configUpdateListeners =
             new ConcurrentHashMap<>();
     // Map from connection --> Function to call for triggering config validation events
-    private static final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
+    private final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
             new ConcurrentHashMap<>();
     // Map of component --> future to complete with validation status received from service in response to validate
     // event
-    private static final Map<String, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
+    private final Map<String, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
             new ConcurrentHashMap<>();
-    private static final int TIMEOUT_SECONDS = 30;
-    private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
+
     private final ChildChanged onConfigChange = (whatHappened, node) -> {
         if (node == null) {
             return;
@@ -148,7 +160,6 @@ public class ConfigStoreIPCAgent implements InjectionActions {
                 Future<FrameReader.Message> fut =
                         context.serverPush(BuiltInServiceDestinationCode.CONFIG_STORE.getValue(),
                                 new FrameReader.Message(applicationMessage.toByteArray()));
-
                 // call the blocking "get" in a separate thread so we don't block the publish queue
                 executor.execute(() -> {
                     try {
@@ -179,14 +190,14 @@ public class ConfigStoreIPCAgent implements InjectionActions {
     public GetConfigurationResponse getConfig(GetConfigurationRequest request, ConnectionContext context) {
         log.atDebug().kv("context", context).log("Config IPC get config request");
         String serviceName = request.getComponentName() == null ? context.getServiceName() : request.getComponentName();
-        Topics serviceTopic = kernel.findServiceTopic(serviceName);
+        Topics serviceTopics = kernel.findServiceTopic(serviceName);
         GetConfigurationResponse.GetConfigurationResponseBuilder response = GetConfigurationResponse.builder();
-        if (serviceTopic == null) {
-            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Service not found")
-                    .build();
+        if (serviceTopics == null) {
+            return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
+                    .errorMessage("Service not found").build();
         }
 
-        Topics configTopics = serviceTopic.findInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
         if (configTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.NoConfig)
                     .errorMessage("Service has no dynamic config").build();

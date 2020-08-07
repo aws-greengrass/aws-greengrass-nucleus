@@ -1,5 +1,9 @@
-package com.aws.iot.evergreen.ipc.modules;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
+package com.aws.iot.evergreen.ipc.modules;
 
 import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.iot.evergreen.config.Topics;
@@ -39,6 +43,19 @@ public class ConfigStoreIPCService extends EvergreenService {
 
     public ConfigStoreIPCService(Topics c) {
         super(c);
+    }
+
+    /**
+     * Constrcutor for unit tests.
+     *
+     * @param c service topics
+     * @param router ipc router
+     * @param agent config store ipc agent
+     */
+    ConfigStoreIPCService(Topics c, IPCRouter router, ConfigStoreIPCAgent agent) {
+        super(c);
+        this.router = router;
+        this.agent = agent;
     }
 
     @Override
@@ -91,7 +108,7 @@ public class ConfigStoreIPCService extends EvergreenService {
                 case SUBSCRIBE_TO_CONFIG_VALIDATION:
                     configStoreGenericResponse = agent.subscribeToConfigValidation(context);
                     break;
-                case REPORT_CONFIG_VALIDITY:
+                case SEND_CONFIG_VALIDATION_REPORT:
                     SendConfigurationValidityReportRequest reportConfigValidityRequest = CBOR_MAPPER
                             .readValue(applicationMessage.getPayload(), SendConfigurationValidityReportRequest.class);
                     configStoreGenericResponse = agent.handleConfigValidityReport(reportConfigValidityRequest, context);
