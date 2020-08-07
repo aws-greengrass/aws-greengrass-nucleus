@@ -89,3 +89,6 @@ Deployment stage can be interpreted by both Kernel and [***DeploymentService***]
  
 Below is the state diagram of deployment stages.
 ![Deployment Stages](DeploymentStages.svg)
+Deployment Task Workflow.
+![Deployment Task](DeploymentTaskFlowChart.svg)
+

@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.kernel.KernelTest.ExpectedStateTransition;
@@ -44,6 +45,7 @@ import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventually
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -189,7 +191,8 @@ public class ServiceDependencyLifecycleTest {
         when(doc1.getDeploymentId()).thenReturn("removeHardDep");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc1, configRemoveDep).get(10, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(10, TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDepRemoved);
 
 
@@ -205,8 +208,8 @@ public class ServiceDependencyLifecycleTest {
         when(doc2.getDeploymentId()).thenReturn("addHardDep");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(60, kernel, () -> configMerger.mergeInNewConfig(doc2, configAddDep).get(10,
-                TimeUnit.SECONDS),
+        testRoutine(60, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(10, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
 
@@ -295,7 +298,8 @@ public class ServiceDependencyLifecycleTest {
         when(doc1.getDeploymentId()).thenReturn("removeSoftDep");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc1, configRemoveDep).get(10, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(10, TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDuringAllSoftDepChange);
 
 
@@ -312,7 +316,8 @@ public class ServiceDependencyLifecycleTest {
         when(doc2.getDeploymentId()).thenReturn("addSoftDep");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc2, configAddDep).get(15, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(15, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
 
@@ -383,7 +388,8 @@ public class ServiceDependencyLifecycleTest {
         when(doc2.getDeploymentId()).thenReturn("typeSoftToHard");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc2, depTypeSoftToHard).get(10, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), depTypeSoftToHard).get(10, TimeUnit.SECONDS),
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
 
@@ -396,7 +402,14 @@ public class ServiceDependencyLifecycleTest {
         when(doc1.getDeploymentId()).thenReturn("typeHardToSoft");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> configMerger.mergeInNewConfig(doc1, depTypeHardToSoft).get(10, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), depTypeHardToSoft).get(10, TimeUnit.SECONDS),
                 "dependency type changes from hard to soft", new LinkedList<>(), new HashSet<>(stateTransitions));
+    }
+
+    private Deployment createMockDeployment(DeploymentDocument doc) {
+        Deployment deployment = mock(Deployment.class);
+        doReturn(doc).when(deployment).getDeploymentDocumentObj();
+        return deployment;
     }
 }

@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
@@ -253,13 +254,13 @@ public class DeploymentConfigMergerTest {
         doc.setDeploymentId("NoSafetyCheckDeploy");
         doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK);
 
-        merger.mergeInNewConfig(doc, new HashMap<>());
+        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
         verify(updateSystemSafelyService, times(0)).addUpdateAction(any(), any());
 
         doc.setDeploymentId("DeploymentId");
         doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY);
 
-        merger.mergeInNewConfig(doc, new HashMap<>());
+        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
         verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), any());
     }
@@ -276,7 +277,7 @@ public class DeploymentConfigMergerTest {
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
 
-        Future<DeploymentResult> fut = merger.mergeInNewConfig(doc, new HashMap<>());
+        Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
         verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), cancelledTaskCaptor.capture());
 
@@ -298,7 +299,8 @@ public class DeploymentConfigMergerTest {
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
         when(bootstrapManager.isBootstrapRequired(any())).thenReturn(false);
         when(context.get(BootstrapManager.class)).thenReturn(bootstrapManager);
-        when(context.get(DefaultActivator.class)).thenReturn(new DefaultActivator(kernel));
+        DefaultActivator defaultActivator = mock(DefaultActivator.class);
+        when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
@@ -306,7 +308,7 @@ public class DeploymentConfigMergerTest {
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
 
-        merger.mergeInNewConfig(doc, new HashMap<>());
+        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
         verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), taskCaptor.capture());
 
@@ -314,7 +316,13 @@ public class DeploymentConfigMergerTest {
         taskCaptor.getValue().run();
 
         // THEN
-        verify(doc).getFailureHandlingPolicy();
+        verify(defaultActivator, times(1)).activate(any(), any(), any());
+    }
+
+    private Deployment createMockDeployment(DeploymentDocument doc) {
+        Deployment deployment = mock(Deployment.class);
+        doReturn(doc).when(deployment).getDeploymentDocumentObj();
+        return deployment;
     }
 
     private EvergreenService createMockEvergreenService(String name) {

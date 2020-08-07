@@ -6,4 +6,8 @@ public class ServiceUpdateException extends DeploymentException {
     public ServiceUpdateException(String message) {
         super(message);
     }
+
+    public ServiceUpdateException(Throwable e) {
+        super(e);
+    }
 }

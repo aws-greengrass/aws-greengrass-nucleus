@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -33,9 +35,15 @@ import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
@@ -46,10 +54,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(EGExtension.class)
@@ -275,7 +287,7 @@ class KernelTest {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     @Test
-    void GIVEN_kernel_WHEN_launch_in_deployment_activation_stage_THEN_inject_deployment(ExtensionContext context)
+    void GIVEN_kernel_launch_WHEN_deployment_activation_happy_path_THEN_inject_deployment()
             throws Exception {
         KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
         doNothing().when(kernelLifecycle).launch();
@@ -301,6 +313,169 @@ class KernelTest {
         LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
                 kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();
         assertEquals(1, deployments.size());
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_deployment_rollback_cannot_reload_deployment_THEN_proceed_as_default(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        doNothing().when(kernelLifecycle).launch();
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(KERNEL_ROLLBACK).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doThrow(new IOException()).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
+                kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();
+        assertEquals(0, deployments.size());
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_bootstrap_task_finishes_THEN_prepare_restart_into_activation()
+            throws Exception {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        doReturn(NO_OP).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doReturn(false).when(bootstrapManager).hasNext();
+        doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_bootstrap_task_requires_reboot_THEN_prepare_reboot()
+            throws Exception {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        doReturn(REQUEST_REBOOT).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doReturn(true).when(bootstrapManager).hasNext();
+        doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_REBOOT));
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_bootstrap_task_fails_THEN_prepare_rollback(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, ServiceUpdateException.class);
+
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+
+        Deployment deployment = mock(Deployment.class);
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(deployment).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        doThrow(new ServiceUpdateException("mock error")).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        verify(kernelAlternatives).prepareRollback();
+        verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
+        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_bootstrap_task_fails_and_prepare_rollback_fails_THEN_continue(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, ServiceUpdateException.class);
+        ignoreExceptionOfType(context, IOException.class);
+
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
+        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        doThrow(new ServiceUpdateException("mock error")).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        verify(kernelAlternatives).prepareRollback();
+        verify(deploymentDirectoryManager, times(0)).writeDeploymentMetadata(any());
+        verify(kernelLifecycle).shutdown(eq(30), eq(2));
     }
 
     static class TestClass extends EvergreenService {

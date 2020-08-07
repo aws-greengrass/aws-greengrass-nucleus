@@ -6,7 +6,8 @@
 package com.aws.iot.evergreen.deployment.activator;
 
 import com.aws.iot.evergreen.config.ConfigurationReader;
-import com.aws.iot.evergreen.deployment.ConfigSnapshotUtils;
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
@@ -23,20 +24,20 @@ import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.MERGE_ERRO
 
 public abstract class DeploymentActivator {
     protected final Kernel kernel;
+    protected final DeploymentDirectoryManager deploymentDirectoryManager;
     protected static final Logger logger = LogManager.getLogger(DeploymentActivator.class);
 
     protected DeploymentActivator(Kernel kernel) {
         this.kernel = kernel;
+        this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
     }
 
-    public abstract void activate(Map<Object, Object> newConfig, DeploymentDocument deploymentDocument,
+    public abstract void activate(Map<Object, Object> newConfig, Deployment deployment,
                                   CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
-    protected boolean takeConfigSnapshot(String deploymentId,
-                                         CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+    protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         try {
-            ConfigSnapshotUtils.takeSnapshot(kernel,
-                    ConfigSnapshotUtils.getSnapshotFilePath(kernel, deploymentId));
+            deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
             return true;
         } catch (IOException e) {
             // Failed to record snapshot hence did not execute merge, no rollback needed
@@ -57,7 +58,7 @@ public abstract class DeploymentActivator {
             // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
             // they like in the config
             ConfigurationReader.mergeTLogInto(kernel.getConfig(),
-                    ConfigSnapshotUtils.getSnapshotFilePath(kernel, deploymentId), true,
+                    deploymentDirectoryManager.getSnapshotFilePath(), true,
                     s -> !s.childOf(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC));
             return mergeTime;
         } catch (IOException e) {

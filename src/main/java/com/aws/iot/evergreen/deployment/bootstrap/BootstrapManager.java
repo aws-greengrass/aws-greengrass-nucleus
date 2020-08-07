@@ -5,7 +5,7 @@
 
 package com.aws.iot.evergreen.deployment.bootstrap;
 
-import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -22,6 +22,7 @@ import lombok.Setter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
@@ -51,6 +53,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
  */
 @NotThreadSafe
 public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
+    private static final String COMPONENT_NAME_LOG_KEY_NAME = "componentName";
     private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -92,6 +95,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
         serviceConfig.forEach((name, config) -> {
             if (serviceBootstrapRequired(name, (Map<String, Object>) config)) {
+                logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, name).log("Found pending bootstrap task");
                 componentsRequiresBootstrapTask.add(name);
             }
         });
@@ -135,7 +139,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     relevantDependencies.add(depName);
                 }
             } catch (InputValidationException e) {
-                logger.atError().kv("componentName", componentName).setCause(e).log(
+                logger.atError().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName).setCause(e).log(
                         "Ignore component with invalid dependency setting");
                 errors.add(e.getMessage());
             }
@@ -153,41 +157,65 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      */
     boolean serviceBootstrapRequired(String componentName, Map<String, Object> newServiceConfig) {
         if (!newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
+            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+                    .log("Bootstrap is not required: service lifecycle config not found");
             return false;
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
                 || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
+            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+                    .log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
         }
         EvergreenService service;
         try {
             service = kernel.locate(componentName);
         } catch (ServiceLoadException e) {
+            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName).log("Bootstrap is required: new service");
             return true;
         }
         if (!service.getConfig().find(VERSION_CONFIG_KEY).getOnce()
                 .equals(newServiceConfig.get(VERSION_CONFIG_KEY))) {
+            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+                    .log("Bootstrap is required: service version changed");
             return true;
         }
-        // TODO: Support bootstrap node to be Topics
-        Topic serviceOldBootstrap = service.getConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+        Node serviceOldBootstrap = service.getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
-        return serviceOldBootstrap == null
+        boolean bootstrapStepChanged =  serviceOldBootstrap == null
                 || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+        logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName).log(String.format(
+                "Bootstrap is %srequired: bootstrap step %schanged", bootstrapStepChanged ? "" : "not ",
+                        bootstrapStepChanged ? "" : "un"));
+        return bootstrapStepChanged;
     }
 
-    public void persistBootstrapTaskList() {
-        // TODO: write bootstrapTaskStatusList to Path persistedTaskFilePath
+    /**
+     * Persist the bootstrap task list to file.
+     *
+     * @param persistedTaskFilePath Path to the persisted file of bootstrap tasks
+     * @throws IOException on I/O error
+     */
+    public void persistBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
         // TODO: add file validation
+        Objects.requireNonNull(persistedTaskFilePath);
+        logger.atInfo().kv("filePath", persistedTaskFilePath).log("Saving bootstrap task list to file");
+        Files.deleteIfExists(persistedTaskFilePath);
+        Files.createFile(persistedTaskFilePath);
+
+        try (OutputStream out = Files.newOutputStream(persistedTaskFilePath)) {
+            SerializerFactory.getJsonObjectMapper().writeValue(out, bootstrapTaskStatusList);
+        }
+        logger.atInfo().kv("filePath", persistedTaskFilePath).log("Bootstrap task list is saved to file");
     }
 
     /**
      * Persist the bootstrap task list from file.
      *
-     * @param persistedTaskFilePath path to the persisted file for bootstrap tasks
-     * @throws IOException on I/O error or when file path to persist bootstrap task list is not set (wrong usage)
+     * @param persistedTaskFilePath path to the persisted file of bootstrap tasks
+     * @throws IOException on I/O error
      * @throws ClassNotFoundException deserialization of the file content fails
      */
     public void loadBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
@@ -207,33 +235,39 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @param next BootstrapTaskStatus object
      * @return 100 if kernel restart is needed, 101 if device reboot is needed, 0 if no-op.
      */
-    protected int executeOneBootstrapTask(BootstrapTaskStatus next) {
+    protected int executeOneBootstrapTask(BootstrapTaskStatus next) throws ServiceUpdateException {
         Objects.requireNonNull(next);
-        // TODO: support bootstrap step in Evergreen Services.
-        // Load service BootstrapTaskStatus.componentName and call bootstrap here.
-
-        return 0;
+        try {
+            return kernel.locate(next.getComponentName()).bootstrap();
+        } catch (InterruptedException | TimeoutException | ServiceLoadException e) {
+            throw new ServiceUpdateException(e);
+        }
     }
 
     /**
      * Execute all bootstrap steps one by one, until kernel restart or device reboot is requested to complete any one
      * of the bootstrap steps.
      *
+     * @param persistedTaskFilePath Path to the persisted file of bootstrap task list
      * @return 100 if kernel restart is needed, 101 if device reboot is needed, 0 if no-op.
      * @throws ServiceUpdateException if a bootstrap step fails
+     * @throws IOException on I/O error
      */
-    public int executeAllBootstrapTasksSequentially() throws ServiceUpdateException {
+    public int executeAllBootstrapTasksSequentially(Path persistedTaskFilePath)
+            throws ServiceUpdateException, IOException {
+        Objects.requireNonNull(persistedTaskFilePath);
         int exitCode;
         while (hasNext()) {
             BootstrapTaskStatus next = next();
-            logger.atInfo().kv("componentName", next.getComponentName()).log("Execute component bootstrap step");
+            logger.atInfo().kv(COMPONENT_NAME_LOG_KEY_NAME, next.getComponentName())
+                    .log("Execute component bootstrap step");
             exitCode = executeOneBootstrapTask(next);
 
             switch (exitCode) {
                 case NO_OP:
                 case REQUEST_RESTART:
                 case REQUEST_REBOOT:
-                    persistBootstrapTaskList();
+                    persistBootstrapTaskList(persistedTaskFilePath);
                     break;
                 default:
                     throw new ServiceUpdateException(String.format(

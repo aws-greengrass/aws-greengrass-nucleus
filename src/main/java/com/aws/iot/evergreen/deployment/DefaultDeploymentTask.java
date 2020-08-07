@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentTask;
@@ -38,7 +39,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private final DeploymentConfigMerger deploymentConfigMerger;
     private final Logger logger;
     @Getter
-    private final DeploymentDocument deploymentDocument;
+    private final Deployment deployment;
     private final Topics deploymentServiceConfig;
 
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
@@ -49,6 +50,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException {
         Future<Void> preparePackagesFuture = null;
         Future<DeploymentResult> deploymentMergeFuture = null;
+        DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
@@ -83,7 +85,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
                         .log("Received interrupt before attempting deployment merge, skipping merge");
                 return null;
             }
-            deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deploymentDocument, newConfig);
+            deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deployment, newConfig);
 
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
@@ -116,6 +118,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
      */
     private void handleCancellation(Future<Void> preparePackagesFuture,
                                     Future<DeploymentResult> deploymentMergeFuture) {
+        DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         // Stop downloading packages since the task was cancelled
         if (preparePackagesFuture != null && !preparePackagesFuture.isDone()) {
             preparePackagesFuture.cancel(true);

@@ -9,11 +9,17 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
 
 @Data
 @EqualsAndHashCode
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
-public class BootstrapTaskStatus {
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
+public class BootstrapTaskStatus implements Serializable {
+    private static final long serialVersionUID = 0L;
+
     private String componentName;
     private ExecutionStatus status;
     private int exitCode;
