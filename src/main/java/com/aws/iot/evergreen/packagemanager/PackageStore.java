@@ -39,7 +39,7 @@ public class PackageStore {
     public static final String CONTEXT_PACKAGE_STORE_DIRECTORY = "packageStoreDirectory";
     public static final String RECIPE_DIRECTORY = "recipes";
     public static final String ARTIFACT_DIRECTORY = "artifacts";
-    public static final String ARTIFACTS_UNPACK_DIRECTORY = "artifacts-unpack";
+    public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-decompressed";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
     private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
@@ -48,7 +48,7 @@ public class PackageStore {
 
     private final Path artifactDirectory;
 
-    private final Path artifactsUnpackDirectory;
+    private final Path artifactsDecompressedDirectory;
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact unpack directory.
@@ -61,9 +61,9 @@ public class PackageStore {
             throws PackagingException {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
         this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
-        this.artifactsUnpackDirectory = packageStoreDirectory.resolve(ARTIFACTS_UNPACK_DIRECTORY);
+        this.artifactsDecompressedDirectory = packageStoreDirectory.resolve(ARTIFACTS_DECOMPRESSED_DIRECTORY);
         try {
-            Utils.createPaths(recipeDirectory, artifactDirectory, artifactsUnpackDirectory);
+            Utils.createPaths(recipeDirectory, artifactDirectory, artifactsDecompressedDirectory);
         } catch (IOException e) {
             throw new PackagingException("Failed to create necessary directories for package store", e);
         }
@@ -219,14 +219,14 @@ public class PackageStore {
      */
     public Path resolveAndSetupArtifactsUnpackDirectory(@NonNull PackageIdentifier packageIdentifier)
             throws PackageLoadingException {
-        Path path = artifactsUnpackDirectory.resolve(packageIdentifier.getName())
+        Path path = artifactsDecompressedDirectory.resolve(packageIdentifier.getName())
                 .resolve(packageIdentifier.getVersion().getValue());
         try {
             Utils.createPaths(path);
             return path;
         } catch (IOException e) {
-            throw new PackageLoadingException(String.format(
-                    "Failed to create artifact unpack directory for %s", packageIdentifier.toString()), e);
+            throw new PackageLoadingException(
+                    "Failed to create artifact unpack directory for " + packageIdentifier.toString(), e);
         }
     }
 

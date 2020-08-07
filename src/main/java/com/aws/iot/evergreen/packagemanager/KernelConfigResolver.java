@@ -43,9 +43,9 @@ public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
-    public static final String ARTIFACTS_NAMESPACE = "artifacts";
-    public static final String KERNEL_NAMESPACE = "kernel";
-    public static final String KERNEL_ROOT_PATH = "rootPath";
+    static final String ARTIFACTS_NAMESPACE = "artifacts";
+    static final String KERNEL_NAMESPACE = "kernel";
+    static final String KERNEL_ROOT_PATH = "rootPath";
     private static final String WORD_GROUP = "([\\.\\w]+)";
     // Pattern matches {{otherComponentName:parameterNamespace:parameterKey}}
     private static final Pattern CROSS_INTERPOLATION_REGEX =
