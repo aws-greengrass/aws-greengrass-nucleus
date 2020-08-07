@@ -38,6 +38,7 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,6 +72,8 @@ class PackageStoreTest {
 
     private Path artifactDirectory;
 
+    private Path artifactsUnpackDirectory;
+
     @TempDir
     Path packageStoreRootPath;
 
@@ -79,12 +82,14 @@ class PackageStoreTest {
         packageStore = new PackageStore(packageStoreRootPath.toAbsolutePath());
         recipeDirectory = packageStoreRootPath.resolve("recipes");
         artifactDirectory = packageStoreRootPath.resolve("artifacts");
+        artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-decompressed");
     }
 
     @Test
     void WHEN_PackageStore_is_initialized_THEN_recipe_and_artifact_folders_created() {
         assertThat(recipeDirectory.toFile(), anExistingDirectory());
         assertThat(artifactDirectory.toFile(), anExistingDirectory());
+        assertThat(artifactsUnpackDirectory.toFile(), anExistingDirectory());
     }
 
     @Test
@@ -155,6 +160,17 @@ class PackageStoreTest {
                 RECIPE_SERIALIZER.readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
         assertThat(optionalPackageRecipe.get(), equalTo(expectedRecipe));
     }
+
+    @Test
+    void WHEN_resolve_setup_upack_dir_THEN_dir_created() throws Exception {
+        // WHEN
+        Path path = packageStore.resolveAndSetupArtifactsUnpackDirectory(MONITORING_SERVICE_PKG_ID);
+        ///var/folders/37/0h21kkrj1fl9qn472lr2r15rcw2086/T/junit2770550780637482865/artifacts-unpack/MonitoringService/1.0.0
+        //THEN
+        assertEquals(path, packageStoreRootPath.resolve("artifacts-decompressed/MonitoringService/1.0.0"));
+        assertThat(path.toFile(), anExistingDirectory());
+    }
+
 
     @Test
     void GIVEN_a_recipe_does_not_exist_WHEN_findPackageRecipe_THEN_empty_is_returned() throws Exception {
