@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
@@ -43,7 +44,6 @@ public class DeploymentConfigMerger {
     public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
-    static final String ROLLBACK_SNAPSHOT_PATH_FORMAT = "rollback_snapshot_%s.tlog";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
     public static final UpdateBehaviorTree DEPLOYMENT_MERGE_BEHAVIOR = createDeploymentMergeBehavior();
 
@@ -55,29 +55,30 @@ public class DeploymentConfigMerger {
     /**
      * Merge in new configuration values and new services.
      *
-     * @param deploymentDocument deployment document
-     * @param newConfig          the map of new configuration
+     * @param deployment deployment object
+     * @param newConfig  the map of new configuration
      * @return future which completes only once the config is merged and all the services in the config are running
      */
-    public Future<DeploymentResult> mergeInNewConfig(DeploymentDocument deploymentDocument,
+    public Future<DeploymentResult> mergeInNewConfig(Deployment deployment,
                                                      Map<Object, Object> newConfig) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
+        DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
 
         if (DeploymentSafetyPolicy.CHECK_SAFETY.equals(deploymentDocument.getDeploymentSafetyPolicy())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
-                            () -> updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture));
+                            () -> updateActionForDeployment(newConfig, deployment, totallyCompleteFuture));
         } else {
             logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
-            updateActionForDeployment(newConfig, deploymentDocument, totallyCompleteFuture);
+            updateActionForDeployment(newConfig, deployment, totallyCompleteFuture);
         }
 
         return totallyCompleteFuture;
     }
 
-    private void updateActionForDeployment(Map<Object, Object> newConfig, DeploymentDocument deploymentDocument,
+    private void updateActionForDeployment(Map<Object, Object> newConfig, Deployment deployment,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
-        String deploymentId = deploymentDocument.getDeploymentId();
+        String deploymentId = deployment.getDeploymentDocumentObj().getDeploymentId();
 
         // if the update is cancelled, don't perform merge
         if (totallyCompleteFuture.isCancelled()) {
@@ -98,7 +99,7 @@ public class DeploymentConfigMerger {
                     DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
             return;
         }
-        activator.activate(newConfig, deploymentDocument, totallyCompleteFuture);
+        activator.activate(newConfig, deployment, totallyCompleteFuture);
     }
 
     /**

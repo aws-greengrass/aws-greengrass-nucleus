@@ -19,6 +19,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.getSafeFileName;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.iot.evergreen.util.Utils.copyFolderRecursively;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
@@ -68,20 +72,20 @@ public class KernelAlternatives {
             try {
                 Path persistedBootstrapTasks = deploymentDirectoryManager.getBootstrapTaskFilePath();
                 if (!persistedBootstrapTasks.toFile().exists()) {
-                    return Deployment.DeploymentStage.KERNEL_ACTIVATION;
+                    return KERNEL_ACTIVATION;
                 }
                 bootstrapManager.loadBootstrapTaskList(persistedBootstrapTasks);
                 if (bootstrapManager.hasNext()) {
-                    return Deployment.DeploymentStage.BOOTSTRAP;
+                    return BOOTSTRAP;
                 }
             } catch (IOException | ClassNotFoundException e) {
                 logger.atError().setCause(e).log("Bootstrap task list not found or unable to read the file");
             }
-            return Deployment.DeploymentStage.KERNEL_ACTIVATION;
+            return KERNEL_ACTIVATION;
         } else if (brokenDir.toFile().exists()) {
-            return Deployment.DeploymentStage.KERNEL_ROLLBACK;
+            return KERNEL_ROLLBACK;
         }
-        return Deployment.DeploymentStage.DEFAULT;
+        return DEFAULT;
     }
 
     /**

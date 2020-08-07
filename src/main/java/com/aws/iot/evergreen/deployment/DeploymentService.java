@@ -51,6 +51,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 
 import static com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
@@ -294,8 +295,8 @@ public class DeploymentService extends EvergreenService {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
-                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask())
-                                .getDeploymentDocument().getDeploymentId());
+                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
+                                .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                     logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
@@ -328,7 +329,7 @@ public class DeploymentService extends EvergreenService {
 
         DeploymentTask deploymentTask;
         boolean cancellable = true;
-        if (Deployment.DeploymentStage.DEFAULT.equals(deployment.getDeploymentStage())) {
+        if (DEFAULT.equals(deployment.getDeploymentStage())) {
             deploymentTask = createDefaultNewDeployment(deployment);
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
@@ -342,6 +343,7 @@ public class DeploymentService extends EvergreenService {
         try {
             deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
+            deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
             logger.atError().log("Unable to create deployment directory", ioException);
         }
@@ -373,7 +375,7 @@ public class DeploymentService extends EvergreenService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
-                deploymentConfigMerger, logger, deployment.getDeploymentDocumentObj(), config);
+                deploymentConfigMerger, logger, deployment, config);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
