@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
-import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.iot.IotCredentialConnectionManager;
 import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
@@ -65,7 +65,7 @@ public class CredentialRequestHandlerTest {
     private static final IotCloudResponse CLOUD_RESPONSE =
             new IotCloudResponse(String.format(RESPONSE_STR, EXPIRATION).getBytes(StandardCharsets.UTF_8), 200);
     @Mock
-    IotConnectionManager mockConnectionManager;
+    IotCredentialConnectionManager mockConnectionManager;
 
     @Mock
     IotCloudHelper mockCloudHelper;

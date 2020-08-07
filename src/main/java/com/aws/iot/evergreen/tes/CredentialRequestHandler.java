@@ -8,7 +8,7 @@ import com.aws.iot.evergreen.auth.Permission;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
 import com.aws.iot.evergreen.iot.IotCloudHelper;
-import com.aws.iot.evergreen.iot.IotConnectionManager;
+import com.aws.iot.evergreen.iot.IotCredentialConnectionManager;
 import com.aws.iot.evergreen.iot.model.IotCloudResponse;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
@@ -64,7 +64,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private final AuthorizationHandler authZHandler;
 
-    private final IotConnectionManager iotConnectionManager;
+    private final IotCredentialConnectionManager iotConnectionManager;
 
     private Clock clock = Clock.systemUTC();
 
@@ -84,12 +84,13 @@ public class CredentialRequestHandler implements HttpHandler {
      * Constructor.
      *
      * @param cloudHelper           {@link IotCloudHelper} for making http requests to cloud.
-     * @param connectionManager     {@link IotConnectionManager} underlying connection manager for cloud.
+     * @param connectionManager     {@link IotCredentialConnectionManager} underlying connection manager for cloud.
      * @param authenticationHandler {@link AuthenticationHandler} authN module for authenticating requests.
      * @param authZHandler          {@link AuthorizationHandler} authZ module for authorizing requests.
      */
     @Inject
-    public CredentialRequestHandler(final IotCloudHelper cloudHelper, final IotConnectionManager connectionManager,
+    public CredentialRequestHandler(final IotCloudHelper cloudHelper,
+                                    final IotCredentialConnectionManager connectionManager,
                                     final AuthenticationHandler authenticationHandler,
                                     final AuthorizationHandler authZHandler) {
         this.iotCloudHelper = cloudHelper;

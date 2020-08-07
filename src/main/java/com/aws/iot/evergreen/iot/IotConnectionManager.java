@@ -26,7 +26,6 @@ import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.inject.Inject;
 
 public class IotConnectionManager implements Closeable {
     // TODO: Move Iot related classes to a central location
@@ -41,29 +40,30 @@ public class IotConnectionManager implements Closeable {
      * Constructor.
      *
      * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
+     * @param endpoint            Iot endpoint
      * @throws DeviceConfigurationException When unable to initialize this manager.
      */
-    @Inject
-    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
-        this.connManager = initConnectionManager(deviceConfiguration);
+    public IotConnectionManager(DeviceConfiguration deviceConfiguration, String endpoint)
+            throws DeviceConfigurationException {
+        connManager = initConnectionManager(deviceConfiguration, endpoint);
     }
 
-    private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration)
+    private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration, String endpoint)
             throws DeviceConfigurationException {
         final String certPath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
         final String keyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         final String caPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
-             HostResolver resolver = new HostResolver(eventLoopGroup);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-             TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
+            HostResolver resolver = new HostResolver(eventLoopGroup);
+            ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
+            TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
             // TODO: Proxy support, ALPN support. Reuse connections across kernel
             tlsCtxOptions.overrideDefaultTrustStoreFromPath(null, caPath);
             return HttpClientConnectionManager
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
                             .withSocketOptions(new SocketOptions()).withTlsContext(new TlsContext(tlsCtxOptions))
                             .withPort(IOT_PORT).withUri(URI.create(
-                                    "https://" + Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))));
+                                    "https://" + endpoint)));
         }
     }
 
