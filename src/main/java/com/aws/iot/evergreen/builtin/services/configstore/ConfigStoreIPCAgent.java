@@ -22,7 +22,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -61,19 +60,19 @@ public class ConfigStoreIPCAgent implements InjectionActions {
             return;
         }
 
-        List<String> nodePath = node.path();
-        // The path should have at least 5 items: null (root), services, serviceName, custom, <someKey>
-        if (nodePath.size() < 5) {
+        String[] nodePath = node.path();
+        // The path should have at least 4 items: services, serviceName, custom, <someKey>
+        if (nodePath.length < 4) {
             return;
         }
         // Ensure that the node which changed was part of the custom config
-        int customConfigIndex = nodePath.size() - 4;
-        if (!nodePath.get(customConfigIndex).equals(PARAMETERS_CONFIG_KEY)) {
+        int customConfigIndex = 2;
+        if (!PARAMETERS_CONFIG_KEY.equals(nodePath[customConfigIndex])) {
             return;
         }
 
         listeners.entrySet().stream().filter(e -> e.getKey().getServiceName().equals(serviceName))
-                .map(Map.Entry::getValue).forEach(c -> c.accept(nodePath.get(customConfigIndex - 1)));
+                .map(Map.Entry::getValue).forEach(c -> c.accept(nodePath[customConfigIndex + 1]));
     };
 
     @Override

@@ -46,17 +46,17 @@ class ConfigurationWriterTest {
             writer.flushImmediately(true);
 
             // Create a Topic somewhere in the hierarchy
-            config.lookup("a", "b", "c", "d", "e").withValue("Some Val");
+            config.lookup("a.x", "b", "c", "d", "e").withValue("Some Val");
             // Create another Topic and use a different data type as the value (number)
-            config.lookup("a", "b", "c", "d", "e2").withValue(2);
+            config.lookup("a.x", "b", "c.f", "d", "e2").withValue(2);
             context.runOnPublishQueueAndWait(() -> {
             }); // Block until publish queue is empty to ensure all changes have
             // been processed
 
             // Update the first Topic to show that the tlog can have multiple values over time
-            config.lookup("a", "b", "c", "d", "e").withValue("New Val");
+            config.lookup("a.x", "b", "c.f", "d", "e").withValue("New Val");
             // Create another Topic and use yet another data type (list)
-            config.lookup("a", "b", "c", "d", "e3").withValue(Arrays.asList("1", "2", "3"));
+            config.lookup("a.x", "b", "c.f", "d", "e3").withValue(Arrays.asList("1", "2", "3"));
             context.runOnPublishQueueAndWait(() -> {
             });
 
