@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.util.CrashableFunction;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.Utils;
 
@@ -24,10 +25,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,6 +43,9 @@ public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
+    static final String ARTIFACTS_NAMESPACE = "artifacts";
+    static final String KERNEL_NAMESPACE = "kernel";
+    static final String KERNEL_ROOT_PATH = "rootPath";
     private static final String WORD_GROUP = "([\\.\\w]+)";
     // Pattern matches {{otherComponentName:parameterNamespace:parameterKey}}
     private static final Pattern CROSS_INTERPOLATION_REGEX =
@@ -50,11 +54,14 @@ public class KernelConfigResolver {
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
     static final String PARAM_NAMESPACE = "params";
     static final String PARAM_VALUE_SUFFIX = ".value";
-    static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String PATH_KEY = "path";
+    static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
+
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
+
     // Map from Namespace -> Key -> Function which returns the replacement value
-    private final Map<String, Map<String, Function<PackageIdentifier, String>>> systemParameters = new HashMap<>();
+    private final Map<String, Map<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>>>
+            systemParameters = new HashMap<>();
 
     private final PackageStore packageStore;
     private final Kernel kernel;
@@ -71,10 +78,18 @@ public class KernelConfigResolver {
         this.kernel = kernel;
 
         // More system parameters can be added over time by extending this map with new namespaces/keys
-        HashMap<String, Function<PackageIdentifier, String>> artifactNamespace = new HashMap<>();
-        artifactNamespace
-                .put(PATH_KEY, (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        HashMap<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> artifactNamespace
+                = new HashMap<>();
+        artifactNamespace.put(PATH_KEY,
+                (id) -> packageStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+        artifactNamespace.put(DECOMPRESSED_PATH_KEY,
+                (id) -> packageStore.resolveAndSetupArtifactsUnpackDirectory(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
+
+        HashMap<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> kernelNamespace
+                = new HashMap<>();
+        kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> kernel.getRootPath().toAbsolutePath().toString());
+        systemParameters.put(KERNEL_NAMESPACE, kernelNamespace);
     }
 
     /**
@@ -97,7 +112,6 @@ public class KernelConfigResolver {
             servicesConfig.put(packageToDeploy.getName(),
                     getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache));
         }
-
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
         // Services need to be under the services namespace in kernel config
@@ -149,7 +163,7 @@ public class KernelConfigResolver {
     private Object interpolate(Object configValue, PackageIdentifier packageIdentifier,
                                List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>>
-                                       parameterAndDependencyCache) {
+                                       parameterAndDependencyCache) throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
@@ -159,7 +173,7 @@ public class KernelConfigResolver {
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
             Map<Object, Object> resolvedChildConfig = new HashMap<>();
-            for (Map.Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
+            for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                         interpolate(childLifecycle.getValue(), packageIdentifier, packagesToDeploy, document,
                                 parameterAndDependencyCache));
@@ -174,7 +188,7 @@ public class KernelConfigResolver {
     private String replace(String stringValue, PackageIdentifier packageIdentifier,
                            List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                            Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>>
-                                   parameterAndDependencyCache) {
+                                   parameterAndDependencyCache) throws PackageLoadingException {
         // Handle some-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
         while (matcher.find()) {
@@ -203,7 +217,6 @@ public class KernelConfigResolver {
                 }
             }
         }
-
         return stringValue;
     }
 
@@ -229,9 +242,10 @@ public class KernelConfigResolver {
     @Nullable
     private String lookupParameterValueForComponent(
             Map<PackageIdentifier, Pair<Set<PackageParameter>, Set<String>>> parameterAndDependencyCache,
-            DeploymentDocument document, PackageIdentifier component, String namespace, String key) {
+            DeploymentDocument document, PackageIdentifier component, String namespace, String key)
+            throws PackageLoadingException {
         // Handle cross-component system parameters
-        Map<String, Function<PackageIdentifier, String>> systemParams =
+        Map<String, CrashableFunction<PackageIdentifier, String, PackageLoadingException>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
         if (systemParams.containsKey(key)) {
             return systemParams.get(key).apply(component);
