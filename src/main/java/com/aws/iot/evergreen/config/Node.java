@@ -7,8 +7,6 @@ import com.aws.iot.evergreen.dependency.Context;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
@@ -20,7 +18,7 @@ public abstract class Node {
     private final String name;
     protected final CopyOnWriteArraySet<Watcher> watchers = new CopyOnWriteArraySet<>();
     private boolean parentNeedsToKnow = true; // parent gets notified of changes to this node
-    private List<String> path;
+    private String[] path;
 
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for modtime to be sync")
     protected long modtime;
@@ -168,20 +166,29 @@ public abstract class Node {
     /**
      * Get path of parents.
      *
-     * @return list of strings with index 0 being the current node's name
+     * @return list of strings with index 0 being the name of the node just under the root
      */
-    public List<String> path() {
+    @SuppressWarnings("PMD.MethodReturnsInternalArray")
+    public String[] path() {
         if (path != null) {
             return path;
         }
 
-        path = new ArrayList<>();
-        path.add(name);
+        if (name == null) {
+            path = new String[]{};
+            return path;
+        }
+
+        String[] p = {name};
 
         if (parent != null) {
-            path.addAll(parent.path());
+            String[] na = new String[p.length + parent.path().length];
+            System.arraycopy(p, 0, na, parent.path().length, p.length);
+            System.arraycopy(parent.path(), 0, na, 0, parent.path().length);
+            p = na;
         }
-        return path;
+        path = p;
+        return p;
     }
 
     /**

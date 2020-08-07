@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -138,12 +137,13 @@ public class Kernel {
      * @return service name or null
      */
     public static String findServiceForNode(Node node) {
-        List<String> p = node.path();
-        int idx = p.lastIndexOf(SERVICES_NAMESPACE_TOPIC);
-        if (idx <= 0) {
-            return null;
+        String[] p = node.path();
+        for (int i = 0; i < p.length - 1; i++) {
+            if (SERVICES_NAMESPACE_TOPIC.equals(p[i])) {
+                return p[i + 1];
+            }
         }
-        return p.get(idx - 1);
+        return null;
     }
 
     /**
