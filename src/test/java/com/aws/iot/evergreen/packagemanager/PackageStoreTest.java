@@ -167,7 +167,7 @@ class PackageStoreTest {
         Path path = packageStore.resolveAndSetupArtifactsUnpackDirectory(MONITORING_SERVICE_PKG_ID);
         ///var/folders/37/0h21kkrj1fl9qn472lr2r15rcw2086/T/junit2770550780637482865/artifacts-unpack/MonitoringService/1.0.0
         //THEN
-        assertEquals(path, packageStoreRootPath.resolve("artifacts-unpack/MonitoringService/1.0.0"));
+        assertEquals(path, packageStoreRootPath.resolve("artifacts-decompressed/MonitoringService/1.0.0"));
         assertThat(path.toFile(), anExistingDirectory());
     }
 
