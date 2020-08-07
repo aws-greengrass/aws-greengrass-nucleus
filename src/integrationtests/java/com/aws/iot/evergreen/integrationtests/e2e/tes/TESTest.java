@@ -121,7 +121,6 @@ class TESTest extends BaseITCase {
     @Test
     void GIVEN_iot_role_alias_WHEN_tes_is_queried_THEN_valid_credentials_are_returned(ExtensionContext context)
             throws Exception {
-        //
         ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
         ignoreExceptionUltimateCauseOfType(context, BindException.class);
         String urlString =
