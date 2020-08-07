@@ -14,10 +14,11 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationResponse;
-import com.aws.iot.evergreen.ipc.services.configstore.ReportConfigurationValidityRequest;
-import com.aws.iot.evergreen.ipc.services.configstore.ReportConfigurationValidityResponse;
+import com.aws.iot.evergreen.ipc.services.configstore.SendConfigurationValidityReportRequest;
+import com.aws.iot.evergreen.ipc.services.configstore.SendConfigurationValidityReportResponse;
 import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToConfigurationUpdateRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToConfigurationUpdateResponse;
 import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToValidateConfigurationResponse;
@@ -27,10 +28,13 @@ import com.aws.iot.evergreen.ipc.services.configstore.ValidateConfigurationUpdat
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import lombok.Builder;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
@@ -38,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -47,11 +52,18 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
  * Class to handle business logic for all ConfigStore requests over IPC.
  */
 public class ConfigStoreIPCAgent implements InjectionActions {
-    // Map from connection --> Function to call when service config changes
+    // Map from component --> config update event subscribers
     private static final Map<String, CopyOnWriteArraySet<ConnectionContext>> configUpdateSubscribersByService =
             new ConcurrentHashMap<>();
-    private static final Map<ConnectionContext, Consumer<String>> configUpdateListeners = new ConcurrentHashMap<>();
+    // Map from connection --> Function to call for triggering config change events
+    private static final Map<ConnectionContext, BiConsumer<String, String>> configUpdateListeners =
+            new ConcurrentHashMap<>();
+    // Map from connection --> Function to call for triggering config validation events
     private static final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
+            new ConcurrentHashMap<>();
+    // Map of component --> future to complete with validation status received from service in response to validate
+    // event
+    private static final Map<String, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
             new ConcurrentHashMap<>();
     private static final int TIMEOUT_SECONDS = 30;
     private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
@@ -83,7 +95,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
             return;
         }
         subscribers.stream().map(ctx -> configUpdateListeners.get(ctx))
-                .forEach(c -> c.accept(nodePath[configIndex + 1]));
+                .forEach(c -> c.accept(serviceName, nodePath[configIndex + 1]));
     };
     @Inject
     private Kernel kernel;
@@ -110,27 +122,22 @@ public class ConfigStoreIPCAgent implements InjectionActions {
 
         configUpdateListeners.computeIfAbsent(context, (key) -> {
             context.onDisconnect(() -> configUpdateListeners.remove(context));
-            return sendStoreUpdateToListener(context, componentName);
+            return sendStoreUpdateToListener(context);
         });
 
         configUpdateSubscribersByService.putIfAbsent(componentName, new CopyOnWriteArraySet<>());
         configUpdateSubscribersByService.get(componentName).add(context);
-        context.onDisconnect(() -> {
-            configUpdateSubscribersByService.entrySet().forEach(e -> {
-                if (e.getValue().contains(context)) {
-                    e.getValue().remove(context);
-                }
-            });
-        });
+        context.onDisconnect(
+                () -> configUpdateSubscribersByService.entrySet().forEach(e -> e.getValue().remove(context)));
 
         return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.Success, null);
     }
 
-    private Consumer<String> sendStoreUpdateToListener(ConnectionContext context, String componentName) {
-        return (changedKey) -> {
+    private BiConsumer<String, String> sendStoreUpdateToListener(ConnectionContext context) {
+        return (componentName, changedKey) -> {
             ConfigurationUpdateEvent valueChangedEvent =
                     ConfigurationUpdateEvent.builder().componentName(componentName).changedKey(changedKey).build();
-            log.atDebug().log("Sending updated config key {} to {}", changedKey, context);
+            log.atDebug().log("Sending component {}'s updated config key {} to {}", componentName, changedKey, context);
 
             try {
                 ApplicationMessage applicationMessage =
@@ -179,15 +186,16 @@ public class ConfigStoreIPCAgent implements InjectionActions {
                     .build();
         }
 
-        Topics componentConfigurationTopics = serviceTopic.findInteriorChild(PARAMETERS_CONFIG_KEY);
-        if (componentConfigurationTopics == null) {
+        Topics configTopics = serviceTopic.findInteriorChild(PARAMETERS_CONFIG_KEY);
+        if (configTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.NoConfig)
-                    .errorMessage("Component has no dynamic configuration").build();
+                    .errorMessage("Service has no dynamic config").build();
         }
 
-        Node node = componentConfigurationTopics.getChild(request.getKey());
+        Node node = configTopics.getChild(request.getKey());
         if (node == null) {
-            return response.responseStatus(ConfigStoreResponseStatus.NotFound).errorMessage("Key not found").build();
+            return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
+                    .errorMessage("Key not found").build();
         }
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
@@ -196,7 +204,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         } else if (node instanceof Topics) {
             response.value(((Topics) node).toPOJO());
         } else {
-            response.responseStatus(ConfigStoreResponseStatus.InternalError).errorMessage("Node has an unknown type");
+            response.responseStatus(ConfigStoreResponseStatus.ServiceError).errorMessage("Node has an unknown type");
             log.atError().log("Somehow Node has an unknown type {}", node.getClass());
         }
 
@@ -204,7 +212,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
     }
 
     /**
-     * Update specified key in the service's runtime config.
+     * Update specified key in the service's configuration.
      *
      * @param request update config request
      * @param context client context
@@ -217,7 +225,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
 
         if (!context.getServiceName().equals(request.getComponentName())) {
             return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
-                    .errorMessage("Cross component " + "updates are not allowed").build();
+                    .errorMessage("Cross component updates are not allowed").build();
         }
 
         Topics serviceTopic = kernel.findServiceTopic(context.getServiceName());
@@ -227,7 +235,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         }
 
         serviceTopic.lookup(PARAMETERS_CONFIG_KEY, request.getKey())
-                .withNewerValue(request.getTimestamp(), request.getValue());
+                .withNewerValue(request.getTimestamp(), request.getNewValue());
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
 
@@ -295,21 +303,28 @@ public class ConfigStoreIPCAgent implements InjectionActions {
      * @param context client context
      * @return response data
      */
-    public ReportConfigurationValidityResponse reportConfigValidity(ReportConfigurationValidityRequest request,
-                                                                    ConnectionContext context) {
+    public SendConfigurationValidityReportResponse handleConfigValidityReport(
+            SendConfigurationValidityReportRequest request, ConnectionContext context) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
         log.atDebug().kv("context", context).log("Config IPC report config validation request");
-        Topics serviceTopic = kernel.findServiceTopic(context.getServiceName());
-        ReportConfigurationValidityResponse.ReportConfigurationValidityResponseBuilder response =
-                ReportConfigurationValidityResponse.builder();
-        if (serviceTopic == null) {
-            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Service not found")
-                    .build();
+        SendConfigurationValidityReportResponse.SendConfigurationValidityReportResponseBuilder response =
+                SendConfigurationValidityReportResponse.builder();
+        // TODO : Edge case - With the current API model, there is no way to associate a validation report from client
+        //  with the event sent from server, meaning if event 1 from server was abandoned due to timeout, then event
+        //  2 was triggered, then report in response to event 1 arrives, server won't detect this.
+        if (!configValidationReportFutures.containsKey(context.getServiceName())) {
+            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
+                    .errorMessage("Validation request either timed out or was never made").build();
         }
 
-        log.atInfo().addKeyValue("status", request.getStatus()).addKeyValue("message", request.getMessage()).log();
-        // TODO : Invoke caller's (Deployment service) handler to use the reported status and
-        //  message
+        CompletableFuture<ConfigurationValidityReport> reportFuture =
+                configValidationReportFutures.get(context.getServiceName());
+        if (!reportFuture.isCancelled()) {
+            reportFuture.complete(
+                    ConfigurationValidityReport.builder().status(request.getStatus()).message(request.getMessage())
+                            .build());
+        }
+        configValidationReportFutures.remove(context.getServiceName());
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
 
@@ -321,17 +336,47 @@ public class ConfigStoreIPCAgent implements InjectionActions {
      *
      * @param componentName service/component to send validate event to
      * @param configuration new component configuration to validate
+     * @param reportFuture  future to track validation report in response to the event
      * @return true if the service has registered a validator, false if not
+     * @throws UnsupportedOperationException throws when triggering requested validation event is not allowed
      */
-    public boolean validateConfiguration(String componentName, Map<String, Object> configuration) {
-        // TODO : Accept a handler from the requester and track it so that when the component
-        //  reports the validation result, the handler can be invoked
+    public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
+                                         CompletableFuture<ConfigurationValidityReport> reportFuture)
+            throws UnsupportedOperationException {
+        // TODO : Consider handling a collection of components to abstract validation for the whole deployment
+        if (configValidationReportFutures.containsKey(componentName)) {
+            throw new UnsupportedOperationException(
+                    "A validation request to this component is already waiting for response");
+        }
+
         for (Map.Entry<ConnectionContext, Consumer<Map<String, Object>>> e : configValidationListeners.entrySet()) {
             if (e.getKey().getServiceName().equals(componentName)) {
+                configValidationReportFutures.put(componentName, reportFuture);
                 e.getValue().accept(configuration);
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Abandon tracking for report of configuration validation event. Can be used by the caller in the case of timeouts
+     * or other errors.
+     *
+     * @param componentName component name to abandon validation for
+     * @param reportFuture  tracking future for validation report to abandon
+     * @return true if abandon request was successful
+     */
+    public boolean discardValidationReportTracker(String componentName,
+                                                  CompletableFuture<ConfigurationValidityReport> reportFuture) {
+        return configValidationReportFutures.remove(componentName, reportFuture);
+    }
+
+    // TODO: If it adds value, add this to the SendConfigurationValidityReportRequest in smithy model
+    @Builder
+    @Getter
+    public static class ConfigurationValidityReport {
+        private ConfigurationValidityStatus status;
+        private String message;
     }
 }

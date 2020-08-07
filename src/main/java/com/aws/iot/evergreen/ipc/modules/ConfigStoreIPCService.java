@@ -14,7 +14,7 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreClientOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreGenericResponse;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationRequest;
-import com.aws.iot.evergreen.ipc.services.configstore.ReportConfigurationValidityRequest;
+import com.aws.iot.evergreen.ipc.services.configstore.SendConfigurationValidityReportRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToConfigurationUpdateRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.UpdateConfigurationRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -92,9 +92,9 @@ public class ConfigStoreIPCService extends EvergreenService {
                     configStoreGenericResponse = agent.subscribeToConfigValidation(context);
                     break;
                 case REPORT_CONFIG_VALIDITY:
-                    ReportConfigurationValidityRequest reportConfigValidityRequest = CBOR_MAPPER
-                            .readValue(applicationMessage.getPayload(), ReportConfigurationValidityRequest.class);
-                    configStoreGenericResponse = agent.reportConfigValidity(reportConfigValidityRequest, context);
+                    SendConfigurationValidityReportRequest reportConfigValidityRequest = CBOR_MAPPER
+                            .readValue(applicationMessage.getPayload(), SendConfigurationValidityReportRequest.class);
+                    configStoreGenericResponse = agent.handleConfigValidityReport(reportConfigValidityRequest, context);
                     break;
                 default:
                     configStoreGenericResponse.setStatus(ConfigStoreResponseStatus.InvalidRequest);
@@ -109,7 +109,7 @@ public class ConfigStoreIPCService extends EvergreenService {
             logger.atError().setEventType("configstore-ipc-error").setCause(e).log("Failed to handle message");
             try {
                 ConfigStoreGenericResponse response =
-                        new ConfigStoreGenericResponse(ConfigStoreResponseStatus.InternalError, e.getMessage());
+                        new ConfigStoreGenericResponse(ConfigStoreResponseStatus.ServiceError, e.getMessage());
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
                                 .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();
