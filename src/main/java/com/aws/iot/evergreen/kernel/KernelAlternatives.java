@@ -104,10 +104,9 @@ public class KernelAlternatives {
             logger.atWarn().log("Cannot find the old launch directory to rollback to.");
             return;
         }
-        Files.deleteIfExists(brokenDir);
-        Files.createSymbolicLink(brokenDir, Files.readSymbolicLink(currentDir).toAbsolutePath());
-        Files.delete(currentDir);
-        Files.createSymbolicLink(currentDir, Files.readSymbolicLink(oldDir).toAbsolutePath());
+        setupLinkToDirectory(brokenDir, Files.readSymbolicLink(currentDir).toAbsolutePath());
+        setupLinkToDirectory(currentDir, Files.readSymbolicLink(oldDir).toAbsolutePath());
+        Files.delete(oldDir);
     }
 
     /**
@@ -134,8 +133,8 @@ public class KernelAlternatives {
         Path newLaunchDir = altsDir.resolve(getSafeFileName(deploymentId)).toAbsolutePath();
         Path existingLaunchDir = Files.readSymbolicLink(currentDir).toAbsolutePath();
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
-        Files.deleteIfExists(oldDir);
-        Files.createSymbolicLink(oldDir, existingLaunchDir);
+
+        setupLinkToDirectory(oldDir, existingLaunchDir);
         setupLinkToDirectory(currentDir, newLaunchDir);
         logger.atInfo().log("Finish setup of launch directory for new Kernel");
     }

@@ -107,6 +107,7 @@ public class KernelAlternativesTest {
         kernelAlternatives.prepareRollback();
         assertEquals(expectedNewLaunchPath, Files.readSymbolicLink(kernelAlternatives.getBrokenDir()));
         assertEquals(initPath, Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertFalse(Files.exists(kernelAlternatives.getOldDir()));
 
         kernelAlternatives.rollbackCompletes();
         assertFalse(Files.exists(kernelAlternatives.getBrokenDir()));
