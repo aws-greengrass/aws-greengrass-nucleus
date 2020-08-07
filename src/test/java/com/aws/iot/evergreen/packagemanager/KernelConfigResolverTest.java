@@ -40,6 +40,9 @@ import java.util.stream.StreamSupport;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.ARTIFACTS_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.DECOMPRESSED_PATH_KEY;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.KERNEL_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.KERNEL_ROOT_PATH;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAM_NAMESPACE;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAM_VALUE_SUFFIX;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PATH_KEY;
@@ -57,7 +60,9 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
             "echo installing service in Package %s with param {{" + PARAM_NAMESPACE + ":%s_Param_1" + PARAM_VALUE_SUFFIX
-                    + "}}";
+                    + "}}, kernel rootPath as {{" + KERNEL_NAMESPACE + ":" + KERNEL_ROOT_PATH + "}} and " +
+                    "unpack dir as {{" + ARTIFACTS_NAMESPACE + ":" + DECOMPRESSED_PATH_KEY + "}}";
+                    
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
             "echo running service in Package %s with param {{" + PARAM_NAMESPACE + ":%s_Param_2" + PARAM_VALUE_SUFFIX
                     + "}}";
@@ -67,6 +72,8 @@ class KernelConfigResolverTest {
     private static final String TEST_INPUT_PACKAGE_B = "PackageB";
     private static final String TEST_INPUT_PACKAGE_C = "PackageC";
     private static final String TEST_NAMESPACE = "test";
+    private static final Path DUMMY_ROOT_PATH = Paths.get("/dummyroot");
+    private static final Path DUMMY_DECOMPRESSED_PATH_KEY = Paths.get("/dummyCompDir");
     @Mock
     private Kernel kernel;
     @Mock
@@ -114,7 +121,9 @@ class KernelConfigResolverTest {
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(packageStore.getPackageRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -161,7 +170,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -204,7 +216,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
@@ -227,12 +242,15 @@ class KernelConfigResolverTest {
         // Parameter value set in deployment will be used for lifecycle install section
         assertThat("If parameter value was set in deployment, it should be used",
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Package PackageA " + "with param PackageA_Param_1_value"));
+                equalTo("echo installing service in Package PackageA with param PackageA_Param_1_value," +
+                        " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as " +
+                        DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
 
         // Parameter value was not set in deployment, so default will be used for lifecycle run section
         assertThat("If no parameter value was set in deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
-                equalTo("echo running service in Package " + "PackageA with param PackageA_Param_2_default_value"));
+                equalTo("echo running service in Package " + "PackageA with param " +
+                        "PackageA_Param_2_default_value"));
     }
 
     @Test
@@ -274,7 +292,9 @@ class KernelConfigResolverTest {
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(packageStore.getPackageRecipe(package2)).thenReturn(package2Recipe);
         when(packageStore.getPackageRecipe(package3)).thenReturn(package3Recipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
@@ -320,7 +340,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -351,7 +374,9 @@ class KernelConfigResolverTest {
 
         assertThat("If parameter value was set in previous deployment but not in current deployment, previously "
                         + "used values should be used", serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value"));
+                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value," +
+                        " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as " +
+                        DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
 
         assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
