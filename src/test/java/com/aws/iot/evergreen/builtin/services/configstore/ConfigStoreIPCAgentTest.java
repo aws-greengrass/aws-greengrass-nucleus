@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
+import com.aws.iot.evergreen.ipc.common.ServiceEventHelper;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
@@ -30,6 +31,7 @@ import com.aws.iot.evergreen.ipc.services.configstore.ValidateConfigurationUpdat
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsMapContaining;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,19 +87,22 @@ public class ConfigStoreIPCAgentTest {
 
     @BeforeEach
     void setup() {
-        agent = new ConfigStoreIPCAgent(kernel, executor);
+        agent = new ConfigStoreIPCAgent(kernel, new ServiceEventHelper(executor));
 
         configuration = new Configuration(new Context());
         Topics root = configuration.getRoot();
         root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1).withValue(20);
         root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_2).withValue(15);
         root.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B);
-        when(kernel.getConfig()).thenReturn(configuration);
+        lenient().when(kernel.getConfig()).thenReturn(configuration);
 
         lenient().when(componentAContext.getServiceName()).thenReturn(TEST_COMPONENT_A);
         lenient().when(componentBContext.getServiceName()).thenReturn(TEST_COMPONENT_B);
+    }
 
-        agent.postInject();
+    @AfterEach
+    void cleanup() throws IOException {
+        kernel.getConfig().context.close();
     }
 
     @Test
@@ -193,6 +198,8 @@ public class ConfigStoreIPCAgentTest {
     @Test
     public void GIVEN_agent_running_WHEN_subscribe_to_config_update_request_THEN_next_config_update_triggers_event()
             throws InterruptedException, IOException {
+        when(kernel.findServiceTopic(TEST_COMPONENT_A))
+                .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         SubscribeToConfigurationUpdateRequest request =
                 SubscribeToConfigurationUpdateRequest.builder().componentName(TEST_COMPONENT_A).build();
         SubscribeToConfigurationUpdateResponse response = agent.subscribeToConfigUpdate(request, componentBContext);

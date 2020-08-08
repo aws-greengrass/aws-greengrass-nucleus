@@ -7,15 +7,14 @@ package com.aws.iot.evergreen.builtin.services.configstore;
 
 import com.aws.iot.evergreen.config.ChildChanged;
 import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.InjectionActions;
+import com.aws.iot.evergreen.config.Watcher;
+import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
-import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
-import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
+import com.aws.iot.evergreen.ipc.common.ServiceEventHelper;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
@@ -33,24 +32,18 @@ import com.aws.iot.evergreen.ipc.services.configstore.ValidateConfigurationUpdat
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -61,16 +54,10 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
  */
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
-public class ConfigStoreIPCAgent implements InjectionActions {
-    private static final int TIMEOUT_SECONDS = 30;
+public class ConfigStoreIPCAgent {
     private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
+    private static final String CONFIGURATION_KEY_PATH_DELIMITER = ".";
 
-    // Map from component --> config update event subscribers
-    private final Map<String, CopyOnWriteArraySet<ConnectionContext>> configUpdateSubscribersByService =
-            new ConcurrentHashMap<>();
-    // Map from connection --> Function to call for triggering config change events
-    private final Map<ConnectionContext, BiConsumer<String, String>> configUpdateListeners =
-            new ConcurrentHashMap<>();
     // Map from connection --> Function to call for triggering config validation events
     private final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
             new ConcurrentHashMap<>();
@@ -79,45 +66,11 @@ public class ConfigStoreIPCAgent implements InjectionActions {
     private final Map<String, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
             new ConcurrentHashMap<>();
 
-    private final ChildChanged onConfigChange = (whatHappened, node) -> {
-        if (node == null) {
-            return;
-        }
-        String serviceName = Kernel.findServiceForNode(node);
-        // Ensure a the node that changed belongs to a service
-        if (serviceName == null) {
-            return;
-        }
-
-        String[] nodePath = node.path();
-        // The path should have at least 4 items: services, serviceName, parameters/runtime, <someKey>
-        if (nodePath.length < 4) {
-            return;
-        }
-
-        Set<ConnectionContext> subscribers = configUpdateSubscribersByService.get(serviceName);
-        // Do nothing if no one has subscribed
-        if (subscribers == null || subscribers.isEmpty()) {
-            return;
-        }
-
-        // Ensure that the node which changed was part of component configuration
-        int configIndex = 2;
-        if (!PARAMETERS_CONFIG_KEY.equals(nodePath[configIndex])) {
-            return;
-        }
-        subscribers.stream().map(ctx -> configUpdateListeners.get(ctx))
-                .forEach(c -> c.accept(serviceName, nodePath[configIndex + 1]));
-    };
     @Inject
     private Kernel kernel;
-    @Inject
-    private ExecutorService executor;
 
-    @Override
-    public void postInject() {
-        kernel.getConfig().getRoot().subscribe(onConfigChange);
-    }
+    @Inject
+    private ServiceEventHelper serviceEventHelper;
 
     /**
      * Handle the subscription request from the user. Immediately sends the current state to the client.
@@ -132,51 +85,101 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         String componentName =
                 request.getComponentName() == null ? context.getServiceName() : request.getComponentName();
 
-        configUpdateListeners.computeIfAbsent(context, (key) -> {
-            context.onDisconnect(() -> configUpdateListeners.remove(context));
-            return sendStoreUpdateToListener(context);
-        });
+        Topics serviceTopics = kernel.findServiceTopic(componentName);
+        if (serviceTopics == null) {
+            return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
+                    "Requested component does not exist");
+        }
 
-        configUpdateSubscribersByService.putIfAbsent(componentName, new CopyOnWriteArraySet<>());
-        configUpdateSubscribersByService.get(componentName).add(context);
-        context.onDisconnect(
-                () -> configUpdateSubscribersByService.entrySet().forEach(e -> e.getValue().remove(context)));
+        Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
+        if (configurationTopics == null) {
+            return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
+                    "Requested component does not have any configuration");
+        }
+
+        Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyName());
+        if (subscribeTo == null) {
+            return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
+                    "Requested configuration key does not exist");
+        }
+
+        Optional<Watcher> watcher = registerWatcher(subscribeTo, context, componentName);
+        if (!watcher.isPresent()) {
+            return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.InternalError,
+                    "Could not register update subscriber");
+        }
+
+        context.onDisconnect(() -> subscribeTo.remove(watcher.get()));
 
         return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.Success, null);
     }
 
-    private BiConsumer<String, String> sendStoreUpdateToListener(ConnectionContext context) {
-        return (componentName, changedKey) -> {
+    private Node getNodeToSubscribeTo(Topics configurationTopics, String keyName) {
+        Node subscribeTo = configurationTopics;
+        if (!Utils.isEmpty(keyName)) {
+            String[] keyPath = parseKeyPath(keyName);
+            subscribeTo = configurationTopics.findNode(keyPath);
+        }
+        return subscribeTo;
+    }
+
+    // TODO : We shouldn't be splitting or joining paths based on the '.' delimiter(or any char as delimiter)
+    //  since it will not work when keys have names with '.' in them, instead, we should explore if we can
+    //  use string arrays for explicitly denoting key paths in Get/Update/Subscribe API models
+    //  keeping this as a TODO while the decision is made
+    private String[] parseKeyPath(String key) {
+        if (key.contains(CONFIGURATION_KEY_PATH_DELIMITER)) {
+            return key.split(CONFIGURATION_KEY_PATH_DELIMITER);
+        }
+        return new String[] {key};
+    }
+
+    private Optional<Watcher> registerWatcher(Node subscribeTo, ConnectionContext context, String componentName) {
+        if (subscribeTo instanceof Topics) {
+            ChildChanged childChanged =
+                    (whatHappened, node) -> handleConfigNodeUpdate(whatHappened, node, context, componentName);
+
+            ((Topics) subscribeTo).subscribe(childChanged);
+            return Optional.of(childChanged);
+
+        } else if (subscribeTo instanceof Topic) {
+            Subscriber subscriber =
+                    (whatHappened, topic) -> handleConfigNodeUpdate(whatHappened, topic, context, componentName);
+
+            ((Topic) subscribeTo).subscribe(subscriber);
+            return Optional.of(subscriber);
+        }
+        return Optional.empty();
+    }
+
+    private void handleConfigNodeUpdate(WhatHappened whatHappened, Node changedNode, ConnectionContext context,
+                                        String componentName) {
+        // Blocks from sending an event on subscription
+        if (changedNode == null || WhatHappened.initialized.equals(whatHappened)) {
+            return;
+        }
+        // The path sent in config update event should be the path for the changed node within the component
+        // 'configuration' namespace such that it can be used as it is to make a subsequent get call by the client.
+        // e.g. if the path for changed node is services.<service_name>.configuration.key_1.nested_key_1
+        // then the path in update event should be key_1.nested_key_1
+        int configurationTopicsIndex =
+                kernel.findServiceTopic(componentName).lookupTopics(PARAMETERS_CONFIG_KEY).path().length - 1;
+        String[] keyPath =
+                Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1,
+                        changedNode.path().length);
+
+        sendConfigUpdateToListener(context, componentName)
+                .accept(String.join(CONFIGURATION_KEY_PATH_DELIMITER, keyPath));
+    }
+
+    private Consumer<String> sendConfigUpdateToListener(ConnectionContext context, String componentName) {
+        return (changedKey) -> {
             ConfigurationUpdateEvent valueChangedEvent =
                     ConfigurationUpdateEvent.builder().componentName(componentName).changedKey(changedKey).build();
             log.atDebug().log("Sending component {}'s updated config key {} to {}", componentName, changedKey, context);
 
-            try {
-                ApplicationMessage applicationMessage =
-                        ApplicationMessage.builder().version(ConfigStoreImpl.API_VERSION)
-                                .opCode(ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal())
-                                .payload(IPCUtil.encode(valueChangedEvent)).build();
-                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
-                Future<FrameReader.Message> fut =
-                        context.serverPush(BuiltInServiceDestinationCode.CONFIG_STORE.getValue(),
-                                new FrameReader.Message(applicationMessage.toByteArray()));
-                // call the blocking "get" in a separate thread so we don't block the publish queue
-                executor.execute(() -> {
-                    try {
-                        fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                        // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        // Log
-                        log.atError("error-sending-configstore-update").kv("context", context)
-                                .log("Error sending config store update to client", e);
-                    }
-                });
-
-            } catch (IOException e) {
-                // Log
-                log.atError("error-sending-configstore-update").kv("context", context)
-                        .log("Error sending config store update to client", e);
-            }
+            serviceEventHelper.sendServiceEvent(context, valueChangedEvent, BuiltInServiceDestinationCode.CONFIG_STORE,
+                    ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal());
         };
     }
 
@@ -192,6 +195,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         String serviceName = request.getComponentName() == null ? context.getServiceName() : request.getComponentName();
         Topics serviceTopics = kernel.findServiceTopic(serviceName);
         GetConfigurationResponse.GetConfigurationResponseBuilder response = GetConfigurationResponse.builder();
+
         if (serviceTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
                     .errorMessage("Service not found").build();
@@ -203,19 +207,27 @@ public class ConfigStoreIPCAgent implements InjectionActions {
                     .errorMessage("Service has no dynamic config").build();
         }
 
-        Node node = configTopics.getChild(request.getKey());
-        if (node == null) {
-            return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
-                    .errorMessage("Key not found").build();
+        Node node;
+        if (request.getKey() == null) {
+            // Request is for reading all configuration
+            node = configTopics;
+        } else {
+            String[] keyPath = parseKeyPath(request.getKey());
+            node = configTopics.findNode(keyPath);
+            if (node == null) {
+                return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
+                        .errorMessage("Key not found").build();
+            }
         }
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
+        response.componentName(serviceName);
         if (node instanceof Topic) {
             response.value(((Topic) node).getOnce());
         } else if (node instanceof Topics) {
             response.value(((Topics) node).toPOJO());
         } else {
-            response.responseStatus(ConfigStoreResponseStatus.ServiceError).errorMessage("Node has an unknown type");
+            response.responseStatus(ConfigStoreResponseStatus.InternalError).errorMessage("Node has an unknown type");
             log.atError().log("Somehow Node has an unknown type {}", node.getClass());
         }
 
@@ -231,22 +243,26 @@ public class ConfigStoreIPCAgent implements InjectionActions {
      */
     public UpdateConfigurationResponse updateConfig(UpdateConfigurationRequest request, ConnectionContext context) {
         log.atDebug().kv("context", context).log("Config IPC config update request");
-        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
         UpdateConfigurationResponse.UpdateConfigurationResponseBuilder response = UpdateConfigurationResponse.builder();
 
-        if (!context.getServiceName().equals(request.getComponentName())) {
+        if (request.getKey() == null) {
+            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Key is required")
+                    .build();
+        }
+
+        if (request.getComponentName() != null && !context.getServiceName().equals(request.getComponentName())) {
             return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
                     .errorMessage("Cross component updates are not allowed").build();
         }
 
         Topics serviceTopic = kernel.findServiceTopic(context.getServiceName());
         if (serviceTopic == null) {
-            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Service not found")
-                    .build();
+            return response.responseStatus(ConfigStoreResponseStatus.InternalError)
+                    .errorMessage("Service config not found").build();
         }
-
-        serviceTopic.lookup(PARAMETERS_CONFIG_KEY, request.getKey())
-                .withNewerValue(request.getTimestamp(), request.getNewValue());
+        Topics configTopic = serviceTopic.lookupTopics(PARAMETERS_CONFIG_KEY);
+        String[] keyPath = parseKeyPath(request.getKey());
+        configTopic.lookup(keyPath).withNewerValue(request.getTimestamp(), request.getNewValue());
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
 
@@ -277,33 +293,8 @@ public class ConfigStoreIPCAgent implements InjectionActions {
                     ValidateConfigurationUpdateEvent.builder().configuration(configuration).build();
             log.atDebug().log("Requesting validation for component config {}", configuration, context);
 
-            try {
-                ApplicationMessage applicationMessage =
-                        ApplicationMessage.builder().version(ConfigStoreImpl.API_VERSION)
-                                .opCode(ConfigStoreServiceOpCodes.VALIDATION_EVENT.ordinal())
-                                .payload(IPCUtil.encode(validationEvent)).build();
-                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
-                Future<FrameReader.Message> fut =
-                        context.serverPush(BuiltInServiceDestinationCode.CONFIG_STORE.getValue(),
-                                new FrameReader.Message(applicationMessage.toByteArray()));
-
-                // call the blocking "get" in a separate thread so we don't block the publish queue
-                executor.execute(() -> {
-                    try {
-                        fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                        // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        // Log
-                        log.atError("error-requesting-config-validation").kv("context", context)
-                                .log("Error sending config validation event to client", e);
-                    }
-                });
-
-            } catch (IOException e) {
-                // Log
-                log.atError("error-requesting-config-validation").kv("context", context)
-                        .log("Error sending config validation event to client", e);
-            }
+            serviceEventHelper.sendServiceEvent(context, validationEvent, BuiltInServiceDestinationCode.CONFIG_STORE,
+                    ConfigStoreServiceOpCodes.VALIDATION_EVENT.ordinal());
         };
     }
 
@@ -320,6 +311,7 @@ public class ConfigStoreIPCAgent implements InjectionActions {
         log.atDebug().kv("context", context).log("Config IPC report config validation request");
         SendConfigurationValidityReportResponse.SendConfigurationValidityReportResponseBuilder response =
                 SendConfigurationValidityReportResponse.builder();
+
         // TODO : Edge case - With the current API model, there is no way to associate a validation report from client
         //  with the event sent from server, meaning if event 1 from server was abandoned due to timeout, then event
         //  2 was triggered, then report in response to event 1 arrives, server won't detect this.
@@ -354,7 +346,8 @@ public class ConfigStoreIPCAgent implements InjectionActions {
     public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
                                          CompletableFuture<ConfigurationValidityReport> reportFuture)
             throws UnsupportedOperationException {
-        // TODO : Consider handling a collection of components to abstract validation for the whole deployment
+        // TODO : Will handling a collection of components to abstract validation for the whole deployment
+        //  be better?
         if (configValidationReportFutures.containsKey(componentName)) {
             throw new UnsupportedOperationException(
                     "A validation request to this component is already waiting for response");

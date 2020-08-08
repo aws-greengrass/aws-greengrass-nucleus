@@ -126,7 +126,7 @@ public class ConfigStoreIPCService extends EvergreenService {
             logger.atError().setEventType("configstore-ipc-error").setCause(e).log("Failed to handle message");
             try {
                 ConfigStoreGenericResponse response =
-                        new ConfigStoreGenericResponse(ConfigStoreResponseStatus.ServiceError, e.getMessage());
+                        new ConfigStoreGenericResponse(ConfigStoreResponseStatus.InternalError, e.getMessage());
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
                                 .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();

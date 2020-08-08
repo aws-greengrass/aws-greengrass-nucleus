@@ -56,14 +56,6 @@ public class ConfigStoreIPCServiceTest extends EGServiceTestUtil {
 
     private ConfigStoreIPCService configStoreIPCService;
 
-    private static FrameReader.Message fromApplicationMessage(ApplicationMessage message) {
-        return new FrameReader.Message(message.toByteArray());
-    }
-
-    private static ApplicationMessage toApplicationMessage(FrameReader.Message message) {
-        return ApplicationMessage.fromBytes(message.getPayload());
-    }
-
     @BeforeEach
     public void setup() {
         serviceFullName = "configstoreipc";
@@ -143,6 +135,6 @@ public class ConfigStoreIPCServiceTest extends EGServiceTestUtil {
         ConfigStoreGenericResponse response = CBOR_MAPPER
                 .readValue(ApplicationMessage.fromBytes(responseMessage.getPayload()).getPayload(),
                         ConfigStoreGenericResponse.class);
-        assertEquals(ConfigStoreResponseStatus.ServiceError, response.getStatus());
+        assertEquals(ConfigStoreResponseStatus.InternalError, response.getStatus());
     }
 }

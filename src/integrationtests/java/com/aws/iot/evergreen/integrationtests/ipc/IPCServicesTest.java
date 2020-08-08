@@ -185,7 +185,6 @@ class IPCServicesTest {
         AtomicInteger numCalls = new AtomicInteger();
         Pair<CompletableFuture<Void>, Consumer<String>> p = asyncAssertOnConsumer((a) -> {
             int callNum = numCalls.incrementAndGet();
-
             if (callNum == 1) {
                 assertThat(a, is("abc"));
             } else if (callNum == 2) {
@@ -193,9 +192,12 @@ class IPCServicesTest {
             }
         }, 2);
 
-        c.subscribeToConfigurationUpdate("ServiceName", p.getRight());
-        configuration.createLeafChild("abc").withValue("ABC");
-        configuration.createLeafChild("DDF").withValue("ddf");
+        configuration.createLeafChild("abc").withValue("pqr");
+        configuration.createLeafChild("DDF").withValue("xyz");
+        c.subscribeToConfigurationUpdate("ServiceName", "abc", p.getRight());
+        c.subscribeToConfigurationUpdate("ServiceName", "DDF", p.getRight());
+        configuration.lookup("abc").withValue("ABC");
+        configuration.lookup("DDF").withValue("ddf");
 
         try {
             p.getLeft().get(10, TimeUnit.SECONDS);
@@ -220,11 +222,13 @@ class IPCServicesTest {
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
         CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> validateResultFuture =
                 new CompletableFuture<>();
-        agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"),
-                validateResultFuture);
-        assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
-
-        agent.discardValidationReportTracker("ServiceName", validateResultFuture);
+        try {
+            agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"),
+                    validateResultFuture);
+            assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
+        } finally {
+            agent.discardValidationReportTracker("ServiceName", validateResultFuture);
+        }
     }
 
     @Test
@@ -234,16 +238,15 @@ class IPCServicesTest {
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
-        CountDownLatch eventReceivedByClient = new CountDownLatch(1);
-        c.subscribeToValidateConfiguration((configMap) -> {
+        Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> cb = asyncAssertOnConsumer((configMap) -> {
             assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
-            eventReceivedByClient.countDown();
         });
+        c.subscribeToValidateConfiguration(cb.getRight());
 
         CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
         agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
-        assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
+        cb.getLeft().get(2, TimeUnit.SECONDS);
 
         c.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
         assertEquals(ConfigurationValidityStatus.VALID, responseTracker.get().getStatus());
