@@ -178,6 +178,7 @@ public class GreengrassPackageServiceHelper {
 
         try (BufferedOutputStream bos = new BufferedOutputStream(connection.getOutputStream())) {
             long length = Files.copy(artifact.toPath(), bos);
+            bos.flush();
             logger.atDebug("upload-component-artifact").kv("artifactName", artifact.getName())
                     .kv("fileSize", length).kv("status", connection.getResponseMessage()).log();
         }
