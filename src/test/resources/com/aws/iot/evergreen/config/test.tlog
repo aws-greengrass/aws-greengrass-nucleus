@@ -1,20 +1,20 @@
-1,test.firstline,changed,"firstline"
-1,system.rootpath,changed,"/tmp"
-1588872930086,setenv.AWS_GG_KERNEL_URI,changed,"tcp://127.0.0.1:37743"
-1,services.servicediscovery.dependencies,changed,[]
-1588872929914,services.YellowSignal.lifecycle.run,changed,"echo proceed with caution This is not a test"
-1588872929914,services.YellowSignal.version,changed,"1.0.0"
-1588872929914,services.YellowSignal.parameters.message,changed,"This is not a test"
-1588872929914,services.YellowSignal.dependencies,changed,[]
-1,services.IPCService.dependencies,changed,[]
-1,services.SafeSystemUpdate.dependencies,changed,[]
-1,services.DeploymentService.dependencies,changed,[]
-1588872925144,services.main.lifecycle.install,changed,"echo All installed"
-1588872925144,services.main.lifecycle.run,changed,"echo $PATH\npwd\nprintenv\nwhile true; do\ndate; sleep 5; echo RUNNING\ndone"
-1588872929914,services.main.dependencies,changed,[YellowSignal, DeploymentService, lifecycleipc, IPCService, servicediscovery, SafeSystemUpdate]
-1,services.lifecycleipc.dependencies,changed,[]
-1588872928102,services._AUTH_TOKENS.FakeToken,changed,"main"
-1588872930080,services._AUTH_TOKENS.FakeToken2,changed,"YellowSignal"
-1588872931120,services.YellowSignal.notMerged.testTopic,changed,"TLogValue"
-1588872931120,services.YellowSignal.lifecycle.shutdown,removed,
-1,test.lastline,changed,"lastline"
+1,[test,firstline],changed,"firstline"
+1,[system,rootpath],changed,"/tmp"
+1588872930086,[setenv,AWS_GG_KERNEL_URI],changed,"tcp://127.0.0.1:37743"
+1,[services,servicediscovery,dependencies],changed,[]
+1588872929914,[services,YellowSignal,lifecycle,run],changed,"echo proceed with caution This is not a test"
+1588872929914,[services,YellowSignal,version],changed,"1.0.0"
+1588872929914,[services,YellowSignal,parameters,message],changed,"This is not a test"
+1588872929914,[services,YellowSignal,dependencies],changed,[]
+1,[services,IPCService,dependencies],changed,[]
+1,[services,SafeSystemUpdate,dependencies],changed,[]
+1,[services,DeploymentService,dependencies],changed,[]
+1588872925144,[services,main,lifecycle,install],changed,"echo All installed"
+1588872925144,[services,main,lifecycle,run],changed,"echo $PATH\npwd\nprintenv\nwhile true; do\ndate; sleep 5; echo RUNNING\ndone"
+1588872929914,[services,main,dependencies],changed,[YellowSignal, DeploymentService, lifecycleipc, IPCService, servicediscovery, SafeSystemUpdate]
+1,[services,lifecycleipc,dependencies],changed,[]
+1588872928102,[services,_AUTH_TOKENS,FakeToken],changed,"main"
+1588872930080,[services,_AUTH_TOKENS,FakeToken2],changed,"YellowSignal"
+1588872931120,[services,YellowSignal,notMerged,testTopic],changed,"TLogValue"
+1588872931120,[services,YellowSignal,lifecycle,shutdown],removed,
+1,[test,lastline],changed,"lastline"

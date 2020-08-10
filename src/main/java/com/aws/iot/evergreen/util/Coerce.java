@@ -287,6 +287,17 @@ public final class Coerce {
             out.append("null");
         } else if (o instanceof Boolean || o instanceof Number || o instanceof List) {
             out.append(o.toString());
+        } else if (o.getClass().isArray()) {
+            out.append('[');
+            Object[] objects = (Object[]) o;
+            for (int j = 0; j < objects.length; j++) {
+                Object i = objects[j];
+                out.append(toString(i));
+                if (j != objects.length - 1) {
+                    out.append(',');
+                }
+            }
+            out.append(']');
         } else {
             appendQuotedString(o, out);
         }
