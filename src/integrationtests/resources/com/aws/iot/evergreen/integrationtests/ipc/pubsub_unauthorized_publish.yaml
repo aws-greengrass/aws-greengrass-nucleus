@@ -1,0 +1,37 @@
+---
+services:
+  main:
+    dependencies:
+      - IPCService
+      - mqtt
+      - ServiceName
+  mqtt:
+    dependencies:
+      - IPCService
+    resources:
+      - evergreen_1._mqtt._tcp.local
+      - evergreen_1._http._tcp.local
+    lifecycle:
+
+  ServiceName:
+    dependencies:
+      - IPCService
+    resources:
+      - http-resource
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100
+    accessControl:
+      aws.greengrass.ipc.pubsub:
+        - policyId1:
+            policyDescription: "access to pubsub topics"
+            operations:
+              - "subscribe"
+              - "unsubscribe"
+            resources:
+              - "/topic/1/#"
+              - "/longer/topic/example/"
+              - "*"
