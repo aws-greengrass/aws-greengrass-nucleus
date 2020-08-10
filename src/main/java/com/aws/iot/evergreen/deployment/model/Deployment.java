@@ -5,30 +5,29 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
-
-import java.io.Serializable;
 
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
-@SuppressFBWarnings(value = "SE_TRANSIENT_FIELD_NOT_RESTORED", justification = "The deployment is persisted and then "
-        + "restored to inject as an ongoing Deployment. The transient fields are not required.")
-public class Deployment implements Serializable {
-    private static final long serialVersionUID = 0L;
-
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@NoArgsConstructor
+public class Deployment {
     @Setter
     private DeploymentDocument deploymentDocumentObj;
-    private transient String deploymentDocument;
+    @JsonIgnore
+    private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
     @EqualsAndHashCode.Include
     private String id;
-    private transient boolean isCancelled;
+    private boolean isCancelled;
     @Setter
     private DeploymentStage deploymentStage;
     @Setter
@@ -70,13 +69,15 @@ public class Deployment implements Serializable {
      * @param deploymentType deployment type
      * @param id deployment id
      * @param deploymentStage deployment stage, only applicable to deployments which require Kernel restart
+     * @param stageDetails message string with more context of the deployment stage
      */
     public Deployment(DeploymentDocument deploymentDetails, DeploymentType deploymentType, String id,
-                      DeploymentStage deploymentStage) {
+                      DeploymentStage deploymentStage, String stageDetails) {
         this.deploymentDocumentObj = deploymentDetails;
         this.deploymentType = deploymentType;
         this.id = id;
         this.deploymentStage = deploymentStage;
+        this.stageDetails = stageDetails;
     }
 
     public enum DeploymentType {

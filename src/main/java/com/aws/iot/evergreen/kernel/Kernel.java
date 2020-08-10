@@ -174,7 +174,7 @@ public class Kernel {
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                     deployment.setDeploymentStage(stage);
                     deploymentsQueue.add(deployment);
-                } catch (IOException | ClassNotFoundException e) {
+                } catch (IOException e) {
                     logger.atError().setCause(e)
                             .log("Failed to load information for the ongoing deployment. Proceed as default");
                 }

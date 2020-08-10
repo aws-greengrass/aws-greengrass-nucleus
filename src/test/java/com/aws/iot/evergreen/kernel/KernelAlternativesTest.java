@@ -24,8 +24,10 @@ import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
@@ -92,8 +94,8 @@ public class KernelAlternativesTest {
         assertEquals(initPath, Files.readSymbolicLink(kernelAlternatives.getOldDir()));
 
         kernelAlternatives.activationSucceeds();
-        assertFalse(Files.exists(kernelAlternatives.getOldDir()));
-        assertFalse(Files.exists(initPath));
+        assertThat(kernelAlternatives.getOldDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(initPath.toFile(), not(anExistingFileOrDirectory()));
     }
 
     @Test
@@ -107,11 +109,11 @@ public class KernelAlternativesTest {
         kernelAlternatives.prepareRollback();
         assertEquals(expectedNewLaunchPath, Files.readSymbolicLink(kernelAlternatives.getBrokenDir()));
         assertEquals(initPath, Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
-        assertFalse(Files.exists(kernelAlternatives.getOldDir()));
+        assertThat(kernelAlternatives.getOldDir().toFile(), not(anExistingFileOrDirectory()));
 
         kernelAlternatives.rollbackCompletes();
-        assertFalse(Files.exists(kernelAlternatives.getBrokenDir()));
-        assertFalse(Files.exists(expectedNewLaunchPath));
+        assertThat(kernelAlternatives.getBrokenDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(expectedNewLaunchPath.toFile(), not(anExistingFileOrDirectory()));
     }
 
     private Path createRandomDirectory() throws IOException {

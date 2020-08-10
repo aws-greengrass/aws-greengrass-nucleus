@@ -10,13 +10,14 @@ import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.SerializerFactory;
 import com.aws.iot.evergreen.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.inject.Inject;
@@ -27,8 +28,8 @@ import javax.inject.Inject;
 public class DeploymentDirectoryManager {
     static final String ROLLBACK_SNAPSHOT_FILE = "rollback_snapshot.tlog";
     static final String TARGET_CONFIG_FILE = "target_config.tlog";
-    static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.ser";
-    static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.ser";
+    static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.json";
+    static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.json";
 
     private static final String PREVIOUS_SUCCESS_LINK = "previous-success";
     private static final String PREVIOUS_FAILURE_LINK = "previous-failure";
@@ -37,11 +38,11 @@ public class DeploymentDirectoryManager {
     private final Kernel kernel;
 
     private final Path deploymentsDir;
-    @Getter(AccessLevel.MODULE)
+    @Getter(AccessLevel.PACKAGE)
     private final Path previousSuccessDir;
-    @Getter(AccessLevel.MODULE)
+    @Getter(AccessLevel.PACKAGE)
     private final Path previousFailureDir;
-    @Getter(AccessLevel.MODULE)
+    @Getter(AccessLevel.PACKAGE)
     private final Path ongoingDir;
 
     /**
@@ -81,7 +82,7 @@ public class DeploymentDirectoryManager {
             Files.createSymbolicLink(symlink, deploymentPath);
             Files.delete(ongoingDir);
         } catch (IOException e) {
-            logger.atError().log("Unable to preserve artifacts from the last deployment");
+            logger.atError().log("Unable to preserve artifacts from the last deployment", e);
         }
     }
 
@@ -113,8 +114,8 @@ public class DeploymentDirectoryManager {
     }
 
     private void writeDeploymentMetadata(Path filePath, Deployment deployment) throws IOException {
-        try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(filePath))) {
-            out.writeObject(deployment);
+        try (OutputStream out = Files.newOutputStream(filePath)) {
+            SerializerFactory.getJsonObjectMapper().writeValue(out, deployment);
         }
     }
 
@@ -125,14 +126,14 @@ public class DeploymentDirectoryManager {
      * @throws IOException on I/O error
      * @throws ClassNotFoundException when deserialization fails
      */
-    public Deployment readDeploymentMetadata() throws IOException, ClassNotFoundException {
+    public Deployment readDeploymentMetadata() throws IOException {
         if (!Files.isSymbolicLink(ongoingDir)) {
             throw new IOException("Deployment details can not be loaded from file " + ongoingDir);
         }
 
         Path filePath = getDeploymentMetadataFilePath();
-        try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(filePath))) {
-            return (Deployment) in.readObject();
+        try (InputStream in = Files.newInputStream(filePath)) {
+            return SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
         }
     }
 

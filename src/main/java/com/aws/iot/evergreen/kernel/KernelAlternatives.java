@@ -33,13 +33,13 @@ public class KernelAlternatives {
 
     private final Path altsDir;
     // Symlink to the current launch directory
-    @Getter(AccessLevel.MODULE)
+    @Getter(AccessLevel.PACKAGE)
     private Path currentDir;
     // Symlink to the old launch directory during kernel update
-    @Getter(AccessLevel.MODULE)
+    @Getter(AccessLevel.PACKAGE)
     private Path oldDir;
     // Symlink to the broken new launch directory during kernel update
-    @Getter(AccessLevel.MODULE)
+    @Getter(AccessLevel.PACKAGE)
     private Path brokenDir;
 
     /**
@@ -74,7 +74,7 @@ public class KernelAlternatives {
                 if (bootstrapManager.hasNext()) {
                     return Deployment.DeploymentStage.BOOTSTRAP;
                 }
-            } catch (IOException | ClassNotFoundException e) {
+            } catch (IOException e) {
                 logger.atError().setCause(e).log("Bootstrap task list not found or unable to read the file");
             }
             return Deployment.DeploymentStage.KERNEL_ACTIVATION;

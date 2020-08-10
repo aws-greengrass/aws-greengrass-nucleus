@@ -23,9 +23,12 @@ import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.BOOTST
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.DEPLOYMENT_METADATA_FILE;
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.ROLLBACK_SNAPSHOT_FILE;
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.TARGET_CONFIG_FILE;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.io.FileMatchers.anExistingDirectory;
+import static org.hamcrest.io.FileMatchers.anExistingFile;
+import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -53,7 +56,7 @@ public class DeploymentDirectoryManagerTest {
     @Test
     public Path WHEN_create_new_deployment_dir_THEN_setup_directory_and_symlink() throws Exception {
         Path actual = createNewDeploymentDir(mockArn);
-        assertTrue(Files.exists(actual));
+        assertThat(actual.toFile(), anExistingDirectory());
         assertEquals(deploymentsDir.resolve(expectedDirectoryName), actual);
         assertEquals(actual, Files.readSymbolicLink(deploymentDirectoryManager.getOngoingDir()));
         return actual;
@@ -65,8 +68,8 @@ public class DeploymentDirectoryManagerTest {
 
         deploymentDirectoryManager.persistLastSuccessfulDeployment();
         assertEquals(actual, Files.readSymbolicLink(deploymentDirectoryManager.getPreviousSuccessDir()));
-        assertFalse(Files.exists(deploymentDirectoryManager.getOngoingDir()));
-        assertFalse(Files.exists(deploymentDirectoryManager.getPreviousFailureDir()));
+        assertThat(deploymentDirectoryManager.getOngoingDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(deploymentDirectoryManager.getPreviousFailureDir().toFile(), not(anExistingFileOrDirectory()));
     }
 
     @Test
@@ -74,8 +77,8 @@ public class DeploymentDirectoryManagerTest {
         Path actual = createNewDeploymentDir(mockArn);
         deploymentDirectoryManager.persistLastFailedDeployment();
         assertEquals(actual, Files.readSymbolicLink(deploymentDirectoryManager.getPreviousFailureDir()));
-        assertFalse(Files.exists(deploymentDirectoryManager.getOngoingDir()));
-        assertFalse(Files.exists(deploymentDirectoryManager.getPreviousSuccessDir()));
+        assertThat(deploymentDirectoryManager.getOngoingDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(deploymentDirectoryManager.getPreviousSuccessDir().toFile(), not(anExistingFileOrDirectory()));
     }
 
     @Test
@@ -89,9 +92,9 @@ public class DeploymentDirectoryManagerTest {
         Path actual2 = createNewDeploymentDir(mockArn2);
         deploymentDirectoryManager.persistLastSuccessfulDeployment();
 
-        assertFalse(Files.exists(actual1));
-        assertFalse(Files.exists(deploymentDirectoryManager.getPreviousFailureDir()));
-        assertFalse(Files.exists(deploymentDirectoryManager.getOngoingDir()));
+        assertThat(actual1.toFile(), not(anExistingFileOrDirectory()));
+        assertThat(deploymentDirectoryManager.getOngoingDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(deploymentDirectoryManager.getPreviousFailureDir().toFile(), not(anExistingFileOrDirectory()));
         assertEquals(actual2, Files.readSymbolicLink(deploymentDirectoryManager.getPreviousSuccessDir()));
         assertEquals(deploymentsDir.resolve(expectedDirectoryName2), actual2);
     }
@@ -101,7 +104,7 @@ public class DeploymentDirectoryManagerTest {
         Path actual1 = createNewDeploymentDir(mockArn);
         Deployment expected = new Deployment("mockDoc", Deployment.DeploymentType.IOT_JOBS, "mockId");
         deploymentDirectoryManager.writeDeploymentMetadata(expected);
-        assertTrue(Files.exists(actual1.resolve(DEPLOYMENT_METADATA_FILE)));
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE).toFile(), anExistingFile());
         Deployment actual = deploymentDirectoryManager.readDeploymentMetadata();
         assertEquals(expected, actual);
     }

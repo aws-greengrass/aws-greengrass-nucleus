@@ -14,12 +14,14 @@ import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.DependencyOrder;
+import com.aws.iot.evergreen.util.SerializerFactory;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -188,13 +190,14 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws IOException on I/O error or when file path to persist bootstrap task list is not set (wrong usage)
      * @throws ClassNotFoundException deserialization of the file content fails
      */
-    public void loadBootstrapTaskList(Path persistedTaskFilePath) throws IOException, ClassNotFoundException {
+    public void loadBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
         // TODO: validate file
         Objects.requireNonNull(persistedTaskFilePath);
 
-        try (ObjectInputStream input = new ObjectInputStream(Files.newInputStream(persistedTaskFilePath))) {
+        try (InputStream input = Files.newInputStream(persistedTaskFilePath)) {
             bootstrapTaskStatusList.clear();
-            bootstrapTaskStatusList.addAll((List<BootstrapTaskStatus>) input.readObject());
+            bootstrapTaskStatusList.addAll(SerializerFactory.getJsonObjectMapper()
+                    .readValue(input, new TypeReference<List<BootstrapTaskStatus>>(){}));
         }
     }
 
