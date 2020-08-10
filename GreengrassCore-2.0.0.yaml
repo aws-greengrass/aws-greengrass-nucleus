@@ -10,7 +10,10 @@ Parameters:
   value: -Xms512m -Xmx512m
   type: STRING
 Artifacts:
-  # TODO: add artifacts
+  all:
+    # TODO: set correct uri
+    - Uri: S3:GreengrassCore-2.0.0
+      Unarchive: zip
 Lifecycle:
   bootstrap:
     posix:
@@ -19,6 +22,8 @@ Lifecycle:
         KERNEL_ROOT={{kernel:rootPath}}
         UNPACK_DIR={{artifacts:decompressedPath}}
 
+        # TODO: remove unzip logic once package manager Unarchive is merged in
+        # https://github.com/aws/aws-greengrass-kernel/pull/359/
         unzip "{{artifacts:path}}/GreengrassCore-2.0.0.zip" -d "$UNPACK_DIR"
 
         rm -r $KERNEL_ROOT/alts/current/*
