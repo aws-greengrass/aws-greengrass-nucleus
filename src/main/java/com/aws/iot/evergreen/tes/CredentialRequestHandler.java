@@ -35,6 +35,8 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.tes.HttpServerImpl.URL;
+
 public class CredentialRequestHandler implements HttpHandler {
     private static final Logger LOGGER = LogManager.getLogger(CredentialRequestHandler.class);
     private static final String IOT_CRED_PATH_KEY = "iotCredentialsPath";
@@ -51,6 +53,7 @@ public class CredentialRequestHandler implements HttpHandler {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     public static final String AUTH_HEADER = "Authorization";
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
+    public static final String SUPPORTED_REQUEST_VERB = "GET";
     public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
     public static final int CLOUD_4XX_ERROR_CACHE_IN_MIN = 2;
     public static final int CLOUD_5XX_ERROR_CACHE_IN_MIN = 1;
@@ -111,6 +114,17 @@ public class CredentialRequestHandler implements HttpHandler {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void handle(final HttpExchange exchange) throws IOException {
         try {
+            if (!exchange.getRequestMethod().equals(SUPPORTED_REQUEST_VERB)) {
+                LOGGER.atWarn().log("Unsupported http method for {}. GET is supported.", exchange.getRequestMethod());
+                generateError(exchange, HttpURLConnection.HTTP_BAD_METHOD);
+                return;
+            }
+            if (!exchange.getRequestURI().getPath().equals(URL)) {
+                LOGGER.atWarn().log("Unexpected URI: {}.",
+                        exchange.getRequestURI().getPath());
+                generateError(exchange, HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
+            }
             doAuth(exchange);
             final byte[] credentials = getCredentials();
             exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);

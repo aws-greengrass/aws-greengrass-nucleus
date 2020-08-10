@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -123,7 +125,9 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     @ParameterizedTest
     @ValueSource(strings = {"  "})
     @NullAndEmptySource
-    public void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias) throws InterruptedException {
+    public void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
+                                                                                                       ExtensionContext context) {
+        ignoreExceptionUltimateCauseOfType(context, IllegalArgumentException.class);
         //Set mock for role topic
         Topic roleTopic = mock(Topic.class);
         when(roleTopic.subscribe(any())).thenAnswer((a) -> {
@@ -154,7 +158,9 @@ public class TokenExchangeServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out() throws Exception {
+    public void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
         doThrow(AuthorizationException.class).when(mockAuthZHandler).registerComponent(any(), any());
         //Set mock for role topic
         Topic roleTopic = mock(Topic.class);
