@@ -75,7 +75,7 @@ public class KernelAlternatives {
                     return Deployment.DeploymentStage.BOOTSTRAP;
                 }
             } catch (IOException | ClassNotFoundException e) {
-                logger.atWarn().setCause(e).log("Bootstrap task list not found or unable to read the file");
+                logger.atError().setCause(e).log("Bootstrap task list not found or unable to read the file");
             }
             return Deployment.DeploymentStage.KERNEL_ACTIVATION;
         } else if (brokenDir.toFile().exists()) {

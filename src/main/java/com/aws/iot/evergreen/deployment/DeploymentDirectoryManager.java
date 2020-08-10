@@ -81,7 +81,7 @@ public class DeploymentDirectoryManager {
             Files.createSymbolicLink(symlink, deploymentPath);
             Files.delete(ongoingDir);
         } catch (IOException e) {
-            logger.atWarn().log("Unable to preserve artifacts from the last deployment");
+            logger.atError().log("Unable to preserve artifacts from the last deployment");
         }
     }
 
@@ -93,7 +93,7 @@ public class DeploymentDirectoryManager {
             Utils.deleteFileRecursively(Files.readSymbolicLink(symlink).toFile());
             Files.delete(symlink);
         } catch (IOException ioException) {
-            logger.atWarn().kv("link", symlink).log("Unable to clean up previous deployments", ioException);
+            logger.atError().kv("link", symlink).log("Unable to clean up previous deployments", ioException);
         }
     }
 

@@ -343,7 +343,7 @@ public class DeploymentService extends EvergreenService {
             deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
         } catch (IOException ioException) {
-            logger.atWarn().log("Unable to create deployment directory", ioException);
+            logger.atError().log("Unable to create deployment directory", ioException);
         }
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
