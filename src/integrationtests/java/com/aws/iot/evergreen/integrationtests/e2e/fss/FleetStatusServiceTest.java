@@ -12,6 +12,7 @@ import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.fss.ComponentStatusDetails;
 import com.aws.iot.evergreen.fss.FleetStatusDetails;
+import com.aws.iot.evergreen.fss.FleetStatusService;
 import com.aws.iot.evergreen.fss.OverallStatus;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
@@ -31,7 +32,9 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -56,11 +59,14 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
 
     @AfterEach
     void afterEach() {
-        if (kernel != null) {
-            kernel.shutdown();
+        try {
+            if (kernel != null) {
+                kernel.shutdown();
+            }
+        } finally {
+            // Cleanup all IoT thing resources we created
+            cleanup();
         }
-        // Cleanup all IoT thing resources we created
-        cleanup();
     }
 
     @BeforeEach
@@ -83,7 +89,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         AtomicReference<List<MqttMessage>> mqttMessagesList = new AtomicReference<>();
         mqttMessagesList.set(new ArrayList<>());
         client.subscribe(SubscribeRequest.builder()
-                .topic(String.format("$aws/things/%s/evergreen/health/json", thingInfo.getThingName()))
+                .topic(FleetStatusService.FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingInfo.getThingName()))
                 .callback((m) -> {
                     cdl.countDown();
                     mqttMessagesList.get().add(m);
@@ -102,6 +108,16 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         String someServiceName = getCloudDeployedComponent("SomeService").getName();
+        Set<String> componentNames = new HashSet<>();
+        componentNames.add(getCloudDeployedComponent("Mosquitto").getName());
+        componentNames.add(someServiceName);
+        componentNames.add(getCloudDeployedComponent("CustomerApp").getName());
+        componentNames.add(getCloudDeployedComponent("GreenSignal").getName());
+        kernel.orderedDependencies().forEach(evergreenService -> {
+            if(evergreenService.isAutostart() || evergreenService.getName().equals("main")) {
+                componentNames.add(evergreenService.getName());
+            }
+        });
 
         // Second deployment to remove some services deployed previously
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
@@ -138,12 +154,10 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(thingInfo.getThingName(), fleetStatusDetails1.getThing());
         assertEquals("1.0.0", fleetStatusDetails1.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
-        assertThat(fleetStatusDetails1.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
-                containsInAnyOrder(getCloudDeployedComponent("Mosquitto").getName(), someServiceName,
-                        getCloudDeployedComponent("CustomerApp").getName(),
-                        getCloudDeployedComponent("GreenSignal").getName(),
-                        "main", "pubsubipc", "IPCService", "FleetStatusService", "lifecycleipc", "configstoreipc",
-                        "SafeSystemUpdate", "DeploymentService", "servicediscovery"));
+        fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
+            componentNames.remove(componentStatusDetails.getComponentName());
+        });
+        assertTrue(componentNames.isEmpty());
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
             assertEquals(Collections.singletonList(arn.toString()), componentStatusDetails.getFleetConfigArns());
         });

@@ -126,8 +126,7 @@ public class DeploymentStatusKeeper {
                         deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE);
 
                 boolean allConsumersUpdated = getConsumersForDeploymentType(deploymentType).stream()
-                        .map(consumer -> consumer.apply(deploymentDetails))
-                        .reduce(true, (a, b) -> a && b);
+                        .allMatch(consumer -> consumer.apply(deploymentDetails));
                 if (!allConsumersUpdated) {
                     // If one deployment update fails, exit the loop to ensure the update order.
                     logger.atDebug().log("Unable to update status of persisted deployments. Retry later");

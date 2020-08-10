@@ -400,8 +400,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
             throws ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
-        Set<EvergreenService> evergreenServices = new HashSet<>();
-        evergreenServices.add(mockEvergreenService1);
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
@@ -432,7 +430,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockEvergreenService1, State.INSTALLED, State.RUNNING);
-        fleetStatusService.updateRemovedDependencies(evergreenServices);
+        fleetStatusService.addEvergreenServicesToPreviouslyKnownServicesList(Collections.singletonList(mockEvergreenService1), Instant.MIN);
 
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);

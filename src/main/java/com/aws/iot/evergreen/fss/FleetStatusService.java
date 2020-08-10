@@ -72,7 +72,8 @@ public class FleetStatusService extends EvergreenService {
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.now());
     private final Set<EvergreenService> evergreenServiceSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Set<EvergreenService> removedDependenciesSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    // TODO: Remove this variable after implementing callbacks for getting services being removed notifications.
+    private final ConcurrentHashMap<EvergreenService, Instant> allEvergreenServicesNameMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final AtomicLong sequenceNumber = new AtomicLong();
     private int periodicUpdateIntervalSec;
@@ -222,21 +223,29 @@ public class FleetStatusService extends EvergreenService {
             return;
         }
 
+        Instant now = Instant.now();
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
 
         // Check if the removed dependency is still running (Probably as a dependant service to another service).
         // If so, then remove it from the removedDependencies collection.
         this.kernel.orderedDependencies().forEach(evergreenService -> {
-            removedDependenciesSet.remove(evergreenService);
+            allEvergreenServicesNameMap.put(evergreenService, now);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), evergreenService));
         });
+        Set<EvergreenService> removedDependenciesSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         // Add all the removed dependencies to the collection of services to update.
         synchronized (evergreenServiceSet) {
-            evergreenServiceSet.addAll(removedDependenciesSet);
+            allEvergreenServicesNameMap.forEach((evergreenService, instant) -> {
+                if (!instant.equals(now)) {
+                    evergreenServiceSet.add(evergreenService);
+                    removedDependenciesSet.add(evergreenService);
+                }
+            });
+            removedDependenciesSet.forEach(allEvergreenServicesNameMap::remove);
+            removedDependenciesSet.clear();
         }
         uploadFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
-        removedDependenciesSet.clear();
     }
 
     private void uploadFleetStatusServiceData(Set<EvergreenService> evergreenServiceSet,
@@ -354,12 +363,14 @@ public class FleetStatusService extends EvergreenService {
     }
 
     /**
-     * Update the removed dependency packages.
+     * Used for unit tests only. Adds a list of evergreen services of previously
      *
-     * @param removedEgDependencies set of removed dependencies.
+     * @param evergreenServices List of evergreen services to add
+     * @param instant last time the service was processed.
      */
-    public void updateRemovedDependencies(Set<EvergreenService> removedEgDependencies) {
-        removedDependenciesSet.addAll(removedEgDependencies);
+    public void addEvergreenServicesToPreviouslyKnownServicesList(List<EvergreenService> evergreenServices,
+                                                                  Instant instant) {
+        evergreenServices.forEach(evergreenService -> allEvergreenServicesNameMap.put(evergreenService, instant));
     }
 
     /**

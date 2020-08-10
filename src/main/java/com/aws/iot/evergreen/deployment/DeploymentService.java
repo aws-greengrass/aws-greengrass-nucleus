@@ -434,20 +434,15 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void setComponentsToGroupsMapping(Topics groupsToRootComponents) {
-         if (groupsToRootComponents.children == null || groupsToRootComponents.children.size() == 0) {
-            return;
-        }
         List<String> pendingComponentsList = new LinkedList<>();
         Map<Object, Object> componentsToGroupsMappingCache = new ConcurrentHashMap<>();
-        Topics componentsToGroupsTopics;
-
-        componentsToGroupsTopics = getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+        Topics componentsToGroupsTopics = getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
         // Get all the groups associated to the root components.
         groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
             Topics componentTopics = (Topics) groupNode;
 
             Topic lookup = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
-            String groupDeploymentId = (String) lookup.getOnce();
+            String groupDeploymentId = Coerce.toString(lookup.getOnce());
 
             Map<Object, Object> groupDeploymentIdSet = (Map<Object, Object>) componentsToGroupsMappingCache
                     .getOrDefault(componentTopics.getName(), new HashMap<>());
