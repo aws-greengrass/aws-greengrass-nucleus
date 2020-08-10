@@ -48,27 +48,27 @@ public abstract class DeploymentActivator {
         }
     }
 
+    @SuppressWarnings("PMD.PrematureDeclaration")
     protected long rollbackConfig(String deploymentId, CompletableFuture<DeploymentResult> totallyCompleteFuture,
                                   Throwable failureCause) {
-        long mergeTime;
-        try {
-            mergeTime = System.currentTimeMillis();
-            // The lambda is set up to ignore anything that is a child of DEPLOYMENT_SAFE_NAMESPACE_TOPIC
-            // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
-            // they like in the config
-            ConfigurationReader.mergeTLogInto(kernel.getConfig(),
-                    ConfigSnapshotUtils.getSnapshotFilePath(kernel, deploymentId), true,
-                    s -> !s.childOf(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC));
-            return mergeTime;
-        } catch (IOException e) {
+        long mergeTime = System.currentTimeMillis();
+        // The lambda is set up to ignore anything that is a child of DEPLOYMENT_SAFE_NAMESPACE_TOPIC
+        // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
+        // they like in the config
+        Throwable error = kernel.getContext().runOnPublishQueueAndWait(() ->
+                ConfigurationReader.mergeTLogInto(kernel.getConfig(),
+                        ConfigSnapshotUtils.getSnapshotFilePath(kernel, deploymentId), true,
+                        s -> !s.childOf(EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC)));
+        if (error != null) {
             // Could not merge old snapshot transaction log, rollback failed
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
+            logger.atError(MERGE_ERROR_LOG_EVENT_KEY, error).log("Failed to rollback deployment");
             // TODO : Run user provided script to reach user defined safe state
             //  set deployment status based on the success of the script run
             totallyCompleteFuture.complete(new DeploymentResult(
                     DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, failureCause));
             return -1;
         }
+        return mergeTime;
     }
 
     /*
