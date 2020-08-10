@@ -55,16 +55,14 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
                                 CredentialRequestHandler credentialRequestHandler,
                                 AuthorizationHandler authZHandler) {
         super(topics);
-        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)
-                .dflt(DEFAULT_PORT)
-                .subscribe((why, newv) ->
-                        port = Coerce.toInt(newv));
+        // Port change should not be allowed
+        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
+                .subscribe((why, newv) -> port = Coerce.toInt(newv));
 
-        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC)
-                .subscribe((why, newv) -> {
-                    iotRoleAlias = Coerce.toString(newv);
-                    credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
-                });
+        topics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).subscribe((why, newv) -> {
+            iotRoleAlias = Coerce.toString(newv);
+            credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
+        });
 
         // TODO: Add support for overriding this from config
         this.authZPolicy = getDefaultAuthZPolicy();
@@ -79,7 +77,7 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
             authZHandler.registerComponent(this.getName(), new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
             authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
         } catch (AuthorizationException e) {
-            serviceErrored(e.toString());
+            serviceErrored(e);
         }
     }
 
@@ -97,7 +95,7 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
             setEnvVariablesForDependencies(server.getServerPort());
             reportState(State.RUNNING);
         } catch (IOException | IllegalArgumentException e) {
-            serviceErrored(e.toString());
+            serviceErrored(e);
         }
     }
 

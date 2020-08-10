@@ -6,6 +6,7 @@ import lombok.Getter;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.regex.Pattern;
 
 import static com.aws.iot.evergreen.util.Utils.appendLong;
 import static com.aws.iot.evergreen.util.Utils.parseLong;
@@ -13,11 +14,11 @@ import static com.aws.iot.evergreen.util.Utils.parseLong;
 @AllArgsConstructor
 @Getter
 class Tlogline {
-    private static final java.util.regex.Pattern logLine =
-            java.util.regex.Pattern.compile("([0-9]+),([^,]*),(changed|removed),([^\n]*)\n*");
+    private static final Pattern logLine =
+            Pattern.compile("^([0-9]+),(\\[.*]),(changed|removed),([^\n]*)\n*$", Pattern.DOTALL);
 
     long timestamp;
-    String topicString;
+    String[] topicPath;
     WhatHappened action;
     Object value;
 
@@ -32,7 +33,7 @@ class Tlogline {
     void outputTo(Writer out) throws IOException {
         appendLong(timestamp, out);
         out.append(',');
-        out.append(topicString);
+        Coerce.appendParseableString(topicPath, out);
         out.append(',');
         out.append(this.action.toString());
         out.append(',');
@@ -57,7 +58,7 @@ class Tlogline {
             value = Coerce.toObject(m.group(4));
         }
 
-        return new Tlogline(timestamp, topicString, action, value);
+        return new Tlogline(timestamp, Coerce.toStringArray(topicString), action, value);
     }
 
 }
