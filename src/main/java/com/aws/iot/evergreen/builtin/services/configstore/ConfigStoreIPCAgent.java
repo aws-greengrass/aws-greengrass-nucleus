@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.ServiceEventHelper;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
@@ -73,7 +74,7 @@ public class ConfigStoreIPCAgent {
     private ServiceEventHelper serviceEventHelper;
 
     /**
-     * Handle the subscription request from the user. Immediately sends the current state to the client.
+     * Handle the subscription request from the user.
      *
      * @param request request for component update subscription
      * @param context connection context
@@ -88,27 +89,31 @@ public class ConfigStoreIPCAgent {
         Topics serviceTopics = kernel.findServiceTopic(componentName);
         if (serviceTopics == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
-                    "Requested component does not exist");
+                    "Key not found");
         }
 
         Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
         if (configurationTopics == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
-                    "Requested component does not have any configuration");
+                    "Key not found");
         }
 
         Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyName());
         if (subscribeTo == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
-                    "Requested configuration key does not exist");
+                    "Key not found");
         }
 
+        // TODO : Does not dedupe, need more details on the requirement
         Optional<Watcher> watcher = registerWatcher(subscribeTo, context, componentName);
         if (!watcher.isPresent()) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.InternalError,
                     "Could not register update subscriber");
         }
 
+        // TODO: How do users de-register? We need a signal for this on which we can clean up watchers
+        //  from the config store. What will be the onDisconnect equivalent in the new protocol and
+        //  are there any differences in how to handle it vs how it is today i.e. done like below
         context.onDisconnect(() -> subscribeTo.remove(watcher.get()));
 
         return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.Success, null);
@@ -179,7 +184,7 @@ public class ConfigStoreIPCAgent {
             log.atDebug().log("Sending component {}'s updated config key {} to {}", componentName, changedKey, context);
 
             serviceEventHelper.sendServiceEvent(context, valueChangedEvent, BuiltInServiceDestinationCode.CONFIG_STORE,
-                    ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal());
+                    ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal(), ConfigStoreImpl.API_VERSION);
         };
     }
 
@@ -198,13 +203,13 @@ public class ConfigStoreIPCAgent {
 
         if (serviceTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
-                    .errorMessage("Service not found").build();
+                    .errorMessage("Key not found").build();
         }
 
         Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
         if (configTopics == null) {
-            return response.responseStatus(ConfigStoreResponseStatus.NoConfig)
-                    .errorMessage("Service has no dynamic config").build();
+            return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
+                    .errorMessage("Key not found").build();
         }
 
         Node node;
@@ -294,7 +299,7 @@ public class ConfigStoreIPCAgent {
             log.atDebug().log("Requesting validation for component config {}", configuration, context);
 
             serviceEventHelper.sendServiceEvent(context, validationEvent, BuiltInServiceDestinationCode.CONFIG_STORE,
-                    ConfigStoreServiceOpCodes.VALIDATION_EVENT.ordinal());
+                    ConfigStoreServiceOpCodes.VALIDATION_EVENT.ordinal(), ConfigStoreImpl.API_VERSION);
         };
     }
 

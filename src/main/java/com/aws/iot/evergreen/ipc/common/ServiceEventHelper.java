@@ -3,7 +3,6 @@ package com.aws.iot.evergreen.ipc.common;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
-import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import lombok.AllArgsConstructor;
@@ -27,24 +26,24 @@ public class ServiceEventHelper {
     ExecutorService executor;
 
     /**
-     * Send requested event to requested IPC channel.
+     * Asynchronously sends requested event to requested IPC channel.
      *
      * @param connectionContext client connection context
-     * @param serviceEvent event data
-     * @param destinationCode service destination code to denote the source of the event
-     * @param opCode op code
+     * @param serviceEvent      event data
+     * @param destinationCode   service destination code to denote the source of the event
+     * @param opCode            op code
+     * @return Future for send event task
      */
-    public void sendServiceEvent(ConnectionContext connectionContext, ServiceEvent serviceEvent,
-                                 BuiltInServiceDestinationCode destinationCode, int opCode) {
-        try {
-            ApplicationMessage applicationMessage =
-                    ApplicationMessage.builder().version(ConfigStoreImpl.API_VERSION).opCode(opCode)
-                            .payload(IPCUtil.encode(serviceEvent)).build();
-            // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
-            Future<FrameReader.Message> fut = connectionContext
-                    .serverPush(destinationCode.getValue(), new FrameReader.Message(applicationMessage.toByteArray()));
-            // call the blocking "get" in a separate thread so we don't block the publish queue
-            executor.execute(() -> {
+    public Future<?> sendServiceEvent(ConnectionContext connectionContext, ServiceEvent serviceEvent,
+                                      BuiltInServiceDestinationCode destinationCode, int opCode, int apiVersion) {
+        return executor.submit(() -> {
+            try {
+                ApplicationMessage applicationMessage = ApplicationMessage.builder().version(apiVersion).opCode(opCode)
+                        .payload(IPCUtil.encode(serviceEvent)).build();
+
+                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
+                Future<FrameReader.Message> fut = connectionContext.serverPush(destinationCode.getValue(),
+                        new FrameReader.Message(applicationMessage.toByteArray()));
                 try {
                     fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                     // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
@@ -53,12 +52,11 @@ public class ServiceEventHelper {
                     log.atError("error-sending-configstore-update").kv("context", connectionContext)
                             .log("Error sending config store update to client", e);
                 }
-            });
-
-        } catch (IOException e) {
-            // Log
-            log.atError("error-sending-configstore-update").kv("context", connectionContext)
-                    .log("Error sending config store update to client", e);
-        }
+            } catch (IOException e) {
+                // Log
+                log.atError("error-sending-configstore-update").kv("context", connectionContext)
+                        .log("Error sending config store update to client", e);
+            }
+        });
     }
 }

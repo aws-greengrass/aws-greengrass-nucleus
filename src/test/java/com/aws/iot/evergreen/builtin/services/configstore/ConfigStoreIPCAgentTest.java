@@ -11,10 +11,8 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.common.ServiceEventHelper;
-import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
-import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
@@ -30,12 +28,10 @@ import com.aws.iot.evergreen.ipc.services.configstore.UpdateConfigurationRespons
 import com.aws.iot.evergreen.ipc.services.configstore.ValidateConfigurationUpdateEvent;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -45,18 +41,15 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,7 +66,7 @@ public class ConfigStoreIPCAgentTest {
     private Kernel kernel;
 
     @Mock
-    private ExecutorService executor;
+    private ServiceEventHelper serviceEventHelper;
 
     @Mock
     private ConnectionContext componentAContext;
@@ -87,7 +80,7 @@ public class ConfigStoreIPCAgentTest {
 
     @BeforeEach
     void setup() {
-        agent = new ConfigStoreIPCAgent(kernel, new ServiceEventHelper(executor));
+        agent = new ConfigStoreIPCAgent(kernel, serviceEventHelper);
 
         configuration = new Configuration(new Context());
         Topics root = configuration.getRoot();
@@ -128,7 +121,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_get_config_request_WHEN_key_does_not_exist_THEN_return_config_value() {
+    public void GIVEN_get_config_request_WHEN_key_does_not_exist_THEN_fail() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         GetConfigurationRequest request =
@@ -144,7 +137,7 @@ public class ConfigStoreIPCAgentTest {
                 GetConfigurationRequest.builder().componentName("WrongComponent").key("AnyKey").build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.ResourceNotFoundError, response.getStatus());
-        assertEquals("Service not found", response.getErrorMessage());
+        assertEquals("Key not found", response.getErrorMessage());
     }
 
     @Test
@@ -154,8 +147,8 @@ public class ConfigStoreIPCAgentTest {
         GetConfigurationRequest request =
                 GetConfigurationRequest.builder().componentName(TEST_COMPONENT_B).key("AnyKey").build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
-        assertEquals(ConfigStoreResponseStatus.NoConfig, response.getStatus());
-        assertEquals("Service has no dynamic config", response.getErrorMessage());
+        assertEquals(ConfigStoreResponseStatus.ResourceNotFoundError, response.getStatus());
+        assertEquals("Key not found", response.getErrorMessage());
     }
 
     @Test
@@ -186,7 +179,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_requested_component_is_not_self_request_THEN_fail() {
+    public void GIVEN_update_config_request_WHEN_requested_component_is_not_self_THEN_fail() {
         UpdateConfigurationRequest request =
                 UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key(TEST_CONFIG_KEY_1).newValue(20)
                         .timestamp(System.currentTimeMillis()).build();
@@ -197,7 +190,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_agent_running_WHEN_subscribe_to_config_update_request_THEN_next_config_update_triggers_event()
-            throws InterruptedException, IOException {
+            throws InterruptedException {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         SubscribeToConfigurationUpdateRequest request =
@@ -205,29 +198,28 @@ public class ConfigStoreIPCAgentTest {
         SubscribeToConfigurationUpdateResponse response = agent.subscribeToConfigUpdate(request, componentBContext);
         assertEquals(ConfigStoreResponseStatus.Success, response.getStatus());
 
-        CountDownLatch messagePublishedToClient = new CountDownLatch(1);
-        when(componentBContext.serverPush(anyInt(), any(FrameReader.Message.class))).thenAnswer(invocationOnMock -> {
-            messagePublishedToClient.countDown();
-            return new CompletableFuture<>();
+        ConfigurationUpdateEvent updateEvent =
+                ConfigurationUpdateEvent.builder().componentName(TEST_COMPONENT_A).changedKey(TEST_CONFIG_KEY_1)
+                        .build();
+        CountDownLatch eventSentToClient = new CountDownLatch(1);
+        when(serviceEventHelper.sendServiceEvent(any(ConnectionContext.class), any(ConfigurationUpdateEvent.class),
+                any(BuiltInServiceDestinationCode.class), anyInt(), anyInt())).thenAnswer(invocationOnMock -> {
+            eventSentToClient.countDown();
+            return null;
         });
+
         configuration.getRoot()
                 .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1)
                 .withValue(25);
 
-        assertTrue(messagePublishedToClient.await(10, TimeUnit.SECONDS));
-        ArgumentCaptor<FrameReader.Message> messageArgumentCaptor = ArgumentCaptor.forClass(FrameReader.Message.class);
-        verify(componentBContext)
-                .serverPush(eq(BuiltInServiceDestinationCode.CONFIG_STORE.getValue()), messageArgumentCaptor.capture());
-        ApplicationMessage message = ApplicationMessage.fromBytes(messageArgumentCaptor.getValue().getPayload());
-        assertEquals(ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal(), message.getOpCode());
-        ConfigurationUpdateEvent event = IPCUtil.decode(message.getPayload(), ConfigurationUpdateEvent.class);
-        assertEquals(TEST_COMPONENT_A, event.getComponentName());
-        assertEquals(TEST_CONFIG_KEY_1, event.getChangedKey());
+        assertTrue(eventSentToClient.await(10, TimeUnit.SECONDS));
+        verify(serviceEventHelper)
+                .sendServiceEvent(componentBContext, updateEvent, BuiltInServiceDestinationCode.CONFIG_STORE,
+                        ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal(), ConfigStoreImpl.API_VERSION);
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_subscribe_to_validate_config_request_THEN_validation_event_can_be_triggered()
-            throws IOException {
+    public void GIVEN_agent_running_WHEN_subscribe_to_validate_config_request_THEN_validation_event_can_be_triggered() {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
 
@@ -236,15 +228,10 @@ public class ConfigStoreIPCAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
         assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, new CompletableFuture<>()));
-        ArgumentCaptor<FrameReader.Message> messageArgumentCaptor = ArgumentCaptor.forClass(FrameReader.Message.class);
-        verify(componentAContext)
-                .serverPush(eq(BuiltInServiceDestinationCode.CONFIG_STORE.getValue()), messageArgumentCaptor.capture());
-        ApplicationMessage message = ApplicationMessage.fromBytes(messageArgumentCaptor.getValue().getPayload());
-        assertEquals(ConfigStoreServiceOpCodes.VALIDATION_EVENT.ordinal(), message.getOpCode());
-        ValidateConfigurationUpdateEvent event =
-                IPCUtil.decode(message.getPayload(), ValidateConfigurationUpdateEvent.class);
-        assertThat(event.getConfiguration(), IsMapContaining.hasEntry(TEST_CONFIG_KEY_1, 0));
-        assertThat(event.getConfiguration(), IsMapContaining.hasEntry(TEST_CONFIG_KEY_2, 100));
+        verify(serviceEventHelper).sendServiceEvent(componentAContext,
+                ValidateConfigurationUpdateEvent.builder().configuration(configToValidate).build(),
+                BuiltInServiceDestinationCode.CONFIG_STORE, ConfigStoreServiceOpCodes.VALIDATION_EVENT.ordinal(),
+                ConfigStoreImpl.API_VERSION);
 
     }
 
