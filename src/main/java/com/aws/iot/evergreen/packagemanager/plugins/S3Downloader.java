@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -56,7 +57,7 @@ public class S3Downloader implements ArtifactDownloader {
 
     @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
     @Override
-    public void downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
+    public File downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
             throws IOException, PackageDownloadException, InvalidArtifactUriException {
 
         logger.atInfo().setEventType("download-artifact").addKeyValue("packageIdentifier", packageIdentifier)
@@ -86,6 +87,7 @@ public class S3Downloader implements ArtifactDownloader {
             // Save file to store
             Files.write(saveToPath.resolve(extractFileName(key)), artifactObject, StandardOpenOption.CREATE,
                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+            return saveToPath.resolve(extractFileName(key)).toFile();
         } catch (PackageDownloadException e) {
             if (e instanceof ArtifactChecksumMismatchException || !saveToPath.resolve(extractFileName(key)).toFile()
                     .exists()) {
@@ -95,6 +97,7 @@ public class S3Downloader implements ArtifactDownloader {
                     .addKeyValue("artifactUri", artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
         }
+        return null;
     }
 
     private byte[] getObject(String bucket, String key, ComponentArtifact artifact, PackageIdentifier packageIdentifier)
