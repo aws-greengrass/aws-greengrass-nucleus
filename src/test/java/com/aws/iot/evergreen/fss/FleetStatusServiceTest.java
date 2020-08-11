@@ -21,6 +21,7 @@ import com.aws.iot.evergreen.mqtt.PublishRequest;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hamcrest.collection.IsEmptyCollection;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,9 +59,10 @@ import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_PERIODIC
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_SEQUENCE_NUMBER_TOPIC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_SERVICE_PUBLISH_TOPICS;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
@@ -199,7 +201,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(1).getStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(1).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentStatusDetails().get(1).getFleetConfigArns());
-        assertTrue(serviceNamesToCheck.isEmpty());
+        assertThat(serviceNamesToCheck, is(IsEmptyCollection.empty()));
     }
 
     @Test
@@ -450,7 +452,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(0).getState());
-        assertEquals(Collections.emptyList(), fleetStatusDetails.getComponentStatusDetails().get(0).getFleetConfigArns());
+        assertThat(fleetStatusDetails.getComponentStatusDetails().get(0).getFleetConfigArns(), is(IsEmptyCollection.empty()));
     }
 
     @Test
@@ -622,7 +624,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(1).getStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(1).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentStatusDetails().get(1).getFleetConfigArns());
-        assertTrue(serviceNamesToCheck.isEmpty());
+        assertThat(serviceNamesToCheck, is(IsEmptyCollection.empty()));
     }
 
 

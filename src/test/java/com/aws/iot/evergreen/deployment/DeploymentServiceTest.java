@@ -21,6 +21,9 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import org.hamcrest.collection.IsEmptyCollection;
+import org.hamcrest.core.IsNot;
+import org.hamcrest.core.IsNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -53,6 +56,8 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -228,15 +233,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(componentToGroupsTopics).replaceAndWait(mapCaptor.capture());
             Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
-            assertThat("Missing group to root package entries",
-                    groupToRootPackages != null || !groupToRootPackages.isEmpty());
-            assertThat("Expected root package not found",
-                    groupToRootPackages.containsKey(EXPECTED_ROOT_PACKAGE_NAME));
-            assertThat("Expected package version not found",
-                    ((Map<String, Boolean>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME))
-                            .get(TEST_CONFIGURATION_ARN).equals(true));
-
-            deploymentService.shutdown();
+            assertThat(groupToRootPackages, is(IsNull.notNullValue()));
+            assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
+            assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+            assertThat((Map<String, Boolean>)groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME), hasKey(TEST_CONFIGURATION_ARN));
         }
 
         @Test
@@ -278,13 +278,11 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
             Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
-            assertThat("Missing group to root package entries",
-                    groupToRootPackages != null || !groupToRootPackages.isEmpty());
-            assertThat("Expected root package not found",
-                    groupToRootPackages.containsKey(EXPECTED_ROOT_PACKAGE_NAME));
-            assertThat("Expected package version not found",
-                    ((Map<String, Boolean>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME))
-                            .containsKey("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"));
+            assertThat(groupToRootPackages, is(IsNull.notNullValue()));
+            assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
+            assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+            assertThat((Map<String, Boolean>)groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME),
+                    hasKey("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"));
         }
 
         @Test
