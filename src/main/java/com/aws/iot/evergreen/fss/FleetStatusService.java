@@ -39,9 +39,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
@@ -52,30 +50,29 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 @ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true, version = "1.0.0")
 public class FleetStatusService extends EvergreenService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
-    public static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
-    public static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
-    public static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     // TODO: update the topic name to remove the evergreen code name from it.
     public static final String FLEET_STATUS_SERVICE_PUBLISH_TOPIC = "$aws/things/{thingName}/evergreen/health/json";
+    static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
+    static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
+    static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
 
     private final String kernelVersion;
-    private final String updateFssDataTopic;
-    private final String thingName;
+    private String updateFssDataTopic;
+    private String thingName;
     private final MqttClient mqttClient;
-    private final DeviceConfiguration deviceConfiguration;
     private final Kernel kernel;
     private final String architecture;
     private final String platform;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
-    private final AtomicReference<Instant> lastPeriodicUpdateTime = new AtomicReference<>(Instant.now());
-    private final Set<EvergreenService> evergreenServiceSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<EvergreenService> updatedEvergreenServiceSet =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
     // TODO: Remove this variable after implementing callbacks for getting services being removed notifications.
     private final ConcurrentHashMap<EvergreenService, Instant> allEvergreenServicesNameMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
-    private final AtomicLong sequenceNumber = new AtomicLong();
+    private final Object periodicUpdateInProgressLock = new Object();
     private int periodicUpdateIntervalSec;
     private ScheduledFuture<?> periodicUpdateFuture;
 
@@ -84,7 +81,6 @@ public class FleetStatusService extends EvergreenService {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             isConnected.set(false);
-            periodicUpdateFuture.cancel(false);
         }
 
         @Override
@@ -99,17 +95,16 @@ public class FleetStatusService extends EvergreenService {
      *
      * @param topics                 root Configuration topic for this service
      * @param mqttClient             {@link MqttClient}
-     * @param deviceConfiguration    {@link DeviceConfiguration}
      * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
      * @param kernel                 {@link Kernel}
+     * @param deviceConfiguration    {@link DeviceConfiguration}
      */
     @Inject
-    public FleetStatusService(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
-                              DeploymentStatusKeeper deploymentStatusKeeper, Kernel kernel) {
+    public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
+                              Kernel kernel, DeviceConfiguration deviceConfiguration) {
         super(topics);
 
         this.mqttClient = mqttClient;
-        this.deviceConfiguration = deviceConfiguration;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.kernel = kernel;
         this.architecture = System.getProperty("os.arch");
@@ -117,27 +112,15 @@ public class FleetStatusService extends EvergreenService {
         // TODO: Make this more robust to handle all platforms.
         this.platform = System.getProperty("os.name");
 
-        this.thingName = Coerce.toString(this.deviceConfiguration.getThingName());
-        this.updateFssDataTopic = FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingName);
+        updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
+        topics.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
+                .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
 
         topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
-                    periodicUpdateIntervalSec = Coerce.toInt(newv);
-                    if (periodicUpdateFuture != null) {
-                        periodicUpdateFuture.cancel(false);
-                        schedulePeriodicFleetStatusDataUpdate(false);
-                    }
+                    updatePeriodicUpdateInterval(newv);
                 });
-
-        topics.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)
-                .dflt(new AtomicLong())
-                .subscribe((why, newv) -> sequenceNumber.set(Coerce.toLong(newv)));
-
-        topics.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)
-                .dflt(Instant.now().toEpochMilli())
-                .subscribe((why, newv) -> lastPeriodicUpdateTime.set(Instant.ofEpochMilli(Coerce.toLong(newv))));
-
 
         //TODO: Get the kernel version once its implemented.
         this.kernelVersion = "1.0.0";
@@ -151,14 +134,36 @@ public class FleetStatusService extends EvergreenService {
         this.mqttClient.addToCallbackEvents(callbacks);
     }
 
+    private void updatePeriodicUpdateInterval(Topic newv) {
+        periodicUpdateIntervalSec = Coerce.toInt(newv);
+        if (periodicUpdateFuture != null) {
+            schedulePeriodicFleetStatusDataUpdate(false);
+        }
+    }
+
+    private void updateThingNameAndPublishTopic(String newThingName) {
+        if (newThingName != null) {
+            thingName = newThingName;
+            updateFssDataTopic = FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingName);
+        }
+    }
+
     private void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
         // If the last periodic update was missed, update the fleet status service for all running services.
         // Else update only the statuses of the services whose status changed (if any) and if the method is called
         // due to a MQTT connection resumption.
-        if (lastPeriodicUpdateTime.get().plusSeconds(periodicUpdateIntervalSec).isBefore(Instant.now())) {
-            updatePeriodicFleetStatusData();
-        } else if (isDuringConnectionResumed) {
-            updateEventTriggeredFleetStatusData();
+        if (periodicUpdateFuture != null) {
+            periodicUpdateFuture.cancel(false);
+        }
+
+        synchronized (periodicUpdateInProgressLock) {
+            Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
+
+            if (lastPeriodicUpdateTime.plusSeconds(periodicUpdateIntervalSec).isBefore(Instant.now())) {
+                updatePeriodicFleetStatusData();
+            } else if (isDuringConnectionResumed) {
+                updateEventTriggeredFleetStatusData();
+            }
         }
 
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
@@ -169,13 +174,13 @@ public class FleetStatusService extends EvergreenService {
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleServiceStateChange(EvergreenService evergreenService, State oldState,
                                           State newState) {
-        synchronized (evergreenServiceSet) {
-            evergreenServiceSet.add(evergreenService);
+        synchronized (updatedEvergreenServiceSet) {
+            updatedEvergreenServiceSet.add(evergreenService);
         }
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
-            uploadFleetStatusServiceData(evergreenServiceSet, OverallStatus.UNHEALTHY);
+            uploadFleetStatusServiceData(updatedEvergreenServiceSet, OverallStatus.UNHEALTHY);
         }
     }
 
@@ -190,18 +195,18 @@ public class FleetStatusService extends EvergreenService {
             return;
         }
         logger.atDebug().log("Updating FSS data on a periodic basis.");
-        Set<EvergreenService> evergreenServiceSet = new HashSet<>();
-        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        synchronized (periodicUpdateInProgressLock) {
+            Set<EvergreenService> evergreenServiceSet = new HashSet<>();
+            AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
 
-        // Get all running services from the kernel to update the fleet status.
-        this.kernel.orderedDependencies().forEach(evergreenService -> {
-            evergreenServiceSet.add(evergreenService);
-            overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), evergreenService));
-        });
-        uploadFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
-        lastPeriodicUpdateTime.set(Instant.now());
-        config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)
-                .withValue(lastPeriodicUpdateTime.get().toEpochMilli());
+            // Get all running services from the kernel to update the fleet status.
+            this.kernel.orderedDependencies().forEach(evergreenService -> {
+                evergreenServiceSet.add(evergreenService);
+                overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), evergreenService));
+            });
+            uploadFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
+            getPeriodicUpdateTimeTopic().withValue(Instant.now().toEpochMilli());
+        }
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
@@ -211,7 +216,7 @@ public class FleetStatusService extends EvergreenService {
             return true;
         }
         logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString());
+                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
         isDeploymentInProgress.set(false);
         updateEventTriggeredFleetStatusData();
         return true;
@@ -232,20 +237,18 @@ public class FleetStatusService extends EvergreenService {
             allEvergreenServicesNameMap.put(evergreenService, now);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), evergreenService));
         });
-        Set<EvergreenService> removedDependenciesSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<EvergreenService> removedDependenciesSet = new HashSet<>();
 
         // Add all the removed dependencies to the collection of services to update.
-        synchronized (evergreenServiceSet) {
-            allEvergreenServicesNameMap.forEach((evergreenService, instant) -> {
-                if (!instant.equals(now)) {
-                    evergreenServiceSet.add(evergreenService);
-                    removedDependenciesSet.add(evergreenService);
-                }
-            });
-            removedDependenciesSet.forEach(allEvergreenServicesNameMap::remove);
-            removedDependenciesSet.clear();
-        }
-        uploadFleetStatusServiceData(evergreenServiceSet, overAllStatus.get());
+        allEvergreenServicesNameMap.forEach((evergreenService, instant) -> {
+            if (!instant.equals(now)) {
+                updatedEvergreenServiceSet.add(evergreenService);
+                removedDependenciesSet.add(evergreenService);
+            }
+        });
+        removedDependenciesSet.forEach(allEvergreenServicesNameMap::remove);
+        removedDependenciesSet.clear();
+        uploadFleetStatusServiceData(updatedEvergreenServiceSet, overAllStatus.get());
     }
 
     private void uploadFleetStatusServiceData(Set<EvergreenService> evergreenServiceSet,
@@ -255,7 +258,7 @@ public class FleetStatusService extends EvergreenService {
             return;
         }
         List<ComponentStatusDetails> components = new ArrayList<>();
-
+        long sequenceNumber;
         synchronized (evergreenServiceSet) {
             // If there are no evergreen services to be updated, do not send an update.
             if (evergreenServiceSet.isEmpty()) {
@@ -278,13 +281,15 @@ public class FleetStatusService extends EvergreenService {
                 if (isSystemLevelService(service)) {
                     return;
                 }
-                List<String> thingGroups = new ArrayList<>();
+                List<String> componentGroups = new ArrayList<>();
                 if (finalComponentsToGroupsTopics != null) {
                     Topics groupsTopics = finalComponentsToGroupsTopics.lookupTopics(service.getName());
-                    thingGroups = groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
-                            .map(String::valueOf).collect(Collectors.toList());
-                    // Get all the group names from the user components.
-                    allGroups.addAll(thingGroups);
+                    groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                            .forEach(groupName -> {
+                                componentGroups.add(groupName);
+                                // Get all the group names from the user components.
+                                allGroups.add(groupName);
+                            });
                 }
 
 
@@ -293,7 +298,7 @@ public class FleetStatusService extends EvergreenService {
                         .componentName(service.getName())
                         .state(service.getState())
                         .version(Coerce.toString(versionTopic))
-                        .fleetConfigArns(thingGroups)
+                        .fleetConfigArns(componentGroups)
                         .build();
                 components.add(componentStatusDetails);
             });
@@ -312,9 +317,11 @@ public class FleetStatusService extends EvergreenService {
                 components.add(componentStatusDetails);
             });
             evergreenServiceSet.clear();
+            Topic sequenceNumberTopic = getSequenceNumberTopic();
+            sequenceNumber = Coerce.toLong(sequenceNumberTopic);
+            sequenceNumberTopic.withValue(sequenceNumber + 1);
         }
 
-        config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC).withValue(sequenceNumber.getAndIncrement());
         FleetStatusDetails fleetStatusDetails = FleetStatusDetails.builder()
                 .overallStatus(overAllStatus)
                 .componentStatusDetails(components)
@@ -322,7 +329,7 @@ public class FleetStatusService extends EvergreenService {
                 .platform(this.platform)
                 .thing(thingName)
                 .ggcVersion(this.kernelVersion)
-                .sequenceNumber(sequenceNumber.get())
+                .sequenceNumber(sequenceNumber)
                 .build();
         try {
             this.mqttClient.publish(PublishRequest.builder()
@@ -332,6 +339,14 @@ public class FleetStatusService extends EvergreenService {
         } catch (JsonProcessingException e) {
             logger.atError().cause(e).log("Unable to publish fleet status service.");
         }
+    }
+
+    private Topic getSequenceNumberTopic() {
+        return config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC);
+    }
+
+    private Topic getPeriodicUpdateTimeTopic() {
+        return config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC).dflt(Instant.now().toEpochMilli());
     }
 
     private boolean isSystemLevelService(EvergreenService service) {
@@ -349,14 +364,14 @@ public class FleetStatusService extends EvergreenService {
 
 
     @Override
-    public void startup() {
-        logger.atInfo().log("Starting Fleet status service.");
-        reportState(State.RUNNING);
+    public void startup() throws InterruptedException {
+        logger.atDebug().log("Starting Fleet status service.");
+        super.startup();
     }
 
     @Override
     public void shutdown() {
-        logger.atInfo().log("Stopping Fleet status service.");
+        logger.atDebug().log("Stopping Fleet status service.");
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
@@ -366,17 +381,17 @@ public class FleetStatusService extends EvergreenService {
      * Used for unit tests only. Adds a list of evergreen services of previously
      *
      * @param evergreenServices List of evergreen services to add
-     * @param instant last time the service was processed.
+     * @param instant           last time the service was processed.
      */
-    public void addEvergreenServicesToPreviouslyKnownServicesList(List<EvergreenService> evergreenServices,
-                                                                  Instant instant) {
+    void addEvergreenServicesToPreviouslyKnownServicesList(List<EvergreenService> evergreenServices,
+                                                           Instant instant) {
         evergreenServices.forEach(evergreenService -> allEvergreenServicesNameMap.put(evergreenService, instant));
     }
 
     /**
      * Used for unit tests only.
      */
-    public void clearEvergreenServiceSet() {
-        evergreenServiceSet.clear();
+    void clearEvergreenServiceSet() {
+        updatedEvergreenServiceSet.clear();
     }
 }

@@ -138,13 +138,10 @@ public class DeploymentStatusKeeper {
     }
 
     protected List<Function<Map<String, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
-        List<Function<Map<String, Object>, Boolean>> callbacks = new ArrayList<>();
-        deploymentStatusConsumerMap.forEach((deploymentType, stringFunctionMap) -> {
-            if (deploymentType == type) {
-                stringFunctionMap.forEach((s, mapBooleanFunction) -> callbacks.add(mapBooleanFunction));
-            }
-        });
-        return callbacks;
+        return deploymentStatusConsumerMap.entrySet().stream()
+                .filter(deploymentTypeMapEntry -> type.equals(deploymentTypeMapEntry.getKey()))
+                .map(Map.Entry::getValue).flatMap(stringFunctionMap -> stringFunctionMap.values().stream())
+                .collect(Collectors.toList());
     }
 
     /**

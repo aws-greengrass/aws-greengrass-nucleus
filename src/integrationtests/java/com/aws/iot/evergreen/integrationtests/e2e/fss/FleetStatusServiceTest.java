@@ -154,6 +154,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(thingInfo.getThingName(), fleetStatusDetails1.getThing());
         assertEquals("1.0.0", fleetStatusDetails1.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
+        assertEquals(0, fleetStatusDetails1.getSequenceNumber());
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
             componentNames.remove(componentStatusDetails.getComponentName());
         });
@@ -171,10 +172,11 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(thingInfo.getThingName(), fleetStatusDetails2.getThing());
         assertEquals("1.0.0", fleetStatusDetails2.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverallStatus());
+        assertEquals(1, fleetStatusDetails2.getSequenceNumber());
         assertEquals(1, fleetStatusDetails2.getComponentStatusDetails().size());
         assertThat(fleetStatusDetails2.getComponentStatusDetails().stream().map(ComponentStatusDetails::getComponentName).collect(Collectors.toList()),
                 containsInAnyOrder(someServiceName));
-        assertEquals(Collections.emptyList(), fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArns());
+        assertThat("Component was removed from the kernel.", fleetStatusDetails2.getComponentStatusDetails().get(0).getFleetConfigArns().isEmpty());
         assertEquals(someServiceName, fleetStatusDetails2.getComponentStatusDetails().get(0).getComponentName());
     }
 }

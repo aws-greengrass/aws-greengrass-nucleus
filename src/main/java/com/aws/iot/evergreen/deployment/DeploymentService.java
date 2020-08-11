@@ -454,8 +454,8 @@ public class DeploymentService extends EvergreenService {
         groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
             Topics componentTopics = (Topics) groupNode;
 
-            Topic lookup = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
-            String groupDeploymentId = Coerce.toString(lookup.getOnce());
+            Topic groupDeploymentIdTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
+            String groupDeploymentId = Coerce.toString(groupDeploymentIdTopic);
 
             Map<Object, Object> groupDeploymentIdSet = (Map<Object, Object>) componentsToGroupsMappingCache
                     .getOrDefault(componentTopics.getName(), new HashMap<>());

@@ -23,7 +23,6 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -73,9 +72,9 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     @Mock
     private MqttClient mockMqttClient;
     @Mock
-    private DeviceConfiguration mockDeviceConfiguration;
-    @Mock
     private DeploymentStatusKeeper mockDeploymentStatusKeeper;
+    @Mock
+    private DeviceConfiguration mockDeviceConfiguration;
     @Mock
     private Kernel mockKernel;
     @Mock
@@ -102,26 +101,27 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         initializeMockedConfig();
         ses = new ScheduledThreadPoolExecutor(4);
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
-        lenient().when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         lenient().when(mockEvergreenService2.getName()).thenReturn("MockService2");
         lenient().when(mockEvergreenService1.getName()).thenReturn("MockService");
         EvergreenLogConfig.getInstance().setLevel(Level.DEBUG);
+        when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
+        when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         Topic sequenceNumberTopic = Topic.of(context, FLEET_STATUS_SEQUENCE_NUMBER_TOPIC, "0");
-        when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
+        lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
         Topic lastPeriodicUpdateTime = Topic.of(context, FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC, Instant.now().toEpochMilli());
-        when(config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)).thenReturn(lastPeriodicUpdateTime);
+        lenient().when(config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)).thenReturn(lastPeriodicUpdateTime);
     }
 
     @AfterEach
     public void cleanUp() {
+        ses.shutdown();
         fleetStatusService.shutdown();
         fleetStatusService.clearEvergreenServiceSet();
     }
 
     @Test
-    @Order(1)
     public void GIVEN_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
-            throws ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -152,8 +152,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
@@ -199,9 +198,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(2)
     public void GIVEN_component_status_changes_to_broken_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
-            throws ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -230,8 +228,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
@@ -267,8 +265,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(3)
-    public void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() {
+    public void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
 
@@ -280,8 +277,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the state of an EG service.
@@ -299,8 +296,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(4)
-    public void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() {
+    public void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
 
@@ -314,8 +310,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         HashMap<String, Object> map = new HashMap<>();
@@ -339,7 +335,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(5)
     public void GIVEN_component_status_change_WHEN_periodic_update_triggered_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
@@ -369,10 +364,9 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
-
 
         TimeUnit.SECONDS.sleep(5);
 
@@ -395,9 +389,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(6)
     public void GIVEN_component_removed_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
-            throws ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -417,8 +410,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
@@ -456,9 +449,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(7)
     public void GIVEN_after_deployment_WHEN_component_status_changes_to_broken_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
-            throws ServiceLoadException, IOException {
+            throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10");
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -485,8 +477,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the state of an EG service.
@@ -513,7 +505,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
 
     @Test
-    @Order(8)
     public void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "3000");
@@ -526,8 +517,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
                 .thenReturn(periodicUpdateIntervalMsTopic);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
@@ -543,7 +534,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    @Order(9)
     public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_event_triggered_fss_data()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
@@ -577,8 +567,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
@@ -632,7 +622,6 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
 
     @Test
-    @Order(10)
     public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
@@ -662,8 +651,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeviceConfiguration,
-                mockDeploymentStatusKeeper, mockKernel);
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
 

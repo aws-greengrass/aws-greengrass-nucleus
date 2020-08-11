@@ -211,15 +211,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
-            CountDownLatch jobSucceededLatch = new CountDownLatch(1);
-            doAnswer(new Answer() {
-                @Override
-                public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                    jobSucceededLatch.countDown();
-                    return null;
-                }
-            }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
 
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
@@ -229,7 +220,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
-            jobSucceededLatch.await(10, TimeUnit.SECONDS);
+            verify(deploymentStatusKeeper, timeout(10000))
+                    .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
@@ -268,15 +261,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
-            CountDownLatch jobSucceededLatch = new CountDownLatch(1);
-            doAnswer(new Answer() {
-                @Override
-                public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                    jobSucceededLatch.countDown();
-                    return null;
-                }
-            }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
 
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
@@ -284,9 +268,11 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             startDeploymentServiceInAnotherThread();
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+            verify(deploymentStatusKeeper, timeout(10000))
+                    .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
-            jobSucceededLatch.await(10, TimeUnit.SECONDS);
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
