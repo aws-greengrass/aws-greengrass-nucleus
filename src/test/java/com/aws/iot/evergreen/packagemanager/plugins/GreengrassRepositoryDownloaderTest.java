@@ -79,7 +79,7 @@ class GreengrassRepositoryDownloaderTest {
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
-        downloader.downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:artifactName"), null, null),
+        downloader.downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:artifactName"), null, null, null),
                 saveToPath);
 
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
@@ -108,9 +108,8 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
-        assertThrows(IOException.class, () -> downloader.downloadToPath(pkgId, new ComponentArtifact(new URI(
-                "greengrass:binary"), null, null),
-                null));
+        assertThrows(IOException.class, () -> downloader
+                .downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:binary"), null, null, null), null));
     }
 
     @Test
