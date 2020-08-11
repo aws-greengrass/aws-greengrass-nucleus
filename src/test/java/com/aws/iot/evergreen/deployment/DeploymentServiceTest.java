@@ -90,6 +90,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private DeploymentStatusKeeper deploymentStatusKeeper;
     @Mock
     private Topics mockGroupPackages;
+    @Mock
+    private DeploymentDirectoryManager deploymentDirectoryManager;
 
     private Thread deploymentServiceThread;
 
@@ -107,7 +109,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, packageManager,
-                kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, context);
+                kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, deploymentDirectoryManager,
+                context);
         deploymentService.postInject();
 
         deploymentsQueue = new LinkedBlockingQueue<>();

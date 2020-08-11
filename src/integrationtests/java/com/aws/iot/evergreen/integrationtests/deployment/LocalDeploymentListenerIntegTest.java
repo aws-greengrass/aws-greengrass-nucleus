@@ -2,7 +2,6 @@ package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.LocalDeploymentListener;
-import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -26,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ComponentInfo;
 import static com.aws.iot.evergreen.deployment.LocalDeploymentListener.ListComponentsResult;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.iot.evergreen.util.Utils.copyFolderRecursively;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsIterableContaining.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,7 +56,7 @@ class LocalDeploymentListenerIntegTest {
         Path localStoreContentPath =
                 Paths.get(LocalDeploymentListenerIntegTest.class.getResource("local_store_content").toURI());
         // pre-load contents to package store
-        FileUtils.copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath(), REPLACE_EXISTING);
     }
 
     @AfterAll
