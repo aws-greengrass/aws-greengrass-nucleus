@@ -257,10 +257,17 @@ public class Context implements Closeable {
      * @param oldState       the old state of the service
      * @param newState       the new state of the service
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public synchronized void globalNotifyStateChanged(EvergreenService changedService, final State oldState,
                                                       final State newState) {
         if (listeners != null) {
-            listeners.forEach(s -> s.globalServiceStateChanged(changedService, oldState, newState));
+            listeners.forEach(s -> {
+                try {
+                    s.globalServiceStateChanged(changedService, oldState, newState);
+                } catch (Throwable t) {
+                    logger.atError().log("Error publishing service state change", t);
+                }
+            });
         }
     }
 
@@ -301,9 +308,9 @@ public class Context implements Closeable {
     }
 
     /**
-     * Use to manually inject dependencies into the fields of a class using the values in the
-     * current Context. Use with caution because you should not inject fields into a class multiple times
-     * as it will trigger the pre and post lifecycle methods each time.
+     * Use to manually inject dependencies into the fields of a class using the values in the current Context. Use with
+     * caution because you should not inject fields into a class multiple times as it will trigger the pre and post
+     * lifecycle methods each time.
      *
      * @param object Object to inject fields into
      */
@@ -344,8 +351,7 @@ public class Context implements Closeable {
                         Class t = f.getType();
                         Object v;
                         if (t == Provider.class) {
-                            v = getValue(
-                                    (Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
+                            v = getValue((Class) ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0],
                                     name);
                         } else {
                             v = this.get(t, name);

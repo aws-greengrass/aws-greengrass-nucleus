@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -40,7 +41,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
     }
 
     @Override
-    public void downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
+    public File downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
             throws IOException, PackageDownloadException {
         logger.atInfo().setEventType("download-artifact-from-greengrass-repo")
                 .addKeyValue("packageIdentifier", packageIdentifier)
@@ -62,6 +63,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
                     try (InputStream inputStream = httpConn.getInputStream()) {
                         Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
                     }
+                    return saveToPath.resolve(filename).toFile();
                 }
                 //TODO handle the other status code
             } finally {
@@ -77,6 +79,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
                     .addKeyValue("artifactUri", artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
         }
+        return null;
     }
 
     HttpURLConnection connect(URL url) throws IOException {
