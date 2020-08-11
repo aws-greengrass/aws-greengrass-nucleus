@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.KernelLifecycle;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,6 +41,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
     }
 
     @Override
+    @SuppressWarnings("PMD.DoNotCallSystemExit")
+    @SuppressFBWarnings(value = "DM_EXIT", justification = "test")
     public void activate(Map<Object, Object> newConfig, DeploymentDocument deploymentDocument,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         String deploymentId = deploymentDocument.getDeploymentId();
@@ -66,15 +69,14 @@ public class KernelUpdateActivator extends DeploymentActivator {
         try {
             int exitCode = bootstrapManager.executeAllBootstrapTasksSequentially();
             if (!bootstrapManager.hasNext()) {
-                // TODO: flip symlinks, new to current
                 logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
             }
             // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
             // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
             logger.atInfo().log((exitCode == 101 ? "device reboot" : "kernel restart")
                     + " requested to complete bootstrap task");
-            // TODO: Kernel shutdown supports exit code
-            // System.exit(exitCode == 101 ? 101 : 100);
+            // TODO: Kernel shutdown properly with exit code. Will be implemented in separate PR
+            System.exit(exitCode == 101 ? 101 : 100);
 
         } catch (ServiceUpdateException e) {
             rollback(deploymentDocument, totallyCompleteFuture, e);
