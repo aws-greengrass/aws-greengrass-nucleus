@@ -6,15 +6,16 @@ package com.aws.iot.evergreen.auth;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.util.Utils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Simple permission table which stores permissions. A permission is a
  * 4 value set of destination,principal,operation,resource.
  */
 public class AuthorizationModule {
+    //These Lists are initialized as CopyOnWriteArrayList and so should be thread-safe.
     ConcurrentHashMap<String, List<Permission>> permissions = new ConcurrentHashMap<>();
 
     /**
@@ -35,7 +36,17 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        permissions.computeIfAbsent(destination, a -> new ArrayList<>()).add(permission);
+        permissions.computeIfAbsent(destination, a -> new CopyOnWriteArrayList<>()).add(permission);
+    }
+
+    /**
+     * Clear the permission list for a given destination. This is used when updating policies for a component.
+     * @param destination destination value
+     */
+    public void clearComponentPermissions(String destination) {
+        if (permissions.containsKey(destination) && !Utils.isEmpty(permissions.get(destination))) {
+            permissions.get(destination).clear();
+        }
     }
 
     /**
@@ -60,6 +71,10 @@ public class AuthorizationModule {
             return false;
         }
         List<Permission> permissionsForDest = permissions.get(destination);
-        return permissionsForDest.contains(permission);
+        if (!Utils.isEmpty(permissionsForDest)) {
+            return permissionsForDest.contains(permission);
+        }
+
+        return false;
     }
 }
