@@ -254,8 +254,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * @throws InterruptedException when the execution is interrupted.
      * @throws TimeoutException     when the command execution times out.
      */
-    public Integer bootstrap() throws InterruptedException, TimeoutException {
-        return null;
+    public int bootstrap() throws InterruptedException, TimeoutException {
+        return 0;
     }
 
     /**

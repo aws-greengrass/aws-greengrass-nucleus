@@ -5,11 +5,14 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
@@ -39,6 +42,13 @@ public class KernelCommandLine {
 
     private final Kernel kernel;
 
+    @Getter(AccessLevel.PACKAGE)
+    private DeploymentDirectoryManager deploymentDirectoryManager;
+    @Getter(AccessLevel.PACKAGE)
+    private KernelAlternatives kernelAlternatives;
+    @Getter(AccessLevel.PACKAGE)
+    private BootstrapManager bootstrapManager;
+
     @Getter
     private String providedConfigPathName;
     private String[] args;
@@ -50,6 +60,7 @@ public class KernelCommandLine {
     private static final String workPathName = "~root/work";
     private static final String packageStorePathName = "~root/packages";
     private static final String kernelAltsPathName = "~root/alts";
+    private static final String deploymentsPathName = "~root/deployments";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -116,9 +127,11 @@ public class KernelCommandLine {
         Exec.setDefaultEnv("HOME", kernel.getWorkPath().toString());
         kernel.setPackageStorePath(Paths.get(deTilde(packageStorePathName)).toAbsolutePath());
         kernel.setKernelAltsPath(Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath());
+        kernel.setDeploymentsPath(Paths.get(deTilde(deploymentsPathName)).toAbsolutePath());
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
-                    kernel.getWorkPath(), kernel.getPackageStorePath());
+                    kernel.getWorkPath(), kernel.getPackageStorePath(), kernel.getKernelAltsPath(),
+                    kernel.getDeploymentsPath());
         } catch (IOException e) {
             RuntimeException rte = new RuntimeException("Cannot create all required directories", e);
             logger.atError("system-boot-error", rte).log();
@@ -130,6 +143,14 @@ public class KernelCommandLine {
         // Register Kernel Loader as system service (platform-specific), if not exits
 
         kernel.getContext().put(CONTEXT_PACKAGE_STORE_DIRECTORY, kernel.getPackageStorePath());
+
+        // Initialize file and directory managers after kernel root directory is set up
+        deploymentDirectoryManager = new DeploymentDirectoryManager(kernel);
+        kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
+        kernelAlternatives = new KernelAlternatives(kernel.getKernelAltsPath());
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+        bootstrapManager = new BootstrapManager(kernel);
+        kernel.getContext().put(BootstrapManager.class, bootstrapManager);
     }
 
     /**
