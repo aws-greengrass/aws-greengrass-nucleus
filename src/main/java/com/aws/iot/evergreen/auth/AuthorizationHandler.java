@@ -4,19 +4,27 @@
 package com.aws.iot.evergreen.auth;
 
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
+import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Kernel.findServiceForNode;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
+import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 
 /**
  * Main module which is responsible for handling AuthZ for evergreen. This only manages
@@ -29,23 +37,63 @@ import javax.inject.Singleton;
  * and not for storage.
  */
 @Singleton
-public class AuthorizationHandler {
+public class AuthorizationHandler  {
     private static final String ANY_REGEX = "*";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
-    private final AuthorizationModule authModule;
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
             componentToAuthZConfig = new ConcurrentHashMap<>();
     private final Kernel kernel;
 
+    private final AuthorizationModule authModule;
+    
     /**
      * Constructor for AuthZ.
+     *
      * @param kernel kernel module for getting component information
+     * @param authModule authorization module to store the authorization state
+     * @param policyParser for parsing a given policy ACL
      */
     @Inject
-    public AuthorizationHandler(Kernel kernel) {
-        authModule = new AuthorizationModule();
+    public AuthorizationHandler(Kernel kernel,  AuthorizationModule authModule,
+                                AuthorizationPolicyParser policyParser) {
         this.kernel = kernel;
+        this.authModule = authModule;
+
+        Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
+                kernel, logger);
+        for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
+            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
+        }
+
+        //Load default policy for TES
+        this.loadAuthorizationPolicies(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                getDefaultPolicyForService(AUTHZ_TES_OPERATION),
+                false);
+
+        //Subscribe to future auth config updates
+        this.kernel.getConfig().getRoot().subscribe(
+                (why, newv) -> {
+                    if (newv == null) {
+                        return;
+                    }
+                    if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        return;
+                    }
+                    if (!(newv instanceof Topic)) {
+                        logger.atError("update-authorization-formatting-error")
+                                .addKeyValue("InvalidNodeName", newv.getFullName())
+                                .log("Incorrect formatting while updating the authorization ACL.");
+                        return;
+                    }
+                    Topic updatedTopic = (Topic) newv;
+                    String componentName = findServiceForNode(updatedTopic);
+                    //If there is a change in a node, reload that one component's ACL
+                    List<AuthorizationPolicy> updatedComponentPolicies = policyParser
+                            .parseAuthorizationPolicyList(componentName, updatedTopic, logger);
+                    this.loadAuthorizationPolicies(updatedTopic.getName(), updatedComponentPolicies, true);
+
+                });
     }
 
     /**
@@ -53,8 +101,9 @@ public class AuthorizationHandler {
      * A scenario where this method is called is for a request which originates from {@code principal}
      * component destined for {@code destination} component, which needs access to {@code resource}
      * using API {@code operation}.
+     *
      * @param destination Destination component which is being accessed.
-     * @param permission container for principal, operation and resource
+     * @param permission  container for principal, operation and resource
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
@@ -78,7 +127,7 @@ public class AuthorizationHandler {
                 {destination, ANY_REGEX, ANY_REGEX, ANY_REGEX},
         };
 
-        for (String[] combination: combinations) {
+        for (String[] combination : combinations) {
             if (authModule.isPresent(combination[0],
                     Permission.builder()
                             .principal(combination[1])
@@ -106,8 +155,9 @@ public class AuthorizationHandler {
      * in future, whose operations might not be known at bootstrap.
      * Operations are identifiers which the components intend to match for incoming requests by calling
      * {@link #isAuthorized(String, Permission)} isAuthorized} method.
+     *
      * @param componentName Name of the component to be registered.
-     * @param operations Set of operations the component needs to register with AuthZ.
+     * @param operations    Set of operations the component needs to register with AuthZ.
      * @throws AuthorizationException If component is already registered.
      */
     public void registerComponent(String componentName, Set<String> operations)
@@ -115,53 +165,93 @@ public class AuthorizationHandler {
         if (Utils.isEmpty(operations) || Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Invalid arguments for registerComponent()");
         }
-        if (componentToOperationsMap.containsKey(componentName)) {
-            throw new AuthorizationException("Component already registered: " + componentName);
-        }
-
         operations.add(ANY_REGEX);
-        Set<String> operationsCopy = Collections.unmodifiableSet(new HashSet<>(operations));
-        componentToOperationsMap.putIfAbsent(componentName, operationsCopy);
+        componentToOperationsMap.computeIfAbsent(componentName, k -> new HashSet<>()).addAll(operations);
+
     }
 
     /**
-     * Loads authZ policies for future auth lookups. The policies should not have confidential
+     * Loads authZ policies for a single component for future auth lookups. The policies should not have confidential
      * values. This method assumes that the component names for principal and destination,
      * the operations and resources must not be secret and can be logged or shared if required.
+     * If the isUpdate flag is specified, this method will clear the existing policies for a component before
+     * refreshing with the updated list.
+     *
      * @param componentName Destination component which intents to supply auth policies
-     * @param policies policies which has list of policies. All policies are treated as separate
-     *               and no merging or joins happen. Duplicated policies would result in duplicated
-     *               permissions but would not impact functionality.
-     * @throws AuthorizationException if there is a problem loading the policies.
+     * @param policies      policies which has list of policies. All policies are treated as separate
+     *                      and no merging or joins happen. Duplicated policies would result in duplicated
+     *                      permissions but would not impact functionality.
+     * @param isUpdate      If this load request is to update existing policies for a component.
      */
-    public void loadAuthorizationPolicy(String componentName, List<AuthorizationPolicy> policies)
-            throws AuthorizationException {
-        // TODO: Make this method atomic operation or thread safe for manipulating
-        // underlying permission store.
+    public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies, boolean isUpdate) {
         if (Utils.isEmpty(policies)) {
-            throw new AuthorizationException("policies is null/empty");
+            return;
         }
-        isComponentRegistered(componentName);
-        validatePolicyId(policies);
+
+        try {
+            isComponentRegistered(componentName);
+        } catch (AuthorizationException e) {
+            logger.atError("load-authorization-config-invalid-component", e)
+                    .log("Component {} is invalid or not registered with the AuthorizationHandler",
+                            componentName);
+            return;
+        }
+
+        try {
+            validatePolicyId(policies);
+        } catch (AuthorizationException e) {
+            logger.atError("load-authorization-config-invalid-policy", e)
+                    .log("Component {} contains an invalid policy", componentName);
+            return;
+        }
+
         // First validate if all principals and operations are valid
-        for (AuthorizationPolicy policy: policies) {
-            validatePrincipals(policy);
-            validateOperations(componentName, policy);
+        for (AuthorizationPolicy policy : policies) {
+            try {
+                validatePrincipals(policy);
+            } catch (AuthorizationException e) {
+                logger.atError("load-authorization-config-invalid-principal", e)
+                        .log("Component {} contains an invalid principal in policy {}", componentName,
+                                policy.getPolicyId());
+                continue;
+            }
+            try {
+                validateOperations(componentName, policy);
+            } catch (AuthorizationException e) {
+                logger.atError("load-authorization-config-invalid-operation", e)
+                        .log("Component {} contains an invalid operation in policy {}", componentName,
+                                policy.getPolicyId());
+                continue;
+            }
+        }
+        if (isUpdate) {
+            authModule.clearComponentPermissions(componentName);
         }
         // now start adding the policies as permissions
-        for (AuthorizationPolicy policy: policies) {
-            addPermission(componentName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
+        for (AuthorizationPolicy policy : policies) {
+            try {
+                addPermission(componentName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
+            } catch (AuthorizationException e) {
+                logger.atError("load-authorization-config-add-permission-error", e)
+                        .log("Error while loading policy {} for component {}", policy.getPolicyId(),
+                                componentName);
+                continue;
+            }
         }
+
         this.componentToAuthZConfig.put(componentName, policies);
+
     }
 
     private void isComponentRegistered(String componentName) throws AuthorizationException {
         if (Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Component name is not specified: " + componentName);
         }
-        if (!componentToOperationsMap.containsKey(componentName)) {
-            throw new AuthorizationException("Component not registered: " + componentName);
-        }
+        //TODO: solve the issue where the authhandler starts up and loads policies before services are registered:
+        // https://issues-iad.amazon.com/issues/V234938383
+        //if (!componentToOperationsMap.containsKey(componentName)) {
+        //throw new AuthorizationException("Component not registered: " + componentName);
+        //}
     }
 
     private void isOperationValid(String componentName, String operation)
@@ -185,18 +275,21 @@ public class AuthorizationHandler {
         }
     }
 
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     private void validateOperations(String componentName, AuthorizationPolicy policy) throws AuthorizationException {
         Set<String> operations = policy.getOperations();
         if (Utils.isEmpty(operations)) {
             throw new AuthorizationException("Malformed policy with invalid/empty operations: "
                     + policy.getPolicyId());
         }
-        Set<String> supportedOps = componentToOperationsMap.get(componentName);
+        //TODO: solve the issue where the authhandler starts up and loads policies before services are registered:
+        // https://issues-iad.amazon.com/issues/V234938383
+        //Set<String> supportedOps = componentToOperationsMap.get(componentName);
         // check if operations are valid and registered.
-        if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {
-            throw new AuthorizationException(
-                    String.format("Operation not registered with component %s", componentName));
-        }
+        //if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {
+        //throw new AuthorizationException(
+        //String.format("Operation not registered with component %s", componentName));
+        //}
     }
 
     private void validatePrincipals(AuthorizationPolicy policy) throws AuthorizationException {
@@ -219,8 +312,8 @@ public class AuthorizationHandler {
                                Set<String> operations,
                                Set<String> resources) throws AuthorizationException {
         // Method assumes that all inputs are valid now
-        for (String principal: principals) {
-            for (String operation: operations) {
+        for (String principal : principals) {
+            for (String operation : operations) {
                 if (resources == null || resources.isEmpty()) {
                     authModule.addPermission(destination,
                             Permission.builder().principal(principal).operation(operation).resource(null).build());
@@ -236,5 +329,15 @@ public class AuthorizationHandler {
                 }
             }
         }
+    }
+
+    private List<AuthorizationPolicy> getDefaultPolicyForService(String serviceName) {
+        String defaultPolicyDesc = String.format("Default policy for {}", serviceName);
+        return Arrays.asList(AuthorizationPolicy.builder()
+                .policyId(UUID.randomUUID().toString())
+                .policyDescription(defaultPolicyDesc)
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>(Arrays.asList(serviceName)))
+                .build());
     }
 }
