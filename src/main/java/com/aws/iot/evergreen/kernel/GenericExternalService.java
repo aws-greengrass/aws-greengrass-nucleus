@@ -112,14 +112,14 @@ public class GenericExternalService extends EvergreenService {
      * Run the command under 'bootstrap' and returns the exit code. The timeout can be configured with 'timeout' field
      * in seconds. If not configured, by default, it times out after 2 minutes.
      *
-     * @return exit code of process; null if no bootstrap command found.
+     * @return exit code of process
      * @throws InterruptedException when the command execution is interrupted.
      * @throws TimeoutException     when the command execution times out.
      */
     @Override
     @SuppressFBWarnings(value = {"RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE", "NP_LOAD_OF_KNOWN_NULL_VALUE"},
             justification = "Known false-positives")
-    public synchronized Integer bootstrap() throws InterruptedException, TimeoutException {
+    public synchronized int bootstrap() throws InterruptedException, TimeoutException {
         // this is redundant because all lifecycle processes should have been before calling this method.
         // stopping here again to be safer
         stopAllLifecycleProcesses();
@@ -130,13 +130,17 @@ public class GenericExternalService extends EvergreenService {
         // run the command at background thread so that the main thread can handle it when it times out
         // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
         // signature changes to deal with timeout, so we decided to go with background thread.
-        try (Exec exec = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+        Pair<RunStatus, Exec> pair = run(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
             atomicExitCode.set(exitCode);
             timeoutLatch.countDown();
-        }, lifecycleProcesses).getRight()) {
+        }, lifecycleProcesses);
+        try (Exec exec = pair.getRight()) {
             if (exec == null) {
+                if (pair.getLeft() == RunStatus.Errored) {
+                    return 1;
+                }
                 // no bootstrap command found
-                return null;
+                return 0;
             }
 
             // timeout handling
