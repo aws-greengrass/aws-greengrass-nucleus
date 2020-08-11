@@ -46,12 +46,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -69,6 +65,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_C
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.iot.evergreen.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -133,7 +130,7 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath());
+        copyFolderRecursively(localStoreContentPath, kernel.getPackageStorePath(), REPLACE_EXISTING);
     }
 
     @BeforeEach
@@ -448,22 +445,5 @@ class DeploymentTaskIntegrationTest {
                 new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
                         logger, sampleJobDocument, deploymentServiceTopics);
         return executorService.submit(deploymentTask);
-    }
-
-    private static void copyFolderRecursively(Path src, Path des) throws IOException {
-        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
-
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories(des.resolve(src.relativize(dir)));
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, des.resolve(src.relativize(file)), REPLACE_EXISTING);
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 }

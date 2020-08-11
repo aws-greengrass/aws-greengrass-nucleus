@@ -11,7 +11,6 @@ import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
-import com.aws.iot.evergreen.integrationtests.e2e.util.FileUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
@@ -45,6 +44,8 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESP
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static com.aws.iot.evergreen.util.Utils.copyFolderRecursively;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
@@ -67,7 +68,7 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         initKernel();
 
         // pre-load contents to package storage
-        FileUtils.copyFolderRecursively(e2eTestPkgStoreDir, kernel.getPackageStorePath());
+        copyFolderRecursively(e2eTestPkgStoreDir, kernel.getPackageStorePath(), REPLACE_EXISTING);
     }
 
     @AfterEach

@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.aws.iot.evergreen.kernel.Kernel.CONTEXT_SERVICE_IMPLEMENTERS;
+import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
 
@@ -57,8 +59,8 @@ public class KernelLifecycle {
      * Startup the Kernel and all services.
      */
     public void launch() {
-        logger.atInfo().log("root path = {}. config path = {}", kernel.getRootPath(), kernel.getConfigPath());
-
+        logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", kernel.getRootPath())
+                .kv("configPath", kernel.getConfigPath()).log("Launch Kernel");
         kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, KernelCommandLine.MAIN_SERVICE_NAME,
                 EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
 
@@ -211,7 +213,20 @@ public class KernelLifecycle {
     }
 
     /**
-     * Shutdown all services and the kernel with given timeout.
+     * Shutdown all services and the kernel with given timeout, and exit with the given code.
+     *
+     * @param timeoutSeconds Timeout in seconds
+     * @param exitCode exit code
+     */
+    @SuppressWarnings("PMD.DoNotCallSystemExit")
+    @SuppressFBWarnings("DM_EXIT")
+    public void shutdown(int timeoutSeconds, int exitCode) {
+        shutdown(timeoutSeconds);
+        System.exit(exitCode);
+    }
+
+    /**
+     * Shutdown all services and the kernel with given timeout, but not exit the process.
      *
      * @param timeoutSeconds Timeout in seconds
      */
