@@ -37,6 +37,7 @@ import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -95,6 +96,22 @@ public class KernelUpdateDeploymentTaskTest {
         verify(deployment).setStageDetails(matches("Service A in broken state after deployment"));
         verify(kernelAlternatives).prepareRollback();
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
+    }
+
+    @Test
+    void GIVEN_deployment_activation_WHEN_service_broken_and_rollback_ioe_THEN_unable_to_rollback(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, ServiceUpdateException.class);
+
+        doReturn(KERNEL_ACTIVATION).when(deployment).getDeploymentStage();
+        doReturn(BROKEN).when(evergreenService).getState();
+        doReturn(2L).when(evergreenService).getStateModTime();
+        doThrow(new IOException("mock io error")).when(kernelAlternatives).prepareRollback();
+
+        DeploymentResult result = task.call();
+        verify(deployment).setStageDetails(matches("Service A in broken state after deployment"));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, result.getDeploymentStatus());
+        assertThat(result.getFailureCause().toString(), stringContainsInOrder("mock io error",
+                "Service A in broken state after deployment"));
     }
 
     @Test

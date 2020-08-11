@@ -240,7 +240,7 @@ public class DeploymentService extends EvergreenService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
+                        statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
                     //TODO: Update the groupToRootPackages mapping in config for the case where there is no rollback
                     // and now the packages deployed for the current group are not the same as before starting

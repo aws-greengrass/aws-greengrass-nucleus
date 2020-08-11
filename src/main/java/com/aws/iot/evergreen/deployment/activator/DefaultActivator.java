@@ -133,8 +133,6 @@ public class DefaultActivator extends DeploymentActivator {
                     logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                             .log("All services rolled back");
 
-                    deploymentDirectoryManager.persistLastFailedDeployment();
-
                     totallyCompleteFuture.complete(new DeploymentResult(
                             DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, failureCause));
                 } catch (InterruptedException | ServiceUpdateException | ExecutionException

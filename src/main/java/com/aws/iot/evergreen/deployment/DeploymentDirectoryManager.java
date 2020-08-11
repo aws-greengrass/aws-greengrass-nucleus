@@ -74,6 +74,7 @@ public class DeploymentDirectoryManager {
     }
 
     private void persistPointerToLastFinishedDeployment(Path symlink) {
+        logger.atInfo().kv("link", symlink).log("Persist link to last deployment");
         try {
             Path deploymentPath = getDeploymentDirectoryPath();
             cleanupPreviousDeployments(previousSuccessDir);
@@ -90,6 +91,7 @@ public class DeploymentDirectoryManager {
         if (!Files.exists(symlink)) {
             return;
         }
+        logger.atInfo().kv("link", symlink).log("Clean up link to earlier deployment");
         try {
             Utils.deleteFileRecursively(Files.readSymbolicLink(symlink).toFile());
             Files.delete(symlink);
@@ -106,10 +108,11 @@ public class DeploymentDirectoryManager {
      */
     public void writeDeploymentMetadata(Deployment deployment) throws IOException {
         if (!Files.isSymbolicLink(ongoingDir)) {
-            throw new IOException("Deployment details can not be loaded from file " + ongoingDir);
+            throw new IOException("Deployment details can not be saved to directory " + ongoingDir);
         }
-
         Path filePath = getDeploymentMetadataFilePath();
+        logger.atInfo().kv("file", filePath).kv("deploymentId",
+                deployment.getDeploymentDocumentObj().getDeploymentId()).log("Persist deployment metadata");
         writeDeploymentMetadata(filePath, deployment);
     }
 
@@ -132,6 +135,7 @@ public class DeploymentDirectoryManager {
         }
 
         Path filePath = getDeploymentMetadataFilePath();
+        logger.atInfo().kv("file", filePath).log("Load deployment metadata");
         try (InputStream in = Files.newInputStream(filePath)) {
             return SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
         }
@@ -144,6 +148,7 @@ public class DeploymentDirectoryManager {
      * @throws IOException if write fails
      */
     public void takeConfigSnapshot(Path filepath) throws IOException {
+        logger.atInfo().kv("file", filepath).log("Persist configuration snapshot");
         kernel.writeEffectiveConfigAsTransactionLog(filepath);
     }
 
@@ -206,6 +211,8 @@ public class DeploymentDirectoryManager {
         if (Files.isRegularFile(path)) {
             Files.delete(path);
         }
+        logger.atInfo().kv("directory", path).kv("deploymentId", fleetConfigArn).kv("link", ongoingDir)
+                .log("Create work directory for new deployment");
         Utils.createPaths(path);
         cleanupPreviousDeployments(ongoingDir);
         Files.createSymbolicLink(ongoingDir, path);

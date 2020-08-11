@@ -59,15 +59,15 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                     kernelAlts.prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
-                    return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
-                            ioException);
+                    logger.atError().log("Failed to set up Kernel rollback directory", ioException);
+                    return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
                 }
                 return null;
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 try {
                     kernelAlts.rollbackCompletes();
                 } catch (IOException ioException) {
-                    logger.atWarn().log("Failed to reset Kernel launch directory");
+                    logger.atError().log("Failed to reset Kernel launch directory", ioException);
                 }
                 return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
             }
@@ -80,7 +80,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         try {
             kernel.getContext().get(DeploymentDirectoryManager.class).writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
-            logger.atWarn().setCause(ioException).log("Fail to save deployment details to file");
+            logger.atError().setCause(ioException).log("Fail to save deployment details to file");
         }
     }
 }
