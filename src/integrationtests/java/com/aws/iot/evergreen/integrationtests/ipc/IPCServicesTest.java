@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.integrationtests.ipc;
 
-import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -12,8 +11,6 @@ import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSub;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
@@ -24,14 +21,11 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotFoundException;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,21 +34,22 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
@@ -71,60 +66,30 @@ class IPCServicesTest {
     @TempDir
     static Path tempRootDir;
 
-    private static int port;
-    private static String address;
     private static Kernel kernel;
     private IPCClient client;
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) {
+    void beforeEach(ExtensionContext context) throws InterruptedException {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
-    }
-
-    @BeforeAll
-    static void startKernel() throws Exception {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-
-        kernel = new Kernel();
-        kernel.parseArgs("-i", IPCServicesTest.class.getResource("ipc.yaml").toString());
-
-        // ensure awaitIpcServiceLatch starts
-        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("ServiceName") && newState.equals(State.RUNNING)) {
-                awaitIpcServiceLatch.countDown();
-            }
-        });
-
-        kernel.launch();
-
-        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
-
-        Topic kernelUri = kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
-        URI serverUri = new URI((String) kernelUri.getOnce());
-        port = serverUri.getPort();
-        address = serverUri.getHost();
-    }
-
-    @AfterAll
-    static void teardown() {
-        kernel.shutdown();
+        kernel = prepareKernelFromConfigFile("ipc.yaml", TEST_SERVICE_NAME, this.getClass());
     }
 
     @AfterEach
     void afterEach() throws IOException {
         client.disconnect();
+        kernel.shutdown();
     }
 
     @Test
     void registerResourceTest() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("mqtt");
+        KernelIPCClientConfig config = getIPCConfigForService("mqtt", kernel);
         client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
-        KernelIPCClientConfig config2 = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config2 = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         IPCClient client2 = new IPCClientImpl(config2);
         try {
             ServiceDiscovery c2 = new ServiceDiscoveryImpl(client2);
@@ -176,7 +141,7 @@ class IPCServicesTest {
 
     @Test
     void registerResourcePermissionTest() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ServiceDiscovery c = new ServiceDiscoveryImpl(client);
 
@@ -188,8 +153,8 @@ class IPCServicesTest {
     }
 
     @Test
-    void lifecycleTest() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+    void lifecycleTest(ExtensionContext context) throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         LifecycleImpl c = new LifecycleImpl(client);
 
@@ -198,6 +163,8 @@ class IPCServicesTest {
             assertEquals(State.ERRORED.toString(), b);
         });
 
+        ignoreExceptionOfType(context, TimeoutException.class);
+
         c.listenToStateChanges("ServiceName", p.getRight());
         c.reportState("ERRORED");
         p.getLeft().get(500, TimeUnit.MILLISECONDS);
@@ -205,7 +172,7 @@ class IPCServicesTest {
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -235,7 +202,7 @@ class IPCServicesTest {
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_read_THEN_value_returned() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -255,41 +222,5 @@ class IPCServicesTest {
         } finally {
             custom.remove();
         }
-    }
-
-    @Test
-    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_THEN_called_with_message() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
-        IPCClientImpl client2 = new IPCClientImpl(config);
-        try {
-            PubSub c2 = new PubSubImpl(client2);
-
-            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-                assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-            });
-            c.subscribeToTopic("a", cb.getRight());
-            c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-            cb.getLeft().get(2, TimeUnit.SECONDS);
-
-            // Now unsubscribe and make sure that we only got the first message in the first client
-            c.unsubscribeFromTopic("a");
-            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb2 = asyncAssertOnConsumer((m) -> {
-                assertEquals("second message", new String(m, StandardCharsets.UTF_8));
-            });
-            c2.subscribeToTopic("a", cb2.getRight());
-            c2.publishToTopic("a", "second message".getBytes(StandardCharsets.UTF_8));
-            cb2.getLeft().get(2, TimeUnit.SECONDS);
-            cb.getLeft().get(2, TimeUnit.SECONDS);
-        } finally {
-            client2.disconnect();
-        }
-    }
-
-    private KernelIPCClientConfig getIPCConfigForService(String serviceName) throws ServiceLoadException {
-        return KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token((String) kernel.locate(serviceName).getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
-                        .getOnce()).build();
     }
 }

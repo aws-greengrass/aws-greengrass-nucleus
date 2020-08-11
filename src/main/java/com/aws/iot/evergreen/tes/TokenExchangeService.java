@@ -4,7 +4,6 @@
 package com.aws.iot.evergreen.tes;
 
 import com.aws.iot.evergreen.auth.AuthorizationHandler;
-import com.aws.iot.evergreen.auth.AuthorizationPolicy;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -19,8 +18,6 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
-import java.util.UUID;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -39,7 +36,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
     private int port;
     private String iotRoleAlias;
     private HttpServerImpl server;
-    private final List<AuthorizationPolicy> authZPolicy;
 
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
@@ -65,7 +61,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
         });
 
         // TODO: Add support for overriding this from config
-        this.authZPolicy = getDefaultAuthZPolicy();
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
     }
@@ -75,7 +70,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
         super.postInject();
         try {
             authZHandler.registerComponent(this.getName(), new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
-            authZHandler.loadAuthorizationPolicy(this.getName(), authZPolicy);
         } catch (AuthorizationException e) {
             serviceErrored(e);
         }
@@ -121,15 +115,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
         }
     }
 
-    List<AuthorizationPolicy> getDefaultAuthZPolicy() {
-        String defaultPolicyDesc = "Default TokenExchangeService policy";
-        return Arrays.asList(AuthorizationPolicy.builder()
-                .policyId(UUID.randomUUID().toString())
-                .policyDescription(defaultPolicyDesc)
-                .principals(new HashSet<>(Arrays.asList("*")))
-                .operations(new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)))
-                .build());
-    }
 
     @Override
     public AwsCredentials resolveCredentials() {
