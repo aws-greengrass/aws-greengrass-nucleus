@@ -88,8 +88,9 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         CountDownLatch cdl = new CountDownLatch(2);
         AtomicReference<List<MqttMessage>> mqttMessagesList = new AtomicReference<>();
         mqttMessagesList.set(new ArrayList<>());
+        // TODO: Make the publish topic configurable?
         client.subscribe(SubscribeRequest.builder()
-                .topic(FleetStatusService.FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingInfo.getThingName()))
+                .topic(FleetStatusService.DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingInfo.getThingName()))
                 .callback((m) -> {
                     cdl.countDown();
                     mqttMessagesList.get().add(m);

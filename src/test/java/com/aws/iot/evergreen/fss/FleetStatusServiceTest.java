@@ -52,9 +52,11 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_C
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.iot.evergreen.fss.FleetStatusService.DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_SEQUENCE_NUMBER_TOPIC;
+import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_SERVICE_PUBLISH_TOPICS;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -110,11 +112,14 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
         Topic lastPeriodicUpdateTime = Topic.of(context, FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC, Instant.now().toEpochMilli());
         lenient().when(config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)).thenReturn(lastPeriodicUpdateTime);
+        Topic fleetStatusServicePublishTopic = Topic.of(context, FLEET_STATUS_SERVICE_PUBLISH_TOPICS, DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC);
+        when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_SERVICE_PUBLISH_TOPICS))
+                .thenReturn(fleetStatusServicePublishTopic);
     }
 
     @AfterEach
     public void cleanUp() {
-        ses.shutdown();
+        ses.shutdownNow();
         fleetStatusService.shutdown();
         fleetStatusService.clearEvergreenServiceSet();
     }

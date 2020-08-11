@@ -51,7 +51,9 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 public class FleetStatusService extends EvergreenService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
     // TODO: update the topic name to remove the evergreen code name from it.
-    public static final String FLEET_STATUS_SERVICE_PUBLISH_TOPIC = "$aws/things/{thingName}/evergreen/health/json";
+    public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
+            "$aws/things/{thingName}/evergreen/health/json";
+    static final String FLEET_STATUS_SERVICE_PUBLISH_TOPICS = "fleetStatusServicePublishTopic";
     static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
@@ -74,6 +76,7 @@ public class FleetStatusService extends EvergreenService {
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
     private int periodicUpdateIntervalSec;
+    public String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
     private ScheduledFuture<?> periodicUpdateFuture;
 
     @Getter
@@ -119,7 +122,16 @@ public class FleetStatusService extends EvergreenService {
         topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
-                    updatePeriodicUpdateInterval(newv);
+                    periodicUpdateIntervalSec = Coerce.toInt(newv);
+                    if (periodicUpdateFuture != null) {
+                        schedulePeriodicFleetStatusDataUpdate(false);
+                    }
+                });
+
+        topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_SERVICE_PUBLISH_TOPICS)
+                .dflt(DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC)
+                .subscribe((why, newv) -> {
+                    fleetStatusServicePublishTopic = Coerce.toString(newv);
                 });
 
         //TODO: Get the kernel version once its implemented.
@@ -134,17 +146,10 @@ public class FleetStatusService extends EvergreenService {
         this.mqttClient.addToCallbackEvents(callbacks);
     }
 
-    private void updatePeriodicUpdateInterval(Topic newv) {
-        periodicUpdateIntervalSec = Coerce.toInt(newv);
-        if (periodicUpdateFuture != null) {
-            schedulePeriodicFleetStatusDataUpdate(false);
-        }
-    }
-
     private void updateThingNameAndPublishTopic(String newThingName) {
         if (newThingName != null) {
             thingName = newThingName;
-            updateFssDataTopic = FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingName);
+            updateFssDataTopic = fleetStatusServicePublishTopic.replace("{thingName}", thingName);
         }
     }
 
@@ -364,14 +369,14 @@ public class FleetStatusService extends EvergreenService {
 
 
     @Override
+    @SuppressWarnings("PMD.UselessOverridingMethod")
     public void startup() throws InterruptedException {
-        logger.atDebug().log("Starting Fleet status service.");
+        // Need to override the function for tests.
         super.startup();
     }
 
     @Override
     public void shutdown() {
-        logger.atDebug().log("Stopping Fleet status service.");
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
