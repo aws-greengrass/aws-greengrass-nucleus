@@ -27,12 +27,13 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 @AllArgsConstructor
 public class DefaultDeploymentTask implements DeploymentTask {
-    private static final String DEPLOYMENT_ID_LOGGING_KEY = "deploymentId";
     private final DependencyResolver dependencyResolver;
     private final PackageManager packageManager;
     private final KernelConfigResolver kernelConfigResolver;
@@ -53,7 +54,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .addKeyValue(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
 
@@ -81,7 +82,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             Map<Object, Object> newConfig =
                     kernelConfigResolver.resolve(desiredPackages, deploymentDocument, new ArrayList<>(rootPackages));
             if (Thread.currentThread().isInterrupted()) {
-                logger.atInfo().addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                logger.atInfo().addKeyValue(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                         .log("Received interrupt before attempting deployment merge, skipping merge");
                 return null;
             }
@@ -92,7 +93,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             DeploymentResult result = deploymentMergeFuture.get();
 
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .addKeyValue(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .addKeyValue(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("Finished deployment task");
             return result;
         } catch (PackageVersionConflictException | UnexpectedPackagingException e) {
@@ -123,7 +124,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         if (preparePackagesFuture != null && !preparePackagesFuture.isDone()) {
             preparePackagesFuture.cancel(true);
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .kv(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("Cancelled package download due to received interrupt");
             return;
         }
@@ -131,7 +132,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         if (deploymentMergeFuture != null && !deploymentMergeFuture.isDone()) {
             deploymentMergeFuture.cancel(false);
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .kv(DEPLOYMENT_ID_LOGGING_KEY, deploymentDocument.getDeploymentId())
+                    .kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("Cancelled deployment merge future due to interrupt, update may not get cancelled if"
                             + " it is already being applied");
         }

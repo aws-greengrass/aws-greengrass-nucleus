@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -299,16 +300,16 @@ public class DeploymentService extends EvergreenService {
                                 .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment was cancelled");
                 } else {
-                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
                                     + "need to wait for it to finish");
                     try {
                         currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
                     } catch (ExecutionException | InterruptedException e) {
-                        logger.atError().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                        logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Error while finishing "
                                         + "deployment, no-op since the deployment was canceled at the source");
                     }
@@ -323,7 +324,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void createNewDeployment(Deployment deployment) {
-        logger.atInfo().kv("DeploymentId", deployment.getId())
+        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
 
