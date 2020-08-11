@@ -155,7 +155,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Find, but do not create if missing, a topic (a name/value pair) in the
      * config file. Returns null if missing.
      *
-     * @param path String[] of node names to traverse to find or create the Topic
+     * @param path String[] of node names to traverse to find the Topic
      */
     public Topic find(String... path) {
         int limit = path.length - 1;
@@ -172,7 +172,7 @@ public class Topics extends Node implements Iterable<Node> {
      * exist, then it will return the default value provided.
      *
      * @param defaultV default value if the Topic was not found
-     * @param path     String[] of node names to traverse to find or create the Topic
+     * @param path     String[] of node names to traverse to find the Topic
      */
     public Object findOrDefault(Object defaultV, String... path) {
         Topic potentialTopic = find(path);
@@ -185,7 +185,7 @@ public class Topics extends Node implements Iterable<Node> {
     /**
      * Find, but do not create if missing, a topics in the config file. Returns null if missing.
      *
-     * @param path String[] of node names to traverse to find or create the Topic
+     * @param path String[] of node names to traverse to the Topic
      */
     public Topics findTopics(String... path) {
         int limit = path.length;
@@ -196,7 +196,12 @@ public class Topics extends Node implements Iterable<Node> {
         return n;
     }
 
-    protected Node findNode(String... path) {
+    /**
+     * Find, but do not create if missing, a Node (Topic or Topics) in the config file. Returns null if missing.
+     *
+     * @param path String[] of node names to traverse to find the Node
+     */
+    public Node findNode(String... path) {
         int limit = path.length - 1;
         Topics n = this;
         for (int i = 0; i < limit && n != null; i++) {

@@ -37,6 +37,7 @@ import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -87,7 +88,8 @@ public class DeploymentService extends EvergreenService {
     private KernelConfigResolver kernelConfigResolver;
     @Inject
     private DeploymentConfigMerger deploymentConfigMerger;
-
+    @Inject
+    private DeploymentDirectoryManager deploymentDirectoryManager;
     @Inject
     private DeploymentStatusKeeper deploymentStatusKeeper;
 
@@ -127,12 +129,13 @@ public class DeploymentService extends EvergreenService {
      * @param packageManager         {@link PackageManager}
      * @param kernelConfigResolver   {@link KernelConfigResolver}
      * @param deploymentConfigMerger {@link DeploymentConfigMerger}
-     * @param deploymentConfigMerger {@link Kernel}
+     * @param kernel                 {@link Kernel}
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
                       DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      Context context, Kernel kernel) {
+                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -140,6 +143,7 @@ public class DeploymentService extends EvergreenService {
         this.kernelConfigResolver = kernelConfigResolver;
         this.deploymentConfigMerger = deploymentConfigMerger;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
+        this.deploymentDirectoryManager = deploymentDirectoryManager;
         this.context = context;
         this.kernel = kernel;
     }
@@ -247,6 +251,7 @@ public class DeploymentService extends EvergreenService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
                                     statusDetails);
+                    deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
@@ -257,6 +262,7 @@ public class DeploymentService extends EvergreenService {
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                    deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
         } catch (ExecutionException e) {
@@ -270,6 +276,7 @@ public class DeploymentService extends EvergreenService {
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                deploymentDirectoryManager.persistLastFailedDeployment();
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
                 currentDeploymentTaskMetadata.setDeploymentResultFuture(
@@ -347,6 +354,12 @@ public class DeploymentService extends EvergreenService {
         }
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS, new HashMap<>());
+        try {
+            deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
+                    deployment.getDeploymentDocumentObj().getDeploymentId());
+        } catch (IOException ioException) {
+            logger.atError().log("Unable to create deployment directory", ioException);
+        }
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 

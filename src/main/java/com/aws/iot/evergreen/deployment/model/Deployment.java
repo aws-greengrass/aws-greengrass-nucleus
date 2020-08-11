@@ -5,24 +5,33 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@NoArgsConstructor
 public class Deployment {
     @Setter
     private DeploymentDocument deploymentDocumentObj;
+    @JsonIgnore
     private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
     @EqualsAndHashCode.Include
     private String id;
     private boolean isCancelled;
+    @Setter
     private DeploymentStage deploymentStage;
+    @Setter
+    private String stageDetails;
     //TODO: Add interface to pass a method for status update
 
     /**
@@ -60,13 +69,15 @@ public class Deployment {
      * @param deploymentType deployment type
      * @param id deployment id
      * @param deploymentStage deployment stage, only applicable to deployments which require Kernel restart
+     * @param stageDetails message string with more context of the deployment stage
      */
     public Deployment(DeploymentDocument deploymentDetails, DeploymentType deploymentType, String id,
-                      DeploymentStage deploymentStage) {
+                      DeploymentStage deploymentStage, String stageDetails) {
         this.deploymentDocumentObj = deploymentDetails;
         this.deploymentType = deploymentType;
         this.id = id;
         this.deploymentStage = deploymentStage;
+        this.stageDetails = stageDetails;
     }
 
     public enum DeploymentType {

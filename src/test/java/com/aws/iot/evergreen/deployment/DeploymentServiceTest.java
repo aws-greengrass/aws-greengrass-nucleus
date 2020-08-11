@@ -99,6 +99,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private Topics mockComponentsToGroupPackages;
     @Mock
     private EvergreenService mockEvergreenService;
+    @Mock
+    private DeploymentDirectoryManager deploymentDirectoryManager;
 
     private Thread deploymentServiceThread;
 
@@ -116,7 +118,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, packageManager,
-                kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, context, mockKernel);
+                kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, deploymentDirectoryManager,
+                context, mockKernel);
         deploymentService.postInject();
 
         deploymentsQueue = new LinkedBlockingQueue<>();

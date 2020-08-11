@@ -18,7 +18,9 @@ import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.iot.evergreen.util.Utils;
 import com.vdurmont.semver4j.Semver;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -37,10 +39,18 @@ import java.util.stream.StreamSupport;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.ARTIFACTS_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.DECOMPRESSED_PATH_KEY;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.KERNEL_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.KERNEL_ROOT_PATH;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAM_NAMESPACE;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAM_VALUE_SUFFIX;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PATH_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
@@ -49,11 +59,21 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_RUN_KEY = "run";
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
-            "echo installing service in Package %s with param {{params:%s_Param_1.value}}";
+            "echo installing service in Package %s with param {{" + PARAM_NAMESPACE + ":%s_Param_1" + PARAM_VALUE_SUFFIX
+                    + "}}, kernel rootPath as {{" + KERNEL_NAMESPACE + ":" + KERNEL_ROOT_PATH + "}} and " +
+                    "unpack dir as {{" + ARTIFACTS_NAMESPACE + ":" + DECOMPRESSED_PATH_KEY + "}}";
+                    
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
-            "echo running service in Package %s with param {{params:%s_Param_2.value}}";
+            "echo running service in Package %s with param {{" + PARAM_NAMESPACE + ":%s_Param_2" + PARAM_VALUE_SUFFIX
+                    + "}}";
+    private static final String LIFECYCLE_MOCK_CROSS_COMPONENT_FORMAT =
+            "Package %s with param {{%s:params:%s_Param_1.value}} {{%s:" + ARTIFACTS_NAMESPACE + ":" + PATH_KEY + "}}";
     private static final String TEST_INPUT_PACKAGE_A = "PackageA";
     private static final String TEST_INPUT_PACKAGE_B = "PackageB";
+    private static final String TEST_INPUT_PACKAGE_C = "PackageC";
+    private static final String TEST_NAMESPACE = "test";
+    private static final Path DUMMY_ROOT_PATH = Paths.get("/dummyroot");
+    private static final Path DUMMY_DECOMPRESSED_PATH_KEY = Paths.get("/dummyCompDir");
     @Mock
     private Kernel kernel;
     @Mock
@@ -66,6 +86,13 @@ class KernelConfigResolverTest {
     private Topics alreadyRunningServiceConfig;
     @Mock
     private Topic alreadyRunningServiceParameterConfig;
+    private Path path;
+
+    @BeforeEach
+    void setupMocks() {
+        path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
+        lenient().when(packageStore.resolveArtifactDirectoryPath(any())).thenReturn(path.toAbsolutePath());
+    }
 
     @Test
     void GIVEN_deployment_for_package_WHEN_config_resolution_requested_THEN_add_service_and_dependency_service()
@@ -77,12 +104,12 @@ class KernelConfigResolverTest {
                 new PackageIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3", Semver.SemverType.NPM));
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier, dependencyPackageIdentifier);
 
-        PackageRecipe rootPackageRecipe =
-                getPackage(TEST_INPUT_PACKAGE_A, "1.2",
-                        Collections.singletonMap(TEST_INPUT_PACKAGE_B, new RecipeDependencyProperties("2.3")),
-                        Collections.emptyMap());
+        PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2",
+                Collections.singletonMap(TEST_INPUT_PACKAGE_B, new RecipeDependencyProperties("2.3")),
+                Collections.emptyMap(), TEST_INPUT_PACKAGE_A);
         PackageRecipe dependencyPackageRecipe =
-                getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap());
+                getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap(),
+                        TEST_INPUT_PACKAGE_B);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
@@ -94,7 +121,9 @@ class KernelConfigResolverTest {
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
         when(packageStore.getPackageRecipe(dependencyPackageIdentifier)).thenReturn(dependencyPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -132,7 +161,8 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         PackageRecipe rootPackageRecipe =
-                getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap());
+                getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(), Collections.emptyMap(),
+                        TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
@@ -140,7 +170,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -173,7 +206,7 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
-                getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", new HashMap<String, Object>() {{
@@ -183,7 +216,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
@@ -206,12 +242,85 @@ class KernelConfigResolverTest {
         // Parameter value set in deployment will be used for lifecycle install section
         assertThat("If parameter value was set in deployment, it should be used",
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Package PackageA " + "with param PackageA_Param_1_value"));
+                equalTo("echo installing service in Package PackageA with param PackageA_Param_1_value," +
+                        " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as " +
+                        DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
 
         // Parameter value was not set in deployment, so default will be used for lifecycle run section
         assertThat("If no parameter value was set in deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
-                equalTo("echo running service in Package " + "PackageA with param PackageA_Param_2_default_value"));
+                equalTo("echo running service in Package " + "PackageA with param " +
+                        "PackageA_Param_2_default_value"));
+    }
+
+    @Test
+    void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_cross_component_parameters_should_be_interpolated()
+            throws Exception {
+        // GIVEN
+        PackageIdentifier rootPackageIdentifier =
+                new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        PackageIdentifier package2 =
+                new PackageIdentifier(TEST_INPUT_PACKAGE_B, new Semver("1.5", Semver.SemverType.NPM));
+        PackageIdentifier package3 =
+                new PackageIdentifier(TEST_INPUT_PACKAGE_C, new Semver("1.5", Semver.SemverType.NPM));
+        List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier, package2, package3);
+
+        PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
+        PackageRecipe package2Recipe = getPackage(TEST_INPUT_PACKAGE_B, "1.5", Utils.immutableMap(TEST_INPUT_PACKAGE_A,
+                new RecipeDependencyProperties("=1.2", DependencyType.HARD.toString())),
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_B), TEST_INPUT_PACKAGE_A);
+        PackageRecipe package3Recipe = getPackage(TEST_INPUT_PACKAGE_C, "1.5", Collections.emptyMap(),
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_C), TEST_INPUT_PACKAGE_A);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", new HashMap<String, Object>() {{
+                    put("PackageA_Param_1", "PackageA_Param_1_value");
+                }});
+        DeploymentPackageConfiguration package2DeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, true, "1.2", new HashMap<String, Object>() {{
+                    put("PackageB_Param_1", "PackageB_Param_1_value");
+                }});
+        DeploymentPackageConfiguration package3DeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_C, true, "1.2", Collections.emptyMap());
+        DeploymentDocument document = DeploymentDocument.builder()
+                .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, TEST_INPUT_PACKAGE_C))
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig, package2DeploymentConfig, package3DeploymentConfig))
+                .build();
+
+        when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.getPackageRecipe(package2)).thenReturn(package2Recipe);
+        when(packageStore.getPackageRecipe(package3)).thenReturn(package3Recipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
+        Map<Object, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        // service config
+        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        // parameter interpolation
+        String serviceTestCommand =
+                (String) getValueForLifecycleKey(TEST_NAMESPACE, TEST_INPUT_PACKAGE_B, servicesConfig);
+
+        assertThat(serviceTestCommand,
+                equalTo("Package PackageB with param PackageA_Param_1_value " + path.toAbsolutePath().toString()));
+
+        // Since package C didn't have a dependency on A, it should not be allowed to read from A's parameters
+        // this results in the parameters not being filled in
+        serviceTestCommand =
+                (String) getValueForLifecycleKey(TEST_NAMESPACE, TEST_INPUT_PACKAGE_C, servicesConfig);
+        assertThat(serviceTestCommand,
+                equalTo("Package PackageC with param {{PackageA:params:PackageA_Param_1.value}} {{PackageA:artifacts:path}}"));
     }
 
     @Test
@@ -223,7 +332,7 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
         PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
-                getSimpleParameterMap(TEST_INPUT_PACKAGE_A));
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
@@ -231,7 +340,10 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).build();
 
         when(packageStore.getPackageRecipe(rootPackageIdentifier)).thenReturn(rootPackageRecipe);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(rootPackageIdentifier))
+                .thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
+        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies())
@@ -262,7 +374,9 @@ class KernelConfigResolverTest {
 
         assertThat("If parameter value was set in previous deployment but not in current deployment, previously "
                         + "used values should be used", serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value"));
+                equalTo("echo installing service in Package " + "PackageA with param PackageA_Param_1_value," +
+                        " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as " +
+                        DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
 
         assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
@@ -313,7 +427,8 @@ class KernelConfigResolverTest {
     // utilities for mocking input
     private PackageRecipe getPackage(String packageName, String packageVersion,
                                      Map<String, RecipeDependencyProperties> dependencies,
-                                     Map<String, String> packageParamsWithDefaultsRaw) throws PackageLoadingException {
+                                     Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName)
+            throws PackageLoadingException {
 
         Set<PackageParameter> parameters = packageParamsWithDefaultsRaw.entrySet().stream()
                 .map(entry -> new PackageParameter(entry.getKey(), entry.getValue(), "STRING"))
@@ -321,8 +436,8 @@ class KernelConfigResolverTest {
 
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
-                parameters, Collections.emptyList(), getSimplePackageLifecycle(packageName), Collections.emptyMap(),
-                dependencies, null);
+                parameters, Collections.emptyList(), getSimplePackageLifecycle(packageName, crossComponentName),
+                Collections.emptyMap(), dependencies, null);
     }
 
     private Map<String, String> getSimpleParameterMap(String packageName) {
@@ -334,9 +449,12 @@ class KernelConfigResolverTest {
         return simpleParameterMap;
     }
 
-    private Map<String, Object> getSimplePackageLifecycle(String packageName) {
+    private Map<String, Object> getSimplePackageLifecycle(String packageName, String crossComponentName) {
         Map<String, Object> lifecycle = new HashMap<>();
         Map<String, Object> installCommands = new HashMap<>();
+        lifecycle.put(TEST_NAMESPACE,
+                String.format(LIFECYCLE_MOCK_CROSS_COMPONENT_FORMAT, packageName, crossComponentName,
+                        crossComponentName, crossComponentName));
         lifecycle.put(LIFECYCLE_INSTALL_KEY, installCommands);
         installCommands.put(LIFECYCLE_SCRIPT_KEY,
                 String.format(LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT, packageName, packageName));

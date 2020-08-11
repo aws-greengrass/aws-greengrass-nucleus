@@ -19,13 +19,16 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -45,6 +48,7 @@ public class PackageManager implements InjectionActions {
     private static final String S3_SCHEME = "S3";
     private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
+    private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
 
     private final S3Downloader s3ArtifactsDownloader;
 
@@ -57,6 +61,7 @@ public class PackageManager implements InjectionActions {
     private final PackageStore packageStore;
 
     private final Kernel kernel;
+    private final Unarchiver unarchiver;
 
     /**
      * PackageManager constructor.
@@ -67,18 +72,21 @@ public class PackageManager implements InjectionActions {
      * @param executorService                executorService
      * @param packageStore                   packageStore
      * @param kernel                         kernel
+     * @param unarchiver                     unarchiver
      */
     @Inject
     public PackageManager(S3Downloader s3ArtifactsDownloader,
                           GreengrassRepositoryDownloader greengrassArtifactDownloader,
                           GreengrassPackageServiceHelper greengrassPackageServiceHelper,
-                          ExecutorService executorService, PackageStore packageStore, Kernel kernel) {
+                          ExecutorService executorService, PackageStore packageStore, Kernel kernel,
+                          Unarchiver unarchiver) {
         this.s3ArtifactsDownloader = s3ArtifactsDownloader;
         this.greengrassArtifactDownloader = greengrassArtifactDownloader;
         this.greengrassPackageServiceHelper = greengrassPackageServiceHelper;
         this.executorService = executorService;
         this.packageStore = packageStore;
         this.kernel = kernel;
+        this.unarchiver = unarchiver;
     }
 
     /**
@@ -153,15 +161,15 @@ public class PackageManager implements InjectionActions {
 
     private void preparePackage(PackageIdentifier packageIdentifier)
             throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
-        logger.atInfo().setEventType("prepare-package-start").addKeyValue("packageIdentifier", packageIdentifier).log();
+        logger.atInfo().setEventType("prepare-package-start").addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier).log();
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
             Map artifacts = pkg.getArtifacts();
             if (!artifacts.isEmpty()) {
-                downloadArtifactsIfNecessary(packageIdentifier,
+                prepareArtifacts(packageIdentifier,
                         (List<ComponentArtifact>) PlatformResolver.resolvePlatform(artifacts));
             }
-            logger.atInfo("prepare-package-finished").kv("packageIdentifier", packageIdentifier).log();
+            logger.atInfo("prepare-package-finished").kv(PACKAGE_IDENTIFIER, packageIdentifier).log();
         } catch (PackageLoadingException | PackageDownloadException e) {
             logger.atError().log("Failed to prepare package {}", packageIdentifier, e);
             throw e;
@@ -186,8 +194,13 @@ public class PackageManager implements InjectionActions {
         return packageRecipe;
     }
 
-    void downloadArtifactsIfNecessary(PackageIdentifier packageIdentifier, List<ComponentArtifact> artifacts)
+    void prepareArtifacts(PackageIdentifier packageIdentifier, List<ComponentArtifact> artifacts)
             throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
+        if (artifacts == null) {
+            logger.atWarn().kv(PACKAGE_IDENTIFIER, packageIdentifier)
+                    .log("Artifact list was null, expected non-null and non-empty");
+            return;
+        }
         Path packageArtifactDirectory = packageStore.resolveArtifactDirectoryPath(packageIdentifier);
         if (!Files.exists(packageArtifactDirectory) || !Files.isDirectory(packageArtifactDirectory)) {
             try {
@@ -202,16 +215,33 @@ public class PackageManager implements InjectionActions {
         List<ComponentArtifact> artifactsToDownload =
                 determineArtifactsNeedToDownload(packageArtifactDirectory, artifacts);
         logger.atDebug().setEventType("downloading-package-artifacts")
-                .addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier)
                 .addKeyValue("artifactsNeedToDownload", artifactsToDownload).log();
 
         for (ComponentArtifact artifact : artifactsToDownload) {
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
+            File downloadedFile;
             try {
-                downloader.downloadToPath(packageIdentifier, artifact, packageArtifactDirectory);
+                downloadedFile = downloader.downloadToPath(packageIdentifier, artifact, packageArtifactDirectory);
             } catch (IOException e) {
                 throw new PackageDownloadException(
                         String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
+            }
+
+            Unarchive unarchive = artifact.getUnarchive() == null ? Unarchive.NONE
+                    : Coerce.toEnum(Unarchive.class, artifact.getUnarchive().toUpperCase(), Unarchive.NONE);
+
+            if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
+                try {
+                    Path unarchivePath = packageStore.resolveAndSetupArtifactsUnpackDirectory(packageIdentifier)
+                            .resolve(getFileName(downloadedFile));
+                    Utils.createPaths(unarchivePath);
+                    unarchiver.unarchive(unarchive, downloadedFile, unarchivePath);
+                } catch (IOException e) {
+                    throw new PackageDownloadException(
+                            String.format("Failed to unarchive package %s artifact %s", packageIdentifier, artifact),
+                            e);
+                }
             }
         }
     }
@@ -292,5 +322,14 @@ public class PackageManager implements InjectionActions {
         }
 
         return Optional.of(packageStore.getPackageMetadata(new PackageIdentifier(packageName, activeVersion)));
+    }
+
+    private String getFileName(File f) {
+        String fileName = f.getName();
+        if (fileName.indexOf('.') > 0) {
+            return fileName.substring(0, fileName.lastIndexOf('.'));
+        } else {
+            return fileName;
+        }
     }
 }

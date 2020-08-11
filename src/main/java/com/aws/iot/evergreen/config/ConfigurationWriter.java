@@ -98,16 +98,22 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (closed.get()) {
             return;
         }
+        if (n == null) {
+            return;
+        }
+        for (int i = 0; i < n.path().length; i++) {
+            if (n.path()[i].startsWith("_")) {
+                return; // Don't log entries whose name starts in '_'
+            }
+        }
+
         Tlogline tlogline;
         if (what == WhatHappened.childChanged && n instanceof Topic) {
-            if (n.getName().startsWith("_")) {
-                return;  // Don't log entries whose name starts in '_'
-            }
             Topic t = (Topic) n;
 
-            tlogline = new Tlogline(t.getModtime(), t.getFullName(), WhatHappened.changed, t.getOnce());
+            tlogline = new Tlogline(t.getModtime(), t.path(), WhatHappened.changed, t.getOnce());
         } else if (what == WhatHappened.childRemoved) {
-            tlogline = new Tlogline(n.getModtime(), n.getFullName(), WhatHappened.removed, null);
+            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.removed, null);
         } else {
             return;
         }
@@ -115,8 +121,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         try {
             tlogline.outputTo(out);
         } catch (IOException ex) {
-             logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
-                    .setCause(ex).log();
+            logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName()).setCause(ex)
+                    .log();
         }
         if (flushImmediately) {
             flush(out);

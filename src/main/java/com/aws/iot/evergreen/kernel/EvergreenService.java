@@ -45,10 +45,11 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     public static final String PRIVATE_STORE_NAMESPACE_TOPIC = "_private";
     public static final String SERVICE_LIFECYCLE_NAMESPACE_TOPIC = "lifecycle";
     public static final String SERVICE_DEPENDENCIES_NAMESPACE_TOPIC = "dependencies";
+    public static final String ACCESS_CONTROL_NAMESPACE_TOPIC = "accessControl";
     public static final String SERVICE_NAME_KEY = "serviceName";
     public static final String SETENV_CONFIG_NAMESPACE = "setenv";
-
     private static final String CURRENT_STATE_METRIC_NAME = "currentState";
+
 
     @Getter
     protected final Topics config;
@@ -254,8 +255,8 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
      * @throws InterruptedException when the execution is interrupted.
      * @throws TimeoutException     when the command execution times out.
      */
-    public Integer bootstrap() throws InterruptedException, TimeoutException {
-        return null;
+    public int bootstrap() throws InterruptedException, TimeoutException {
+        return 0;
     }
 
     /**

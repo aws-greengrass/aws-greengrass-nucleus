@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
@@ -40,7 +41,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -93,6 +93,9 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Path kernelAltsPath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path deploymentsPath;
 
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;
@@ -138,12 +141,13 @@ public class Kernel {
      * @return service name or null
      */
     public static String findServiceForNode(Node node) {
-        List<String> p = node.path();
-        int idx = p.lastIndexOf(SERVICES_NAMESPACE_TOPIC);
-        if (idx <= 0) {
-            return null;
+        String[] p = node.path();
+        for (int i = 0; i < p.length - 1; i++) {
+            if (SERVICES_NAMESPACE_TOPIC.equals(p[i])) {
+                return p[i + 1];
+            }
         }
-        return p.get(idx - 1);
+        return null;
     }
 
     /**
@@ -151,9 +155,10 @@ public class Kernel {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
-        KernelAlternatives kernelAlts = new KernelAlternatives(getKernelAltsPath());
-        context.put(KernelAlternatives.class, kernelAlts);
-        DeploymentStage stage = kernelAlts.determineDeploymentStage();
+        BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
+        DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
+        DeploymentStage stage = kernelCommandLine.getKernelAlternatives().determineDeploymentStage(
+                bootstrapManager, deploymentDirectoryManager);
 
         switch (stage) {
             case BOOTSTRAP:
@@ -165,7 +170,14 @@ public class Kernel {
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
                 LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
                 context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
-                deploymentsQueue.add(kernelAlts.loadPersistedDeployment());
+                try {
+                    Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                    deployment.setDeploymentStage(stage);
+                    deploymentsQueue.add(deployment);
+                } catch (IOException e) {
+                    logger.atError().setCause(e)
+                            .log("Failed to load information for the ongoing deployment. Proceed as default");
+                }
                 // fall through to launch kernel
             default:
                 kernelLifecycle.launch();
@@ -174,12 +186,30 @@ public class Kernel {
         return this;
     }
 
+    /**
+     * Shutdown Kernel but not exit the process.
+     */
     public void shutdown() {
-        kernelLifecycle.shutdown();
+        shutdown(30);
     }
 
+    /**
+     * Shutdown Kernel within the timeout but not exit the process.
+     *
+     * @param timeoutSeconds Timeout in seconds
+     */
     public void shutdown(int timeoutSeconds) {
         kernelLifecycle.shutdown(timeoutSeconds);
+    }
+
+    /**
+     * Shutdown Kernel within the timeout and exit the process with the given code.
+     *
+     * @param timeoutSeconds Timeout in seconds
+     * @param exitCode exit code
+     */
+    public void shutdown(int timeoutSeconds, int exitCode) {
+        kernelLifecycle.shutdown(timeoutSeconds, exitCode);
     }
 
     /**

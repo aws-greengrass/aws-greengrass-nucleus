@@ -9,6 +9,9 @@ import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
+import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -27,7 +30,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -39,6 +45,9 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -68,7 +77,7 @@ class KernelTest {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdown(10);
+        kernel.shutdown();
     }
 
     @Test
@@ -262,6 +271,36 @@ class KernelTest {
         assertEquals("1.0.0", rootPackageNameAndVersion.get("service1"));
         assertEquals("1.1.0", rootPackageNameAndVersion.get("service2"));
 
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_WHEN_launch_in_deployment_activation_stage_THEN_inject_deployment(ExtensionContext context)
+            throws Exception {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        doNothing().when(kernelLifecycle).launch();
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(KERNEL_ACTIVATION).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Deployment.class)).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
+                kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();
+        assertEquals(1, deployments.size());
     }
 
     static class TestClass extends EvergreenService {

@@ -8,11 +8,11 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
 public interface ArtifactDownloader {
-
-    void downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
+    File downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
             throws IOException, PackageDownloadException, InvalidArtifactUriException;
 }
