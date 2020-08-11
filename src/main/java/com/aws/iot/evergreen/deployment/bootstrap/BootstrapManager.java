@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
@@ -209,9 +210,14 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      */
     protected int executeOneBootstrapTask(BootstrapTaskStatus next) {
         Objects.requireNonNull(next);
-        // TODO: support bootstrap step in Evergreen Services.
         // Load service BootstrapTaskStatus.componentName and call bootstrap here.
 
+        try {
+            kernel.locate(next.getComponentName()).bootstrap();
+        } catch (InterruptedException | ServiceLoadException | TimeoutException e) {
+            // TODO: error handle here. Will be implemented in separate PR.
+            logger.atError().setCause(e).log("Fail to locate in bootstrap");
+        }
         return 0;
     }
 
