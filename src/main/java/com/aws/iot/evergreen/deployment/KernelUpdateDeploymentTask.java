@@ -26,6 +26,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Logger logger;
     private Deployment deployment;
 
+    @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
     @Override
     public DeploymentResult call() {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
