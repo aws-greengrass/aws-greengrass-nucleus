@@ -573,6 +573,9 @@ public final class Utils {
      */
     public static void createPaths(Path... paths) throws IOException {
         for (Path p: paths) {
+            if (p.toFile().exists()) {
+                continue;
+            }
             if (Exec.isWindows) {
                 Files.createDirectories(p);
             } else {

@@ -87,7 +87,15 @@ public class GreengrassPackageServiceHelper {
         }
     }
 
-    PackageRecipe downloadPackageRecipe(PackageIdentifier packageIdentifier)
+    /**
+     * Download a package recipe.
+     *
+     * @param packageIdentifier identifier of the recipe to be downloaded
+     * @return recipe
+     * @throws PackageDownloadException if downloading fails
+     * @throws PackageLoadingException  if parsing the recipe fails
+     */
+    public PackageRecipe downloadPackageRecipe(PackageIdentifier packageIdentifier)
             throws PackageDownloadException, PackageLoadingException {
         GetComponentRequest getComponentRequest =
                 new GetComponentRequest().withComponentName(packageIdentifier.getName())

@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -30,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -51,6 +53,7 @@ import java.util.concurrent.TimeUnit;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -96,11 +99,13 @@ class PackageManagerTest {
     private PackageStore packageStore;
     @Mock
     private EvergreenService mockService;
+    @Mock
+    private Unarchiver mockUnarchiver;
 
     @BeforeEach
     void beforeEach() {
         packageManager = new PackageManager(s3Downloader, artifactDownloader, packageServiceHelper,
-                Executors.newSingleThreadExecutor(), packageStore, kernel);
+                Executors.newSingleThreadExecutor(), packageStore, kernel, mockUnarchiver);
     }
 
 
@@ -110,7 +115,7 @@ class PackageManagerTest {
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
-        packageManager.downloadArtifactsIfNecessary(pkgId, Collections.emptyList());
+        packageManager.prepareArtifacts(pkgId, Collections.emptyList());
 
         verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
     }
@@ -121,9 +126,9 @@ class PackageManagerTest {
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
-        packageManager.downloadArtifactsIfNecessary(pkgId,
-                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null),
-                        new ComponentArtifact(new URI("greengrass:binary2"), null, null)));
+        packageManager.prepareArtifacts(pkgId,
+                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, null),
+                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, null)));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -134,13 +139,30 @@ class PackageManagerTest {
     }
 
     @Test
+    void GIVEN_artifact_from_gg_repo_WHEN_download_artifact_with_unarchive_THEN_calls_unarchiver() throws Exception {
+        PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
+
+        when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
+        when(packageStore.resolveAndSetupArtifactsUnpackDirectory(pkgId)).thenReturn(tempDir);
+        when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
+
+        packageManager.prepareArtifacts(pkgId,
+                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP.name()),
+                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, Unarchive.NONE.name())));
+
+        ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
+        verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());
+        assertEquals("binary1", fileCaptor.getValue().getName());
+    }
+
+    @Test
     void GIVEN_artifact_from_s3_WHEN_attempt_download_THEN_invoke_s3_downloader() throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeServiceWithArtifactsInS3", new Semver("1.0.0"), SCOPE);
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
-        packageManager.downloadArtifactsIfNecessary(pkgId,
-                Collections.singletonList(new ComponentArtifact(new URI("s3://bucket/path/to/key"), null, null)));
+        packageManager.prepareArtifacts(pkgId,
+                Collections.singletonList(new ComponentArtifact(new URI("s3://bucket/path/to/key"), null, null, null)));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(s3Downloader, times(1)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -154,9 +176,8 @@ class PackageManagerTest {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
-        Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
-                .downloadArtifactsIfNecessary(pkgId,
-                        Collections.singletonList(new ComponentArtifact(new URI("docker:image1"), null, null))));
+        Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager.prepareArtifacts(pkgId,
+                Collections.singletonList(new ComponentArtifact(new URI("docker:image1"), null, null, null))));
         assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
 
@@ -165,9 +186,8 @@ class PackageManagerTest {
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0" + ".0"), SCOPE);
 
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager
-                .downloadArtifactsIfNecessary(pkgId,
-                        Collections.singletonList(new ComponentArtifact(new URI("binary1"), null, null))));
+        Exception exception = assertThrows(PackageLoadingException.class, () -> packageManager.prepareArtifacts(pkgId,
+                Collections.singletonList(new ComponentArtifact(new URI("binary1"), null, null, null))));
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
@@ -203,8 +223,7 @@ class PackageManagerTest {
     }
 
     @Test
-    void GIVEN_prepare_packages_running_WHEN_prepare_cancelled_THEN_task_stops()
-            throws Exception {
+    void GIVEN_prepare_packages_running_WHEN_prepare_cancelled_THEN_task_stops() throws Exception {
         PackageIdentifier pkgId1 = new PackageIdentifier("MonitoringService", new Semver("1.0.0"), SCOPE);
         PackageIdentifier pkgId2 = new PackageIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
@@ -214,12 +233,11 @@ class PackageManagerTest {
                 .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
 
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
-        when(packageServiceHelper.downloadPackageRecipe(pkgId1)).thenAnswer(
-                invocationOnMock -> {
-                    startedPreparingPkgId1.countDown();
-                    Thread.sleep(2_000);
-                    return pkg1;
-                });
+        when(packageServiceHelper.downloadPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
+            startedPreparingPkgId1.countDown();
+            Thread.sleep(2_000);
+            return pkg1;
+        });
 
         Future<Void> future = packageManager.preparePackages(Arrays.asList(pkgId1, pkgId2));
         assertTrue(startedPreparingPkgId1.await(1, TimeUnit.SECONDS));
