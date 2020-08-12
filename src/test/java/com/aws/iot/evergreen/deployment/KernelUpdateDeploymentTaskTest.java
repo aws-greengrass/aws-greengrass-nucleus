@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -80,6 +81,9 @@ public class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(topic).when(configuration).lookup(any());
         lenient().doReturn(configuration).when(kernel).getConfig();
 
+        DeploymentDocument document = mock(DeploymentDocument.class);
+        doReturn("mockId").when(document).getDeploymentId();
+        doReturn(document).when(deployment).getDeploymentDocumentObj();
         task = new KernelUpdateDeploymentTask(kernel, logger, deployment);
     }
 

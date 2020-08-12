@@ -357,7 +357,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {
-        return new KernelUpdateDeploymentTask(kernel, logger, deployment);
+        return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment);
     }
 
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
@@ -376,7 +376,7 @@ public class DeploymentService extends EvergreenService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
-                deploymentConfigMerger, logger, deployment, config);
+                deploymentConfigMerger, logger.createChild(), deployment, config);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
