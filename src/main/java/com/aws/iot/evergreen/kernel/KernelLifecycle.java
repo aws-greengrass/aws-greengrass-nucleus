@@ -61,10 +61,6 @@ public class KernelLifecycle {
     public void launch() {
         logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", kernel.getRootPath())
                 .kv("configPath", kernel.getConfigPath()).log("Launch Kernel");
-        kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, KernelCommandLine.MAIN_SERVICE_NAME,
-                EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-
-        initConfigAndTlog();
 
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
@@ -93,7 +89,7 @@ public class KernelLifecycle {
         startupAllServices();
     }
 
-    private void initConfigAndTlog() {
+    void initConfigAndTlog() {
         Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
         Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
 

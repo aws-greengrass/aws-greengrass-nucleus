@@ -5,8 +5,7 @@
 
 package com.aws.iot.evergreen.util.platforms;
 
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.kernel.KernelAlternatives;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.Utils;
 import org.zeroturnaround.process.PidProcess;
@@ -32,7 +31,6 @@ public class UnixPlatform extends Platform {
     protected static final int SIGINT = 2;
     protected static final int SIGKILL = 9;
     public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
-    protected static final Logger logger = LogManager.getLogger(UnixPlatform.class);
 
     @Override
     public void killProcessAndChildren(Process process, boolean force) throws IOException, InterruptedException {
@@ -68,6 +66,12 @@ public class UnixPlatform extends Platform {
     @Override
     public int exitCodeWhenCommandDoesNotExist() {
         return 127;
+    }
+
+    @Override
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+        // TODO: support other system service manager
+        return false;
     }
 
     List<Integer> getChildPids(Process process) throws IOException, InterruptedException {
@@ -115,5 +119,4 @@ public class UnixPlatform extends Platform {
         }
         return ret;
     }
-
 }

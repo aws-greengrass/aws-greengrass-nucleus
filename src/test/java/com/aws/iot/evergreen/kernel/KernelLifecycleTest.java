@@ -126,7 +126,7 @@ class KernelLifecycleTest {
         String providedConfigPathName = "external_config.yaml";
         when(mockKernelCommandLine.getProvidedConfigPathName()).thenReturn(providedConfigPathName);
 
-        kernelLifecycle.launch();
+        kernelLifecycle.initConfigAndTlog();
         verify(mockConfig).read(eq(providedConfigPathName));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
@@ -140,7 +140,7 @@ class KernelLifecycleTest {
 
         ignoreExceptionOfType(context, IOException.class);
 
-        assertThrows(RuntimeException.class, () -> kernelLifecycle.launch());
+        assertThrows(RuntimeException.class, () -> kernelLifecycle.initConfigAndTlog());
         verify(mockConfig).read(eq(providedConfigPathName));
     }
 
@@ -150,7 +150,7 @@ class KernelLifecycleTest {
         File configYaml = mockKernel.getConfigPath().resolve("config.yaml").toFile();
         configYaml.createNewFile();
 
-        kernelLifecycle.launch();
+        kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configYaml.toPath()));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
@@ -162,7 +162,7 @@ class KernelLifecycleTest {
         File configTlog = mockKernel.getConfigPath().resolve("config.tlog").toFile();
         configTlog.createNewFile();
 
-        kernelLifecycle.launch();
+        kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configTlog.toPath()));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
@@ -173,7 +173,7 @@ class KernelLifecycleTest {
         EvergreenService mockMain = mock(EvergreenService.class);
         doReturn(mockMain).when(mockKernel).locate(eq("main"));
 
-        kernelLifecycle.launch();
+        kernelLifecycle.initConfigAndTlog();
         Path configPath = mockKernel.getConfigPath().resolve("config.yaml");
         verify(mockKernel).writeEffectiveConfig(eq(configPath));
     }

@@ -63,6 +63,8 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUE
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.KernelCommandLine.MAIN_SERVICE_NAME;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
@@ -493,8 +495,17 @@ public class Kernel {
         return rootPackageNameAndVersionMap;
     }
 
+    /**
+     * Parse kernel arguments and initialized configuration.
+     *
+     * @param args CLI args
+     * @return Kernel instance
+     */
     public Kernel parseArgs(String... args) {
         kernelCommandLine.parseArgs(args);
+
+        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+        kernelLifecycle.initConfigAndTlog();
         return this;
     }
 

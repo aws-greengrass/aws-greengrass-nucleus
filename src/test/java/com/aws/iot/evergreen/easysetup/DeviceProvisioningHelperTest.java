@@ -181,6 +181,7 @@ public class DeviceProvisioningHelperTest {
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
                         "credEndpoint"), TEST_REGION);
         assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
+        kernel.shutdown();
     }
 
     @Test
@@ -192,6 +193,7 @@ public class DeviceProvisioningHelperTest {
         assertEquals("roleAliasName", kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY,
                         IOT_ROLE_ALIAS_TOPIC).getOnce());
+        kernel.shutdown();
     }
 
     @Test

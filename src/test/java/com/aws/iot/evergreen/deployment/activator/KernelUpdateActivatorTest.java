@@ -68,6 +68,7 @@ public class KernelUpdateActivatorTest {
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
+        lenient().doReturn(true).when(kernelAlternatives).isLaunchDirSetup();
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();

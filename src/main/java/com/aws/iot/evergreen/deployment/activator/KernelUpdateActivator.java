@@ -47,6 +47,14 @@ public class KernelUpdateActivator extends DeploymentActivator {
             return;
         }
 
+        if (!kernelAlternatives.isLaunchDirSetup()) {
+            totallyCompleteFuture.complete(new DeploymentResult(
+                    DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, new UnsupportedOperationException(
+                            "Unable to process deployment. Greengrass launch directory is not set up or Greengrass "
+                                    + "is not set up as a system service")));
+            return;
+        }
+
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         // Wait for all services to close
         kernel.getContext().get(KernelLifecycle.class).stopAllServices(30);

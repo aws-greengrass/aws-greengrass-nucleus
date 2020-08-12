@@ -5,6 +5,8 @@
 
 package com.aws.iot.evergreen.util.platforms;
 
+import com.aws.iot.evergreen.kernel.KernelAlternatives;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +27,12 @@ public class QNXPlatform extends UnixPlatform {
             process.waitFor(2, TimeUnit.SECONDS);
             process.destroyForcibly();
         }
+    }
+
+    @Override
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+        // TODO: support QNX system launch and monitor
+        return false;
     }
 
     private void killUsingSlay(int pid, boolean force) throws IOException, InterruptedException {
