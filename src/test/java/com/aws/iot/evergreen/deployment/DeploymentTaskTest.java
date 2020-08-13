@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailureException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -34,6 +35,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -90,16 +92,16 @@ class DeploymentTaskTest {
 
     @BeforeEach
     void setup() {
-//        when(mockKernel.getConfig()).thenReturn(mockConfig);
-        mockGroupToRootConfig = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                null);
+        mockGroupToRootConfig = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         mockGroupToRootConfig.lookupTopics("group1").lookup(COMPONENT_2_ROOT_PACKAGE_NAME)
                 .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
         deploymentTask = new DefaultDeploymentTask(mockDependencyResolver, mockPackageManager, mockKernelConfigResolver,
-                        mockDeploymentConfigMerger, logger, deploymentDocument, mockDeploymentServiceConfig);
+                mockDeploymentConfigMerger, logger, new Deployment(deploymentDocument,
+                Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
+                mockDeploymentServiceConfig);
     }
 
     @Test

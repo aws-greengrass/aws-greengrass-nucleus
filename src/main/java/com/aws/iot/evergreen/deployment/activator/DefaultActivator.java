@@ -5,9 +5,9 @@
 
 package com.aws.iot.evergreen.deployment.activator;
 
-import com.aws.iot.evergreen.deployment.ConfigSnapshotUtils;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -39,10 +39,10 @@ public class DefaultActivator extends DeploymentActivator {
     }
 
     @Override
-    public void activate(Map<Object, Object> newConfig, DeploymentDocument deploymentDocument,
+    public void activate(Map<Object, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
-        if (isAutoRollbackRequested(deploymentDocument) && !takeConfigSnapshot(deploymentDocument.getDeploymentId(),
-                totallyCompleteFuture)) {
+        DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
+        if (isAutoRollbackRequested(deploymentDocument) && !takeConfigSnapshot(totallyCompleteFuture)) {
             return;
         }
 
@@ -132,9 +132,6 @@ public class DefaultActivator extends DeploymentActivator {
                     rollbackManager.removeObsoleteServices();
                     logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                             .log("All services rolled back");
-
-                    ConfigSnapshotUtils.cleanUpSnapshot(
-                            ConfigSnapshotUtils.getSnapshotFilePath(kernel, deploymentId), logger);
 
                     totallyCompleteFuture.complete(new DeploymentResult(
                             DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, failureCause));

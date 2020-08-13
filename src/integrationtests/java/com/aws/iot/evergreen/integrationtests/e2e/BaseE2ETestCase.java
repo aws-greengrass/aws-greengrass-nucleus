@@ -140,8 +140,9 @@ public class BaseE2ETestCase implements AutoCloseable {
             new DeviceProvisioningHelper(GAMMA_REGION.toString(), System.out);
 
     @TempDir
-    protected static Path tempRootDir;
+    protected Path tempRootDir;
 
+    @TempDir
     protected static Path e2eTestPkgStoreDir;
 
     protected static PackageStore e2eTestPackageStore;
@@ -225,7 +226,6 @@ public class BaseE2ETestCase implements AutoCloseable {
     private static void initializePackageStore() throws Exception {
         Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
 
-        e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
 

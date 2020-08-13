@@ -1,12 +1,14 @@
 package com.aws.iot.evergreen.deployment.model;
 
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
+@EqualsAndHashCode
 public class DeploymentResult {
 
     DeploymentStatus deploymentStatus;

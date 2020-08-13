@@ -15,6 +15,7 @@ import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -54,6 +55,8 @@ import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -126,7 +129,6 @@ public class Kernel {
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
-        context.put(BootstrapManager.class, new BootstrapManager(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
         typeToClassMap.put("generic", GenericExternalService.class.getName());
@@ -157,13 +159,38 @@ public class Kernel {
     public Kernel launch() {
         BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
-        DeploymentStage stage = kernelCommandLine.getKernelAlternatives().determineDeploymentStage(
-                bootstrapManager, deploymentDirectoryManager);
+        KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
+        DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
 
         switch (stage) {
             case BOOTSTRAP:
-                // TODO: load pending bootstrap tasks. Start with one execution here. Flip symlinks. Update task list.
-                // System.exit(?)
+                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                int exitCode;
+                try {
+                    exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(
+                            deploymentDirectoryManager.getBootstrapTaskFilePath());
+                    if (!bootstrapManager.hasNext()) {
+                        logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
+                    }
+                    // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
+                    // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
+                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "kernel restart")
+                            + " requested to complete bootstrap task");
+
+                    shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
+                } catch (ServiceUpdateException | IOException e) {
+                    logger.atInfo().log("Deployment bootstrap failed", e);
+                    try {
+                        kernelAlts.prepareRollback();
+                        Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                        deployment.setStageDetails(e.getMessage());
+                        deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                    } catch (IOException ioException) {
+                        logger.atError().setCause(ioException).log(
+                                "Something went wrong while preparing for rollback");
+                    }
+                    shutdown(30, 2);
+                }
                 break;
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:

@@ -22,6 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+
 /**
  * Deployment directory manager preserves deployment artifacts for configuration rollback workflow and troubleshooting.
  */
@@ -30,6 +32,9 @@ public class DeploymentDirectoryManager {
     static final String TARGET_CONFIG_FILE = "target_config.tlog";
     static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.json";
     static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.json";
+
+    private static final String LINK_LOG_KEY = "link";
+    private static final String FILE_LOG_KEY = "file";
 
     private static final String PREVIOUS_SUCCESS_LINK = "previous-success";
     private static final String PREVIOUS_FAILURE_LINK = "previous-failure";
@@ -74,6 +79,7 @@ public class DeploymentDirectoryManager {
     }
 
     private void persistPointerToLastFinishedDeployment(Path symlink) {
+        logger.atInfo().kv(LINK_LOG_KEY, symlink).log("Persist link to last deployment");
         try {
             Path deploymentPath = getDeploymentDirectoryPath();
             cleanupPreviousDeployments(previousSuccessDir);
@@ -90,11 +96,12 @@ public class DeploymentDirectoryManager {
         if (!Files.exists(symlink)) {
             return;
         }
+        logger.atInfo().kv(LINK_LOG_KEY, symlink).log("Clean up link to earlier deployment");
         try {
             Utils.deleteFileRecursively(Files.readSymbolicLink(symlink).toFile());
             Files.delete(symlink);
         } catch (IOException ioException) {
-            logger.atError().kv("link", symlink).log("Unable to clean up previous deployments", ioException);
+            logger.atError().kv(LINK_LOG_KEY, symlink).log("Unable to clean up previous deployments", ioException);
         }
     }
 
@@ -106,10 +113,11 @@ public class DeploymentDirectoryManager {
      */
     public void writeDeploymentMetadata(Deployment deployment) throws IOException {
         if (!Files.isSymbolicLink(ongoingDir)) {
-            throw new IOException("Deployment details can not be loaded from file " + ongoingDir);
+            throw new IOException("Deployment details can not be saved to directory " + ongoingDir);
         }
-
         Path filePath = getDeploymentMetadataFilePath();
+        logger.atInfo().kv(FILE_LOG_KEY, filePath).kv(DEPLOYMENT_ID_LOG_KEY,
+                deployment.getDeploymentDocumentObj().getDeploymentId()).log("Persist deployment metadata");
         writeDeploymentMetadata(filePath, deployment);
     }
 
@@ -132,6 +140,7 @@ public class DeploymentDirectoryManager {
         }
 
         Path filePath = getDeploymentMetadataFilePath();
+        logger.atInfo().kv(FILE_LOG_KEY, filePath).log("Load deployment metadata");
         try (InputStream in = Files.newInputStream(filePath)) {
             return SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
         }
@@ -144,6 +153,7 @@ public class DeploymentDirectoryManager {
      * @throws IOException if write fails
      */
     public void takeConfigSnapshot(Path filepath) throws IOException {
+        logger.atInfo().kv(FILE_LOG_KEY, filepath).log("Persist configuration snapshot");
         kernel.writeEffectiveConfigAsTransactionLog(filepath);
     }
 
@@ -206,6 +216,8 @@ public class DeploymentDirectoryManager {
         if (Files.isRegularFile(path)) {
             Files.delete(path);
         }
+        logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, fleetConfigArn).kv(LINK_LOG_KEY, ongoingDir)
+                .log("Create work directory for new deployment");
         Utils.createPaths(path);
         cleanupPreviousDeployments(ongoingDir);
         Files.createSymbolicLink(ongoingDir, path);
