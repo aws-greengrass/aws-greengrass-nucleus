@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @AllArgsConstructor
 public class DeploymentTaskMetadata {
-
+    // TODO: clean up duplicate information
     @NonNull @Getter
     private DeploymentTask deploymentTask;
     @NonNull

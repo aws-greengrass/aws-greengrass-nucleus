@@ -8,6 +8,8 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
@@ -43,6 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -98,7 +101,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 mainRestarted.set(true);
             }
         });
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(),
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(),
                 (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
                 .get(60, TimeUnit.SECONDS);
 
@@ -141,7 +144,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
 
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put(SETENV_CONFIG_NAMESPACE, new HashMap<Object, Object>() {{
@@ -193,7 +196,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
                 .collect(Collectors.toList());
         serviceList.add("new_service");
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
@@ -253,7 +256,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .collect(Collectors.toList());
         serviceList.add("new_service");
 
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
@@ -341,7 +344,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.getContext().addGlobalStateChangeListener(listener);
 
         EvergreenService main = kernel.locate("main");
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
 
         // Verify that first merge succeeded.
         assertEquals(State.FINISHED, main.getState());
@@ -365,7 +368,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // THEN
         // merge in the same config the second time
         // merge shouldn't block
-        deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
 
         // main should be finished
         assertEquals(State.FINISHED, main.getState());
@@ -407,7 +410,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         lifecycle.put(LIFECYCLE_RUN_NAMESPACE_TOPIC,
                 ((String) lifecycle.get(LIFECYCLE_RUN_NAMESPACE_TOPIC)).replace("5", "10"));
 
-        Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
+        Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
         DeploymentResult deploymentResult = deploymentFuture.get(30, TimeUnit.SECONDS);
         assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
@@ -448,7 +451,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
 
         Future<DeploymentResult> future =
-                deploymentConfigMerger.mergeInNewConfig(testDeploymentDocument(), currentConfig);
+                deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
         CountDownLatch sawUpdatesCompleted = new CountDownLatch(1);
         AtomicBoolean unsafeToUpdate = new AtomicBoolean();
@@ -528,9 +531,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         };
 
+        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectoryIfNotExists(
+                "mockFleetConfigArn");
         kernel.getContext().addGlobalStateChangeListener(listener);
         DeploymentResult result =
-                deploymentConfigMerger.mergeInNewConfig(testRollbackDeploymentDocument(), brokenConfig)
+                deploymentConfigMerger.mergeInNewConfig(testRollbackDeployment(), brokenConfig)
                         .get(40, TimeUnit.SECONDS);
 
         // THEN
@@ -577,7 +582,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
         deploymentConfigMerger
-                .mergeInNewConfig(testDeploymentDocumentWithSkipSafetyCheckConfig(), new HashMap<Object, Object>() {{
+                .mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("main", new HashMap<Object, Object>() {{
                     put(SETENV_CONFIG_NAMESPACE, new HashMap<Object, Object>() {{
@@ -595,21 +600,25 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
-    private DeploymentDocument testDeploymentDocument() {
-        return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
+    private Deployment testDeployment() {
+        DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+        return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
-    private DeploymentDocument testRollbackDeploymentDocument() {
-        return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("rollback_id")
+    private Deployment testRollbackDeployment() {
+        DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis())
+                .deploymentId("rollback_id")
                 .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
                 .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+        return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
-    private DeploymentDocument testDeploymentDocumentWithSkipSafetyCheckConfig() {
-        return DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
+    private Deployment testDeploymentWithSkipSafetyCheckConfig() {
+        DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).build();
+        return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 }

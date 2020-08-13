@@ -55,7 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
@@ -254,7 +256,7 @@ public class DeploymentService extends EvergreenService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
+                        statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
                     //TODO: Update the groupToRootPackages mapping in config for the case where there is no rollback
                     // and now the packages deployed for the current group are not the same as before starting
@@ -309,20 +311,20 @@ public class DeploymentService extends EvergreenService {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
-                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask())
-                                .getDeploymentDocument().getDeploymentId());
+                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
+                                .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment was cancelled");
                 } else {
-                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
                                     + "need to wait for it to finish");
                     try {
                         currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
                     } catch (ExecutionException | InterruptedException e) {
-                        logger.atError().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                        logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Error while finishing "
                                         + "deployment, no-op since the deployment was canceled at the source");
                     }
@@ -337,13 +339,13 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void createNewDeployment(Deployment deployment) {
-        logger.atInfo().kv("DeploymentId", deployment.getId())
+        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
 
         DeploymentTask deploymentTask;
         boolean cancellable = true;
-        if (Deployment.DeploymentStage.DEFAULT.equals(deployment.getDeploymentStage())) {
+        if (DEFAULT.equals(deployment.getDeploymentStage())) {
             deploymentTask = createDefaultNewDeployment(deployment);
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
@@ -357,6 +359,7 @@ public class DeploymentService extends EvergreenService {
         try {
             deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
+            deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
             logger.atError().log("Unable to create deployment directory", ioException);
         }
@@ -369,7 +372,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {
-        return new KernelUpdateDeploymentTask(kernel, logger, deployment);
+        return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment);
     }
 
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
@@ -388,7 +391,7 @@ public class DeploymentService extends EvergreenService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
-                deploymentConfigMerger, logger, deployment.getDeploymentDocumentObj(), config);
+                deploymentConfigMerger, logger.createChild(), deployment, config);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

@@ -15,13 +15,17 @@ import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -40,6 +44,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -54,6 +59,8 @@ public class BootstrapManagerTest {
     Kernel kernel;
     @Mock
     Context context;
+    @Mock
+    Path filePath;
 
     @Test
     void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
@@ -145,7 +152,7 @@ public class BootstrapManagerTest {
 
         Topics serviceAConfig = mock(Topics.class);
         when(serviceAConfig.find(VERSION_CONFIG_KEY)).thenReturn(serviceAVersion);
-        when(serviceAConfig.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC))
+        when(serviceAConfig.findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC))
                 .thenReturn(serviceABootstrap);
 
         EvergreenService serviceA = mock(EvergreenService.class);
@@ -169,11 +176,11 @@ public class BootstrapManagerTest {
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(101).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
-        doNothing().when(bootstrapManager).persistBootstrapTaskList();
+        doNothing().when(bootstrapManager).persistBootstrapTaskList(any());
 
         bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
-        assertEquals(101, bootstrapManager.executeAllBootstrapTasksSequentially());
-        verify(bootstrapManager, times(2)).persistBootstrapTaskList();
+        assertEquals(101, bootstrapManager.executeAllBootstrapTasksSequentially(filePath));
+        verify(bootstrapManager, times(2)).persistBootstrapTaskList(eq(filePath));
     }
 
     @Test
@@ -186,9 +193,9 @@ public class BootstrapManagerTest {
 
         bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
         ServiceUpdateException exception = assertThrows(ServiceUpdateException.class,
-                () -> bootstrapManager.executeAllBootstrapTasksSequentially());
+                () -> bootstrapManager.executeAllBootstrapTasksSequentially(filePath));
         assertThat(exception.getMessage(), stringContainsInOrder(componentA));
-        verify(bootstrapManager, times(0)).persistBootstrapTaskList();
+        verify(bootstrapManager, times(0)).persistBootstrapTaskList(eq(filePath));
     }
 
     @Test
@@ -199,10 +206,46 @@ public class BootstrapManagerTest {
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
+        doNothing().when(bootstrapManager).persistBootstrapTaskList(any());
 
         bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
-        assertEquals(0, bootstrapManager.executeAllBootstrapTasksSequentially());
-        verify(bootstrapManager, times(2)).persistBootstrapTaskList();
+        assertEquals(0, bootstrapManager.executeAllBootstrapTasksSequentially(filePath));
+        verify(bootstrapManager, times(2)).persistBootstrapTaskList(eq(filePath));
+    }
+
+    @Test
+    void GIVEN_bootstrap_task_WHEN_executeOneBootstrapTask_THEN_completes_with_exit_code() throws Exception {
+        EvergreenService mockService = mock(EvergreenService.class);
+        doReturn(1).when(mockService).bootstrap();
+        String componentName = "mockComponent";
+        doReturn(mockService).when(kernel).locate(eq("mockComponent"));
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
+        assertEquals(1, bootstrapManager.executeOneBootstrapTask(new BootstrapTaskStatus(componentName)));
+    }
+
+    @Test
+    void GIVEN_bootstrap_task_WHEN_executeOneBootstrapTask_timed_out_THEN_throws_error() throws Exception {
+        EvergreenService mockService = mock(EvergreenService.class);
+        doThrow(new TimeoutException("mockError")).when(mockService).bootstrap();
+        String componentName = "mockComponent";
+        doReturn(mockService).when(kernel).locate(eq("mockComponent"));
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
+        assertThrows(ServiceUpdateException.class,
+                () -> bootstrapManager.executeOneBootstrapTask(new BootstrapTaskStatus(componentName)));
+    }
+
+    @Test
+    void GIVEN_file_path_WHEN_persist_and_load_bootstrap_tasks_THEN_restore_bootstrap_tasks(@TempDir Path tempDir) throws Exception{
+        BootstrapTaskStatus taskA = new BootstrapTaskStatus(componentA);
+        BootstrapTaskStatus taskB = new BootstrapTaskStatus(componentB);
+        List<BootstrapTaskStatus> pendingTasks = new ArrayList<>(Arrays.asList(taskA, taskB));
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
+        bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
+
+        Path filePath = tempDir.resolve("testFile.ser");
+        bootstrapManager.persistBootstrapTaskList(filePath);
+        bootstrapManager.loadBootstrapTaskList(filePath);
+        assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(taskA, taskB));
     }
 
     @Test
