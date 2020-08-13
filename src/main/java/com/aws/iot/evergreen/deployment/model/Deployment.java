@@ -69,15 +69,13 @@ public class Deployment {
      * @param deploymentType deployment type
      * @param id deployment id
      * @param deploymentStage deployment stage, only applicable to deployments which require Kernel restart
-     * @param stageDetails message string with more context of the deployment stage
      */
     public Deployment(DeploymentDocument deploymentDetails, DeploymentType deploymentType, String id,
-                      DeploymentStage deploymentStage, String stageDetails) {
+                      DeploymentStage deploymentStage) {
         this.deploymentDocumentObj = deploymentDetails;
         this.deploymentType = deploymentType;
         this.id = id;
         this.deploymentStage = deploymentStage;
-        this.stageDetails = stageDetails;
     }
 
     public enum DeploymentType {

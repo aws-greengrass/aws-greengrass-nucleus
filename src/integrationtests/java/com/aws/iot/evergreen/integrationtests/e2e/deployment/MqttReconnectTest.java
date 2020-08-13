@@ -42,10 +42,9 @@ import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_S
 import static com.aws.iot.evergreen.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.PackageStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
-import static com.aws.iot.evergreen.util.Utils.copyFolderRecursively;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
@@ -66,9 +65,8 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         java.security.Security.setProperty(dnsCacheTtlPropertyKey, Long.toString(DNS_CACHE_TTL.getSeconds()));
 
         initKernel();
-
-        // pre-load contents to package storage
-        copyFolderRecursively(e2eTestPkgStoreDir, kernel.getPackageStorePath(), REPLACE_EXISTING);
+        // Override path to local package storage with existing components
+        kernel.getContext().put(CONTEXT_PACKAGE_STORE_DIRECTORY, e2eTestPkgStoreDir);
     }
 
     @AfterEach

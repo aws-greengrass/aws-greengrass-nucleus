@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.BOOTST
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.DEPLOYMENT_METADATA_FILE;
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.ROLLBACK_SNAPSHOT_FILE;
 import static com.aws.iot.evergreen.deployment.DeploymentDirectoryManager.TARGET_CONFIG_FILE;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
@@ -102,7 +104,9 @@ public class DeploymentDirectoryManagerTest {
     @Test
     public void GIVEN_deployment_WHEN_write_to_file_and_read_THEN_restore_deployment() throws Exception {
         Path actual1 = createNewDeploymentDir(mockArn);
-        Deployment expected = new Deployment("mockDoc", Deployment.DeploymentType.IOT_JOBS, "mockId");
+        DeploymentDocument document = mock(DeploymentDocument.class);
+        doReturn("mockId").when(document).getDeploymentId();
+        Deployment expected = new Deployment(document, Deployment.DeploymentType.IOT_JOBS, "mockId", DEFAULT);
         deploymentDirectoryManager.writeDeploymentMetadata(expected);
         assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE).toFile(), anExistingFile());
         Deployment actual = deploymentDirectoryManager.readDeploymentMetadata();

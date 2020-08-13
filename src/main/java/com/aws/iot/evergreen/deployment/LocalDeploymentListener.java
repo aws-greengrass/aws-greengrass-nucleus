@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.iot.evergreen.deployment.DeploymentService.OBJECT_MAPPER;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType;
@@ -33,7 +34,6 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @NoArgsConstructor
 public class LocalDeploymentListener {
 
-    private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     private static Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
 
     @Inject
@@ -65,11 +65,11 @@ public class LocalDeploymentListener {
 
         Deployment deployment = new Deployment(localOverrideRequestStr, DeploymentType.LOCAL, request.getRequestId());
         if (deploymentsQueue != null && deploymentsQueue.offer(deployment)) {
-            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, request.getRequestId())
+            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, request.getRequestId())
                     .log("Submitted local deployment request.");
             return true;
         } else {
-            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, request.getRequestId())
+            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, request.getRequestId())
                     .log("Failed to submit local deployment request because deployment queue is full.");
             return false;
         }
