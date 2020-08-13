@@ -1,0 +1,19 @@
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: Component1
+Description: Test Component
+Publisher: Me
+Version: '1.0.0'
+Parameters:
+  - name: Message
+    value: 'World'
+    type: STRING
+Lifecycle:
+  run:
+    windows:
+      powershell -command sh run.sh
+    posix:
+      sh {{artifacts:path}}/run.sh; echo {{params:Message.value}}; sleep 100
+
+Artifacts:
+  all:
+    - Uri: greengrass:run.sh

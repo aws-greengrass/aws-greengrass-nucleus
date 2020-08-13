@@ -171,19 +171,19 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                     return null;
                 }
             }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
 
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
 
             startDeploymentServiceInAnotherThread();
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             jobSucceededLatch.await(10, TimeUnit.SECONDS);
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(mockGroupPackages).replaceAndWait(mapCaptor.capture());
             Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
@@ -218,18 +218,18 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
 
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
 
             startDeploymentServiceInAnotherThread();
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(10000))
                     .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(componentToGroupsTopics).replaceAndWait(mapCaptor.capture());
             Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
@@ -263,18 +263,18 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
 
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
 
             startDeploymentServiceInAnotherThread();
             verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(deploymentStatusKeeper, timeout(10000))
                     .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
             Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
@@ -299,9 +299,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
 
             deploymentService.shutdown();
         }
@@ -317,9 +317,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
             deploymentService.shutdown();
         }
 
@@ -333,10 +333,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
                     any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
             deploymentService.shutdown();
         }
 
@@ -351,10 +351,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
                     any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
             deploymentService.shutdown();
         }
 
@@ -378,9 +378,9 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
                     return null;
                 }
             }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
 
 
             startDeploymentServiceInAnotherThread();
@@ -388,10 +388,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             verify(mockExecutorService, WAIT_FOUR_SECONDS.times(3)).submit(any(DefaultDeploymentTask.class));
             InOrder statusOrdering = inOrder(deploymentStatusKeeper);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             jobSuceededLatch.await(10, TimeUnit.SECONDS);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             deploymentService.shutdown();
         }
 
@@ -408,7 +408,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             // Expecting three invocations, once for each retry attempt
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
             verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
 
@@ -430,7 +430,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             deploymentService.shutdown();
         }
 
@@ -462,7 +462,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             verify(mockSafeUpdateService, times(0)).discardPendingUpdateAction(any());
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             deploymentService.shutdown();
         }
     }
