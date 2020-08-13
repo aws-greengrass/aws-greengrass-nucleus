@@ -83,6 +83,27 @@ public class EZPlugins {
     }
 
     /**
+     * Load a single plugin with the classpath scanner.
+     * @param p path to jar file
+     * @param matcher matcher to use
+     * @throws IOException if loading the class fails
+     */
+    // Class loader must stay open, otherwise we won't be able to load all classes from the jar
+    @SuppressWarnings("PMD.CloseResource")
+    public ClassLoader loadPlugin(Path p, Consumer<FastClasspathScanner> matcher) throws IOException {
+        URL[] urls = {p.toUri().toURL()};
+        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
+            URLClassLoader cl = new URLClassLoader(urls);
+            FastClasspathScanner sc = new FastClasspathScanner();
+            sc.ignoreParentClassLoaders();
+            sc.addClassLoader(cl);
+            matcher.accept(sc);
+            sc.scan();
+            return cl;
+        });
+    }
+
+    /**
      * Don't call loadCache until after all of the implementing/annotated
      * matchers have been registered.
      *
