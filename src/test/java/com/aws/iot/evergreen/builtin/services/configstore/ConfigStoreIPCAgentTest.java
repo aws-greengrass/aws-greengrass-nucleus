@@ -16,6 +16,7 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationResponse;
@@ -36,6 +37,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -102,8 +104,8 @@ public class ConfigStoreIPCAgentTest {
     public void GIVEN_agent_running_WHEN_get_config_request_for_own_config_THEN_return_config_value() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        GetConfigurationRequest request =
-                GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key(TEST_CONFIG_KEY_1).build();
+        GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
+                .keyPath(Collections.singletonList(TEST_CONFIG_KEY_1)).build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.Success, response.getStatus());
         assertEquals(20, response.getValue());
@@ -113,8 +115,8 @@ public class ConfigStoreIPCAgentTest {
     public void GIVEN_agent_running_WHEN_get_config_request_for_cross_component_config_THEN_return_config_value() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        GetConfigurationRequest request =
-                GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key(TEST_CONFIG_KEY_2).build();
+        GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
+                .keyPath(Collections.singletonList(TEST_CONFIG_KEY_2)).build();
         GetConfigurationResponse response = agent.getConfig(request, componentBContext);
         assertEquals(ConfigStoreResponseStatus.Success, response.getStatus());
         assertEquals(15, response.getValue());
@@ -124,8 +126,8 @@ public class ConfigStoreIPCAgentTest {
     public void GIVEN_get_config_request_WHEN_key_does_not_exist_THEN_fail() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        GetConfigurationRequest request =
-                GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key("WrongKey").build();
+        GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
+                .keyPath(Collections.singletonList("WrongKey")).build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.ResourceNotFoundError, response.getStatus());
         assertEquals("Key not found", response.getErrorMessage());
@@ -133,8 +135,8 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_get_config_request_WHEN_component_requested_does_not_exist_THEN_fail() {
-        GetConfigurationRequest request =
-                GetConfigurationRequest.builder().componentName("WrongComponent").key("AnyKey").build();
+        GetConfigurationRequest request = GetConfigurationRequest.builder().componentName("WrongComponent")
+                .keyPath(Collections.singletonList("AnyKey")).build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.ResourceNotFoundError, response.getStatus());
         assertEquals("Key not found", response.getErrorMessage());
@@ -144,8 +146,8 @@ public class ConfigStoreIPCAgentTest {
     public void GIVEN_get_config_request_WHEN_component_requested_does_not_have_configuration_THEN_fail() {
         when(kernel.findServiceTopic(TEST_COMPONENT_B))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B));
-        GetConfigurationRequest request =
-                GetConfigurationRequest.builder().componentName(TEST_COMPONENT_B).key("AnyKey").build();
+        GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_B)
+                .keyPath(Collections.singletonList("AnyKey")).build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.ResourceNotFoundError, response.getStatus());
         assertEquals("Key not found", response.getErrorMessage());
@@ -155,9 +157,9 @@ public class ConfigStoreIPCAgentTest {
     public void GIVEN_agent_running_WHEN_update_config_request_THEN_update_config_value() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        UpdateConfigurationRequest request =
-                UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key(TEST_CONFIG_KEY_2).newValue(30)
-                        .timestamp(System.currentTimeMillis()).build();
+        UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
+                .keyPath(Collections.singletonList(TEST_CONFIG_KEY_2)).newValue(30)
+                .timestamp(System.currentTimeMillis()).build();
         UpdateConfigurationResponse response = agent.updateConfig(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.Success, response.getStatus());
         assertEquals(30,
@@ -168,9 +170,9 @@ public class ConfigStoreIPCAgentTest {
     public void GIVEN_update_config_request_WHEN_update_key_does_not_exist_THEN_create_key() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        UpdateConfigurationRequest request =
-                UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key("NewKey").newValue("SomeValue")
-                        .timestamp(System.currentTimeMillis()).build();
+        UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
+                .keyPath(Collections.singletonList("NewKey")).newValue("SomeValue")
+                .timestamp(System.currentTimeMillis()).build();
         UpdateConfigurationResponse response = agent.updateConfig(request, componentAContext);
         Topic newConfigKeyTopic = kernel.findServiceTopic(TEST_COMPONENT_A).find(PARAMETERS_CONFIG_KEY, "NewKey");
         assertEquals(ConfigStoreResponseStatus.Success, response.getStatus());
@@ -180,9 +182,9 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_update_config_request_WHEN_requested_component_is_not_self_THEN_fail() {
-        UpdateConfigurationRequest request =
-                UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A).key(TEST_CONFIG_KEY_1).newValue(20)
-                        .timestamp(System.currentTimeMillis()).build();
+        UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
+                .keyPath(Collections.singletonList(TEST_CONFIG_KEY_1)).newValue(20)
+                .timestamp(System.currentTimeMillis()).build();
         UpdateConfigurationResponse response = agent.updateConfig(request, componentBContext);
         assertEquals(ConfigStoreResponseStatus.InvalidRequest, response.getStatus());
         assertEquals("Cross component updates are not allowed", response.getErrorMessage());
@@ -198,9 +200,8 @@ public class ConfigStoreIPCAgentTest {
         SubscribeToConfigurationUpdateResponse response = agent.subscribeToConfigUpdate(request, componentBContext);
         assertEquals(ConfigStoreResponseStatus.Success, response.getStatus());
 
-        ConfigurationUpdateEvent updateEvent =
-                ConfigurationUpdateEvent.builder().componentName(TEST_COMPONENT_A).changedKey(TEST_CONFIG_KEY_1)
-                        .build();
+        ConfigurationUpdateEvent updateEvent = ConfigurationUpdateEvent.builder().componentName(TEST_COMPONENT_A)
+                .changedKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1)).build();
         CountDownLatch eventSentToClient = new CountDownLatch(1);
         when(serviceEventHelper.sendServiceEvent(any(ConnectionContext.class), any(ConfigurationUpdateEvent.class),
                 any(BuiltInServiceDestinationCode.class), anyInt(), anyInt())).thenAnswer(invocationOnMock -> {
@@ -260,12 +261,13 @@ public class ConfigStoreIPCAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_1, 0);
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
-        CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> validationTracker =
-                new CompletableFuture<>();
+        CompletableFuture<ConfigurationValidityReport> validationTracker = new CompletableFuture<>();
         assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, validationTracker));
 
-        SendConfigurationValidityReportRequest reportRequest =
-                SendConfigurationValidityReportRequest.builder().status(ConfigurationValidityStatus.VALID).build();
+        SendConfigurationValidityReportRequest reportRequest = SendConfigurationValidityReportRequest.builder()
+                .configurationValidityReport(
+                        ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build())
+                .build();
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.handleConfigValidityReport(reportRequest, componentAContext).getStatus());
 
@@ -275,8 +277,10 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_no_validation_event_is_tracked_WHEN_send_config_validity_report_request_THEN_fail() {
-        SendConfigurationValidityReportRequest request =
-                SendConfigurationValidityReportRequest.builder().status(ConfigurationValidityStatus.VALID).build();
+        SendConfigurationValidityReportRequest request = SendConfigurationValidityReportRequest.builder()
+                .configurationValidityReport(
+                        ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build())
+                .build();
         SendConfigurationValidityReportResponse response = agent.handleConfigValidityReport(request, componentAContext);
         assertEquals(ConfigStoreResponseStatus.InvalidRequest, response.getStatus());
         assertEquals("Validation request either timed out or was never made", response.getErrorMessage());

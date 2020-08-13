@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
@@ -183,19 +184,19 @@ class IPCServicesTest {
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
 
         AtomicInteger numCalls = new AtomicInteger();
-        Pair<CompletableFuture<Void>, Consumer<String>> p = asyncAssertOnConsumer((a) -> {
+        Pair<CompletableFuture<Void>, Consumer<List<String>>> p = asyncAssertOnConsumer((a) -> {
             int callNum = numCalls.incrementAndGet();
             if (callNum == 1) {
-                assertThat(a, is("abc"));
+                assertThat(a, is(Collections.singletonList("abc")));
             } else if (callNum == 2) {
-                assertThat(a, is("DDF"));
+                assertThat(a, is(Collections.singletonList("DDF")));
             }
         }, 2);
 
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
-        c.subscribeToConfigurationUpdate("ServiceName", "abc", p.getRight());
-        c.subscribeToConfigurationUpdate("ServiceName", "DDF", p.getRight());
+        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("abc"), p.getRight());
+        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("DDF"), p.getRight());
         configuration.lookup("abc").withValue("ABC");
         configuration.lookup("DDF").withValue("ddf");
 
@@ -220,8 +221,7 @@ class IPCServicesTest {
         });
 
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
-        CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> validateResultFuture =
-                new CompletableFuture<>();
+        CompletableFuture<ConfigurationValidityReport> validateResultFuture = new CompletableFuture<>();
         try {
             agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"),
                     validateResultFuture);
@@ -243,7 +243,7 @@ class IPCServicesTest {
         });
         c.subscribeToValidateConfiguration(cb.getRight());
 
-        CompletableFuture<ConfigStoreIPCAgent.ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
+        CompletableFuture<ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
         agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
         cb.getLeft().get(2, TimeUnit.SECONDS);
@@ -264,7 +264,8 @@ class IPCServicesTest {
         CountDownLatch configUpdated = new CountDownLatch(1);
         configToUpdate.subscribe((what, node) -> configUpdated.countDown());
 
-        c.updateConfiguration("ServiceName", "SomeKeyToUpdate", "SomeValueToUpdate", System.currentTimeMillis());
+        c.updateConfiguration("ServiceName", Collections.singletonList("SomeKeyToUpdate"), "SomeValueToUpdate",
+                System.currentTimeMillis());
 
         assertTrue(configUpdated.await(5, TimeUnit.SECONDS));
         assertEquals("SomeValueToUpdate", configToUpdate.getOnce());
@@ -282,10 +283,11 @@ class IPCServicesTest {
 
         try {
             // Can read individual value
-            assertEquals("ABC", c.getConfiguration("ServiceName", "abc"));
+            assertEquals("ABC", c.getConfiguration("ServiceName", Collections.singletonList("abc")));
 
             // Can read nested values
-            Map<String, Object> val = (Map<String, Object>) c.getConfiguration("ServiceName", "DDF");
+            Map<String, Object> val = (Map<String, Object>) c.getConfiguration("ServiceName",
+                    Collections.singletonList("DDF"));
             assertThat(val, aMapWithSize(1));
             assertThat(val, IsMapContaining.hasKey("A"));
             assertThat(val.get("A"), is("C"));

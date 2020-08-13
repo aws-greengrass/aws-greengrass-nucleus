@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -45,7 +46,8 @@ public class ServiceEventHelperTest {
         when(connectionContext.serverPush(anyInt(), any(FrameReader.Message.class))).thenReturn(serverPushFuture);
 
         ConfigurationUpdateEvent eventToSend =
-                ConfigurationUpdateEvent.builder().componentName("SomeService").changedKey("SomeKey").build();
+                ConfigurationUpdateEvent.builder().componentName("SomeService").changedKeyPath(
+                        Collections.singletonList("SomeKey")).build();
         serviceEventHelper.sendServiceEvent(connectionContext, eventToSend, BuiltInServiceDestinationCode.CONFIG_STORE,
                 ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal(), ConfigStoreImpl.API_VERSION).get();
 

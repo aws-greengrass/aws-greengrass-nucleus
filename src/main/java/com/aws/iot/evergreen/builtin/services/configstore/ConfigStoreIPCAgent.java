@@ -19,7 +19,7 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
-import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationResponse;
 import com.aws.iot.evergreen.ipc.services.configstore.SendConfigurationValidityReportRequest;
@@ -36,11 +36,10 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -57,7 +56,6 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class ConfigStoreIPCAgent {
     private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
-    private static final String CONFIGURATION_KEY_PATH_DELIMITER = ".";
 
     // Map from connection --> Function to call for triggering config validation events
     private final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
@@ -98,45 +96,29 @@ public class ConfigStoreIPCAgent {
                     "Key not found");
         }
 
-        Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyName());
+        Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyPath());
         if (subscribeTo == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
                     "Key not found");
         }
 
-        // TODO : Does not dedupe, need more details on the requirement
         Optional<Watcher> watcher = registerWatcher(subscribeTo, context, componentName);
         if (!watcher.isPresent()) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.InternalError,
                     "Could not register update subscriber");
         }
 
-        // TODO: How do users de-register? We need a signal for this on which we can clean up watchers
-        //  from the config store. What will be the onDisconnect equivalent in the new protocol and
-        //  are there any differences in how to handle it vs how it is today i.e. done like below
         context.onDisconnect(() -> subscribeTo.remove(watcher.get()));
 
         return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.Success, null);
     }
 
-    private Node getNodeToSubscribeTo(Topics configurationTopics, String keyName) {
+    private Node getNodeToSubscribeTo(Topics configurationTopics, List<String> keyPath) {
         Node subscribeTo = configurationTopics;
-        if (!Utils.isEmpty(keyName)) {
-            String[] keyPath = parseKeyPath(keyName);
-            subscribeTo = configurationTopics.findNode(keyPath);
+        if (keyPath != null && keyPath.size() > 0) {
+            subscribeTo = configurationTopics.findNode(keyPath.toArray(new String[keyPath.size()]));
         }
         return subscribeTo;
-    }
-
-    // TODO : We shouldn't be splitting or joining paths based on the '.' delimiter(or any char as delimiter)
-    //  since it will not work when keys have names with '.' in them, instead, we should explore if we can
-    //  use string arrays for explicitly denoting key paths in Get/Update/Subscribe API models
-    //  keeping this as a TODO while the decision is made
-    private String[] parseKeyPath(String key) {
-        if (key.contains(CONFIGURATION_KEY_PATH_DELIMITER)) {
-            return key.split(CONFIGURATION_KEY_PATH_DELIMITER);
-        }
-        return new String[] {key};
     }
 
     private Optional<Watcher> registerWatcher(Node subscribeTo, ConnectionContext context, String componentName) {
@@ -170,18 +152,17 @@ public class ConfigStoreIPCAgent {
         int configurationTopicsIndex =
                 kernel.findServiceTopic(componentName).lookupTopics(PARAMETERS_CONFIG_KEY).path().length - 1;
         String[] keyPath =
-                Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1,
-                        changedNode.path().length);
+                Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1, changedNode.path().length);
 
-        sendConfigUpdateToListener(context, componentName)
-                .accept(String.join(CONFIGURATION_KEY_PATH_DELIMITER, keyPath));
+        sendConfigUpdateToListener(context, componentName).accept(keyPath);
     }
 
-    private Consumer<String> sendConfigUpdateToListener(ConnectionContext context, String componentName) {
-        return (changedKey) -> {
-            ConfigurationUpdateEvent valueChangedEvent =
-                    ConfigurationUpdateEvent.builder().componentName(componentName).changedKey(changedKey).build();
-            log.atDebug().log("Sending component {}'s updated config key {} to {}", componentName, changedKey, context);
+    private Consumer<String[]> sendConfigUpdateToListener(ConnectionContext context, String componentName) {
+        return (changedKeyPath) -> {
+            ConfigurationUpdateEvent valueChangedEvent = ConfigurationUpdateEvent.builder().componentName(componentName)
+                    .changedKeyPath(Arrays.asList(changedKeyPath)).build();
+            log.atDebug()
+                    .log("Sending component {}'s updated config key {} to {}", componentName, changedKeyPath, context);
 
             serviceEventHelper.sendServiceEvent(context, valueChangedEvent, BuiltInServiceDestinationCode.CONFIG_STORE,
                     ConfigStoreServiceOpCodes.KEY_CHANGED.ordinal(), ConfigStoreImpl.API_VERSION);
@@ -213,11 +194,11 @@ public class ConfigStoreIPCAgent {
         }
 
         Node node;
-        if (request.getKey() == null) {
+        if (request.getKeyPath() == null) {
             // Request is for reading all configuration
             node = configTopics;
         } else {
-            String[] keyPath = parseKeyPath(request.getKey());
+            String[] keyPath = request.getKeyPath().toArray(new String[request.getKeyPath().size()]);
             node = configTopics.findNode(keyPath);
             if (node == null) {
                 return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
@@ -250,7 +231,7 @@ public class ConfigStoreIPCAgent {
         log.atDebug().kv("context", context).log("Config IPC config update request");
         UpdateConfigurationResponse.UpdateConfigurationResponseBuilder response = UpdateConfigurationResponse.builder();
 
-        if (request.getKey() == null) {
+        if (Utils.isEmpty(request.getKeyPath())) {
             return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Key is required")
                     .build();
         }
@@ -266,7 +247,7 @@ public class ConfigStoreIPCAgent {
                     .errorMessage("Service config not found").build();
         }
         Topics configTopic = serviceTopic.lookupTopics(PARAMETERS_CONFIG_KEY);
-        String[] keyPath = parseKeyPath(request.getKey());
+        String[] keyPath = request.getKeyPath().toArray(new String[request.getKeyPath().size()]);
         configTopic.lookup(keyPath).withNewerValue(request.getTimestamp(), request.getNewValue());
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
@@ -328,9 +309,7 @@ public class ConfigStoreIPCAgent {
         CompletableFuture<ConfigurationValidityReport> reportFuture =
                 configValidationReportFutures.get(context.getServiceName());
         if (!reportFuture.isCancelled()) {
-            reportFuture.complete(
-                    ConfigurationValidityReport.builder().status(request.getStatus()).message(request.getMessage())
-                            .build());
+            reportFuture.complete(request.getConfigurationValidityReport());
         }
         configValidationReportFutures.remove(context.getServiceName());
 
@@ -379,13 +358,5 @@ public class ConfigStoreIPCAgent {
     public boolean discardValidationReportTracker(String componentName,
                                                   CompletableFuture<ConfigurationValidityReport> reportFuture) {
         return configValidationReportFutures.remove(componentName, reportFuture);
-    }
-
-    // TODO: If it adds value, add this to the SendConfigurationValidityReportRequest in smithy model
-    @Builder
-    @Getter
-    public static class ConfigurationValidityReport {
-        private ConfigurationValidityStatus status;
-        private String message;
     }
 }
