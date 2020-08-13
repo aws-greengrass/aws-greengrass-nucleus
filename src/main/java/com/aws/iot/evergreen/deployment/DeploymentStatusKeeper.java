@@ -137,11 +137,14 @@ public class DeploymentStatusKeeper {
         }
     }
 
+    /**
+     * Gets the list of callback functions based on the Deployment Type.
+     *
+     * @param type the type of deployment. {@link DeploymentType}
+     * @return list of callback functions.
+     */
     protected List<Function<Map<String, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
-        return deploymentStatusConsumerMap.entrySet().stream()
-                .filter(deploymentTypeMapEntry -> type.equals(deploymentTypeMapEntry.getKey()))
-                .map(Map.Entry::getValue).flatMap(stringFunctionMap -> stringFunctionMap.values().stream())
-                .collect(Collectors.toList());
+        return new ArrayList<>(deploymentStatusConsumerMap.get(type).values());
     }
 
     /**

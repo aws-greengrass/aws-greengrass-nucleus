@@ -153,7 +153,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertNotNull(receivedMqttMessage1.getPayload());
         FleetStatusDetails fleetStatusDetails1 = DESERIALIZER.readValue(receivedMqttMessage1.getPayload(), FleetStatusDetails.class);
         assertEquals(thingInfo.getThingName(), fleetStatusDetails1.getThing());
-        assertEquals("1.0.0", fleetStatusDetails1.getGgcVersion());
+        assertEquals("2.0.0", fleetStatusDetails1.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
         assertEquals(0, fleetStatusDetails1.getSequenceNumber());
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
@@ -171,7 +171,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertNotNull(receivedMqttMessage2.getPayload());
         FleetStatusDetails fleetStatusDetails2 = DESERIALIZER.readValue(receivedMqttMessage2.getPayload(), FleetStatusDetails.class);
         assertEquals(thingInfo.getThingName(), fleetStatusDetails2.getThing());
-        assertEquals("1.0.0", fleetStatusDetails2.getGgcVersion());
+        assertEquals("2.0.0", fleetStatusDetails2.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails2.getOverallStatus());
         assertEquals(1, fleetStatusDetails2.getSequenceNumber());
         assertEquals(1, fleetStatusDetails2.getComponentStatusDetails().size());

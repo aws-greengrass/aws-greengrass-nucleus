@@ -45,6 +45,7 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
 @ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true, version = "1.0.0")
@@ -60,7 +61,6 @@ public class FleetStatusService extends EvergreenService {
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
 
-    private final String kernelVersion;
     private String updateFssDataTopic;
     private String thingName;
     private final MqttClient mqttClient;
@@ -69,6 +69,7 @@ public class FleetStatusService extends EvergreenService {
     private final String platform;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
+    private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
     private final Set<EvergreenService> updatedEvergreenServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     // TODO: Remove this variable after implementing callbacks for getting services being removed notifications.
@@ -134,8 +135,6 @@ public class FleetStatusService extends EvergreenService {
                     fleetStatusServicePublishTopic = Coerce.toString(newv);
                 });
 
-        //TODO: Get the kernel version once its implemented.
-        this.kernelVersion = "1.0.0";
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.IOT_JOBS,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
@@ -163,12 +162,15 @@ public class FleetStatusService extends EvergreenService {
 
         synchronized (periodicUpdateInProgressLock) {
             Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
-
             if (lastPeriodicUpdateTime.plusSeconds(periodicUpdateIntervalSec).isBefore(Instant.now())) {
                 updatePeriodicFleetStatusData();
-            } else if (isDuringConnectionResumed) {
-                updateEventTriggeredFleetStatusData();
             }
+        }
+
+        // Only trigger the event based updates on MQTT connection resumed. Else it will be triggered when the
+        // service starts up as well, which is not needed.
+        if (isDuringConnectionResumed) {
+            updateEventTriggeredFleetStatusData();
         }
 
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
@@ -233,6 +235,11 @@ public class FleetStatusService extends EvergreenService {
             return;
         }
 
+        // Return if we are already in the process of updating FSS data triggered by an event.
+        if (!isEventTriggeredUpdateInProgress.compareAndSet(false, true)) {
+            return;
+        }
+
         Instant now = Instant.now();
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
 
@@ -254,6 +261,7 @@ public class FleetStatusService extends EvergreenService {
         removedDependenciesSet.forEach(allEvergreenServicesNameMap::remove);
         removedDependenciesSet.clear();
         uploadFleetStatusServiceData(updatedEvergreenServiceSet, overAllStatus.get());
+        isEventTriggeredUpdateInProgress.set(false);
     }
 
     private void uploadFleetStatusServiceData(Set<EvergreenService> evergreenServiceSet,
@@ -333,7 +341,7 @@ public class FleetStatusService extends EvergreenService {
                 .architecture(this.architecture)
                 .platform(this.platform)
                 .thing(thingName)
-                .ggcVersion(this.kernelVersion)
+                .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
                 .build();
         try {
