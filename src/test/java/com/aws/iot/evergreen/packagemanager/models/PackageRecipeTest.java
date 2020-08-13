@@ -50,6 +50,8 @@ public class PackageRecipeTest {
             throws IOException, URISyntaxException {
         String recipeContents =
                 TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
+
+        System.out.println(recipeContents);
         PackageRecipe testPkg = TestHelper.getPackageObject(recipeContents);
         assertThat(testPkg.getComponentName(), is(TestHelper.MONITORING_SERVICE_PACKAGE_NAME));
         assertThat(testPkg.getVersion().getValue(), is("1.0.0"));

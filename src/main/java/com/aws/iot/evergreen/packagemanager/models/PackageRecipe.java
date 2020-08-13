@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.packagemanager.models;
 import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -29,6 +30,7 @@ import java.util.Set;
 @Getter
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PackageRecipe {
     private static final String DEPENDENCY_VERSION_REQUIREMENTS_KEY = "versionrequirements";
     private static final String DEPENDENCY_TYPE_KEY = "dependencytype";
@@ -47,6 +49,8 @@ public class PackageRecipe {
     private final String description;
 
     private final String publisher;
+
+    private final List<PlatformSpecificRecipe> platformSpecificRecipes;
 
     private final Set<PackageParameter> packageParameters;
 
@@ -75,20 +79,22 @@ public class PackageRecipe {
      * @param componentType         Type of component to be created
      * @throws SemverException if the semver fails to be created
      */
-    @JsonCreator
+//    @JsonCreator
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
                          @JsonProperty("ComponentName") String componentName, @JsonProperty("Version") Semver version,
                          @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
-                         @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
-                         @JsonProperty("Platforms") List<String> platforms, @JsonProperty("Lifecycle") @JsonDeserialize(
-            using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
-                         @JsonProperty("Artifacts") Map<String, List<ComponentArtifact>> artifacts,
-                         @JsonProperty("Dependencies")
-                             @JsonDeserialize(using = DependencyMapDeserializer.class)
-                                     Map<String, RecipeDependencyProperties> dependencies,
-                         @JsonProperty("ComponentType") String componentType) {
+                        Set<PackageParameter> packageParameters,
+                         List<String> platforms, Map<String, Object> lifecycle,
+                          Map<String, List<ComponentArtifact>> artifacts,
 
+
+                                     Map<String, RecipeDependencyProperties> dependencies,
+                        String componentType
+//                         @JsonProperty("Platforms2") List<PlatformSpecificRecipe> platformSpecificRecipes
+    ) {
+
+        System.out.println("Wrong");
         this.recipeTemplateVersion = recipeTemplateVersion;
         this.componentName = componentName;
         //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
@@ -102,14 +108,59 @@ public class PackageRecipe {
         this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
         this.componentType = componentType;
+        this.platformSpecificRecipes = null;
     }
+
+
+    /**
+     * Constructor for Jackson to deserialize.
+     *
+     * @param recipeTemplateVersion Template version found in the Recipe file
+     * @param componentName         Name of the component
+     * @param version               Version of the package
+     * @param description           Description metadata
+     * @param publisher             Name of the publisher
+     * @param packageParameters     Parameters included in the recipe
+     * @param platforms             Platforms supported by the recipe
+     * @param lifecycle             Lifecycle definitions
+     * @param artifacts             Artifact definitions
+     * @param dependencies          List of dependencies
+     * @param componentType         Type of component to be created
+     * @throws SemverException if the semver fails to be created
+     */
+    @JsonCreator
+    @SuppressWarnings("PMD.ExcessiveParameterList")
+    public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
+                         @JsonProperty("ComponentName") String componentName, @JsonProperty("Version") Semver version,
+                         @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
+                         @JsonProperty("Platforms2") List<PlatformSpecificRecipe> platformSpecificRecipes
+    ) {
+
+        System.out.println("Right");
+
+        this.recipeTemplateVersion = recipeTemplateVersion;
+        this.componentName = componentName;
+        //TODO: Figure out how to do this in deserialize (only option so far seems to be custom deserializer)
+        //TODO: Validate SemverType.STRICT before creating this
+        this.version = new Semver(version.toString(), Semver.SemverType.NPM);
+        this.description = description;
+        this.publisher = publisher;
+        this.platforms = null;
+        this.packageParameters = null;
+        this.lifecycle = null;
+        this.artifacts = null;
+        this.dependencies = null;
+        this.componentType = null;
+        this.platformSpecificRecipes = platformSpecificRecipes;
+    }
+
 
     @JsonSerialize(using = SemverSerializer.class)
     public Semver getVersion() {
         return version;
     }
 
-    private static class MapFieldDeserializer extends JsonDeserializer<Map<String, Object>> {
+    public static class MapFieldDeserializer extends JsonDeserializer<Map<String, Object>> {
         @Override
         @SuppressWarnings("unchecked")
         public Map<String, Object> deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
