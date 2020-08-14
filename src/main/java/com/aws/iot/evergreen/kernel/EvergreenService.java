@@ -613,9 +613,14 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
 
-    public boolean isAutostart() {
+    // If a service is a Builtin service, it is supposed to auto-start after kernel launches or deployment
+    public boolean isBuiltin() {
         ImplementsService serviceAnnotation = getClass().getAnnotation(ImplementsService.class);
         return serviceAnnotation != null && serviceAnnotation.autostart();
+    }
+
+    public boolean shouldAutoStart() {
+        return true;
     }
 
     protected final long getStateGeneration() {

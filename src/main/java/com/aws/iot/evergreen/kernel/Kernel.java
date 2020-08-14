@@ -440,7 +440,7 @@ public class Kernel {
         for (EvergreenService service : getMain().getDependencies().keySet()) {
             Topic version = service.getConfig().find(VERSION_CONFIG_KEY);
             // If the service is an autostart service then ignore it.
-            if (service.isAutostart()) {
+            if (service.isBuiltin()) {
                 continue;
             }
             rootPackageNameAndVersionMap.put(service.getName(), Coerce.toString(version));
