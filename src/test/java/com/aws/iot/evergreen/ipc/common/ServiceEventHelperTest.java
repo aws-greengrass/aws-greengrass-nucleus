@@ -34,9 +34,9 @@ public class ServiceEventHelperTest {
     @Mock
     private ConnectionContext connectionContext;
 
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    private ServiceEventHelper serviceEventHelper = new ServiceEventHelper(executor);
+    private final ServiceEventHelper serviceEventHelper = new ServiceEventHelper(executor);
 
     @Test
     public void GIVEN_running_WHEN_send_event_called_THEN_send_event_to_client()

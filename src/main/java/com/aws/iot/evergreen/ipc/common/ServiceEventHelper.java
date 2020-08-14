@@ -23,7 +23,7 @@ public class ServiceEventHelper {
     private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
-    ExecutorService executor;
+    private ExecutorService executor;
 
     /**
      * Asynchronously sends requested event to requested IPC channel.
@@ -32,6 +32,7 @@ public class ServiceEventHelper {
      * @param serviceEvent      event data
      * @param destinationCode   service destination code to denote the source of the event
      * @param opCode            op code
+     * @param apiVersion        api version
      * @return Future for send event task
      */
     public Future<?> sendServiceEvent(ConnectionContext connectionContext, ServiceEvent serviceEvent,

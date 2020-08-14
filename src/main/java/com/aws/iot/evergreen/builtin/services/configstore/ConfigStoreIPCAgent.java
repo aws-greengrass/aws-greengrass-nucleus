@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.builtin.services.configstore;
 
+import com.aws.iot.evergreen.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.iot.evergreen.config.ChildChanged;
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Subscriber;
@@ -56,6 +57,8 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class ConfigStoreIPCAgent {
     private static final Logger log = LogManager.getLogger(ConfigStoreIPCAgent.class);
+    private static final String KEY_NOT_FOUND_ERROR_MESSAGE = "Key not found";
+    private static final String CONTEXT_LOGGING_KEY = "context";
 
     // Map from connection --> Function to call for triggering config validation events
     private final Map<ConnectionContext, Consumer<Map<String, Object>>> configValidationListeners =
@@ -87,19 +90,19 @@ public class ConfigStoreIPCAgent {
         Topics serviceTopics = kernel.findServiceTopic(componentName);
         if (serviceTopics == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
-                    "Key not found");
+                    KEY_NOT_FOUND_ERROR_MESSAGE);
         }
 
         Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
         if (configurationTopics == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
-                    "Key not found");
+                    KEY_NOT_FOUND_ERROR_MESSAGE);
         }
 
         Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyPath());
         if (subscribeTo == null) {
             return new SubscribeToConfigurationUpdateResponse(ConfigStoreResponseStatus.ResourceNotFoundError,
-                    "Key not found");
+                    KEY_NOT_FOUND_ERROR_MESSAGE);
         }
 
         Optional<Watcher> watcher = registerWatcher(subscribeTo, context, componentName);
@@ -115,8 +118,8 @@ public class ConfigStoreIPCAgent {
 
     private Node getNodeToSubscribeTo(Topics configurationTopics, List<String> keyPath) {
         Node subscribeTo = configurationTopics;
-        if (keyPath != null && keyPath.size() > 0) {
-            subscribeTo = configurationTopics.findNode(keyPath.toArray(new String[keyPath.size()]));
+        if (keyPath != null && keyPath.isEmpty()) {
+            subscribeTo = configurationTopics.findNode(keyPath.toArray(new String[0]));
         }
         return subscribeTo;
     }
@@ -177,20 +180,20 @@ public class ConfigStoreIPCAgent {
      * @return response data
      */
     public GetConfigurationResponse getConfig(GetConfigurationRequest request, ConnectionContext context) {
-        log.atDebug().kv("context", context).log("Config IPC get config request");
+        log.atDebug().kv(CONTEXT_LOGGING_KEY, context).log("Config IPC get config request");
         String serviceName = request.getComponentName() == null ? context.getServiceName() : request.getComponentName();
         Topics serviceTopics = kernel.findServiceTopic(serviceName);
         GetConfigurationResponse.GetConfigurationResponseBuilder response = GetConfigurationResponse.builder();
 
         if (serviceTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
-                    .errorMessage("Key not found").build();
+                    .errorMessage(KEY_NOT_FOUND_ERROR_MESSAGE).build();
         }
 
         Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
         if (configTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
-                    .errorMessage("Key not found").build();
+                    .errorMessage(KEY_NOT_FOUND_ERROR_MESSAGE).build();
         }
 
         Node node;
@@ -198,11 +201,11 @@ public class ConfigStoreIPCAgent {
             // Request is for reading all configuration
             node = configTopics;
         } else {
-            String[] keyPath = request.getKeyPath().toArray(new String[request.getKeyPath().size()]);
+            String[] keyPath = request.getKeyPath().toArray(new String[0]);
             node = configTopics.findNode(keyPath);
             if (node == null) {
                 return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
-                        .errorMessage("Key not found").build();
+                        .errorMessage(KEY_NOT_FOUND_ERROR_MESSAGE).build();
             }
         }
 
@@ -228,7 +231,7 @@ public class ConfigStoreIPCAgent {
      * @return response data
      */
     public UpdateConfigurationResponse updateConfig(UpdateConfigurationRequest request, ConnectionContext context) {
-        log.atDebug().kv("context", context).log("Config IPC config update request");
+        log.atDebug().kv(CONTEXT_LOGGING_KEY, context).log("Config IPC config update request");
         UpdateConfigurationResponse.UpdateConfigurationResponseBuilder response = UpdateConfigurationResponse.builder();
 
         if (Utils.isEmpty(request.getKeyPath())) {
@@ -247,7 +250,7 @@ public class ConfigStoreIPCAgent {
                     .errorMessage("Service config not found").build();
         }
         Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
-        String[] keyPath = request.getKeyPath().toArray(new String[request.getKeyPath().size()]);
+        String[] keyPath = request.getKeyPath().toArray(new String[0]);
         Node node = configTopics.findNode(keyPath);
         if (node == null) {
             configTopics.lookup(keyPath).withValue(request.getNewValue());
@@ -257,8 +260,8 @@ public class ConfigStoreIPCAgent {
         //  should be a merge/replace or a choice for customers to make. We'll gain clarity once
         //  nested config support at the component recipe and deployment level is hashed out.
         if (node instanceof Topics) {
-            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Cannot update a "
-                    + "non-leaf config node").build();
+            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
+                    .errorMessage("Cannot update a " + "non-leaf config node").build();
         }
         if (!(node instanceof Topic)) {
             response.responseStatus(ConfigStoreResponseStatus.InternalError).errorMessage("Node has an unknown type");
@@ -276,8 +279,8 @@ public class ConfigStoreIPCAgent {
         Topic updatedNode = topic.withNewerValue(request.getTimestamp(), request.getNewValue());
         if (request.getTimestamp() != updatedNode.getModtime() && !request.getNewValue()
                 .equals(updatedNode.getOnce())) {
-            return response.responseStatus(ConfigStoreResponseStatus.FailedUpdateConditionCheck).errorMessage(
-                    "Proposed timestamp is older than the config's latest modified timestamp").build();
+            return response.responseStatus(ConfigStoreResponseStatus.FailedUpdateConditionCheck)
+                    .errorMessage("Proposed timestamp is older than the config's latest modified timestamp").build();
         }
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
@@ -291,7 +294,7 @@ public class ConfigStoreIPCAgent {
      * @return response code Success if all went well
      */
     public SubscribeToValidateConfigurationResponse subscribeToConfigValidation(ConnectionContext context) {
-        log.atDebug().kv("context", context).log("Config IPC subscribe to config validation request");
+        log.atDebug().kv(CONTEXT_LOGGING_KEY, context).log("Config IPC subscribe to config validation request");
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
         configValidationListeners.computeIfAbsent(context, (key) -> {
             context.onDisconnect(() -> configValidationListeners.remove(context));
@@ -323,7 +326,7 @@ public class ConfigStoreIPCAgent {
     public SendConfigurationValidityReportResponse handleConfigValidityReport(
             SendConfigurationValidityReportRequest request, ConnectionContext context) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
-        log.atDebug().kv("context", context).log("Config IPC report config validation request");
+        log.atDebug().kv(CONTEXT_LOGGING_KEY, context).log("Config IPC report config validation request");
         SendConfigurationValidityReportResponse.SendConfigurationValidityReportResponseBuilder response =
                 SendConfigurationValidityReportResponse.builder();
 
@@ -354,15 +357,15 @@ public class ConfigStoreIPCAgent {
      * @param configuration new component configuration to validate
      * @param reportFuture  future to track validation report in response to the event
      * @return true if the service has registered a validator, false if not
-     * @throws UnsupportedOperationException throws when triggering requested validation event is not allowed
+     * @throws ValidateEventRegistrationException throws when triggering requested validation event is not allowed
      */
     public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
                                          CompletableFuture<ConfigurationValidityReport> reportFuture)
-            throws UnsupportedOperationException {
+            throws ValidateEventRegistrationException {
         // TODO : Will handling a collection of components to abstract validation for the whole deployment
         //  be better?
         if (configValidationReportFutures.containsKey(componentName)) {
-            throw new UnsupportedOperationException(
+            throw new ValidateEventRegistrationException(
                     "A validation request to this component is already waiting for response");
         }
 

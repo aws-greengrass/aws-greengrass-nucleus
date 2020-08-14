@@ -44,7 +44,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -297,7 +296,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_subscribe_to_config_update_request_WHEN_requests_all_config_THEN_child_update_triggers_event()
-            throws InterruptedException {
+            throws Exception {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         SubscribeToConfigurationUpdateRequest request =
@@ -326,7 +325,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_subscribe_to_config_update_request_WHEN_requests_leaf_node_THEN_self_update_triggers_event()
-            throws InterruptedException {
+            throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
@@ -357,7 +356,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_subscribe_to_config_update_request_WHEN_requests_container_node_THEN_next_child_update_triggers_event()
-            throws InterruptedException {
+            throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
@@ -389,7 +388,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_subscribe_to_config_update_request_WHEN_requests_nested_leaf_node_THEN_self_update_triggers_event()
-            throws InterruptedException {
+            throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
@@ -421,7 +420,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_subscribe_to_config_update_request_WHEN_requests_nested_container_node_THEN_child_update_triggers_event()
-            throws InterruptedException {
+            throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration
@@ -454,7 +453,8 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_subscribe_to_validate_config_request_THEN_validation_event_can_be_triggered() {
+    public void GIVEN_agent_running_WHEN_subscribe_to_validate_config_request_THEN_validation_event_can_be_triggered()
+            throws Exception {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
 
@@ -470,7 +470,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_waiting_for_validation_response_WHEN_abandon_validation_event_THEN_succeed() throws IOException {
+    public void GIVEN_waiting_for_validation_response_WHEN_abandon_validation_event_THEN_succeed() throws Exception {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
 
@@ -486,7 +486,7 @@ public class ConfigStoreIPCAgentTest {
 
     @Test
     public void GIVEN_validation_event_being_tracked_WHEN_send_config_validity_report_request_THEN_notify_validation_requester()
-            throws ExecutionException, InterruptedException {
+            throws Exception {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
 
