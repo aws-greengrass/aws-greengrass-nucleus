@@ -58,6 +58,7 @@ import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_LAST_PER
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_SEQUENCE_NUMBER_TOPIC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_SERVICE_PUBLISH_TOPICS;
+import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -189,7 +190,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         serviceNamesToCheck.add("MockService2");
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
@@ -261,7 +262,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -385,7 +386,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -443,7 +444,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
 
@@ -500,7 +501,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -612,7 +613,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
@@ -677,7 +678,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals("2.0.0", fleetStatusDetails.getGgcVersion());
+        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
