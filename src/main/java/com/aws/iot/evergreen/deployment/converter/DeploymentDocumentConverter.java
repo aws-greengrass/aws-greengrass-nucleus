@@ -85,13 +85,12 @@ public final class DeploymentDocumentConverter {
                 .rootPackages(new ArrayList<>()).deploymentPackageConfigurationList(new ArrayList<>())
                 .build();
 
-        String groupName = null;
+        String groupName;
         try {
             // Resource name formats:
             // configuration:thing/<thing-name>:version
             // configuration:thinggroup/<thing-group-name>:version
-            groupName = Arn.fromString(config.getConfigurationArn())
-                    .getResource().getResource();
+            groupName = Arn.fromString(config.getConfigurationArn()).getResource().getResource();
         } catch (IllegalArgumentException e) {
             groupName = config.getConfigurationArn();
         }

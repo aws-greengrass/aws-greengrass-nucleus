@@ -263,7 +263,7 @@ public class IotJobsHelper implements InjectionActions {
         subscribeToJobsTopics();
         logger.atInfo().log("Connection established to Iot cloud");
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
-                this::deploymentStatusChanged);
+                this::deploymentStatusChanged, IotJobsHelper.class.getName());
     }
 
     public static class WrapperMqttConnectionFactory {
