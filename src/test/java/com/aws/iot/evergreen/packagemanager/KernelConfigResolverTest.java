@@ -129,7 +129,7 @@ class KernelConfigResolverTest {
         when(mainService.getDependencies())
                 .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn("IpcService");
-        when(alreadyRunningService.isAutostart()).thenReturn(true);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
@@ -179,7 +179,7 @@ class KernelConfigResolverTest {
         when(mainService.getDependencies())
                 .thenReturn(Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
-        when(alreadyRunningService.isAutostart()).thenReturn(true);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
@@ -355,7 +355,7 @@ class KernelConfigResolverTest {
         when(alreadyRunningServiceParameterConfig.getOnce()).thenReturn("PackageA_Param_1_value");
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY, "PackageA_Param_2"))
                 .thenReturn(null);
-        when(alreadyRunningService.isAutostart()).thenReturn(true);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(packageStore, kernel);
