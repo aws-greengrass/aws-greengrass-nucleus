@@ -79,7 +79,7 @@ public class FleetStatusService extends EvergreenService {
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
     private int periodicUpdateIntervalSec;
-    public String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
+    private String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
     private ScheduledFuture<?> periodicUpdateFuture;
 
     @Getter
@@ -133,9 +133,7 @@ public class FleetStatusService extends EvergreenService {
 
         topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_SERVICE_PUBLISH_TOPICS)
                 .dflt(DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC)
-                .subscribe((why, newv) -> {
-                    fleetStatusServicePublishTopic = Coerce.toString(newv);
-                });
+                .subscribe((why, newv) -> fleetStatusServicePublishTopic = Coerce.toString(newv));
 
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
 
@@ -314,7 +312,7 @@ public class FleetStatusService extends EvergreenService {
                 ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
                         .componentName(service.getName())
                         .state(service.getState())
-                        .version(Coerce.toString(Coerce.toString(versionTopic)))
+                        .version(Coerce.toString(versionTopic))
                         .fleetConfigArns(componentGroups)
                         .build();
                 components.add(componentStatusDetails);
@@ -348,21 +346,22 @@ public class FleetStatusService extends EvergreenService {
                 .sequenceNumber(sequenceNumber)
                 .build();
         try {
-            byte[] payloadVariableInformation = SERIALIZER.writeValueAsBytes(components);
-            byte[] payloadCommonInformation = SERIALIZER.writeValueAsBytes(fleetStatusDetails);
-            int numberOfChunks = Math.floorDiv(payloadVariableInformation.length,
-                    MAX_PAYLOAD_LENGTH_BYTES - payloadCommonInformation.length) + 1;
+            int payloadVariableInformationSize = SERIALIZER.writeValueAsBytes(components).length;
+            int payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(fleetStatusDetails).length;
+
+            // The number of chunks to send would be the component byte size divided by the available bytes in per
+            // publish message after adding the fleet status information.
+            int numberOfChunks = Math.floorDiv(payloadVariableInformationSize,
+                    MAX_PAYLOAD_LENGTH_BYTES - payloadCommonInformationSize) + 1;
             int start = 0;
-            int numberOfChunksPerPublish = Math.floorDiv(components.size(), numberOfChunks);
-            for (int chunkId = 0; chunkId < numberOfChunks; chunkId++) {
+            int numberOfComponentsPerPublish = Math.floorDiv(components.size(), numberOfChunks);
+            for (int chunkId = 0; chunkId < numberOfChunks; chunkId++, start += numberOfComponentsPerPublish) {
                 fleetStatusDetails.setComponentStatusDetails(components.subList(start,
-                        start + numberOfChunksPerPublish));
+                        start + numberOfComponentsPerPublish));
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateFssDataTopic)
                         .payload(SERIALIZER.writeValueAsBytes(fleetStatusDetails)).build());
-                start += numberOfChunksPerPublish;
-
             }
         } catch (JsonProcessingException e) {
             logger.atError().cause(e).log("Unable to publish fleet status service.");
