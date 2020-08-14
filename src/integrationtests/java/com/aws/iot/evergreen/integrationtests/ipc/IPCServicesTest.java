@@ -183,6 +183,7 @@ class IPCServicesTest {
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
 
         Pair<CompletableFuture<Void>, Consumer<List<String>>> pAbc = asyncAssertOnConsumer((a) -> {
                 assertThat(a, is(Collections.singletonList("abc")));
