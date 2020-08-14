@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DefaultDeploymentTask;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeploymentService;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -41,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -89,8 +92,8 @@ public class PluginComponentTest extends BaseITCase {
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
     }
 
-    private void setupPackageStore() throws IOException, PackagingException {
-        Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").getPath());
+    private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {
+        Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
         Path e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
         PackageStore e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
@@ -112,7 +115,8 @@ public class PluginComponentTest extends BaseITCase {
         DeploymentConfigMerger deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
         DefaultDeploymentTask deploymentTask =
                 new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
-                        deploymentConfigMerger, LogManager.getLogger("Deployer"), sampleJobDocument,
+                        deploymentConfigMerger, LogManager.getLogger("Deployer"),
+                        new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null));
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
