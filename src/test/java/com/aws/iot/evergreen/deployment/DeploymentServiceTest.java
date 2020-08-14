@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.Node;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
@@ -10,6 +12,7 @@ import com.aws.iot.evergreen.deployment.exceptions.RetryableDeploymentTaskFailur
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
@@ -18,6 +21,9 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import org.hamcrest.collection.IsEmptyCollection;
+import org.hamcrest.core.IsNot;
+import org.hamcrest.core.IsNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -27,7 +33,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
@@ -38,6 +43,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -49,12 +56,15 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -73,8 +83,8 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
     private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
 
-    @Spy
-    Kernel mockKernel;
+    @Mock
+    private Kernel mockKernel;
 
     @Mock
     ExecutorService mockExecutorService;
@@ -90,6 +100,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private DeploymentStatusKeeper deploymentStatusKeeper;
     @Mock
     private Topics mockGroupPackages;
+    @Mock
+    private Topics mockComponentsToGroupPackages;
+    @Mock
+    private EvergreenService mockEvergreenService;
     @Mock
     private DeploymentDirectoryManager deploymentDirectoryManager;
 
@@ -110,7 +124,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, packageManager,
                 kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, deploymentDirectoryManager,
-                context);
+                context, mockKernel);
         deploymentService.postInject();
 
         deploymentsQueue = new LinkedBlockingQueue<>();
@@ -135,7 +149,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             String deploymentDocument
                     = new BufferedReader(new InputStreamReader(
-                            getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
+                    getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                     .lines()
                     .collect(Collectors.joining("\n"));
             deploymentsQueue.put(new Deployment(deploymentDocument,
@@ -170,7 +184,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             jobSucceededLatch.await(10, TimeUnit.SECONDS);
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
-            ArgumentCaptor<Map<Object, Object>>  mapCaptor = ArgumentCaptor.forClass(Map.class);
+            ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(mockGroupPackages).replaceAndWait(mapCaptor.capture());
             Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
             assertThat("Missing group to root package entries",
@@ -178,10 +192,97 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             assertThat("Expected root package not found",
                     groupToRootPackages.containsKey(EXPECTED_ROOT_PACKAGE_NAME));
             assertThat("Expected package version not found",
-                    ((Map<String, String>)groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME))
+                    ((Map<String, String>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME))
                             .get("version").equals("1.0.0"));
 
             deploymentService.shutdown();
+        }
+
+        @Test
+        public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_set_components_to_groups()
+                throws Exception {
+            Topics allGroupTopics = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            Topics groupTopics = allGroupTopics.createInteriorChild(EXPECTED_GROUP_NAME);
+            Topics componentTopics = groupTopics.createInteriorChild(EXPECTED_ROOT_PACKAGE_NAME);
+            componentTopics.createLeafChild(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY).withValue("1.0.0");
+            componentTopics.createLeafChild(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID)
+                    .withValue(TEST_CONFIGURATION_ARN);
+            when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(groupTopics);
+            Topics componentToGroupsTopics =  mock(Topics.class);
+            when(config.lookupTopics(DeploymentService.COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(componentToGroupsTopics);
+            when(mockKernel.locate(EXPECTED_ROOT_PACKAGE_NAME)).thenReturn(mockEvergreenService);
+            when(mockEvergreenService.getDependencies()).thenReturn(new HashMap<>());
+            when(mockEvergreenService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
+            CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
+            mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+
+            doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+
+            startDeploymentServiceInAnotherThread();
+            verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+
+            verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
+            verify(deploymentStatusKeeper, timeout(10000))
+                    .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+            verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+            ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(componentToGroupsTopics).replaceAndWait(mapCaptor.capture());
+            Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
+            assertThat(groupToRootPackages, is(IsNull.notNullValue()));
+            assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
+            assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+            assertThat((Map<String, Boolean>)groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME), hasKey(TEST_CONFIGURATION_ARN));
+        }
+
+        @Test
+        public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_correctly_map_components_to_groups()
+                throws Exception {
+            Topics allGroupTopics = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
+            Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
+            Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                    "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
+            Map<String, Node> pkgDetails = new HashMap<>();
+            pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
+            pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, groupTopic1);
+            Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
+            pkgTopics.children.putAll(pkgDetails);
+            deploymentGroupTopics.children.put(EXPECTED_ROOT_PACKAGE_NAME, pkgTopics);
+
+            when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+            when(config.lookupTopics(DeploymentService.COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+            when(mockKernel.locate(any())).thenReturn(mockEvergreenService);
+            when(mockEvergreenService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
+            CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
+            mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
+            when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+
+            doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+
+            startDeploymentServiceInAnotherThread();
+            verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
+            verify(deploymentStatusKeeper, timeout(10000))
+                    .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                            eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+
+            verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
+            verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
+            ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
+            Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
+            assertThat(groupToRootPackages, is(IsNull.notNullValue()));
+            assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
+            assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+            assertThat((Map<String, Boolean>)groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME),
+                    hasKey("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"));
         }
 
         @Test
@@ -281,13 +382,14 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
 
+
             startDeploymentServiceInAnotherThread();
             // Expecting three invocations, once for each retry attempt
             verify(mockExecutorService, WAIT_FOUR_SECONDS.times(3)).submit(any(DefaultDeploymentTask.class));
             InOrder statusOrdering = inOrder(deploymentStatusKeeper);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS), any());
-            jobSuceededLatch.await(10, TimeUnit.SECONDS );
+            jobSuceededLatch.await(10, TimeUnit.SECONDS);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED), any());
             deploymentService.shutdown();
@@ -390,6 +492,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
 
     private void mockGroupToRootPackageMappingStubs() {
         doNothing().when(mockGroupPackages).replaceAndWait(any());
+        when(mockGroupPackages.iterator()).thenReturn(mock(Iterator.class));
         when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(mockGroupPackages);
     }
 }
