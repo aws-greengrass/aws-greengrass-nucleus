@@ -46,7 +46,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -182,27 +181,24 @@ class IPCServicesTest {
         ConfigStore c = new ConfigStoreImpl(client);
 
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
-
-        AtomicInteger numCalls = new AtomicInteger();
-        Pair<CompletableFuture<Void>, Consumer<List<String>>> p = asyncAssertOnConsumer((a) -> {
-            int callNum = numCalls.incrementAndGet();
-
-            if (callNum == 1) {
-                assertThat(a, is(Collections.singletonList("abc")));
-            } else if (callNum == 2) {
-                assertThat(a, is(Collections.singletonList("DDF")));
-            }
-        }, 2);
-
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
-        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("abc"), p.getRight());
-        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("DDF"), p.getRight());
+
+        Pair<CompletableFuture<Void>, Consumer<List<String>>> pAbc = asyncAssertOnConsumer((a) -> {
+                assertThat(a, is(Collections.singletonList("abc")));
+        });
+        Pair<CompletableFuture<Void>, Consumer<List<String>>> pDdf = asyncAssertOnConsumer((a) -> {
+            assertThat(a, is(Collections.singletonList("DDF")));
+        });
+
+        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("abc"), pAbc.getRight());
+        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("DDF"), pDdf.getRight());
         configuration.lookup("abc").withValue("ABC");
         configuration.lookup("DDF").withValue("ddf");
 
         try {
-            p.getLeft().get(10, TimeUnit.SECONDS);
+            pAbc.getLeft().get(5, TimeUnit.SECONDS);
+            pDdf.getLeft().get(5, TimeUnit.SECONDS);
         } finally {
             configuration.remove();
         }

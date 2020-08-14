@@ -118,7 +118,7 @@ public class ConfigStoreIPCAgent {
 
     private Node getNodeToSubscribeTo(Topics configurationTopics, List<String> keyPath) {
         Node subscribeTo = configurationTopics;
-        if (keyPath != null && keyPath.isEmpty()) {
+        if (keyPath != null && !keyPath.isEmpty()) {
             subscribeTo = configurationTopics.findNode(keyPath.toArray(new String[0]));
         }
         return subscribeTo;
