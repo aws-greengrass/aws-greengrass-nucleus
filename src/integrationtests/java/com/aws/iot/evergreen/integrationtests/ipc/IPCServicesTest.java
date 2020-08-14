@@ -43,12 +43,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
 
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
@@ -71,7 +71,7 @@ class IPCServicesTest {
     @TempDir
     static Path tempRootDir;
 
-    private static Kernel kernel;
+    private Kernel kernel;
     private IPCClient client;
 
     @BeforeEach
@@ -186,6 +186,7 @@ class IPCServicesTest {
         AtomicInteger numCalls = new AtomicInteger();
         Pair<CompletableFuture<Void>, Consumer<List<String>>> p = asyncAssertOnConsumer((a) -> {
             int callNum = numCalls.incrementAndGet();
+
             if (callNum == 1) {
                 assertThat(a, is(Collections.singletonList("abc")));
             } else if (callNum == 2) {
@@ -210,7 +211,7 @@ class IPCServicesTest {
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_to_validate_config_THEN_validate_event_can_be_sent_to_client()
             throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -234,7 +235,7 @@ class IPCServicesTest {
     @Test
     void GIVEN_ConfigStoreClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
             throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -254,7 +255,7 @@ class IPCServicesTest {
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName");
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
@@ -265,7 +266,7 @@ class IPCServicesTest {
         configToUpdate.subscribe((what, node) -> configUpdated.countDown());
 
         c.updateConfiguration("ServiceName", Collections.singletonList("SomeKeyToUpdate"), "SomeValueToUpdate",
-                System.currentTimeMillis());
+                System.currentTimeMillis(), null);
 
         assertTrue(configUpdated.await(5, TimeUnit.SECONDS));
         assertEquals("SomeValueToUpdate", configToUpdate.getOnce());

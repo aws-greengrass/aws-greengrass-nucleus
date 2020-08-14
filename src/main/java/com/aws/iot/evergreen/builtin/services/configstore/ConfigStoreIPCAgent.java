@@ -194,7 +194,7 @@ public class ConfigStoreIPCAgent {
         }
 
         Node node;
-        if (request.getKeyPath() == null) {
+        if (Utils.isEmpty(request.getKeyPath())) {
             // Request is for reading all configuration
             node = configTopics;
         } else {
@@ -241,17 +241,46 @@ public class ConfigStoreIPCAgent {
                     .errorMessage("Cross component updates are not allowed").build();
         }
 
-        Topics serviceTopic = kernel.findServiceTopic(context.getServiceName());
-        if (serviceTopic == null) {
+        Topics serviceTopics = kernel.findServiceTopic(context.getServiceName());
+        if (serviceTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.InternalError)
                     .errorMessage("Service config not found").build();
         }
-        Topics configTopic = serviceTopic.lookupTopics(PARAMETERS_CONFIG_KEY);
+        Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
         String[] keyPath = request.getKeyPath().toArray(new String[request.getKeyPath().size()]);
-        configTopic.lookup(keyPath).withNewerValue(request.getTimestamp(), request.getNewValue());
+        Node node = configTopics.findNode(keyPath);
+        if (node == null) {
+            configTopics.lookup(keyPath).withValue(request.getNewValue());
+            return response.responseStatus(ConfigStoreResponseStatus.Success).build();
+        }
+        // TODO : Does not support updating internal nodes, at least yet, will need to decide if that
+        //  should be a merge/replace or a choice for customers to make. We'll gain clarity once
+        //  nested config support at the component recipe and deployment level is hashed out.
+        if (node instanceof Topics) {
+            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest).errorMessage("Cannot update a "
+                    + "non-leaf config node").build();
+        }
+        if (!(node instanceof Topic)) {
+            response.responseStatus(ConfigStoreResponseStatus.InternalError).errorMessage("Node has an unknown type");
+            log.atError().log("Somehow Node has an unknown type {}", node.getClass());
+        }
+        Topic topic = (Topic) node;
+
+        // Perform compare and swap if the customer has specified current value to compare
+        if (request.getCurrentValue() != null && !request.getCurrentValue().equals(topic.getOnce())) {
+            return response.responseStatus(ConfigStoreResponseStatus.FailedUpdateConditionCheck)
+                    .errorMessage("Current value for config is different from the current value needed for the update")
+                    .build();
+        }
+
+        Topic updatedNode = topic.withNewerValue(request.getTimestamp(), request.getNewValue());
+        if (request.getTimestamp() != updatedNode.getModtime() && !request.getNewValue()
+                .equals(updatedNode.getOnce())) {
+            return response.responseStatus(ConfigStoreResponseStatus.FailedUpdateConditionCheck).errorMessage(
+                    "Proposed timestamp is older than the config's latest modified timestamp").build();
+        }
 
         response.responseStatus(ConfigStoreResponseStatus.Success);
-
         return response.build();
     }
 
