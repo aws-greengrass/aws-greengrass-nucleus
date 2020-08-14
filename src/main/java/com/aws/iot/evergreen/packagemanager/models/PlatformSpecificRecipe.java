@@ -2,6 +2,7 @@
   Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
   * SPDX-License-Identifier: Apache-2.0
  */
+
 package com.aws.iot.evergreen.packagemanager.models;
 
 import com.aws.iot.evergreen.config.PlatformResolver;
@@ -24,7 +25,7 @@ import java.util.Set;
 
 
 @Data
-class PlatformSpecificRecipe {
+public class PlatformSpecificRecipe {
     private static final String DEPENDENCY_VERSION_REQUIREMENTS_KEY = "versionrequirements";
     private static final String DEPENDENCY_TYPE_KEY = "dependencytype";
 

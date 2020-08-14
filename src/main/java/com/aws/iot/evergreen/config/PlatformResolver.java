@@ -2,6 +2,8 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.models.Platform;
+import com.aws.iot.evergreen.packagemanager.models.PlatformSpecificRecipe;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -13,15 +15,31 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 public final class PlatformResolver {
+    public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
+    private static final String ALL_KEYWORD = "all";
     private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
     public static final AtomicReference<Map<String, Integer>> RANKS =
             new AtomicReference<>(Collections.unmodifiableMap(initializeRanks()));
+
+    public static final Platform CURRENT_PLATFORM = initializePlatformInfo();
+
+    private static Platform initializePlatformInfo() {
+        try {
+            return getPlatformInfo();
+        } catch (InterruptedException | IOException e) {
+            logger.atError().setCause(e).log("Fail to read platform info");
+            return new Platform();
+        }
+    }
 
     private PlatformResolver() {
     }
@@ -52,19 +70,21 @@ public final class PlatformResolver {
         if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
             ranks.put("debian", 11);
         }
-        if (Exec.isWindows) {
+        if (isWindows) {
             ranks.put("windows", 5);
         }
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
             ranks.put("fedora", 11);
         }
-        if (!Exec.isWindows) {
+        if (!isWindows) {
             try {
                 String sysver = Exec.sh("uname -a").toLowerCase();
                 if (sysver.contains("ubuntu")) {
                     ranks.put("ubuntu", 20);
                 }
                 if (sysver.contains("darwin")) {
+                    ranks.put("darwin", 10);
+                    // TODO: currently we assume darwin is MacOS
                     ranks.put("macos", 20);
                 }
                 if (sysver.contains("raspbian")) {
@@ -89,11 +109,112 @@ public final class PlatformResolver {
         return ranks;
     }
 
+    private static Platform getPlatformInfo() throws IOException, InterruptedException {
+        Platform result = new Platform();
+
+        if (isWindows) {
+            result.setOs(Platform.OS_WINDOWS);
+            result.setOsVersion(System.getProperty("os.version"));
+        } else if (RANKS.get().containsKey("linux")) {
+            result.setOs(Platform.OS_linux);
+            result.setOsFlavor(RANKS.get().entrySet().stream()
+                    .max(Comparator.comparingInt(Map.Entry::getValue))
+                    .map(Map.Entry::getKey).orElse(null));
+            result.setOsVersion(System.getProperty("os.version"));
+            // TODO:  get os release version. Eg: Ubuntu version will be output of "lsb_release -a "
+
+        } else if (RANKS.get().containsKey("darwin")) {
+            result.setOs(Platform.OS_Darwin);
+            result.setOsFlavor(RANKS.get().entrySet().stream()
+                    .max(Comparator.comparingInt(Map.Entry::getValue))
+                    .map(Map.Entry::getKey).orElse(null));
+            result.setOsVersion(System.getProperty("os.version"));
+        } else {
+            // UNKNOWN OS
+            logger.atWarn().kv("osName", System.getProperty("os.name"))
+                    .kv("osName", System.getProperty("os.name"))
+                    .log("Unrecognized OS");
+        }
+
+        String arch = System.getProperty("os.arch").toLowerCase();
+        if ("x86_64".equals(arch)) {
+            arch = "amd64"; // x86_64 & amd64 are same
+        }
+        result.setArchitecture(arch);
+        // TODO: find architecture variant
+
+        return result;
+    }
+
+    /**
+     * get closest platform.
+     *
+     * @param recipeList a list of recipe input
+     * @return closest recipe
+     */
+    public static Optional<PlatformSpecificRecipe> getClosestPlatform(List<PlatformSpecificRecipe> recipeList) {
+        List<String> architecturesToCheck;
+        if (CURRENT_PLATFORM.getArchitecture() != null) {
+            architecturesToCheck = Arrays.asList(CURRENT_PLATFORM.getArchitecture(), ALL_KEYWORD);
+        } else {
+            architecturesToCheck = Collections.singletonList(ALL_KEYWORD);
+        }
+
+        for (String arch: architecturesToCheck) {
+            // TODO: match architecture variant
+            // filter matching architecture
+            Stream<PlatformSpecificRecipe> candidateRecipes =
+                    recipeList.stream().filter(r -> {
+                        if (!"all".equals(arch)) {
+                            return arch.equals(r.getPlatform().getArchitecture());
+                        }
+                        return arch.equals(r.getPlatform().getArchitecture())
+                                || r.getPlatform().getArchitecture() == null;
+                    });
+
+            // try match os flavor
+            if (CURRENT_PLATFORM.getOsFlavor() != null) {
+                Optional<PlatformSpecificRecipe> recipe = candidateRecipes
+                        .filter(r -> CURRENT_PLATFORM.getOsFlavor().equals(r.getPlatform().getOsFlavor()))
+                        // TODO: filter version match and find best version match
+                        .findFirst();
+                if (recipe.isPresent()) {
+                    return recipe;
+                }
+            }
+
+            // try match os if no flavor match is found
+            candidateRecipes = candidateRecipes.filter(r -> r.getPlatform().getOsFlavor() == null
+                    || r.getPlatform().getOsFlavor().equals(ALL_KEYWORD));
+            if (CURRENT_PLATFORM.getOs() != null) {
+                Optional<PlatformSpecificRecipe> recipe = candidateRecipes
+                        .filter(r -> CURRENT_PLATFORM.getOs().equals(r.getPlatform().getOs()))
+                        // TODO: filter version match and find best version match
+                        .findFirst();
+                if (recipe.isPresent()) {
+                    return recipe;
+                }
+            }
+
+            // if no os/osFlavor matched, try to match generic one
+            Optional<PlatformSpecificRecipe> recipe = candidateRecipes
+                    .filter(r -> r.getPlatform().getOs() == null || r.getPlatform().getOs().equals(ALL_KEYWORD))
+                    // TODO: check version or not? It will be weird if a recipe doesn't has OS but has OS version
+                    .findFirst();
+            if (recipe.isPresent()) {
+                return recipe;
+            }
+        }
+
+        return Optional.empty();
+    }
+
     /**
      * Get the most specific platform string for the current system.
      *
      * @return platform
      */
+    @Deprecated
     public static String getPlatform() {
         return RANKS.get().entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue)).map(Map.Entry::getKey)
                 .orElse("all");
