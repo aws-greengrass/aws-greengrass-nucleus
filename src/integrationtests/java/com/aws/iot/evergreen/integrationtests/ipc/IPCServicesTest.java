@@ -175,7 +175,7 @@ class IPCServicesTest {
     }
 
     @Test
-    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed() throws Exception {
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
@@ -191,6 +191,8 @@ class IPCServicesTest {
         Pair<CompletableFuture<Void>, Consumer<List<String>>> pDdf = asyncAssertOnConsumer((a) -> {
             assertThat(a, is(Collections.singletonList("DDF")));
         });
+
+        ignoreExceptionOfType(context, TimeoutException.class);
 
         c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("abc"), pAbc.getRight());
         c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("DDF"), pDdf.getRight());
