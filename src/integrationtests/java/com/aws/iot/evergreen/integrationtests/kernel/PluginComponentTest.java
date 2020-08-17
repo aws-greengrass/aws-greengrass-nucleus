@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -51,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class PluginComponentTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private Kernel kernel;
-    private PackageIdentifier ident;
+    private PackageIdentifier componentId;
 
     @BeforeEach
     void beforeEach() {
@@ -71,7 +72,7 @@ public class PluginComponentTest extends BaseITCase {
 
         EvergreenService eg = kernel.locate("plugin");
         assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginService", eg.getClass().getName());
-        assertEquals(ident.getVersion().toString(),
+        assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
     }
 
@@ -88,7 +89,7 @@ public class PluginComponentTest extends BaseITCase {
 
         EvergreenService eg = kernel.locate("plugin");
         assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginService", eg.getClass().getName());
-        assertEquals(ident.getVersion().toString(),
+        assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
     }
 
@@ -98,9 +99,10 @@ public class PluginComponentTest extends BaseITCase {
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
         PackageStore e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
 
-        ident = new PackageIdentifier("plugin", new Semver("1.0.0"));
-        Files.move(e2eTestPackageStore.resolveArtifactDirectoryPath(ident).resolve("plugin-tests.jar"),
-                e2eTestPackageStore.resolveArtifactDirectoryPath(ident).resolve("plugin.jar"));
+        componentId = new PackageIdentifier("plugin", new Semver("1.0.0"));
+        Files.move(e2eTestPackageStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar"),
+                e2eTestPackageStore.resolveArtifactDirectoryPath(componentId)
+                        .resolve(componentId.getName() + JAR_FILE_EXTENSION));
         kernel.getContext().put(PackageStore.class, e2eTestPackageStore);
     }
 

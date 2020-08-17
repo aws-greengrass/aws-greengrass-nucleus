@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
 public class EZPlugins {
-    private static final String JAR_FILE_EXTENSION = ".jar";
+    public static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
     private Path trustedCacheDirectory;
