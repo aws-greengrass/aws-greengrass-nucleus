@@ -101,56 +101,48 @@ public class PlatformResolverTest {
                 .os(Platform.OS_WINDOWS)
                 .build());
 
-        List<PlatformSpecificRecipe> platformSpecificRecipeList = new ArrayList<>();
-
-        Optional<PlatformSpecificRecipe> result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+        Optional<PlatformSpecificRecipe> result = PlatformResolver.findBestMatch(platformToTest, Arrays.asList(
                 recipeCandidate1,
                 recipeCandidate2,
                 recipeCandidate3,
                 recipeCandidate4,
                 recipeCandidate5,
                 recipeCandidate_notApplicable));
-
         assertTrue(result.isPresent());
         assertEquals(recipeCandidate1, result.get());
 
-        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+        result = PlatformResolver.findBestMatch(platformToTest, Arrays.asList(
                 recipeCandidate2,
                 recipeCandidate3,
                 recipeCandidate4,
                 recipeCandidate5,
                 recipeCandidate_notApplicable));
-
         assertTrue(result.isPresent());
         assertEquals(recipeCandidate2, result.get());
 
-        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+        result = PlatformResolver.findBestMatch(platformToTest, Arrays.asList(
                 recipeCandidate3,
                 recipeCandidate4,
                 recipeCandidate5,
                 recipeCandidate_notApplicable));
-
         assertTrue(result.isPresent());
         assertEquals(recipeCandidate3, result.get());
 
-        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+        result = PlatformResolver.findBestMatch(platformToTest, Arrays.asList(
                 recipeCandidate4,
                 recipeCandidate5,
                 recipeCandidate_notApplicable));
-
         assertTrue(result.isPresent());
         assertEquals(recipeCandidate4, result.get());
 
-        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+        result = PlatformResolver.findBestMatch(platformToTest, Arrays.asList(
                 recipeCandidate5,
                 recipeCandidate_notApplicable));
-
         assertTrue(result.isPresent());
         assertEquals(recipeCandidate5, result.get());
 
-        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+        result = PlatformResolver.findBestMatch(platformToTest, Arrays.asList(
                 recipeCandidate_notApplicable));
-
         assertFalse(result.isPresent());
     }
 

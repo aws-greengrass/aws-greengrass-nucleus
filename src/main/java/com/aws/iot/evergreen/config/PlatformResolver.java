@@ -21,7 +21,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public final class PlatformResolver {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
@@ -154,19 +153,19 @@ public final class PlatformResolver {
      * @param recipeList a list of recipe input
      * @return closest recipe
      */
-    public static Optional<PlatformSpecificRecipe> getClosestPlatform(List<PlatformSpecificRecipe> recipeList) {
-        return getClosestPlatform(CURRENT_PLATFORM, recipeList);
+    public static Optional<PlatformSpecificRecipe> findBestMatch(List<PlatformSpecificRecipe> recipeList) {
+        return findBestMatch(CURRENT_PLATFORM, recipeList);
     }
 
     /**
-     * get closest platform.
+     * find best match from a list of recipes.
      *
      * @param currentPlatform the platform detail
      * @param recipeList a list of recipe input
      * @return closest recipe
      */
-    public static Optional<PlatformSpecificRecipe> getClosestPlatform(Platform currentPlatform,
-                                                                      List<PlatformSpecificRecipe> recipeList) {
+    public static Optional<PlatformSpecificRecipe> findBestMatch(Platform currentPlatform,
+                                                                 List<PlatformSpecificRecipe> recipeList) {
         List<String> architecturesToCheck;
         if (currentPlatform.getArchitecture() != null) {
             architecturesToCheck = Arrays.asList(currentPlatform.getArchitecture(), ALL_KEYWORD);
