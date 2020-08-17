@@ -42,7 +42,6 @@ import javax.inject.Singleton;
 public class UpdateSystemSafelyService extends EvergreenService {
     private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
-
     private long defaultTimeOutInMs = TimeUnit.SECONDS.toMillis(60);
 
     @Inject
@@ -52,10 +51,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
      * Constructor for injection.
      *
      * @param c topics root
-     * @param k kernel
      */
     @Inject
-    public UpdateSystemSafelyService(Topics c, Kernel k) {
+    public UpdateSystemSafelyService(Topics c) {
         super(c);
     }
 
@@ -145,7 +143,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
             //      it's a big project and would affect many parts of the system.
             final long now = System.currentTimeMillis();
             long maxt = now;
-            while (System.currentTimeMillis() - now > defaultTimeOutInMs && deferRequestFutures.size() > 0) {
+            while ((System.currentTimeMillis() - now) < defaultTimeOutInMs && !deferRequestFutures.isEmpty()) {
                 Iterator<Future<DeferComponentUpdateRequest>> iterator = deferRequestFutures.iterator();
                 while (iterator.hasNext()) {
                     Future<DeferComponentUpdateRequest> fut = iterator.next();
@@ -155,6 +153,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
                             long timeToRecheck = now + deferRequest.getRecheckTimeInMs();
                             if (timeToRecheck > maxt) {
                                 maxt = timeToRecheck;
+                                logger.atInfo().setEventType("service-update-deferred")
+                                        .log("deferred by {} for {} millis", deferRequest.getComponentName(),
+                                                deferRequest.getRecheckTimeInMs());
                             }
                         } catch (ExecutionException e) {
                             //
@@ -184,4 +185,10 @@ public class UpdateSystemSafelyService extends EvergreenService {
             }
         }
     }
+
+    //only for testing
+    public void setDefaultTimeOutInMs(long defaultTimeOutInMs) {
+        this.defaultTimeOutInMs = defaultTimeOutInMs;
+    }
+
 }

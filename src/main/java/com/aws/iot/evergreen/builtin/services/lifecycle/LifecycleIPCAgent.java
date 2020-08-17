@@ -145,7 +145,6 @@ public class LifecycleIPCAgent implements InjectionActions {
                                                                           ConnectionContext context) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
         DeferComponentUpdateResponseBuilder responseBuilder = DeferComponentUpdateResponse.builder();
-
         if (!componentUpdateListeners.contains(context)) {
             return responseBuilder.responseStatus(LifecycleResponseStatus.InvalidRequest)
                     .errorMessage("Component is not subscribed to component update events").build();

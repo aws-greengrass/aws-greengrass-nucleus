@@ -18,12 +18,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,12 +37,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
-    public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
-    public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
     public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
-    public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
-    public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
-    public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
@@ -54,7 +46,6 @@ public class GenericExternalService extends EvergreenService {
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
     private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
-    private final List<Exec> safeUpdateProcesses = new CopyOnWriteArrayList<>();
 
     /**
      * Create a new GenericExternalService.
@@ -344,10 +335,6 @@ public class GenericExternalService extends EvergreenService {
 
     private synchronized void stopAllLifecycleProcesses() {
         stopProcesses(lifecycleProcesses);
-    }
-
-    private synchronized void stopAllSafeUpdateProcesses() {
-        stopProcesses(safeUpdateProcesses);
     }
 
     @SuppressWarnings("PMD.CloseResource")

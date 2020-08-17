@@ -4,13 +4,11 @@
 package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
-import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
@@ -22,7 +20,6 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
@@ -39,17 +36,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
 
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;

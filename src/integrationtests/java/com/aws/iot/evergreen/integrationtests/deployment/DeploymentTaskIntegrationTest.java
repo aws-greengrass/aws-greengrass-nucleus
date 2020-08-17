@@ -13,6 +13,12 @@ import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
+import com.aws.iot.evergreen.ipc.IPCClientImpl;
+import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
+import com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.exceptions.LifecycleIPCException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -63,6 +69,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.iot.evergreen.util.Utils.copyFolderRecursively;
@@ -370,6 +377,20 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("AddNewServiceWithSafetyCheck.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
+
+        KernelIPCClientConfig nonDisruptable = getIPCConfigForService("NonDisruptableService", kernel);
+        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
+        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
+
+        lifecycle.subscribeToComponentUpdate((event) -> {
+            if (event instanceof PreComponentUpdateEvent) {
+                try {
+                    lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
+                    ipcClient.disconnect();
+                } catch (LifecycleIPCException e) { }
+            }
+        });
+
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(evergreenService -> evergreenService instanceof GenericExternalService)
                 .map(evergreenService -> evergreenService.getName()).collect(Collectors.toList());
@@ -381,7 +402,7 @@ class DeploymentTaskIntegrationTest {
         CountDownLatch cdlUpdateStarted = new CountDownLatch(1);
         CountDownLatch cdlMergeCancelled = new CountDownLatch(1);
         Consumer<EvergreenStructuredLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().contains("checkIfSafeToUpdate decided it is unsafe to update now")) {
+            if (m.getMessage() != null && m.getMessage().contains("deferred by NonDisruptableService")) {
                 cdlUpdateStarted.countDown();
             }
             if (m.getMessage() != null && m.getMessage().contains("Cancelled deployment merge future due to interrupt")) {
