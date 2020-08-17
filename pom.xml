@@ -431,12 +431,12 @@
                                         <limit>
                                             <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.68</minimum>
+                                            <minimum>0.69</minimum>
                                         </limit>
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.63</minimum>
+                                            <minimum>0.64</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
@@ -458,12 +458,12 @@
                                         <limit>
                                             <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.53</minimum>
+                                            <minimum>0.57</minimum>
                                         </limit>
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.50</minimum>
+                                            <minimum>0.54</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
@@ -518,6 +518,25 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <phase>test-compile</phase>
+                        <goals><goal>compile</goal></goals>
+                        <id>test-resource-compile</id>
+                        <configuration>
+                            <compileSourceRoots><compileSourceRoot>
+                                src/integrationtests/resources/
+                            </compileSourceRoot></compileSourceRoots>
+                            <includes><include>**/PluginService*</include></includes>
+                            <outputDirectory>target/test-classes</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.2.0</version>
                 <executions>
@@ -525,6 +544,23 @@
                         <goals>
                             <goal>test-jar</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                        <id>generate-test-resource-jar</id>
+                        <configuration>
+                            <includes>
+                                <include>**/PluginService*</include>
+                            </includes>
+                            <classifier></classifier>
+                            <finalName>plugin</finalName>
+                            <outputDirectory>
+                                src/integrationtests/resources/com/aws/iot/evergreen/integrationtests/kernel/local_store_content/artifacts/plugin/1.0.0
+                            </outputDirectory>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

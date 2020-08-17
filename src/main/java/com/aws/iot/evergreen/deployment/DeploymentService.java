@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.deployment;
 
 
 import com.amazonaws.util.CollectionUtils;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
@@ -23,6 +24,7 @@ import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
@@ -39,8 +41,11 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -50,7 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import static com.aws.iot.evergreen.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
@@ -58,7 +65,9 @@ public class DeploymentService extends EvergreenService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
+    public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
+    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID = "groupDeploymentId";
 
     public static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -122,11 +131,13 @@ public class DeploymentService extends EvergreenService {
      * @param packageManager         {@link PackageManager}
      * @param kernelConfigResolver   {@link KernelConfigResolver}
      * @param deploymentConfigMerger {@link DeploymentConfigMerger}
+     * @param kernel                 {@link Kernel}
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       PackageManager packageManager, KernelConfigResolver kernelConfigResolver,
                       DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      DeploymentDirectoryManager deploymentDirectoryManager, Context context) {
+                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -136,6 +147,7 @@ public class DeploymentService extends EvergreenService {
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.deploymentDirectoryManager = deploymentDirectoryManager;
         this.context = context;
+        this.kernel = kernel;
     }
 
     @Override
@@ -213,6 +225,7 @@ public class DeploymentService extends EvergreenService {
             DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
                 DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
+
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("detailed-deployment-status", deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
@@ -220,6 +233,7 @@ public class DeploymentService extends EvergreenService {
                     DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
                     Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
                             deploymentDocument.getGroupName());
+
                     Map<Object, Object> deploymentGroupToRootPackages = new HashMap<>();
                     // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
                     //  removed from a thing group. Empty configuration is treated as a valid config for a group but
@@ -228,10 +242,13 @@ public class DeploymentService extends EvergreenService {
                         if (pkgConfig.isRootComponent()) {
                             Map<Object, Object> pkgDetails = new HashMap<>();
                             pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
+                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                                    deploymentDocument.getDeploymentId());
                             deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
                         }
                     });
                     deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);
+                    setComponentsToGroupsMapping(deploymentGroupTopics);
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
@@ -239,7 +256,7 @@ public class DeploymentService extends EvergreenService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        statusDetails.put("deployment-failure-cause", result.getFailureCause().toString());
+                        statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
                     //TODO: Update the groupToRootPackages mapping in config for the case where there is no rollback
                     // and now the packages deployed for the current group are not the same as before starting
@@ -294,20 +311,20 @@ public class DeploymentService extends EvergreenService {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
-                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask())
-                                .getDeploymentDocument().getDeploymentId());
+                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
+                                .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment was cancelled");
                 } else {
-                    logger.atInfo().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
                                     + "need to wait for it to finish");
                     try {
                         currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
                     } catch (ExecutionException | InterruptedException e) {
-                        logger.atError().kv("deploymentId", currentDeploymentTaskMetadata.getDeploymentId())
+                        logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Error while finishing "
                                         + "deployment, no-op since the deployment was canceled at the source");
                     }
@@ -322,13 +339,13 @@ public class DeploymentService extends EvergreenService {
     }
 
     private void createNewDeployment(Deployment deployment) {
-        logger.atInfo().kv("DeploymentId", deployment.getId())
+        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deployment.getId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
 
         DeploymentTask deploymentTask;
         boolean cancellable = true;
-        if (Deployment.DeploymentStage.DEFAULT.equals(deployment.getDeploymentStage())) {
+        if (DEFAULT.equals(deployment.getDeploymentStage())) {
             deploymentTask = createDefaultNewDeployment(deployment);
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
@@ -342,6 +359,7 @@ public class DeploymentService extends EvergreenService {
         try {
             deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
+            deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
             logger.atError().log("Unable to create deployment directory", ioException);
         }
@@ -354,7 +372,7 @@ public class DeploymentService extends EvergreenService {
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {
-        return new KernelUpdateDeploymentTask(kernel, logger, deployment);
+        return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment);
     }
 
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
@@ -373,7 +391,7 @@ public class DeploymentService extends EvergreenService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
-                deploymentConfigMerger, logger, deployment.getDeploymentDocumentObj(), config);
+                deploymentConfigMerger, logger.createChild(), deployment, config);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
@@ -429,5 +447,52 @@ public class DeploymentService extends EvergreenService {
 
     public DeploymentTaskMetadata getCurrentDeploymentTaskMetadata() {
         return currentDeploymentTaskMetadata;
+    }
+
+    private void setComponentsToGroupsMapping(Topics groupsToRootComponents) {
+        List<String> pendingComponentsList = new LinkedList<>();
+        Map<Object, Object> componentsToGroupsMappingCache = new ConcurrentHashMap<>();
+        Topics componentsToGroupsTopics = getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+        // Get all the groups associated to the root components.
+        groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
+            Topics componentTopics = (Topics) groupNode;
+
+            Topic groupDeploymentIdTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
+            String groupDeploymentId = Coerce.toString(groupDeploymentIdTopic);
+
+            Map<Object, Object> groupDeploymentIdSet = (Map<Object, Object>) componentsToGroupsMappingCache
+                    .getOrDefault(componentTopics.getName(), new HashMap<>());
+            groupDeploymentIdSet.putIfAbsent(groupDeploymentId, true);
+            componentsToGroupsMappingCache.put(componentTopics.getName(), groupDeploymentIdSet);
+            pendingComponentsList.add(componentTopics.getName());
+        });
+
+        // Associate the groups to the dependant services based on the services it is depending on.
+        while (!pendingComponentsList.isEmpty()) {
+            String componentName = pendingComponentsList.get(0);
+            try {
+                EvergreenService evergreenService = kernel.locate(componentName);
+                Map<Object, Object> groupNamesForComponent = (Map<Object, Object>) componentsToGroupsMappingCache
+                        .getOrDefault(evergreenService.getName(), new HashMap<>());
+
+                evergreenService.getDependencies().forEach((evergreenService1, dependencyType) -> {
+                    pendingComponentsList.add(evergreenService1.getName());
+                    Map<Object, Object> groupNamesForDependentComponent =
+                            (Map<Object, Object>) componentsToGroupsMappingCache
+                                    .getOrDefault(evergreenService1.getName(), new HashMap());
+                    groupNamesForDependentComponent.putAll(groupNamesForComponent);
+                    componentsToGroupsMappingCache.put(evergreenService1.getName(),
+                            groupNamesForDependentComponent);
+                });
+            } catch (ServiceLoadException ex) {
+                logger.atError().cause(ex).log("Unable to get status for {}.", componentName);
+            }
+            pendingComponentsList.remove(0);
+        }
+
+        if (componentsToGroupsTopics != null) {
+            componentsToGroupsTopics.replaceAndWait(componentsToGroupsMappingCache);
+        }
+
     }
 }

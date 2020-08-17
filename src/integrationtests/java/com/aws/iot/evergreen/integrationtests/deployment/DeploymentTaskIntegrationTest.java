@@ -9,8 +9,10 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DefaultDeploymentTask;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
@@ -64,6 +66,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -111,6 +114,8 @@ class DeploymentTaskIntegrationTest {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private Topics groupToRootComponentsTopics;
     private Topics deploymentServiceTopics;
+
+    private final AtomicInteger deploymentCount = new AtomicInteger();
 
     @TempDir
     static Path rootDir;
@@ -459,12 +464,16 @@ class DeploymentTaskIntegrationTest {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
+        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectoryIfNotExists(
+                "testFleetConfigArn" + deploymentCount.getAndIncrement());
+
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
-        DefaultDeploymentTask deploymentTask =
-                new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver, deploymentConfigMerger,
-                        logger, sampleJobDocument, deploymentServiceTopics);
+        DefaultDeploymentTask deploymentTask = new DefaultDeploymentTask(dependencyResolver, packageManager,
+                kernelConfigResolver, deploymentConfigMerger, logger, new Deployment(sampleJobDocument,
+                Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
+                deploymentServiceTopics);
         return executorService.submit(deploymentTask);
     }
 }

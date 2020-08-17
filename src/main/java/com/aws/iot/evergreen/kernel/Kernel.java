@@ -9,17 +9,21 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.DependencyOrder;
@@ -50,10 +54,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.iot.evergreen.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -68,6 +76,7 @@ public class Kernel {
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
+    private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
 
     @Getter
     private final Context context;
@@ -126,7 +135,6 @@ public class Kernel {
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
-        context.put(BootstrapManager.class, new BootstrapManager(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
         typeToClassMap.put("generic", GenericExternalService.class.getName());
@@ -157,13 +165,37 @@ public class Kernel {
     public Kernel launch() {
         BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
-        DeploymentStage stage = kernelCommandLine.getKernelAlternatives().determineDeploymentStage(
-                bootstrapManager, deploymentDirectoryManager);
+        KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
+        DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
 
         switch (stage) {
             case BOOTSTRAP:
-                // TODO: load pending bootstrap tasks. Start with one execution here. Flip symlinks. Update task list.
-                // System.exit(?)
+                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                int exitCode;
+                try {
+                    exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(
+                            deploymentDirectoryManager.getBootstrapTaskFilePath());
+                    if (!bootstrapManager.hasNext()) {
+                        logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
+                    }
+                    // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
+                    // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
+                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "kernel restart")
+                            + " requested to complete bootstrap task");
+
+                    shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
+                } catch (ServiceUpdateException | IOException e) {
+                    logger.atInfo().log("Deployment bootstrap failed", e);
+                    try {
+                        kernelAlts.prepareRollback();
+                        Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                        deployment.setStageDetails(e.getMessage());
+                        deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                    } catch (IOException ioException) {
+                        logger.atError().setCause(ioException).log("Something went wrong while preparing for rollback");
+                    }
+                    shutdown(30, 2);
+                }
                 break;
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:
@@ -206,7 +238,7 @@ public class Kernel {
      * Shutdown Kernel within the timeout and exit the process with the given code.
      *
      * @param timeoutSeconds Timeout in seconds
-     * @param exitCode exit code
+     * @param exitCode       exit code
      */
     public void shutdown(int timeoutSeconds, int exitCode) {
         kernelLifecycle.shutdown(timeoutSeconds, exitCode);
@@ -313,31 +345,40 @@ public class Kernel {
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
      */
-    @SuppressWarnings({"UseSpecificCatch", "PMD.AvoidCatchingThrowable"})
+    @SuppressWarnings(
+            {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
     public EvergreenService locate(String name) throws ServiceLoadException {
         return context.getValue(EvergreenService.class, name).computeObjectIfEmpty(v -> {
             Topics serviceRootTopics = findServiceTopic(name);
 
             Class<?> clazz = null;
             if (serviceRootTopics != null) {
-                Node n = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
-                String cn = null;
+                Topic classTopic = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
+                String className = null;
 
-                if (n == null) {
-                    n = serviceRootTopics.findLeafChild(SERVICE_TYPE_TOPIC_KEY);
-                    if (n != null) {
-                        cn = ((Map<String, String>) context.getvIfExists(SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
-                                .get(Coerce.toString(n).toLowerCase());
-                    }
+                // If a "class" is specified in the recipe, then use that
+                if (classTopic != null) {
+                    className = Coerce.toString(classTopic);
                 } else {
-                    cn = Coerce.toString(n);
+                    Topic componentTypeTopic = serviceRootTopics.findLeafChild(SERVICE_TYPE_TOPIC_KEY);
+                    // If a "componentType" is specified, then map that to a class
+                    if (componentTypeTopic != null) {
+                        className = ((Map<String, String>) context.getvIfExists(SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
+                                .get(Coerce.toString(componentTypeTopic).toLowerCase());
+                        // If the mapping didn't exist and the component type is "plugin", then load the service from a
+                        // plugin
+                        if (className == null && Coerce.toString(componentTypeTopic).toLowerCase()
+                                .equals(PLUGIN_SERVICE_TYPE_NAME)) {
+                            clazz = locateExternalPlugin(name, serviceRootTopics);
+                        }
+                    }
                 }
 
-                if (cn != null) {
+                if (className != null) {
                     try {
-                        clazz = Class.forName(cn);
+                        clazz = Class.forName(className);
                     } catch (Throwable ex) {
-                        throw new ServiceLoadException("Can't load service class from " + cn, ex);
+                        throw new ServiceLoadException("Can't load service class from " + className, ex);
                     }
                 }
             }
@@ -373,7 +414,7 @@ public class Kernel {
                     }
                     if (clazz.getAnnotation(ImplementsService.class) != null) {
                         topics.createLeafChild(VERSION_CONFIG_KEY)
-                                .withValue(clazz.getAnnotation(ImplementsService.class).version());
+                                .withNewerValue(0L, clazz.getAnnotation(ImplementsService.class).version());
                     }
 
                     logger.atInfo("evergreen-service-loaded").kv(EvergreenService.SERVICE_NAME_KEY, ret.getName())
@@ -398,6 +439,37 @@ public class Kernel {
             }
             return ret;
         });
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    private Class<?> locateExternalPlugin(String name, Topics serviceRootTopics) throws ServiceLoadException {
+        PackageIdentifier componentId = PackageIdentifier.fromServiceTopics(serviceRootTopics);
+        Path pluginJar = context.get(PackageStore.class).resolveArtifactDirectoryPath(componentId)
+                .resolve(componentId.getName() + JAR_FILE_EXTENSION);
+        if (!pluginJar.toFile().exists() || !pluginJar.toFile().isFile()) {
+            throw new ServiceLoadException(
+                    String.format("Unable to find %s because %s does not exist", name, pluginJar));
+        }
+        try {
+            AtomicReference<Class<?>> classReference = new AtomicReference<>();
+            EZPlugins ezPlugins = context.get(EZPlugins.class);
+            ezPlugins.loadPlugin(pluginJar, (sc) -> sc.matchClassesWithAnnotation(ImplementsService.class, (c) -> {
+                if (classReference.get() != null) {
+                    logger.atWarn().log("Multiple classes implementing service found in {} "
+                            + "for component {}. Using the first one found: {}", pluginJar, name, classReference.get());
+                    return;
+                }
+
+                // Only use the class whose name matches what we want
+                ImplementsService serviceImplementation = c.getAnnotation(ImplementsService.class);
+                if (serviceImplementation.name().equals(name)) {
+                    classReference.set(c);
+                }
+            }));
+            return classReference.get();
+        } catch (Throwable e) {
+            throw new ServiceLoadException(String.format("Unable to load %s as a plugin", name), e);
+        }
     }
 
 

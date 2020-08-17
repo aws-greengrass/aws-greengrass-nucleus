@@ -38,6 +38,7 @@ public class DeploymentStatusKeeperTest {
     private DeploymentService deploymentService;
 
     private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
+    private static final String DUMMY_SERVICE_NAME = "dummyService";
     private DeploymentStatusKeeper deploymentStatusKeeper;
     private Topics processedDeployments;
     private Context context;
@@ -63,13 +64,13 @@ public class DeploymentStatusKeeperTest {
     @Test
     public void WHEN_registering_deployment_status_consumer_multiple_times_THEN_registration_fails_after_first_attempt() {
         assertTrue(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER));
+                registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
         assertTrue(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER));
+                registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
         assertFalse(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER));
+                registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
         assertFalse(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER));
+                registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
     }
 
     @Test
@@ -78,13 +79,13 @@ public class DeploymentStatusKeeperTest {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> {
             updateOfTypeJobs.putAll(details);
             return true;
-        });
+        }, DUMMY_SERVICE_NAME);
 
         final Map<String, Object> updateOfTypeLocal = new HashMap<>();
         deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, (details) -> {
             updateOfTypeLocal.putAll(details);
             return true;
-        });
+        }, DUMMY_SERVICE_NAME);
 
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", LOCAL, JobStatus.SUCCEEDED, new HashMap<>());
@@ -98,7 +99,7 @@ public class DeploymentStatusKeeperTest {
 
     @Test
     public void GIVEN_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> true);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> true, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
         context.runOnPublishQueueAndWait(() -> {});
         assertEquals(0, processedDeployments.children.size());
@@ -106,7 +107,7 @@ public class DeploymentStatusKeeperTest {
 
     @Test
     public void GIVEN_deployment_status_update_WHEN_consumer_return_false_THEN_update_is_not_removed() {
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> false);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> false, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
         assertEquals(1, processedDeployments.children.size());
     }
@@ -119,7 +120,7 @@ public class DeploymentStatusKeeperTest {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> {
             consumerInvokeCount.getAndIncrement();
             return consumerReturnValue.get();
-        });
+        }, DUMMY_SERVICE_NAME);
         // DeploymentStatusKeeper will retain update as consumer returns false
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
         assertEquals(1, consumerInvokeCount.get());
