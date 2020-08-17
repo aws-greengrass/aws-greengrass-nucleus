@@ -266,7 +266,7 @@ public class GenericExternalService extends EvergreenService {
         stopAllLifecycleProcesses();
         logger.atInfo().setEventType("generic-service-shutdown").log();
     }
-
+    /*
     @Override
     public long whenIsDisruptionOK() {
         stopAllSafeUpdateProcesses();
@@ -313,7 +313,7 @@ public class GenericExternalService extends EvergreenService {
         // By default, if anything goes wrong we will assume it is not safe to update right now
         return Instant.now().plusSeconds(recheckSeconds).toEpochMilli();
     }
-
+    /*
     @Override
     public void disruptionCompleted() {
         stopAllSafeUpdateProcesses();
@@ -340,6 +340,7 @@ public class GenericExternalService extends EvergreenService {
             logger.atWarn().log("Error while running {}", UPDATES_COMPLETED_TOPIC_NAME, e);
         }
     }
+    */
 
     private synchronized void stopAllLifecycleProcesses() {
         stopProcesses(lifecycleProcesses);

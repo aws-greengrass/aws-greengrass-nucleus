@@ -10,11 +10,12 @@ import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
+import com.aws.iot.evergreen.ipc.services.lifecycle.DeferComponentUpdateRequest;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleClientOpCodes;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleGenericResponse;
-import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleListenRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleServiceOpCodes;
-import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
+import com.aws.iot.evergreen.ipc.services.lifecycle.UpdateStateRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
@@ -68,24 +69,27 @@ public class LifecycleIPCService extends EvergreenService {
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
             //TODO: add version compatibility check
-            LifecycleServiceOpCodes lifecycleServiceOpCodes =
-                    LifecycleServiceOpCodes.values()[applicationMessage.getOpCode()];
+            LifecycleClientOpCodes lifecycleClientOpCodes =
+                    LifecycleClientOpCodes.values()[applicationMessage.getOpCode()];
             LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse();
-            switch (lifecycleServiceOpCodes) {
-                case REGISTER_LISTENER:
-                    LifecycleListenRequest listenRequest =
-                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), LifecycleListenRequest.class);
-                    lifecycleGenericResponse = agent.listenToStateChanges(listenRequest, context);
+            switch (lifecycleClientOpCodes) {
+                case UPDATE_STATE:
+                    UpdateStateRequest updateStateRequest =
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), UpdateStateRequest.class);
+                    lifecycleGenericResponse = agent.updateState(updateStateRequest, context);
                     break;
-                case REPORT_STATE:
-                    StateChangeRequest stateChangeRequest =
-                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), StateChangeRequest.class);
-                    lifecycleGenericResponse = agent.reportState(stateChangeRequest, context);
+                case SUBSCRIBE_COMPONENT_UPDATE:
+                    lifecycleGenericResponse = agent.subscribeToComponentUpdate(context);
+                    break;
+                case DEFER_COMPONENT_UPDATE:
+                    DeferComponentUpdateRequest deferUpdateRequest =
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), DeferComponentUpdateRequest.class);
+                    lifecycleGenericResponse = agent.handleDeferComponentUpdateRequest(deferUpdateRequest, context);
                     break;
                 default:
                     lifecycleGenericResponse.setStatus(LifecycleResponseStatus.InvalidRequest);
                     lifecycleGenericResponse
-                            .setErrorMessage("Unknown request type " + lifecycleServiceOpCodes.toString());
+                            .setErrorMessage("Unknown request type " + lifecycleClientOpCodes.toString());
                     break;
             }
 
@@ -95,9 +99,8 @@ public class LifecycleIPCService extends EvergreenService {
         } catch (Throwable e) {
             logger.atError().setEventType("lifecycle-error").setCause(e).log("Failed to handle message");
             try {
-                LifecycleGenericResponse response =
-                        LifecycleGenericResponse.builder().status(LifecycleResponseStatus.InternalError)
-                                .errorMessage(e.getMessage()).build();
+                LifecycleGenericResponse response = new LifecycleGenericResponse(LifecycleResponseStatus.InternalError,
+                        e.getMessage());
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
                                 .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();

@@ -153,24 +153,6 @@ class IPCServicesTest {
     }
 
     @Test
-    void lifecycleTest(ExtensionContext context) throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        LifecycleImpl c = new LifecycleImpl(client);
-
-        Pair<CompletableFuture<Void>, BiConsumer<String, String>> p = TestUtils.asyncAssertOnBiConsumer((a, b) -> {
-            assertEquals(State.RUNNING.toString(), a);
-            assertEquals(State.ERRORED.toString(), b);
-        });
-
-        ignoreExceptionOfType(context, TimeoutException.class);
-
-        c.listenToStateChanges("ServiceName", p.getRight());
-        c.reportState("ERRORED");
-        p.getLeft().get(500, TimeUnit.MILLISECONDS);
-    }
-
-    @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
