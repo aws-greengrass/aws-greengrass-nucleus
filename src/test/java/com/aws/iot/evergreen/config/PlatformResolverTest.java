@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.config;
 
+import com.aws.iot.evergreen.packagemanager.models.Platform;
+import com.aws.iot.evergreen.packagemanager.models.PlatformSpecificRecipe;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -14,11 +16,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(EGExtension.class)
 public class PlatformResolverTest {
@@ -59,4 +59,105 @@ public class PlatformResolverTest {
             }
         }
     }
+
+    @Test
+    public void testCurrentPlatform() throws Exception {
+        // TODO: move to UAT test
+        System.out.println(PlatformResolver.CURRENT_PLATFORM);
+    }
+
+    @Test
+    public void GIVEN_platform_WHEN_getClosestPlatform_THEN_correct_recipe_returned() throws Exception {
+        Platform platformToTest = Platform.builder()
+                .os(Platform.OS_linux)
+                .osFlavor(Platform.OS_UBUNTU)
+                .architecture("amd64")
+                .build();
+
+        PlatformSpecificRecipe recipeCandidate1 = createRecipeForPlatform(Platform.builder()
+                .architecture("amd64")
+                .os(Platform.OS_linux)
+                .osFlavor(Platform.OS_UBUNTU)
+                .build());
+
+        PlatformSpecificRecipe recipeCandidate2 = createRecipeForPlatform(Platform.builder()
+                .architecture("amd64")
+                .os(Platform.OS_linux)
+                .build());
+
+        PlatformSpecificRecipe recipeCandidate3 = createRecipeForPlatform(Platform.builder()
+                .os(Platform.OS_linux)
+                .osFlavor(Platform.OS_UBUNTU)
+                .build());
+
+        PlatformSpecificRecipe recipeCandidate4 = createRecipeForPlatform(Platform.builder()
+                .os(Platform.OS_linux)
+                .build());
+
+        PlatformSpecificRecipe recipeCandidate5 = createRecipeForPlatform(Platform.builder()
+                .build());
+
+        PlatformSpecificRecipe recipeCandidate_notApplicable = createRecipeForPlatform(Platform.builder()
+                .os(Platform.OS_WINDOWS)
+                .build());
+
+        List<PlatformSpecificRecipe> platformSpecificRecipeList = new ArrayList<>();
+
+        Optional<PlatformSpecificRecipe> result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+                recipeCandidate1,
+                recipeCandidate2,
+                recipeCandidate3,
+                recipeCandidate4,
+                recipeCandidate5,
+                recipeCandidate_notApplicable));
+
+        assertTrue(result.isPresent());
+        assertEquals(recipeCandidate1, result.get());
+
+        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+                recipeCandidate2,
+                recipeCandidate3,
+                recipeCandidate4,
+                recipeCandidate5,
+                recipeCandidate_notApplicable));
+
+        assertTrue(result.isPresent());
+        assertEquals(recipeCandidate2, result.get());
+
+        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+                recipeCandidate3,
+                recipeCandidate4,
+                recipeCandidate5,
+                recipeCandidate_notApplicable));
+
+        assertTrue(result.isPresent());
+        assertEquals(recipeCandidate3, result.get());
+
+        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+                recipeCandidate4,
+                recipeCandidate5,
+                recipeCandidate_notApplicable));
+
+        assertTrue(result.isPresent());
+        assertEquals(recipeCandidate4, result.get());
+
+        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+                recipeCandidate5,
+                recipeCandidate_notApplicable));
+
+        assertTrue(result.isPresent());
+        assertEquals(recipeCandidate5, result.get());
+
+        result = PlatformResolver.getClosestPlatform(platformToTest, Arrays.asList(
+                recipeCandidate_notApplicable));
+
+        assertFalse(result.isPresent());
+    }
+
+    private PlatformSpecificRecipe createRecipeForPlatform(Platform platform) {
+        PlatformSpecificRecipe recipe = new PlatformSpecificRecipe();
+        recipe.setPlatform(platform);
+        return recipe;
+    }
+
 }

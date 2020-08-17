@@ -79,7 +79,7 @@ public class PackageRecipe {
      * @param componentType         Type of component to be created
      * @throws SemverException if the semver fails to be created
      */
-//    @JsonCreator
+    //    @JsonCreator
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
                          @JsonProperty("ComponentName") String componentName, @JsonProperty("Version") Semver version,
@@ -91,7 +91,7 @@ public class PackageRecipe {
 
                                      Map<String, RecipeDependencyProperties> dependencies,
                         String componentType
-//                         @JsonProperty("Platforms2") List<PlatformSpecificRecipe> platformSpecificRecipes
+    //                     @JsonProperty("Platforms2") List<PlatformSpecificRecipe> platformSpecificRecipes
     ) {
 
         System.out.println("Wrong");
