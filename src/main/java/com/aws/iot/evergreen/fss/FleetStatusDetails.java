@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.fss;
 
+import com.aws.iot.evergreen.util.CommonPayload;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,7 +18,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FleetStatusDetails {
+public class FleetStatusDetails implements CommonPayload<ComponentStatusDetails> {
     private String ggcVersion;
 
     private String platform;
@@ -32,4 +33,9 @@ public class FleetStatusDetails {
 
     @JsonProperty("components")
     private List<ComponentStatusDetails> componentStatusDetails;
+
+    @Override
+    public void setVariablePayload(List<ComponentStatusDetails> variablePayload) {
+        this.setComponentStatusDetails(variablePayload);
+    }
 }

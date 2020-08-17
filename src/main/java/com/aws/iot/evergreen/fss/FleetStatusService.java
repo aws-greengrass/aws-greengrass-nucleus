@@ -17,15 +17,12 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqtt.PublishRequest;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aws.iot.evergreen.util.MqttChunkedPayloadPublisher;
 import lombok.Getter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.time.Instant;
@@ -59,7 +56,6 @@ public class FleetStatusService extends EvergreenService {
     static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
-    private static final ObjectMapper SERIALIZER = new ObjectMapper();
     private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
 
@@ -69,6 +65,7 @@ public class FleetStatusService extends EvergreenService {
     private final Kernel kernel;
     private final String architecture;
     private final String platform;
+    private final MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
@@ -113,7 +110,10 @@ public class FleetStatusService extends EvergreenService {
         this.mqttClient = mqttClient;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.kernel = kernel;
+        this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = System.getProperty("os.arch");
+
+        this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
 
         // TODO: Make this more robust to handle all platforms.
         this.platform = System.getProperty("os.name");
@@ -150,6 +150,7 @@ public class FleetStatusService extends EvergreenService {
         if (newThingName != null) {
             thingName = newThingName;
             updateFssDataTopic = fleetStatusServicePublishTopic.replace("{thingName}", thingName);
+            this.publisher.setUpdateFssDataTopic(updateFssDataTopic);
         }
     }
 
@@ -174,7 +175,8 @@ public class FleetStatusService extends EvergreenService {
             updateEventTriggeredFleetStatusData();
         }
 
-        // Add some jitter as an initial delay.
+        // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
+        // we don't want all the devices to send the periodic update for fleet statuses at the same time.
         long initialDelay = RandomUtils.nextLong(0, periodicUpdateIntervalSec);
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
@@ -345,27 +347,7 @@ public class FleetStatusService extends EvergreenService {
                 .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
                 .build();
-        try {
-            int payloadVariableInformationSize = SERIALIZER.writeValueAsBytes(components).length;
-            int payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(fleetStatusDetails).length;
-
-            // The number of chunks to send would be the component byte size divided by the available bytes in per
-            // publish message after adding the fleet status information.
-            int numberOfChunks = Math.floorDiv(payloadVariableInformationSize,
-                    MAX_PAYLOAD_LENGTH_BYTES - payloadCommonInformationSize) + 1;
-            int start = 0;
-            int numberOfComponentsPerPublish = Math.floorDiv(components.size(), numberOfChunks);
-            for (int chunkId = 0; chunkId < numberOfChunks; chunkId++, start += numberOfComponentsPerPublish) {
-                fleetStatusDetails.setComponentStatusDetails(components.subList(start,
-                        start + numberOfComponentsPerPublish));
-                this.mqttClient.publish(PublishRequest.builder()
-                        .qos(QualityOfService.AT_LEAST_ONCE)
-                        .topic(this.updateFssDataTopic)
-                        .payload(SERIALIZER.writeValueAsBytes(fleetStatusDetails)).build());
-            }
-        } catch (JsonProcessingException e) {
-            logger.atError().cause(e).log("Unable to publish fleet status service.");
-        }
+        publisher.publish(components, fleetStatusDetails);
     }
 
     private Topic getSequenceNumberTopic() {
