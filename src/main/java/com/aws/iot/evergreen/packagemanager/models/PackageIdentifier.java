@@ -1,5 +1,7 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -8,6 +10,8 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.Value;
+
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 @JsonSerialize
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -25,7 +29,8 @@ public class PackageIdentifier {
 
     /**
      * PackageIdentifier constructor.
-     * @param name package name
+     *
+     * @param name    package name
      * @param version package version in semver
      */
     @Deprecated  //scope needs to be recorded locally, switch to use all args constructor
@@ -39,5 +44,9 @@ public class PackageIdentifier {
     @Override
     public String toString() {
         return String.format("%s-v%s", name, version);
+    }
+
+    public static PackageIdentifier fromServiceTopics(Topics t) {
+        return new PackageIdentifier(t.getName(), new Semver(Coerce.toString(t.findLeafChild(VERSION_CONFIG_KEY))));
     }
 }

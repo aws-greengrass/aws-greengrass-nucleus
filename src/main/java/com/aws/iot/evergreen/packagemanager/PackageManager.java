@@ -122,7 +122,6 @@ public class PackageManager implements InjectionActions {
 
             packageMetadataList.remove(activePackageMetadata);
             packageMetadataList.add(0, activePackageMetadata);
-
         }
 
         try {
