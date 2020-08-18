@@ -78,6 +78,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
             logger.atInfo("download-artifact-from-greengrass-repo").addKeyValue("packageIdentifier", packageIdentifier)
                     .addKeyValue("artifactUri", artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
+            return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
         }
         return null;
     }

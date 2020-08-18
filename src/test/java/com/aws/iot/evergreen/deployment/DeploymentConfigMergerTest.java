@@ -109,6 +109,7 @@ public class DeploymentConfigMergerTest {
         when(kernel.locate("existingService")).thenReturn(existingService);
         EvergreenService newService = mock(EvergreenService.class);
         when(kernel.locate("newService")).thenReturn(newService);
+        when(newService.shouldAutoStart()).thenReturn(true);
         assertEquals(newOrderedSet(newService, existingService), manager.servicesToTrack());
 
         // test startNewServices()
@@ -130,10 +131,10 @@ public class DeploymentConfigMergerTest {
             throws Exception {
         // GIVEN
         EvergreenService oldService = createMockEvergreenService("oldService", kernel);
-        when(oldService.isAutostart()).thenReturn(false);
+        when(oldService.isBuiltin()).thenReturn(false);
 
         EvergreenService existingAutoStartService = createMockEvergreenService("existingAutoStartService", kernel);
-        when(existingAutoStartService.isAutostart()).thenReturn(true);
+        when(existingAutoStartService.isBuiltin()).thenReturn(true);
 
         EvergreenService existingService = createMockEvergreenService("existingService", kernel);
 
@@ -179,6 +180,35 @@ public class DeploymentConfigMergerTest {
         // assert obsolete service is removed from context and config.
         verify(oldServiceTopics, times(1)).remove();
         verify(context, times(1)).remove("oldService");
+    }
+
+    @Test
+    public void GIVEN_AggregateServicesChangeManager_WHEN_startNewServices_THEN_start_services_should_auto_start()
+            throws Exception {
+        // setup
+        EvergreenService builtinService = mock(EvergreenService.class);
+        when(kernel.locate("builtinService")).thenReturn(builtinService);
+        when(builtinService.shouldAutoStart()).thenReturn(true);
+
+        EvergreenService userLambdaService = mock(EvergreenService.class);
+        when(kernel.locate("userLambdaService")).thenReturn(userLambdaService);
+        when(userLambdaService.shouldAutoStart()).thenReturn(false);
+
+        Collection<EvergreenService> orderedDependencies = Arrays.asList();
+        when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
+
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put("builtinService", new Object());
+        newConfig.put("userLambdaService", new Object());
+
+        DeploymentConfigMerger.AggregateServicesChangeManager manager =
+                new DeploymentConfigMerger.AggregateServicesChangeManager(kernel, newConfig);
+        assertEquals(newOrderedSet("builtinService", "userLambdaService"), manager.getServicesToAdd());
+
+        // test startNewServices()
+        manager.startNewServices();
+        verify(builtinService, times(1)).requestStart();
+        verify(userLambdaService, times(0)).requestStart();
     }
 
     @Test

@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
 public class EZPlugins {
-    private static final String JAR_FILE_EXTENSION = ".jar";
+    public static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
     private Path trustedCacheDirectory;
@@ -80,6 +80,27 @@ public class EZPlugins {
     private void loadPlugins(boolean trusted, Path p) throws IOException {
         URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()});
         loadPlugins(trusted, cl);
+    }
+
+    /**
+     * Load a single plugin with the classpath scanner.
+     * @param p path to jar file
+     * @param matcher matcher to use
+     * @throws IOException if loading the class fails
+     */
+    // Class loader must stay open, otherwise we won't be able to load all classes from the jar
+    @SuppressWarnings("PMD.CloseResource")
+    public ClassLoader loadPlugin(Path p, Consumer<FastClasspathScanner> matcher) throws IOException {
+        URL[] urls = {p.toUri().toURL()};
+        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
+            URLClassLoader cl = new URLClassLoader(urls);
+            FastClasspathScanner sc = new FastClasspathScanner();
+            sc.ignoreParentClassLoaders();
+            sc.addClassLoader(cl);
+            matcher.accept(sc);
+            sc.scan();
+            return cl;
+        });
     }
 
     /**
