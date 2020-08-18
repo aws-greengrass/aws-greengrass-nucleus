@@ -23,7 +23,7 @@ public class ServiceEventHelper {
     private static final int TIMEOUT_SECONDS = 30;
 
     @Inject
-    ExecutorService executor;
+    private ExecutorService executor;
 
     /**
      * Asynchronously sends requested event to requested IPC channel.
