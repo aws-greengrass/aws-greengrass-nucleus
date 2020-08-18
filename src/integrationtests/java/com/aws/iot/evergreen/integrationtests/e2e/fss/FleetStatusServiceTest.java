@@ -116,7 +116,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         componentNames.add(getCloudDeployedComponent("CustomerApp").getName());
         componentNames.add(getCloudDeployedComponent("GreenSignal").getName());
         kernel.orderedDependencies().forEach(evergreenService -> {
-            if(evergreenService.isAutostart() || evergreenService.getName().equals("main")) {
+            if(evergreenService.isBuiltin() || evergreenService.getName().equals("main")) {
                 componentNames.add(evergreenService.getName());
             }
         });
