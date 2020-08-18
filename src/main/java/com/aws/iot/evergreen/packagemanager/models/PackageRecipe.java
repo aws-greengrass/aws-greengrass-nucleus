@@ -133,7 +133,7 @@ public class PackageRecipe {
     public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
                          @JsonProperty("ComponentName") String componentName, @JsonProperty("Version") Semver version,
                          @JsonProperty("Description") String description, @JsonProperty("Publisher") String publisher,
-                         @JsonProperty("Platforms2") List<PlatformSpecificRecipe> platformSpecificRecipes
+                         @JsonProperty("Platforms") List<PlatformSpecificRecipe> platformSpecificRecipes
     ) {
 
         System.out.println("Right");
@@ -145,7 +145,11 @@ public class PackageRecipe {
         this.version = new Semver(version.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
+
+        // resolve
         this.platforms = null;
+
+        // PlatformSpecificRecipe
         this.packageParameters = null;
         this.lifecycle = null;
         this.artifacts = null;

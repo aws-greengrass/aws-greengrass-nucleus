@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.packagemanager.common.ComponentRecipe;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.MapperFeature;
@@ -66,6 +67,10 @@ public final class TestHelper {
 
     public static PackageRecipe getPackageObject(String recipe) throws IOException {
         return SerializerFactory.getRecipeSerializer().readValue(recipe, PackageRecipe.class);
+    }
+
+    public static ComponentRecipe getComponentRecipeObject(String recipe) throws IOException {
+        return SerializerFactory.getRecipeSerializer().readValue(recipe, ComponentRecipe.class);
     }
 
     public static String getPackageRecipeForTestPackage(String testPackageName, String testPackageVersion)

@@ -1,0 +1,17 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: HelloWorld
+Description: HelloWorld
+Publisher: Greenseer Team
+Version: '1.0.0'
+Platforms:
+  - Platform:
+      os: Darwin
+      architecture: arm64
+      os.flavor: ubuntu
+      os.version: ^10.1
+      architecture.variant: armv8
+    Lifecycle:
+      run:
+        echo "Hello evergreen from Darwin"
+

@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.packagemanager;
 import com.aws.iot.evergreen.constants.FileSuffix;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.common.ComponentRecipe;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
@@ -111,7 +112,11 @@ public class PackageStore {
 
         try {
             // TODO Add validation to validate recipe retried matches pkgId
-            return Optional.of(RECIPE_SERIALIZER.readValue(recipeContent, PackageRecipe.class));
+            System.out.println(new String(recipeContent));  //TODO Remove
+
+            ComponentRecipe componentRecipe = RECIPE_SERIALIZER.readValue(recipeContent, ComponentRecipe.class);
+            componentRecipe.getPlatformSpecificRecipes();
+
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
         }

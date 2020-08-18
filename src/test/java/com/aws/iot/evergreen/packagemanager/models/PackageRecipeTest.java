@@ -59,17 +59,21 @@ public class PackageRecipeTest {
         assertThat(testPkg.getRecipeTemplateVersion(), is(RecipeTemplateVersion.JAN_25_2020));
         assertThat(testPkg.getRecipeTemplateVersion().getRecipeTemplateVersion(), is("2020-01-25"));
 
-        assertThat(testPkg.getLifecycle().size(), is(2));
-        assertThat(testPkg.getLifecycle(), IsMapContaining.hasKey("run"));
+        assertThat(testPkg.getPlatformSpecificRecipes().size(), is(1));
+
+
+        PlatformSpecificRecipe platformSpecificRecipe = testPkg.getPlatformSpecificRecipes().get(0);
+        assertThat(platformSpecificRecipe.getLifecycle().size(), is(2));
+        assertThat(platformSpecificRecipe.getLifecycle(), IsMapContaining.hasKey("run"));
 
         // TODO: Check for providers
-        assertThat(testPkg.getArtifacts().get("all"), IsCollectionWithSize.hasSize(1));
+        assertThat(platformSpecificRecipe.getArtifacts().get("all"), IsCollectionWithSize.hasSize(1));
 
-        Map<String, RecipeDependencyProperties> dependencies = testPkg.getDependencies();
+        Map<String, RecipeDependencyProperties> dependencies = platformSpecificRecipe.getDependencies();
         assertThat(dependencies.size(), is(1));
         assertThat(dependencies, IsMapContaining.hasEntry("mac-log", new RecipeDependencyProperties("1.0")));
 
-        Set<PackageParameter> paramList = testPkg.getPackageParameters();
+        Set<PackageParameter> paramList = platformSpecificRecipe.getPackageParameters();
         assertThat(paramList.isEmpty(), is(false));
         PackageParameter parameter = new PackageParameter("TestParam", "TestVal", "String");
         assertThat(paramList.contains(parameter), is(true));

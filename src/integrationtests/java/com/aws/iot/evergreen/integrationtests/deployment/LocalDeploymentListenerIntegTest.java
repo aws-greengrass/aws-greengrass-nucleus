@@ -2,6 +2,8 @@ package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.LocalDeploymentListener;
+import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -75,7 +77,7 @@ class LocalDeploymentListenerIntegTest {
 
         CountDownLatch customerAppRunningLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if ("CustomerApp".equals(service.getName()) && newState.equals(State.RUNNING)) {
+            if ("HelloWorld".equals(service.getName()) && newState.equals(State.RUNNING)) {
                 customerAppRunningLatch.countDown();
             }
         });
@@ -84,21 +86,11 @@ class LocalDeploymentListenerIntegTest {
         ListComponentsResult listComponentsResult =
                 OBJECT_MAPPER.readValue(localDeploymentListener.listComponents(), ListComponentsResult.class);
 
-        assertThat(listComponentsResult.getRootPackages(), hasItem("CustomerApp"));
-        ComponentInfo customerApp =
-                listComponentsResult.getComponentsInfo().stream().filter(c -> c.getPackageName().equals("CustomerApp"))
-                        .findAny().get();
-        assertEquals("CustomerApp", customerApp.getPackageName());
-        assertEquals("1.0.0", customerApp.getVersion());
-        assertEquals("This is a test", customerApp.getRuntimeParameters().get("sampleText"));
+        assertThat(listComponentsResult.getRootPackages(), hasItem("HelloWorld"));
 
-        ComponentInfo mosquittoApp =
-                listComponentsResult.getComponentsInfo().stream().filter(c -> c.getPackageName().equals("Mosquitto"))
-                        .findAny().get();
-        assertNotNull(mosquittoApp);
-        ComponentInfo greenSignalApp =
-                listComponentsResult.getComponentsInfo().stream().filter(c -> c.getPackageName().equals("GreenSignal"))
-                        .findAny().get();
-        assertNotNull(greenSignalApp);
+        GenericExternalService helloWorldService =
+                (GenericExternalService) kernel.locate("HelloWorld");
+        helloWorldService.getServiceConfig();
+
     }
 }

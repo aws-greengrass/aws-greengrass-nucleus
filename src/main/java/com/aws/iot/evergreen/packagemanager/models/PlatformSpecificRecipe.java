@@ -41,8 +41,6 @@ public class PlatformSpecificRecipe {
     private Map<String, Object> lifecycle;
 
     @JsonProperty("Artifacts")
-    @JsonDeserialize(
-            using = PackageRecipe.MapFieldDeserializer.class)
     private Map<String, List<ComponentArtifact>> artifacts;
 
     @JsonProperty("Dependencies")

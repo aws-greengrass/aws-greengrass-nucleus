@@ -1,7 +1,7 @@
 {
   "requestId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
   "componentsToMerge": {
-    "CustomerApp": "1.0.0"
+    "HelloWorld": "1.0.0"
   },
   "requestTimestamp": 1592574829000
 }

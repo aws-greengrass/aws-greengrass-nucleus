@@ -5,7 +5,7 @@ Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
 
-Platforms2:
+Platforms:
   - Platform:
       os: any
     Parameters:
