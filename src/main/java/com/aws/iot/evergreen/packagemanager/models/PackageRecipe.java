@@ -16,9 +16,12 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Singular;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,9 +31,11 @@ import java.util.Map;
 import java.util.Set;
 
 @Getter
-@NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@JsonIgnoreProperties(ignoreUnknown = true)
+//@NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
+//@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+//@JsonIgnoreProperties(ignoreUnknown = true)
+@AllArgsConstructor
+@Builder
 public class PackageRecipe {
     private static final String DEPENDENCY_VERSION_REQUIREMENTS_KEY = "versionrequirements";
     private static final String DEPENDENCY_TYPE_KEY = "dependencytype";
@@ -38,30 +43,28 @@ public class PackageRecipe {
     // TODO: Will be used for schema versioning in the future
     private final RecipeTemplateVersion recipeTemplateVersion;
 
-    @EqualsAndHashCode.Include
+//    @EqualsAndHashCode.Include
     private final String componentName;
 
     private final String componentType;
 
-    @EqualsAndHashCode.Include
+//    @EqualsAndHashCode.Include
     private Semver version;
 
     private final String description;
 
     private final String publisher;
 
-    private final List<PlatformSpecificRecipe> platformSpecificRecipes;
-
     private final Set<PackageParameter> packageParameters;
 
-    private final List<String> platforms;
+    @Builder.Default
+    private Map<String, Object> lifecycle = Collections.emptyMap();
 
-    private final Map<String, Object> lifecycle;
+    @Builder.Default
+    private Map<String, List<ComponentArtifact>> artifacts = Collections.emptyMap();
 
-
-    private final Map<String, List<ComponentArtifact>> artifacts;
-
-    private final Map<String, RecipeDependencyProperties> dependencies;
+    @Builder.Default
+    private Map<String, RecipeDependencyProperties> dependencies = Collections.emptyMap();
 
     /**
      * Constructor for Jackson to deserialize.
@@ -102,13 +105,11 @@ public class PackageRecipe {
         this.version = new Semver(version.toString(), Semver.SemverType.NPM);
         this.description = description;
         this.publisher = publisher;
-        this.platforms = platforms;
         this.packageParameters = packageParameters == null ? Collections.emptySet() : packageParameters;
         this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
         this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
         this.componentType = componentType;
-        this.platformSpecificRecipes = null;
     }
 
 
@@ -147,7 +148,6 @@ public class PackageRecipe {
         this.publisher = publisher;
 
         // resolve
-        this.platforms = null;
 
         // PlatformSpecificRecipe
         this.packageParameters = null;
@@ -155,7 +155,6 @@ public class PackageRecipe {
         this.artifacts = null;
         this.dependencies = null;
         this.componentType = null;
-        this.platformSpecificRecipes = platformSpecificRecipes;
     }
 
 

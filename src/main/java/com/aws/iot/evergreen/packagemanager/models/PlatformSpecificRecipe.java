@@ -33,19 +33,19 @@ public class PlatformSpecificRecipe {
     private Platform platform;
 
     @JsonProperty("Parameters")
-    private Set<PackageParameter> packageParameters;
+    private Set<PackageParameter> packageParameters = Collections.emptySet();
 
     @JsonProperty("Lifecycle")
     @JsonDeserialize(
             using = PackageRecipe.MapFieldDeserializer.class)
-    private Map<String, Object> lifecycle;
+    private Map<String, Object> lifecycle = Collections.emptyMap();
 
     @JsonProperty("Artifacts")
-    private Map<String, List<ComponentArtifact>> artifacts;
+    private Map<String, List<ComponentArtifact>> artifacts = Collections.emptyMap();
 
     @JsonProperty("Dependencies")
     @JsonDeserialize(using = DependencyMapDeserializer.class)
-    private Map<String, RecipeDependencyProperties> dependencies;
+    private Map<String, RecipeDependencyProperties> dependencies = Collections.emptyMap();
 
 
     private static class DependencyMapDeserializer extends JsonDeserializer<Map<String, RecipeDependencyProperties>> {

@@ -6,11 +6,15 @@
 package com.aws.iot.evergreen.packagemanager.models;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Builder
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Platform {
     public static final String OS_WINDOWS = "windows";
     public static final String OS_linux = "linux";

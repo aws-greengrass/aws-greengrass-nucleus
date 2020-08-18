@@ -6,12 +6,23 @@ Publisher: Greenseer Team
 Version: '1.0.0'
 Platforms:
   - Platform:
-      os: Darwin
-      architecture: arm64
-      os.flavor: ubuntu
-      os.version: ^10.1
-      architecture.variant: armv8
+      os: darwin
+      architecture: amd64
+      os.flavor: macos
+      os.version: '>10.1'
     Lifecycle:
       run:
         echo "Hello evergreen from Darwin"
 
+  - Platform:
+      os: linux
+      os.flavor: debian
+    Lifecycle:
+      run:
+        echo "Hello evergreen from Debian"
+
+  - Platform:
+      os: all
+    Lifecycle:
+      run:
+        echo "Hello evergreen from All"

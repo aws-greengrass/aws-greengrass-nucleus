@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.constants.FileSuffix;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -13,6 +14,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingExcept
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.packagemanager.models.PlatformSpecificRecipe;
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.aws.iot.evergreen.util.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -115,7 +117,24 @@ public class PackageStore {
             System.out.println(new String(recipeContent));  //TODO Remove
 
             ComponentRecipe componentRecipe = RECIPE_SERIALIZER.readValue(recipeContent, ComponentRecipe.class);
-            componentRecipe.getPlatformSpecificRecipes();
+            Optional<PlatformSpecificRecipe> optionalPlatformSpecificRecipe =
+                    PlatformResolver.findBestMatch(componentRecipe.getPlatformSpecificRecipes());
+
+            if (optionalPlatformSpecificRecipe.isPresent()) {
+                // convert
+                PlatformSpecificRecipe platformSpecificRecipe = optionalPlatformSpecificRecipe.get();
+                PackageRecipe packageRecipe = PackageRecipe.builder().componentName(componentRecipe.getComponentName())
+                        .version(componentRecipe.getVersion()).publisher(componentRecipe.getPublisher())
+                        .recipeTemplateVersion(componentRecipe.getRecipeTemplateVersion())
+                        .dependencies(platformSpecificRecipe.getDependencies())
+                        .artifacts(platformSpecificRecipe.getArtifacts())
+                        .lifecycle(platformSpecificRecipe.getLifecycle())
+                        .packageParameters(platformSpecificRecipe.getPackageParameters()).build();
+                return Optional.of(packageRecipe);
+            }
+
+            logger.atInfo().log("Recipe file found but no match for platform."); // TODO Enrich
+            return Optional.empty();
 
         } catch (IOException e) {
             throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
@@ -150,8 +169,8 @@ public class PackageStore {
      */
     PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
         Map<String, String> dependencyMetadata = new HashMap<>();
-        getPackageRecipe(pkgId).getDependencies().forEach((name, prop) ->
-                dependencyMetadata.put(name, prop.getVersionRequirements()));
+        getPackageRecipe(pkgId).getDependencies()
+                .forEach((name, prop) -> dependencyMetadata.put(name, prop.getVersionRequirements()));
         return new PackageMetadata(pkgId, dependencyMetadata);
     }
 
@@ -218,6 +237,7 @@ public class PackageStore {
 
     /**
      * Resolve the artifact unpack directory path and creates the directory if absent.
+     *
      * @param packageIdentifier packageIdentifier
      * @return artifact unpack directory path
      * @throws PackageLoadingException if un-able to create artifact unpack directory path

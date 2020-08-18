@@ -5,7 +5,10 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.models.Platform;
 import com.aws.iot.evergreen.packagemanager.models.PlatformSpecificRecipe;
 import com.aws.iot.evergreen.util.Exec;
+import com.vdurmont.semver4j.Requirement;
+import com.vdurmont.semver4j.Semver;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -118,22 +121,19 @@ public final class PlatformResolver {
             result.osVersion(System.getProperty("os.version"));
         } else if (RANKS.get().containsKey("linux")) {
             result.os(Platform.OS_linux);
-            result.osFlavor(RANKS.get().entrySet().stream()
-                    .max(Comparator.comparingInt(Map.Entry::getValue))
+            result.osFlavor(RANKS.get().entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue))
                     .map(Map.Entry::getKey).orElse(null));
             result.osVersion(System.getProperty("os.version"));
             // TODO:  get os release version. Eg: Ubuntu version will be output of "lsb_release -a "
 
         } else if (RANKS.get().containsKey("darwin")) {
             result.os(Platform.OS_Darwin);
-            result.osFlavor(RANKS.get().entrySet().stream()
-                    .max(Comparator.comparingInt(Map.Entry::getValue))
+            result.osFlavor(RANKS.get().entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue))
                     .map(Map.Entry::getKey).orElse(null));
             result.osVersion(System.getProperty("os.version"));
         } else {
             // UNKNOWN OS
-            logger.atWarn().kv("osName", System.getProperty("os.name"))
-                    .kv("osName", System.getProperty("os.name"))
+            logger.atWarn().kv("osName", System.getProperty("os.name")).kv("osName", System.getProperty("os.name"))
                     .log("Unrecognized OS");
         }
 
@@ -161,7 +161,7 @@ public final class PlatformResolver {
      * find best match from a list of recipes.
      *
      * @param currentPlatform the platform detail
-     * @param recipeList a list of recipe input
+     * @param recipeList      a list of recipe input
      * @return closest recipe
      */
     public static Optional<PlatformSpecificRecipe> findBestMatch(Platform currentPlatform,
@@ -173,37 +173,39 @@ public final class PlatformResolver {
             architecturesToCheck = Collections.singletonList(ALL_KEYWORD);
         }
 
-        for (String arch: architecturesToCheck) {
+        for (String arch : architecturesToCheck) {
             // TODO: match architecture variant
             // filter matching architecture
-            List<PlatformSpecificRecipe> candidateRecipes =
-                    recipeList.stream().filter(r -> {
-                        if (!"all".equals(arch)) {
-                            return arch.equals(r.getPlatform().getArchitecture());
-                        }
-                        return arch.equals(r.getPlatform().getArchitecture())
-                                || r.getPlatform().getArchitecture() == null;
-                    }).collect(Collectors.toList());
+            List<PlatformSpecificRecipe> candidateRecipes = recipeList.stream().filter(r -> {
+                if (!"all".equals(arch)) {
+                    return arch.equals(r.getPlatform().getArchitecture());
+                }
+                return arch.equals(r.getPlatform().getArchitecture()) || r.getPlatform().getArchitecture() == null;
+            }).collect(Collectors.toList());
 
             // try match os flavor
+
             if (currentPlatform.getOsFlavor() != null) {
                 Optional<PlatformSpecificRecipe> recipe = candidateRecipes.stream()
                         .filter(r -> currentPlatform.getOsFlavor().equals(r.getPlatform().getOsFlavor()))
                         // TODO: filter version match and find best version match
-                        .findFirst();
+                        .filter(r -> StringUtils.isBlank(r.getPlatform().getOsVersion()) ||
+                                new Semver(currentPlatform.getOsVersion())
+                                .satisfies(Requirement.buildNPM(r.getPlatform().getOsVersion()))).findFirst();
                 if (recipe.isPresent()) {
                     return recipe;
                 }
             }
 
             // try match os if no flavor match is found
-            candidateRecipes = candidateRecipes.stream().filter(r -> r.getPlatform().getOsFlavor() == null
-                    || r.getPlatform().getOsFlavor().equals(ALL_KEYWORD)).collect(Collectors.toList());
+            candidateRecipes = candidateRecipes.stream()
+                    .filter(r -> r.getPlatform().getOsFlavor() == null || r.getPlatform().getOsFlavor()
+                            .equals(ALL_KEYWORD)).collect(Collectors.toList());
             if (currentPlatform.getOs() != null) {
-                Optional<PlatformSpecificRecipe> recipe = candidateRecipes.stream()
-                        .filter(r -> currentPlatform.getOs().equals(r.getPlatform().getOs()))
-                        // TODO: filter version match and find best version match
-                        .findFirst();
+                Optional<PlatformSpecificRecipe> recipe =
+                        candidateRecipes.stream().filter(r -> currentPlatform.getOs().equals(r.getPlatform().getOs()))
+                                // TODO: filter version match and find best version match
+                                .findFirst();
                 if (recipe.isPresent()) {
                     return recipe;
                 }
