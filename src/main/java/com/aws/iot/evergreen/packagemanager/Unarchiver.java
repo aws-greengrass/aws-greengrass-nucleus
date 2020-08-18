@@ -40,6 +40,7 @@ public class Unarchiver {
                 if (zipEntry.isDirectory()) {
                     Utils.createPaths(newFile.toPath());
                 } else {
+                    Utils.createPaths(newFile.getParentFile().toPath());
                     try (OutputStream fos = Files.newOutputStream(newFile.toPath())) {
                         IOUtils.copy(zis, fos);
                     }
