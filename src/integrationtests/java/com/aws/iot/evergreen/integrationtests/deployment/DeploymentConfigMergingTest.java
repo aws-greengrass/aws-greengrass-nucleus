@@ -475,8 +475,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 //no response the second time causes the kernel to move forward after default wait time
                 if(deferCount.get() < 1){
                     try {
-                        deferCount.getAndIncrement();
                         lifecycle.deferComponentUpdate("nondisruptable", TimeUnit.SECONDS.toMillis(5));
+                        deferCount.getAndIncrement();
                     } catch (LifecycleIPCException e) { }
                 }
             }
@@ -495,7 +495,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 "Merge should not happen within 5 seconds");
 
         assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
-        assertEquals(preComponentUpdateCount.get() , 2);
         assertEquals(preComponentUpdateCount.get() , 2);
     }
 

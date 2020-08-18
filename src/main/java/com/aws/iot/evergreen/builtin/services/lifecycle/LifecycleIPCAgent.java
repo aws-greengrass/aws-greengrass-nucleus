@@ -23,9 +23,10 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
 
@@ -36,7 +37,7 @@ import static com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode.LIF
  */
 public class LifecycleIPCAgent implements InjectionActions {
 
-    private final List<ConnectionContext> componentUpdateListeners = new CopyOnWriteArrayList<>();
+    private final Set<ConnectionContext> componentUpdateListeners = new CopyOnWriteArraySet<>();
 
     private final Map<ConnectionContext, CompletableFuture<DeferComponentUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
@@ -86,7 +87,7 @@ public class LifecycleIPCAgent implements InjectionActions {
      * @param context client context
      */
     public SubscribeToComponentUpdatesResponse subscribeToComponentUpdate(ConnectionContext context) {
-        log.info("{} subscribed to component update", context.getServiceName());
+        log.debug("{} subscribed to component update", context.getServiceName());
         componentUpdateListeners.add(context);
         context.onDisconnect(() -> componentUpdateListeners.remove(context));
         return SubscribeToComponentUpdatesResponse.builder().responseStatus(LifecycleResponseStatus.Success).build();
@@ -130,7 +131,7 @@ public class LifecycleIPCAgent implements InjectionActions {
      * the max time limit to respond to PreComponentUpdateEvent is reached.
      */
     public void discardDeferComponentUpdateFutures() {
-        log.info("Discarding {} DeferComponentUpdateRequest futures", deferUpdateFuturesMap.size());
+        log.debug("Discarding {} DeferComponentUpdateRequest futures", deferUpdateFuturesMap.size());
         deferUpdateFuturesMap.clear();
     }
 

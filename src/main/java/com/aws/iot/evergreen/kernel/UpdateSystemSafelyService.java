@@ -158,7 +158,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
                                                 deferRequest.getRecheckTimeInMs());
                             }
                         } catch (ExecutionException e) {
-                            //
+                            logger.error("Failed to process component update request", e);
                         }
                         iterator.remove();
                     }
