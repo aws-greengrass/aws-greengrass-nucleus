@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.integrationtests.ipc;
 
+import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -10,6 +12,8 @@ import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityReport;
+import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
@@ -35,15 +39,15 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
 
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
@@ -66,7 +70,7 @@ class IPCServicesTest {
     @TempDir
     static Path tempRootDir;
 
-    private static Kernel kernel;
+    private Kernel kernel;
     private IPCClient client;
 
     @BeforeEach
@@ -171,33 +175,100 @@ class IPCServicesTest {
     }
 
     @Test
-    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed() throws Exception {
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
         client = new IPCClientImpl(config);
         ConfigStore c = new ConfigStoreImpl(client);
 
-        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        configuration.createLeafChild("abc").withValue("pqr");
+        configuration.createLeafChild("DDF").withValue("xyz");
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
 
-        AtomicInteger numCalls = new AtomicInteger();
-        Pair<CompletableFuture<Void>, Consumer<String>> p = asyncAssertOnConsumer((a) -> {
-            int callNum = numCalls.incrementAndGet();
+        Pair<CompletableFuture<Void>, Consumer<List<String>>> pAbc = asyncAssertOnConsumer((a) -> {
+                assertThat(a, is(Collections.singletonList("abc")));
+        });
+        Pair<CompletableFuture<Void>, Consumer<List<String>>> pDdf = asyncAssertOnConsumer((a) -> {
+            assertThat(a, is(Collections.singletonList("DDF")));
+        });
 
-            if (callNum == 1) {
-                assertThat(a, is("abc"));
-            } else if (callNum == 2) {
-                assertThat(a, is("DDF"));
-            }
-        }, 2);
+        ignoreExceptionOfType(context, TimeoutException.class);
 
-        c.subscribe(p.getRight());
-        custom.createLeafChild("abc").withValue("ABC");
-        custom.createLeafChild("DDF").withValue("ddf");
+        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("abc"), pAbc.getRight());
+        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("DDF"), pDdf.getRight());
+        configuration.lookup("abc").withValue("ABC");
+        configuration.lookup("DDF").withValue("ddf");
 
         try {
-            p.getLeft().get(1, TimeUnit.SECONDS);
+            pAbc.getLeft().get(5, TimeUnit.SECONDS);
+            pDdf.getLeft().get(5, TimeUnit.SECONDS);
         } finally {
-            custom.remove();
+            configuration.remove();
         }
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_subscribe_to_validate_config_THEN_validate_event_can_be_sent_to_client()
+            throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
+        client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        CountDownLatch eventReceivedByClient = new CountDownLatch(1);
+        c.subscribeToValidateConfiguration((configMap) -> {
+            assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
+            eventReceivedByClient.countDown();
+        });
+
+        ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
+        CompletableFuture<ConfigurationValidityReport> validateResultFuture = new CompletableFuture<>();
+        try {
+            agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"),
+                    validateResultFuture);
+            assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
+        } finally {
+            agent.discardValidationReportTracker("ServiceName", validateResultFuture);
+        }
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
+            throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
+        client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> cb = asyncAssertOnConsumer((configMap) -> {
+            assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
+        });
+        c.subscribeToValidateConfiguration(cb.getRight());
+
+        CompletableFuture<ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
+        ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
+        agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
+        cb.getLeft().get(2, TimeUnit.SECONDS);
+
+        c.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
+        assertEquals(ConfigurationValidityStatus.VALID, responseTracker.get().getStatus());
+    }
+
+    @Test
+    void GIVEN_ConfigStoreClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
+        client = new IPCClientImpl(config);
+        ConfigStore c = new ConfigStoreImpl(client);
+
+        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
+
+        CountDownLatch configUpdated = new CountDownLatch(1);
+        configToUpdate.subscribe((what, node) -> configUpdated.countDown());
+
+        c.updateConfiguration("ServiceName", Collections.singletonList("SomeKeyToUpdate"), "SomeValueToUpdate",
+                System.currentTimeMillis(), null);
+
+        assertTrue(configUpdated.await(5, TimeUnit.SECONDS));
+        assertEquals("SomeValueToUpdate", configToUpdate.getOnce());
     }
 
     @Test
@@ -212,10 +283,11 @@ class IPCServicesTest {
 
         try {
             // Can read individual value
-            assertEquals("ABC", c.read("abc"));
+            assertEquals("ABC", c.getConfiguration("ServiceName", Collections.singletonList("abc")));
 
             // Can read nested values
-            Map<String, Object> val = (Map<String, Object>) c.read("DDF");
+            Map<String, Object> val = (Map<String, Object>) c.getConfiguration("ServiceName",
+                    Collections.singletonList("DDF"));
             assertThat(val, aMapWithSize(1));
             assertThat(val, IsMapContaining.hasKey("A"));
             assertThat(val.get("A"), is("C"));
