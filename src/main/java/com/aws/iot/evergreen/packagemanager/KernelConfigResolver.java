@@ -277,7 +277,7 @@ public class KernelConfigResolver {
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
         kernel.getMain().getDependencies().forEach((evergreenService, dependencyType) -> {
             // Add all autostart dependencies
-            if (evergreenService.isAutostart()) {
+            if (evergreenService.isBuiltin()) {
                 mainDependencies.add(evergreenService.getName() + ":" + dependencyType);
             }
         });
