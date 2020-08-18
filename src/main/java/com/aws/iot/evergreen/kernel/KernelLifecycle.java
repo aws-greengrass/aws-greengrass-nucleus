@@ -129,6 +129,7 @@ public class KernelLifecycle {
 
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     private Queue<String> findBuiltInServicesAndPlugins() {
         Queue<String> autostart = new LinkedList<>();
         try {
