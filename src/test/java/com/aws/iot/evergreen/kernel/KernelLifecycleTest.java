@@ -96,6 +96,7 @@ class KernelLifecycleTest {
         kernelLifecycle.shutdown();
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_WHEN_launch_with_autostart_services_THEN_autostarts_added_as_dependencies_of_main()
             throws Exception {
