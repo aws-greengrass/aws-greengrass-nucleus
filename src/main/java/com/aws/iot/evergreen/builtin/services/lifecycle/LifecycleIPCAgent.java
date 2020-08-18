@@ -20,6 +20,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,10 @@ public class LifecycleIPCAgent implements InjectionActions {
 
     private final Set<ConnectionContext> componentUpdateListeners = new CopyOnWriteArraySet<>();
 
+    // When a PreComponentUpdateEvent is pushed to components, a future is created for each component. When the
+    // component responds with DeferComponentUpdateRequest the future is marked as complete. The caller of
+    // sendPreComponentUpdateEvent will have reference to the set of futures.
+    // deferUpdateFuturesMap maps the context of a component to the future created for the component.
     private final Map<ConnectionContext, CompletableFuture<DeferComponentUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
 
@@ -103,7 +108,7 @@ public class LifecycleIPCAgent implements InjectionActions {
                                             List<Future<DeferComponentUpdateRequest>> deferUpdateFutures) {
         componentUpdateListeners.forEach((context) -> {
             //TODO: error handling if sendServiceEvent fails
-            log.info("Sending preComponentUpdate event to " + context.getServiceName());
+            log.info("Sending preComponentUpdate event to {}", context.getServiceName());
             serviceEventHelper.sendServiceEvent(context, preComponentUpdateEvent, LIFECYCLE,
                     LifecycleServiceOpCodes.PRE_COMPONENT_UPDATE_EVENT.ordinal(), LifecycleImpl.API_VERSION);
             CompletableFuture<DeferComponentUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
