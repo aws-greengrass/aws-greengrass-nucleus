@@ -27,6 +27,7 @@ public class FleetStatusDetails implements CommonPayload<ComponentStatusDetails>
 
     private String thing;
 
+    @JsonProperty("overallDeviceStatus")
     private OverallStatus overallStatus;
 
     private long sequenceNumber;
