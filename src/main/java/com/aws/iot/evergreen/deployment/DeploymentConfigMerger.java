@@ -196,7 +196,9 @@ public class DeploymentConfigMerger {
         public void startNewServices() throws ServiceLoadException {
             for (String serviceName : servicesToAdd) {
                 EvergreenService service = kernel.locate(serviceName);
-                service.requestStart();
+                if (service.shouldAutoStart()) {
+                    service.requestStart();
+                }
             }
         }
 
@@ -228,7 +230,7 @@ public class DeploymentConfigMerger {
 
                     // If the service is an autostart service, then do not close it and do not
                     // remove it from the config
-                    if (eg.isAutostart()) {
+                    if (eg.isBuiltin()) {
                         return false;
                     }
 

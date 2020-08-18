@@ -96,8 +96,8 @@ public class S3Downloader implements ArtifactDownloader {
             logger.atInfo("download-artifact").addKeyValue("packageIdentifier", packageIdentifier)
                     .addKeyValue("artifactUri", artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
+            return saveToPath.resolve(extractFileName(key)).toFile();
         }
-        return null;
     }
 
     private byte[] getObject(String bucket, String key, ComponentArtifact artifact, PackageIdentifier packageIdentifier)

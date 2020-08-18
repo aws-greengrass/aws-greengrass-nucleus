@@ -359,7 +359,7 @@ public class FleetStatusService extends EvergreenService {
     }
 
     private boolean isSystemLevelService(EvergreenService service) {
-        return service.isAutostart() || service.getName().equals("main");
+        return service.isBuiltin() || service.getName().equals("main");
     }
 
     private OverallStatus getOverallStatusBasedOnServiceState(OverallStatus overallStatus,

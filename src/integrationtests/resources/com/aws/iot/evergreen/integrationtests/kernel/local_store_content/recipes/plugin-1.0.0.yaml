@@ -1,0 +1,16 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: plugin
+Description: Just a plugin
+Publisher: Me
+Version: '1.0.0'
+Platforms:
+  - ubuntu
+  - debian
+  - macos
+  - windows
+Lifecycle: {}
+ComponentType: PLUGIN
+Artifacts:
+  all:
+    - Uri: greengrass:plugin.jar
