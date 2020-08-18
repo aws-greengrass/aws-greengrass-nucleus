@@ -522,15 +522,15 @@
                 <version>3.8.1</version>
                 <executions>
                     <execution>
-                        <phase>test-compile</phase>
+                        <phase>compile</phase>
                         <goals><goal>compile</goal></goals>
                         <id>test-resource-compile</id>
                         <configuration>
                             <compileSourceRoots><compileSourceRoot>
                                 src/integrationtests/resources/
                             </compileSourceRoot></compileSourceRoots>
-                            <includes><include>**/PluginService*</include></includes>
-                            <outputDirectory>target/test-classes</outputDirectory>
+                            <includes><include>**/integrationtests/kernel/resource/*</include></includes>
+                            <outputDirectory>target/test-resource-classes</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
@@ -553,8 +553,9 @@
                         <id>generate-test-resource-jar</id>
                         <configuration>
                             <includes>
-                                <include>**/PluginService*</include>
+                                <include>**/integrationtests/kernel/resource/*</include>
                             </includes>
+                            <testClassesDirectory>target/test-resource-classes</testClassesDirectory>
                             <classifier></classifier>
                             <finalName>plugin</finalName>
                             <outputDirectory>

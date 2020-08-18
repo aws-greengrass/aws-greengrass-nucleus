@@ -25,24 +25,25 @@ public class EZPluginsTest {
 
     @Test
     public void testMatch() throws Exception {
-        EZPlugins pl = new EZPlugins(Utils.homePath(".pluginsTest"));
-        pl.implementing(Foo.class, f -> {
-            System.out.println(f.getCanonicalName());
+        try (EZPlugins pl = new EZPlugins(Utils.homePath(".pluginsTest"))) {
+            pl.implementing(Foo.class, f -> {
+                System.out.println(f.getCanonicalName());
+                try {
+                    hits++;
+                    f.newInstance().p("Hello");
+                } catch (Throwable ex) {
+                    cause(ex).printStackTrace(System.out);
+                    fail(ex.toString());
+                }
+            });
             try {
-                hits++;
-                f.newInstance().p("Hello");
-            } catch (Throwable ex) {
+                pl.loadCache();
+            } catch (IOException ex) {
                 cause(ex).printStackTrace(System.out);
                 fail(ex.toString());
             }
-        });
-        try {
-            pl.loadCache();
-        } catch (IOException ex) {
-            cause(ex).printStackTrace(System.out);
-            fail(ex.toString());
+            assertEquals(2, hits);
         }
-        assertEquals(2, hits);
     }
 
     private interface Foo {
