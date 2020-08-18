@@ -20,7 +20,6 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 
-
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
