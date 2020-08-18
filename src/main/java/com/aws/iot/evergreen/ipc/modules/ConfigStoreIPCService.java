@@ -1,5 +1,9 @@
-package com.aws.iot.evergreen.ipc.modules;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
+package com.aws.iot.evergreen.ipc.modules;
 
 import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.iot.evergreen.config.Topics;
@@ -12,8 +16,11 @@ import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreClientOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreGenericResponse;
-import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreReadValueRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreResponseStatus;
+import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationRequest;
+import com.aws.iot.evergreen.ipc.services.configstore.SendConfigurationValidityReportRequest;
+import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToConfigurationUpdateRequest;
+import com.aws.iot.evergreen.ipc.services.configstore.UpdateConfigurationRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
@@ -36,6 +43,19 @@ public class ConfigStoreIPCService extends EvergreenService {
 
     public ConfigStoreIPCService(Topics c) {
         super(c);
+    }
+
+    /**
+     * Constrcutor for unit tests.
+     *
+     * @param c service topics
+     * @param router ipc router
+     * @param agent config store ipc agent
+     */
+    ConfigStoreIPCService(Topics c, IPCRouter router, ConfigStoreIPCAgent agent) {
+        super(c);
+        this.router = router;
+        this.agent = agent;
     }
 
     @Override
@@ -70,13 +90,28 @@ public class ConfigStoreIPCService extends EvergreenService {
             ConfigStoreClientOpCodes opCode = ConfigStoreClientOpCodes.values()[applicationMessage.getOpCode()];
             ConfigStoreGenericResponse configStoreGenericResponse = new ConfigStoreGenericResponse();
             switch (opCode) {
-                case SUBSCRIBE_ALL:
-                    configStoreGenericResponse = agent.subscribe(context);
+                case SUBSCRIBE_TO_ALL_CONFIG_UPDATES:
+                    SubscribeToConfigurationUpdateRequest subscribeToConfigUpdateRequest = CBOR_MAPPER
+                            .readValue(applicationMessage.getPayload(), SubscribeToConfigurationUpdateRequest.class);
+                    configStoreGenericResponse = agent.subscribeToConfigUpdate(subscribeToConfigUpdateRequest, context);
                     break;
-                case READ_KEY:
-                    ConfigStoreReadValueRequest readRequest =
-                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), ConfigStoreReadValueRequest.class);
-                    configStoreGenericResponse = agent.read(readRequest, context);
+                case GET_CONFIG:
+                    GetConfigurationRequest getConfigRequest =
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), GetConfigurationRequest.class);
+                    configStoreGenericResponse = agent.getConfig(getConfigRequest, context);
+                    break;
+                case UPDATE_CONFIG:
+                    UpdateConfigurationRequest updateConfigRequest =
+                            CBOR_MAPPER.readValue(applicationMessage.getPayload(), UpdateConfigurationRequest.class);
+                    configStoreGenericResponse = agent.updateConfig(updateConfigRequest, context);
+                    break;
+                case SUBSCRIBE_TO_CONFIG_VALIDATION:
+                    configStoreGenericResponse = agent.subscribeToConfigValidation(context);
+                    break;
+                case SEND_CONFIG_VALIDATION_REPORT:
+                    SendConfigurationValidityReportRequest reportConfigValidityRequest = CBOR_MAPPER
+                            .readValue(applicationMessage.getPayload(), SendConfigurationValidityReportRequest.class);
+                    configStoreGenericResponse = agent.handleConfigValidityReport(reportConfigValidityRequest, context);
                     break;
                 default:
                     configStoreGenericResponse.setStatus(ConfigStoreResponseStatus.InvalidRequest);
