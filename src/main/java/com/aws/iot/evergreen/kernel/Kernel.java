@@ -378,7 +378,7 @@ public class Kernel {
 
                 if (className != null) {
                     try {
-                        clazz = Class.forName(className);
+                        clazz = context.get(EZPlugins.class).forName(className);
                     } catch (Throwable ex) {
                         throw new ServiceLoadException("Can't load service class from " + className, ex);
                     }
@@ -443,7 +443,7 @@ public class Kernel {
         });
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
     private Class<?> locateExternalPlugin(String name, Topics serviceRootTopics) throws ServiceLoadException {
         PackageIdentifier componentId = PackageIdentifier.fromServiceTopics(serviceRootTopics);
         Path pluginJar = context.get(PackageStore.class).resolveArtifactDirectoryPath(componentId)
@@ -452,26 +452,32 @@ public class Kernel {
             throw new ServiceLoadException(
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));
         }
+        Class<?> clazz;
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();
             EZPlugins ezPlugins = context.get(EZPlugins.class);
             ezPlugins.loadPlugin(pluginJar, (sc) -> sc.matchClassesWithAnnotation(ImplementsService.class, (c) -> {
-                if (classReference.get() != null) {
-                    logger.atWarn().log("Multiple classes implementing service found in {} "
-                            + "for component {}. Using the first one found: {}", pluginJar, name, classReference.get());
-                    return;
-                }
-
                 // Only use the class whose name matches what we want
                 ImplementsService serviceImplementation = c.getAnnotation(ImplementsService.class);
                 if (serviceImplementation.name().equals(name)) {
+                    if (classReference.get() != null) {
+                        logger.atWarn().log("Multiple classes implementing service found in {} "
+                                        + "for component {}. Using the first one found: {}", pluginJar, name,
+                                classReference.get());
+                        return;
+                    }
                     classReference.set(c);
                 }
             }));
-            return classReference.get();
+            clazz = classReference.get();
         } catch (Throwable e) {
             throw new ServiceLoadException(String.format("Unable to load %s as a plugin", name), e);
         }
+        if (clazz == null) {
+            throw new ServiceLoadException(String.format(
+                    "Unable to find %s. Could not find any ImplementsService annotation with the same name.", name));
+        }
+        return clazz;
     }
 
 
