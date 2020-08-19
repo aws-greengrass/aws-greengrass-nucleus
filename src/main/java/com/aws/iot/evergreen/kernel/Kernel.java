@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
@@ -19,6 +20,7 @@ import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
+import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -27,6 +29,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.DependencyOrder;
+import com.aws.iot.evergreen.util.Pair;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -63,6 +66,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUE
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
@@ -353,6 +357,22 @@ public class Kernel {
 
             Class<?> clazz = null;
             if (serviceRootTopics != null) {
+
+                // Try locating all the dependencies first so that they'll all exist prior to their dependant.
+                // This is to fix an ordering problem with plugins such as lambda manager. The plugin needs to be
+                // located *before* the dependant is located so that the plugin has its jar loaded into the classloader.
+                Topic dependenciesTopic = serviceRootTopics.findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+                if (dependenciesTopic != null && dependenciesTopic.getOnce() instanceof Collection) {
+                    try {
+                        for (Pair<String, DependencyType> p : EvergreenService
+                                .parseDependencies((Collection<String>) dependenciesTopic.getOnce())) {
+                            locate(p.getLeft());
+                        }
+                    } catch (ServiceLoadException | InputValidationException e) {
+                        throw new ServiceLoadException("Unable to load service " + name, e);
+                    }
+                }
+
                 Topic classTopic = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
                 String className = null;
 
