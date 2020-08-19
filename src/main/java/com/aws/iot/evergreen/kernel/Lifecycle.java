@@ -380,6 +380,7 @@ public class Lifecycle {
         // we'll transition out of BROKEN state to give it a new chance.
         if (State.NEW.equals(desiredState.get())) {
             internalReportState(State.NEW);
+            stateToErroredCount.clear();
         } else {
             logger.atError("service-broken").log("service is broken. Deployment is needed");
         }
