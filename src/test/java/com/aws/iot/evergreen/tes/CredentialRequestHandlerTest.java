@@ -61,7 +61,8 @@ public class CredentialRequestHandlerTest {
     private static final String ACCESS_KEY_ID = "ASIA";
     private static final String SECRET_ACCESS_KEY = "FC8OGbRnCl1";
     private static final String SESSION_TOKEN = "ABCDEFGHI";
-    private static final String EXPIRATION = "2020-08-19T07:35:15Z";
+    // Set in the far future so it doesn't expire
+    private static final String EXPIRATION = "2030-08-19T07:35:15Z";
     private static final String RESPONSE_STR =
             "{\"credentials\":" + "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," + "\"secretAccessKey\":\""
                     + SECRET_ACCESS_KEY + "\"," + "\"sessionToken\":\"" + SESSION_TOKEN + "\"," + "\"expiration\":\""
