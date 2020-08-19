@@ -520,7 +520,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
                 put("sleeperB", new HashMap<Object, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit -1");
+                        put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit 1");
                     }});
                 }});
             }});
