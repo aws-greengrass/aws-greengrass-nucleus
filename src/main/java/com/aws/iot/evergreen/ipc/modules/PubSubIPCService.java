@@ -32,11 +32,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.ipc.IPCRouter.DESTINATION_STRING;
+
 //TODO: see if this needs to be a GGService
 @ImplementsService(name = PubSubIPCService.PUB_SUB_SERVICE_NAME, autostart = true)
 public class PubSubIPCService extends EvergreenService {
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
-    private static final String DESTINATION_STRING = "destination";
     public static final String PUB_SUB_SERVICE_NAME = "aws.greengrass.ipc.pubsub";
 
     @Inject

@@ -29,6 +29,7 @@ public class IPCRouter {
             new ConcurrentHashMap<>();
 
     private static final Logger logger = LogManager.getLogger(IPCRouter.class);
+    public static final String DESTINATION_STRING = "destination";
 
     /**
      * Registers a callback for a destination, Dispatcher will invoke the function for all message with registered
