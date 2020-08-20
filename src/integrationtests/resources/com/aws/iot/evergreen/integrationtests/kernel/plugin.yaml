@@ -1,0 +1,9 @@
+---
+services:
+  plugin:
+    version: 1.0.0
+    componentType: PLUGIN
+  main:
+    lifecycle: {}
+    dependencies:
+      - plugin
