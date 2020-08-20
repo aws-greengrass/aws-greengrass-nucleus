@@ -34,26 +34,26 @@ public class MqttChunkedPayloadPublisher<T> {
     /**
      * Publish the payload using MQTT.
      *
+     * @param chunkablePayload  The common object payload included in all the messages
      * @param variablePayloads  The variable objects in the payload to chunk
-     * @param commonPayload     The common object payload included in all the messages
      */
-    public void publish(List<T> variablePayloads, CommonPayload commonPayload) {
+    public void publish(Chunkable<T> chunkablePayload, List<T> variablePayloads) {
         try {
             int start = 0;
             int payloadVariableInformationSize = SERIALIZER.writeValueAsBytes(variablePayloads).length;
-            int payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(commonPayload).length;
+            int payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(chunkablePayload).length;
 
             MqttChunkingInformation chunkingInformation =
                     getChunkingInformation(payloadVariableInformationSize, variablePayloads.size(),
                             payloadCommonInformationSize);
             for (int chunkId = 0; chunkId < chunkingInformation.getNumberOfChunks(); chunkId++,
                     start += chunkingInformation.getNumberOfComponentsPerPublish()) {
-                commonPayload.setVariablePayload(variablePayloads.subList(start,
+                chunkablePayload.setVariablePayload(variablePayloads.subList(start,
                         start + chunkingInformation.getNumberOfComponentsPerPublish()));
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateFssDataTopic)
-                        .payload(SERIALIZER.writeValueAsBytes(commonPayload)).build());
+                        .payload(SERIALIZER.writeValueAsBytes(chunkablePayload)).build());
             }
         } catch (JsonProcessingException e) {
             logger.atError().cause(e).log("Unable to publish fleet status service.");

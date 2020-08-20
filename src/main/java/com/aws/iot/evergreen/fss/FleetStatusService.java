@@ -347,7 +347,7 @@ public class FleetStatusService extends EvergreenService {
                 .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
                 .build();
-        publisher.publish(components, fleetStatusDetails);
+        publisher.publish(fleetStatusDetails, components);
     }
 
     private Topic getSequenceNumberTopic() {

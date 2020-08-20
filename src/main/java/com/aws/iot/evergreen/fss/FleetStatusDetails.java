@@ -5,7 +5,7 @@
 
 package com.aws.iot.evergreen.fss;
 
-import com.aws.iot.evergreen.util.CommonPayload;
+import com.aws.iot.evergreen.util.Chunkable;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,7 +18,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FleetStatusDetails implements CommonPayload<ComponentStatusDetails> {
+public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
     private String ggcVersion;
 
     private String platform;
