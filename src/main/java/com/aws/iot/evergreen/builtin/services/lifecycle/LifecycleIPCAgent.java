@@ -105,6 +105,7 @@ public class LifecycleIPCAgent implements InjectionActions {
      */
     public void sendPreComponentUpdateEvent(PreComponentUpdateEvent preComponentUpdateEvent,
                                             List<Future<DeferComponentUpdateRequest>> deferUpdateFutures) {
+        discardDeferComponentUpdateFutures();
         componentUpdateListeners.forEach((context) -> {
             //TODO: error handling if sendServiceEvent fails
             log.info("Sending preComponentUpdate event to {}", context.getServiceName());

@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.integrationtests.ipc;
 import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
@@ -13,6 +14,8 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
+import com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RemoveResourceRequest;
@@ -273,4 +276,23 @@ class IPCServicesTest {
             custom.remove();
         }
     }
+
+    @Test
+    void GIVEN_LifeCycleClient_WHEN_update_state_THEN_service_state_changes() throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
+        client = new IPCClientImpl(config);
+        CountDownLatch cdl = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState ) ->{
+
+            if(TEST_SERVICE_NAME.equals(service.getName())){
+                if(newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)){
+                    cdl.countDown();
+                }
+            }
+        });
+        Lifecycle lifecycle = new LifecycleImpl(client);
+        lifecycle.updateState("ERRORED");
+        assertTrue(cdl.await(5, TimeUnit.SECONDS));
+    }
+
 }

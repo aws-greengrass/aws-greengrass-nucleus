@@ -469,18 +469,19 @@ class DeploymentConfigMergingTest extends BaseITCase {
         CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
         lifecycle.subscribeToComponentUpdate((event) -> {
 
-            if(event instanceof PreComponentUpdateEvent){
+            if (event instanceof PreComponentUpdateEvent) {
                 preComponentUpdateCount.getAndIncrement();
                 //defer update the first time
                 //no response the second time causes the kernel to move forward after default wait time
-                if(deferCount.get() < 1){
+                if (deferCount.get() < 1) {
                     try {
                         lifecycle.deferComponentUpdate("nondisruptable", TimeUnit.SECONDS.toMillis(5));
                         deferCount.getAndIncrement();
-                    } catch (LifecycleIPCException e) { }
+                    } catch (LifecycleIPCException e) {
+                    }
                 }
             }
-            if(event instanceof PostComponentUpdateEvent){
+            if (event instanceof PostComponentUpdateEvent) {
                 postComponentUpdateRecieved.countDown();
                 ipcClient.disconnect();
             }

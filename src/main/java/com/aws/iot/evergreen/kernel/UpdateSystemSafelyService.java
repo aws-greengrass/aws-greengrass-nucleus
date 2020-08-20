@@ -141,18 +141,19 @@ public class UpdateSystemSafelyService extends EvergreenService {
 
             // TODO: should really use an injected clock to support simulation-time
             //      it's a big project and would affect many parts of the system.
-            final long now = System.currentTimeMillis();
-            long maxt = now;
-            while ((System.currentTimeMillis() - now) < defaultTimeOutInMs && !deferRequestFutures.isEmpty()) {
+            final long currentTimeMillis = System.currentTimeMillis();
+            long maxTimeToReCheck = currentTimeMillis;
+            while ((System.currentTimeMillis() - currentTimeMillis) < defaultTimeOutInMs
+                    && !deferRequestFutures.isEmpty()) {
                 Iterator<Future<DeferComponentUpdateRequest>> iterator = deferRequestFutures.iterator();
                 while (iterator.hasNext()) {
                     Future<DeferComponentUpdateRequest> fut = iterator.next();
                     if (fut.isDone()) {
                         try {
                             DeferComponentUpdateRequest deferRequest = fut.get();
-                            long timeToRecheck = now + deferRequest.getRecheckTimeInMs();
-                            if (timeToRecheck > maxt) {
-                                maxt = timeToRecheck;
+                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
+                            if (timeToRecheck > maxTimeToReCheck) {
+                                maxTimeToReCheck = timeToRecheck;
                                 logger.atInfo().setEventType("service-update-deferred")
                                         .log("deferred by {} for {} millis", deferRequest.getComponentName(),
                                                 deferRequest.getRecheckTimeInMs());
@@ -166,9 +167,10 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 Thread.sleep(TimeUnit.SECONDS.toMillis(1));
             }
 
-            if (maxt > now) {
-                logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", maxt - now).log();
-                Thread.sleep(maxt - now);
+            if (maxTimeToReCheck > currentTimeMillis) {
+                logger.atDebug().setEventType("service-update-pending")
+                        .addKeyValue("waitInMS", maxTimeToReCheck - currentTimeMillis).log();
+                Thread.sleep(maxTimeToReCheck - currentTimeMillis);
             } else {
                 lifecycleIPCAgent.discardDeferComponentUpdateFutures();
                 logger.atDebug().setEventType("service-update-scheduled").log();
