@@ -23,6 +23,7 @@ import lombok.Getter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -155,7 +157,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
             if (!WhatHappened.changed.equals(what) || node.getModtime() <= 1) {
                 return;
             }
-            Iterable<String> depList = (Iterable<String>) node.getOnce();
+            Collection<String> depList = (Collection<String>) node.getOnce();
             logger.atInfo().log("Setting up dependencies again {}", String.join(",", depList));
             try {
                 setupDependencies(depList);
@@ -165,7 +167,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         });
 
         try {
-            setupDependencies((Iterable<String>) externalDependenciesTopic.getOnce());
+            setupDependencies((Collection<String>) externalDependenciesTopic.getOnce());
         } catch (ServiceLoadException | InputValidationException e) {
             serviceErrored(e);
         }
@@ -335,7 +337,11 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 }
                 lifecycle.setClosed(true);
                 requestStop();
-                lifecycle.getLifecycleThread().get();
+
+                Future<?> fut = lifecycle.getLifecycleThread();
+                if (fut != null) {
+                    fut.get();
+                }
                 closeFuture.complete(null);
             } catch (Exception e) {
                 closeFuture.completeExceptionally(e);
@@ -500,11 +506,26 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return privateConfig;
     }
 
-    protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Iterable<String> dependencyList)
+    /**
+     * Parse the list of dependencies into a list of service name and dependency type.
+     *
+     * @param dependencyList list of strings to be parsed
+     * @return list of service name and dependency type
+     * @throws InputValidationException if it fails to parse any entry
+     */
+    public static Iterable<Pair<String, DependencyType>> parseDependencies(Collection<String> dependencyList)
+            throws InputValidationException {
+        List<Pair<String, DependencyType>> ret = new ArrayList<>(dependencyList.size());
+        for (String dependency : dependencyList) {
+            ret.add(parseSingleDependency(dependency));
+        }
+        return ret;
+    }
+
+    protected Map<EvergreenService, DependencyType> getDependencyTypeMap(Collection<String> dependencyList)
             throws InputValidationException, ServiceLoadException {
         HashMap<EvergreenService, DependencyType> ret = new HashMap<>();
-        for (String dependency : dependencyList) {
-            Pair<String, DependencyType> dep = parseSingleDependency(dependency);
+        for (Pair<String, DependencyType> dep : parseDependencies(dependencyList)) {
             ret.put(context.get(Kernel.class).locate(dep.getLeft()), dep.getRight());
         }
         return ret;
@@ -541,7 +562,7 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         return new Pair<>(dependencyInfo[0], type == null ? DependencyType.HARD : type);
     }
 
-    private synchronized void setupDependencies(Iterable<String> dependencyList)
+    private synchronized void setupDependencies(Collection<String> dependencyList)
             throws ServiceLoadException, InputValidationException {
         Map<EvergreenService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
         Map<EvergreenService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);

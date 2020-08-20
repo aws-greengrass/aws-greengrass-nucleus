@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
@@ -19,6 +20,7 @@ import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage;
+import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -27,6 +29,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.DependencyOrder;
+import com.aws.iot.evergreen.util.Pair;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -63,6 +66,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUE
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
@@ -353,6 +357,22 @@ public class Kernel {
 
             Class<?> clazz = null;
             if (serviceRootTopics != null) {
+
+                // Try locating all the dependencies first so that they'll all exist prior to their dependant.
+                // This is to fix an ordering problem with plugins such as lambda manager. The plugin needs to be
+                // located *before* the dependant is located so that the plugin has its jar loaded into the classloader.
+                Topic dependenciesTopic = serviceRootTopics.findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+                if (dependenciesTopic != null && dependenciesTopic.getOnce() instanceof Collection) {
+                    try {
+                        for (Pair<String, DependencyType> p : EvergreenService
+                                .parseDependencies((Collection<String>) dependenciesTopic.getOnce())) {
+                            locate(p.getLeft());
+                        }
+                    } catch (ServiceLoadException | InputValidationException e) {
+                        throw new ServiceLoadException("Unable to load service " + name, e);
+                    }
+                }
+
                 Topic classTopic = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
                 String className = null;
 
@@ -376,7 +396,7 @@ public class Kernel {
 
                 if (className != null) {
                     try {
-                        clazz = Class.forName(className);
+                        clazz = context.get(EZPlugins.class).forName(className);
                     } catch (Throwable ex) {
                         throw new ServiceLoadException("Can't load service class from " + className, ex);
                     }
@@ -441,7 +461,7 @@ public class Kernel {
         });
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
     private Class<?> locateExternalPlugin(String name, Topics serviceRootTopics) throws ServiceLoadException {
         PackageIdentifier componentId = PackageIdentifier.fromServiceTopics(serviceRootTopics);
         Path pluginJar = context.get(PackageStore.class).resolveArtifactDirectoryPath(componentId)
@@ -450,26 +470,32 @@ public class Kernel {
             throw new ServiceLoadException(
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));
         }
+        Class<?> clazz;
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();
             EZPlugins ezPlugins = context.get(EZPlugins.class);
             ezPlugins.loadPlugin(pluginJar, (sc) -> sc.matchClassesWithAnnotation(ImplementsService.class, (c) -> {
-                if (classReference.get() != null) {
-                    logger.atWarn().log("Multiple classes implementing service found in {} "
-                            + "for component {}. Using the first one found: {}", pluginJar, name, classReference.get());
-                    return;
-                }
-
                 // Only use the class whose name matches what we want
                 ImplementsService serviceImplementation = c.getAnnotation(ImplementsService.class);
                 if (serviceImplementation.name().equals(name)) {
+                    if (classReference.get() != null) {
+                        logger.atWarn().log("Multiple classes implementing service found in {} "
+                                        + "for component {}. Using the first one found: {}", pluginJar, name,
+                                classReference.get());
+                        return;
+                    }
                     classReference.set(c);
                 }
             }));
-            return classReference.get();
+            clazz = classReference.get();
         } catch (Throwable e) {
             throw new ServiceLoadException(String.format("Unable to load %s as a plugin", name), e);
         }
+        if (clazz == null) {
+            throw new ServiceLoadException(String.format(
+                    "Unable to find %s. Could not find any ImplementsService annotation with the same name.", name));
+        }
+        return clazz;
     }
 
 

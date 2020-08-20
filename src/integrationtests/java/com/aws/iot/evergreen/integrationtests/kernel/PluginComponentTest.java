@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.integrationtests.kernel;
 
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.deployment.DefaultDeploymentTask;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.DeploymentService;
@@ -48,6 +49,7 @@ import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class PluginComponentTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -74,6 +76,19 @@ public class PluginComponentTest extends BaseITCase {
         assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginService", eg.getClass().getName());
         assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
+        kernel.getContext().get(EZPlugins.class)
+                .forName("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginDependency");
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_locate_plugin_dependency_THEN_dependency_from_plugin_is_loaded_into_JVM() throws Exception {
+        setupPackageStore();
+        kernel.parseArgs("-i", this.getClass().getResource("plugin_dependency.yaml").toString());
+        kernel.launch();
+
+        EvergreenService eg = kernel.locate("plugin-dependency");
+        assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginDependencyService",
+                eg.getClass().getName());
     }
 
     @Test
@@ -84,6 +99,10 @@ public class PluginComponentTest extends BaseITCase {
         // launch kernel
         kernel.parseArgs().launch();
 
+        // Ensure that the dependency isn't somehow in our class loader already
+        assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("com.aws.iot.evergreen.integrationtests.kernel" + ".resource.PluginDependency"));
+
         submitSampleJobDocument(getClass().getResource("PluginDeployment.json").toURI(), System.currentTimeMillis(),
                 kernel).get(30, TimeUnit.SECONDS);
 
@@ -91,6 +110,8 @@ public class PluginComponentTest extends BaseITCase {
         assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginService", eg.getClass().getName());
         assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
+        kernel.getContext().get(EZPlugins.class)
+                .forName("com.aws.iot.evergreen.integrationtests.kernel.resource" + ".PluginDependency");
     }
 
     private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {

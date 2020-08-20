@@ -9,6 +9,7 @@ import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.MalformedURLException;
@@ -26,13 +27,14 @@ import java.util.function.Consumer;
 
 
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
-public class EZPlugins {
+public class EZPlugins implements Closeable {
     public static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
     private Path trustedCacheDirectory;
     private Path untrustedCacheDirectory;
     private ClassLoader root = this.getClass().getClassLoader();
+    private final List<URLClassLoader> classLoaders = new ArrayList<>();
     private boolean doneFirstLoad;
 
     public EZPlugins() {
@@ -79,12 +81,14 @@ public class EZPlugins {
     // Class loader must stay open, otherwise we won't be able to load all classes from the jar
     private void loadPlugins(boolean trusted, Path p) throws IOException {
         URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()});
+        classLoaders.add(cl);
         loadPlugins(trusted, cl);
     }
 
     /**
      * Load a single plugin with the classpath scanner.
-     * @param p path to jar file
+     *
+     * @param p       path to jar file
      * @param matcher matcher to use
      * @throws IOException if loading the class fails
      */
@@ -93,7 +97,9 @@ public class EZPlugins {
     public ClassLoader loadPlugin(Path p, Consumer<FastClasspathScanner> matcher) throws IOException {
         URL[] urls = {p.toUri().toURL()};
         return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
-            URLClassLoader cl = new URLClassLoader(urls);
+            URLClassLoader cl = new URLClassLoader(urls, root);
+            classLoaders.add(cl);
+            root = cl;
             FastClasspathScanner sc = new FastClasspathScanner();
             sc.ignoreParentClassLoaders();
             sc.addClassLoader(cl);
@@ -104,8 +110,7 @@ public class EZPlugins {
     }
 
     /**
-     * Don't call loadCache until after all of the implementing/annotated
-     * matchers have been registered.
+     * Don't call loadCache until after all of the implementing/annotated matchers have been registered.
      *
      * @throws IOException if loading the cache fails
      */
@@ -125,6 +130,7 @@ public class EZPlugins {
         if (!trustedFiles.isEmpty()) {
             AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
                 URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[0]), root);
+                classLoaders.add(trusted);
                 root = trusted;
                 loadPlugins(true, trusted);
                 return null;
@@ -267,5 +273,24 @@ public class EZPlugins {
         }
         matchers.add(fcs -> fcs.matchClassesWithAnnotation(c, m));
         return this;
+    }
+
+    /**
+     * Load a class from the root classloader.
+     *
+     * @param name name of the class
+     * @return the class
+     * @throws ClassNotFoundException if the class isn't found in the classloaders
+     */
+    public Class<?> forName(String name) throws ClassNotFoundException {
+        return root.loadClass(name);
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    @Override
+    public void close() throws IOException {
+        for (URLClassLoader classLoader : classLoaders) {
+            classLoader.close();
+        }
     }
 }

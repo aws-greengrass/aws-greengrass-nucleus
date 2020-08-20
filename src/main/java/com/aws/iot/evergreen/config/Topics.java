@@ -200,6 +200,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Find, but do not create if missing, a Node (Topic or Topics) in the config file. Returns null if missing.
      *
      * @param path String[] of node names to traverse to find the Node
+     * @return Node instance found after traversing the given path
      */
     public Node findNode(String... path) {
         int limit = path.length - 1;
