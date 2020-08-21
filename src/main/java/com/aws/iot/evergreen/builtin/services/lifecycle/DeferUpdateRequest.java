@@ -1,18 +1,18 @@
 package com.aws.iot.evergreen.builtin.services.lifecycle;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Value;
 
-@Data
+@Value
 @AllArgsConstructor
 public class DeferUpdateRequest {
 
-    String componentName;
-    String message;
+    private final String componentName;
+    private final String message;
     /**
      Estimated time in milliseconds after which component will be willing to be disrupted.
      If the returned value is zero the handler is granting permission to be disrupted.
      Otherwise, it will be asked again later
      */
-    long recheckTimeInMs;
+    private final long recheckTimeInMs;
 }
