@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-public class EvergreenService implements InjectionActions, DisruptableCheck {
+public class EvergreenService implements InjectionActions {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String RUNTIME_STORE_NAMESPACE_TOPIC = "runtime";
     public static final String PRIVATE_STORE_NAMESPACE_TOPIC = "_private";
@@ -289,26 +289,6 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         if (t != null) {
             t.shutdown();
         }
-    }
-
-    /**
-     * Called to check if the service can be disrupted to process a deployment. Default implementation returns 0,
-     * meaning that the service is safe to be disrupted.
-     *
-     * @return Estimated time when this handler will be willing to be disrupted, expressed as milliseconds since the
-     *         epoch. If the returned value is less than now (System.currentTimeMillis()) the handler is granting
-     *         permission to be disrupted.  Otherwise, it will be asked again sometime later.
-     */
-    @Override
-    public long whenIsDisruptionOK() {
-        return 0;
-    }
-
-    /**
-     * Called when the disruption to the service has concluded.
-     */
-    @Override
-    public void disruptionCompleted() {
     }
 
     /**
