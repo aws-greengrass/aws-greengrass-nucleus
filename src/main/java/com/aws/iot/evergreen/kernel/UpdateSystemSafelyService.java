@@ -3,12 +3,12 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.builtin.services.lifecycle.DeferUpdateRequest;
 import com.aws.iot.evergreen.builtin.services.lifecycle.LifecycleIPCAgent;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.ipc.services.lifecycle.DeferComponentUpdateRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.PostComponentUpdateEvent;
 import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
 
@@ -136,7 +136,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
             //TODO: set isGgcRestarting to true if the updates involves kernel restart
             PreComponentUpdateEvent preComponentUpdateEvent = PreComponentUpdateEvent.builder()
                     .isGgcRestarting(false).build();
-            List<Future<DeferComponentUpdateRequest>> deferRequestFutures = new ArrayList<>();
+            List<Future<DeferUpdateRequest>> deferRequestFutures = new ArrayList<>();
             lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent, deferRequestFutures);
 
             // TODO: should really use an injected clock to support simulation-time
@@ -145,18 +145,19 @@ public class UpdateSystemSafelyService extends EvergreenService {
             long maxTimeToReCheck = currentTimeMillis;
             while ((System.currentTimeMillis() - currentTimeMillis) < defaultTimeOutInMs
                     && !deferRequestFutures.isEmpty()) {
-                Iterator<Future<DeferComponentUpdateRequest>> iterator = deferRequestFutures.iterator();
+                Iterator<Future<DeferUpdateRequest>> iterator = deferRequestFutures.iterator();
                 while (iterator.hasNext()) {
-                    Future<DeferComponentUpdateRequest> fut = iterator.next();
+                    Future<DeferUpdateRequest> fut = iterator.next();
                     if (fut.isDone()) {
                         try {
-                            DeferComponentUpdateRequest deferRequest = fut.get();
+                            DeferUpdateRequest deferRequest = fut.get();
                             long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
                             if (timeToRecheck > maxTimeToReCheck) {
                                 maxTimeToReCheck = timeToRecheck;
                                 logger.atInfo().setEventType("service-update-deferred")
-                                        .log("deferred by {} for {} millis", deferRequest.getComponentName(),
-                                                deferRequest.getRecheckTimeInMs());
+                                        .log("deferred by {} for {} millis with message {}",
+                                                deferRequest.getMessage(), deferRequest.getRecheckTimeInMs(),
+                                                deferRequest.getMessage());
                             }
                         } catch (ExecutionException e) {
                             logger.error("Failed to process component update request", e);

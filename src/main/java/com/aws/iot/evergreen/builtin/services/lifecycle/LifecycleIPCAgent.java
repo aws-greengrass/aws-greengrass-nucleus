@@ -43,7 +43,7 @@ public class LifecycleIPCAgent implements InjectionActions {
     // component responds with DeferComponentUpdateRequest the future is marked as complete. The caller of
     // sendPreComponentUpdateEvent will have reference to the set of futures.
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
-    private final Map<ConnectionContext, CompletableFuture<DeferComponentUpdateRequest>> deferUpdateFuturesMap =
+    private final Map<ConnectionContext, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
 
     @Inject
@@ -104,14 +104,14 @@ public class LifecycleIPCAgent implements InjectionActions {
      * @param deferUpdateFutures      futures tracking the response to preComponentUpdateEvent
      */
     public void sendPreComponentUpdateEvent(PreComponentUpdateEvent preComponentUpdateEvent,
-                                            List<Future<DeferComponentUpdateRequest>> deferUpdateFutures) {
+                                            List<Future<DeferUpdateRequest>> deferUpdateFutures) {
         discardDeferComponentUpdateFutures();
         componentUpdateListeners.forEach((context) -> {
             //TODO: error handling if sendServiceEvent fails
             log.info("Sending preComponentUpdate event to {}", context.getServiceName());
             serviceEventHelper.sendServiceEvent(context, preComponentUpdateEvent, LIFECYCLE,
                     LifecycleServiceOpCodes.PRE_COMPONENT_UPDATE_EVENT.ordinal(), LifecycleImpl.API_VERSION);
-            CompletableFuture<DeferComponentUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
+            CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
             deferUpdateFutures.add(deferUpdateFuture);
             deferUpdateFuturesMap.put(context, deferUpdateFuture);
         });
@@ -156,14 +156,15 @@ public class LifecycleIPCAgent implements InjectionActions {
                     .errorMessage("Component is not subscribed to component update events").build();
         }
 
-        CompletableFuture<DeferComponentUpdateRequest> deferComponentUpdateRequestFuture =
+        CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
                 deferUpdateFuturesMap.get(context);
         if (deferComponentUpdateRequestFuture == null) {
             return responseBuilder.responseStatus(LifecycleResponseStatus.InvalidRequest)
                     .errorMessage("Time limit to respond to PreComponentUpdateEvent exceeded").build();
         }
 
-        deferComponentUpdateRequestFuture.complete(request);
+        deferComponentUpdateRequestFuture.complete(new DeferUpdateRequest(context.getServiceName(),
+                request.getMessage(), request.getRecheckTimeInMs()));
         deferUpdateFuturesMap.remove(context);
         return responseBuilder.responseStatus(LifecycleResponseStatus.Success).build();
     }
