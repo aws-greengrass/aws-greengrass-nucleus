@@ -15,6 +15,12 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.ipc.IPCClientImpl;
+import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
+import com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.exceptions.LifecycleIPCException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
@@ -37,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
@@ -225,6 +232,20 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
+        KernelIPCClientConfig nonDisruptable =
+                getIPCConfigForService(getTestComponentNameInCloud("NonDisruptableService"), kernel);
+        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
+        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
+
+        lifecycle.subscribeToComponentUpdate((event) -> {
+            if (event instanceof PreComponentUpdateEvent) {
+                try {
+                    lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
+                    ipcClient.disconnect();
+                } catch (LifecycleIPCException e) { }
+            }
+        });
+
         // Second deployment to update the service which is currently running an important task so deployment should
         // wait for a safe time to update
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
@@ -339,6 +360,20 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        KernelIPCClientConfig nonDisruptable =
+                getIPCConfigForService(getTestComponentNameInCloud("NonDisruptableService"), kernel);
+        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
+        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
+
+        lifecycle.subscribeToComponentUpdate((event) -> {
+            if (event instanceof PreComponentUpdateEvent) {
+                try {
+                    lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
+                    ipcClient.disconnect();
+                } catch (LifecycleIPCException e) { }
+            }
+        });
 
         CountDownLatch updateRegistered = new CountDownLatch(1);
         CountDownLatch deploymentCancelled = new CountDownLatch(1);

@@ -15,10 +15,18 @@ import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
+import com.aws.iot.evergreen.ipc.IPCClientImpl;
+import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
+import com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PostComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.exceptions.LifecycleIPCException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
@@ -42,11 +50,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -444,45 +454,49 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 mainFinished.countDown();
             }
         });
-
         // wait for main to finish
         assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 
-        Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+        KernelIPCClientConfig nonDisruptable = getIPCConfigForService("nondisruptable", kernel);
+        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
+        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
 
+        UpdateSystemSafelyService updateSystemSafelyService = kernel.getContext().get(UpdateSystemSafelyService.class);
+        updateSystemSafelyService.setDefaultTimeOutInMs(TimeUnit.SECONDS.toMillis(3));
+
+        AtomicInteger deferCount = new AtomicInteger(0);
+        AtomicInteger preComponentUpdateCount = new AtomicInteger(0);
+        CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
+        lifecycle.subscribeToComponentUpdate((event) -> {
+
+            if (event instanceof PreComponentUpdateEvent) {
+                preComponentUpdateCount.getAndIncrement();
+                //defer update the first time
+                //no response the second time causes the kernel to move forward after default wait time
+                if (deferCount.get() < 1) {
+                    try {
+                        lifecycle.deferComponentUpdate("nondisruptable", TimeUnit.SECONDS.toMillis(5));
+                        deferCount.getAndIncrement();
+                    } catch (LifecycleIPCException e) {
+                    }
+                }
+            }
+            if (event instanceof PostComponentUpdateEvent) {
+                postComponentUpdateRecieved.countDown();
+                ipcClient.disconnect();
+            }
+        });
+
+        Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
-        CountDownLatch sawUpdatesCompleted = new CountDownLatch(1);
-        AtomicBoolean unsafeToUpdate = new AtomicBoolean();
-        AtomicBoolean safeToUpdate = new AtomicBoolean();
-        Consumer<EvergreenStructuredLogMessage> listener = (m) -> {
-            if ("Yes! Updates completed".equals(m.getContexts().get("stdout"))) {
-                sawUpdatesCompleted.countDown();
-            }
-            if ("Not SafeUpdate".equals(m.getContexts().get("stdout"))) {
-                unsafeToUpdate.set(true);
-            }
-            if ("Safe Update".equals(m.getContexts().get("stdout"))) {
-                safeToUpdate.set(true);
-            }
-        };
+        // update should be deferred for 5 seconds
+        assertThrows(TimeoutException.class, () -> future.get(5, TimeUnit.SECONDS),
+                "Merge should not happen within 5 seconds");
 
-        try {
-            Slf4jLogAdapter.addGlobalListener(listener);
-            assertThrows(TimeoutException.class, () -> future.get(2, TimeUnit.SECONDS),
-                    "Merge should not happen within 2 seconds");
-            assertTrue(unsafeToUpdate.get(), "Service should have been checked if it is safe to update immediately");
-            assertFalse(safeToUpdate.get(), "Service should not yet be safe to update");
-            assertEquals(sawUpdatesCompleted.getCount(), 1,
-                    "Service should not call update done yet");
-
-            assertTrue(sawUpdatesCompleted.await(30, TimeUnit.SECONDS),
-                    "Service should have been called when the update was done");
-            assertTrue(safeToUpdate.get(), "Service should have been rechecked and be safe to update");
-        } finally {
-            Slf4jLogAdapter.removeGlobalListener(listener);
-        }
+        assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
+        assertEquals(preComponentUpdateCount.get() , 2);
     }
 
     @Test

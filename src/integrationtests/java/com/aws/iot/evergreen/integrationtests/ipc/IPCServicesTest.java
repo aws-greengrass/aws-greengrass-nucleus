@@ -14,6 +14,7 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
+import com.aws.iot.evergreen.ipc.services.lifecycle.Lifecycle;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.LookupResourceRequest;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.RegisterResourceRequest;
@@ -26,7 +27,6 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNo
 import com.aws.iot.evergreen.ipc.services.servicediscovery.exceptions.ResourceNotOwnedException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.testcommons.testutilities.TestUtils;
 import com.aws.iot.evergreen.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
@@ -46,7 +46,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
@@ -155,25 +154,7 @@ class IPCServicesTest {
 
         assertThrows(ResourceNotOwnedException.class, () -> c.registerResource(req));
     }
-
-    @Test
-    void lifecycleTest(ExtensionContext context) throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        LifecycleImpl c = new LifecycleImpl(client);
-
-        Pair<CompletableFuture<Void>, BiConsumer<String, String>> p = TestUtils.asyncAssertOnBiConsumer((a, b) -> {
-            assertEquals(State.RUNNING.toString(), a);
-            assertEquals(State.ERRORED.toString(), b);
-        });
-
-        ignoreExceptionOfType(context, TimeoutException.class);
-
-        c.listenToStateChanges("ServiceName", p.getRight());
-        c.reportState("ERRORED");
-        p.getLeft().get(500, TimeUnit.MILLISECONDS);
-    }
-
+  
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
@@ -295,4 +276,23 @@ class IPCServicesTest {
             custom.remove();
         }
     }
+
+    @Test
+    void GIVEN_LifeCycleClient_WHEN_update_state_THEN_service_state_changes() throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
+        client = new IPCClientImpl(config);
+        CountDownLatch cdl = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState ) ->{
+
+            if(TEST_SERVICE_NAME.equals(service.getName())){
+                if(newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)){
+                    cdl.countDown();
+                }
+            }
+        });
+        Lifecycle lifecycle = new LifecycleImpl(client);
+        lifecycle.updateState("ERRORED");
+        assertTrue(cdl.await(5, TimeUnit.SECONDS));
+    }
+
 }
