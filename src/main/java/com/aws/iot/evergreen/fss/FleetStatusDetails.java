@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.fss;
 
+import com.aws.iot.evergreen.util.Chunkable;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,7 +18,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FleetStatusDetails {
+public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
     private String ggcVersion;
 
     private String platform;
@@ -26,10 +27,16 @@ public class FleetStatusDetails {
 
     private String thing;
 
+    @JsonProperty("overallDeviceStatus")
     private OverallStatus overallStatus;
 
     private long sequenceNumber;
 
     @JsonProperty("components")
     private List<ComponentStatusDetails> componentStatusDetails;
+
+    @Override
+    public void setVariablePayload(List<ComponentStatusDetails> variablePayload) {
+        this.setComponentStatusDetails(variablePayload);
+    }
 }
