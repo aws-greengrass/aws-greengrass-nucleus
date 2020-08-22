@@ -614,13 +614,16 @@ public class EvergreenService implements InjectionActions {
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
 
-    // TODO: Rewrite this builtin service detection, reconsider if it is needed at all, reconsider how it is implemented
-    // If a service is a Builtin service, it is supposed to auto-start after kernel launches or deployment
     public boolean isBuiltin() {
         ImplementsService serviceAnnotation = getClass().getAnnotation(ImplementsService.class);
-        return serviceAnnotation != null && serviceAnnotation.autostart();
+        return serviceAnnotation != null;
     }
 
+    /**
+     * Determines if the service should automatically start after a deployment.
+     *
+     * @return true if the service should be started after deployment
+     */
     public boolean shouldAutoStart() {
         return true;
     }

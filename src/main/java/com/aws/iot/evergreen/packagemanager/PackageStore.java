@@ -182,6 +182,7 @@ public class PackageStore {
                 packageMetadataList.add(getPackageMetadata(new PackageIdentifier(packageName, version)));
             }
         }
+        packageMetadataList.sort(null);
         return packageMetadataList;
     }
 

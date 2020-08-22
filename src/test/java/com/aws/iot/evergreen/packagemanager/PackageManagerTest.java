@@ -28,7 +28,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
@@ -58,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -252,9 +252,10 @@ class PackageManagerTest {
             throws Exception {
 
         // GIVEN
-        Topics serviceConfigTopics = Mockito.mock(Topics.class);
-        Topic versionTopic = Mockito.mock(Topic.class);
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
+        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
@@ -312,6 +313,7 @@ class PackageManagerTest {
             throws Exception {
 
         // GIVEN
+        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenThrow(new ServiceLoadException("no service"));
 
         // local versions available: 1.0.0, 1.1.0.
@@ -352,10 +354,11 @@ class PackageManagerTest {
             throws Exception {
 
         // GIVEN
-        Topics serviceConfigTopics = Mockito.mock(Topics.class);
-        Topic versionTopic = Mockito.mock(Topic.class);
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
 
+        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
@@ -396,8 +399,8 @@ class PackageManagerTest {
 
     @Test
     void GIVEN_service_has_version_WHEN_getPackageVersionFromService_THEN_returnIt() {
-        Topics serviceConfigTopics = Mockito.mock(Topics.class);
-        Topic versionTopic = Mockito.mock(Topic.class);
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
