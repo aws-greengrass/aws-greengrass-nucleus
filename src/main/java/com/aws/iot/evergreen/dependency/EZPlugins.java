@@ -33,7 +33,7 @@ public class EZPlugins implements Closeable {
     private Path cacheDirectory;
     private Path trustedCacheDirectory;
     private Path untrustedCacheDirectory;
-    private ClassLoader root = this.getClass().getClassLoader();
+    private volatile ClassLoader root = this.getClass().getClassLoader();
     private final List<URLClassLoader> classLoaders = new ArrayList<>();
     private boolean doneFirstLoad;
 
@@ -66,7 +66,7 @@ public class EZPlugins implements Closeable {
         return this;
     }
 
-    private void loadPlugins(boolean trusted, ClassLoader cls) {
+    private synchronized void loadPlugins(boolean trusted, ClassLoader cls) {
         doneFirstLoad = true;
         FastClasspathScanner sc = new FastClasspathScanner();
         sc.addClassLoader(cls);
@@ -94,7 +94,7 @@ public class EZPlugins implements Closeable {
      */
     // Class loader must stay open, otherwise we won't be able to load all classes from the jar
     @SuppressWarnings("PMD.CloseResource")
-    public ClassLoader loadPlugin(Path p, Consumer<FastClasspathScanner> matcher) throws IOException {
+    public synchronized ClassLoader loadPlugin(Path p, Consumer<FastClasspathScanner> matcher) throws IOException {
         URL[] urls = {p.toUri().toURL()};
         return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
             URLClassLoader cl = new URLClassLoader(urls, root);
@@ -114,7 +114,7 @@ public class EZPlugins implements Closeable {
      *
      * @throws IOException if loading the cache fails
      */
-    public EZPlugins loadCache() throws IOException {
+    public synchronized EZPlugins loadCache() throws IOException {
         AtomicReference<IOException> e1 = new AtomicReference<>(null);
         ArrayList<URL> trustedFiles = new ArrayList<>();
         walk(trustedCacheDirectory, p -> {
@@ -282,7 +282,7 @@ public class EZPlugins implements Closeable {
      * @return the class
      * @throws ClassNotFoundException if the class isn't found in the classloaders
      */
-    public Class<?> forName(String name) throws ClassNotFoundException {
+    public synchronized Class<?> forName(String name) throws ClassNotFoundException {
         return root.loadClass(name);
     }
 

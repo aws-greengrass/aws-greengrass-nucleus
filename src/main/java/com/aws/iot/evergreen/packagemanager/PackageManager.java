@@ -270,6 +270,10 @@ public class PackageManager implements InjectionActions {
      * @return Optional of version; Empty if no active version for this package found.
      */
     private Optional<Semver> findActiveVersion(final String packageName) {
+        if (kernel.findServiceTopic(packageName) == null) {
+            return Optional.empty();
+        }
+
         EvergreenService service;
         try {
             service = kernel.locate(packageName);
