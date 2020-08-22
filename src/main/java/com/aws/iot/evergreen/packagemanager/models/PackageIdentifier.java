@@ -18,7 +18,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @Value
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @AllArgsConstructor
-public class PackageIdentifier {
+public class PackageIdentifier implements Comparable<PackageIdentifier> {
     @JsonProperty("Name")
     String name;
     @JsonProperty("Version")
@@ -48,5 +48,10 @@ public class PackageIdentifier {
 
     public static PackageIdentifier fromServiceTopics(Topics t) {
         return new PackageIdentifier(t.getName(), new Semver(Coerce.toString(t.findLeafChild(VERSION_CONFIG_KEY))));
+    }
+
+    @Override
+    public int compareTo(PackageIdentifier o) {
+        return version.compareTo(o.version) * -1;
     }
 }
