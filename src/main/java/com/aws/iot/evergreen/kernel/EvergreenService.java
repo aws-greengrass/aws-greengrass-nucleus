@@ -205,10 +205,12 @@ public class EvergreenService implements InjectionActions {
     }
 
     /**
-     * Restart Service.
+     * Restart Service. Will not restart if the service has not been started once and there's no desired state.
+     *
+     * @return true if the request will happen, false otherwise.
      */
-    public final void requestRestart() {
-        lifecycle.requestRestart();
+    public final boolean requestRestart() {
+        return lifecycle.requestRestart();
     }
 
     /**
