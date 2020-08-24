@@ -73,7 +73,7 @@ public class AuthorizationService extends EvergreenService {
             AuthorizationRequest request = CBOR_MAPPER.readValue(applicationMessage.getPayload(),
                     AuthorizationRequest.class);
 
-            //This will throw an UnauthenticatedException if not authenticated
+            //This will throw an UnauthorizedException if not authenticated
             doAuthorize(request);
             response = new AuthorizationResponse(true, null);
 
