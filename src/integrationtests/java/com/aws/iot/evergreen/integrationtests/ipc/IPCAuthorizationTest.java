@@ -30,6 +30,7 @@ import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtec
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
@@ -68,35 +69,28 @@ class IPCAuthorizationTest {
     void GIVEN_authorizationClient_WHEN_null_token_provided_THEN_Fail(ExtensionContext context) {
 
         ignoreExceptionOfType(context, AuthorizationException.class);
-        try{
-            authorizationClient.validateToken(null);
-        } catch (AuthorizationException e) {
-            assertEquals("Provided auth token is null", e.getMessage());
-        }
+        AuthorizationException e = assertThrows(AuthorizationException.class, () ->
+                authorizationClient.validateToken(null));
+        assertEquals("Provided auth token is null", e.getMessage());
     }
 
     @Test
     void GIVEN_authorizationClient_WHEN_empty_token_provided_THEN_Fail(ExtensionContext context) {
 
         ignoreExceptionOfType(context, AuthorizationException.class);
-        try{
-            authorizationClient.validateToken("");
-        } catch (AuthorizationException e) {
-            assertEquals("Provided auth token is empty", e.getMessage());
-        }
+        AuthorizationException e = assertThrows(AuthorizationException.class, () ->
+                authorizationClient.validateToken(""));
+        assertEquals("Provided auth token is empty", e.getMessage());
     }
 
     @Test
     void GIVEN_authorizationClient_WHEN_invalid_token_provided_THEN_Fail(ExtensionContext context) {
 
         ignoreExceptionOfType(context, UnauthorizedException.class);
-        try{
-            authorizationClient.validateToken("invalidToken");
-        } catch (AuthorizationException e) {
-            assertEquals(
-                    "com.aws.iot.evergreen.ipc.exceptions.UnauthorizedException: Unable to authorize request",
-                    e.getMessage());
-        }
+        AuthorizationException e = assertThrows(AuthorizationException.class, () ->
+                authorizationClient.validateToken("invalidToken"));
+        assertEquals("com.aws.iot.evergreen.ipc.exceptions.UnauthorizedException: Unable to authorize request",
+                e.getMessage());
     }
 
     @Test
