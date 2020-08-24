@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.common2.PlatformSpecificManifest;
 import com.aws.iot.evergreen.packagemanager.models.Platform;
 import com.aws.iot.evergreen.packagemanager.models.PlatformSpecificRecipe;
 import com.aws.iot.evergreen.util.Exec;
@@ -153,9 +154,21 @@ public final class PlatformResolver {
      * @param recipeList a list of recipe input
      * @return closest recipe
      */
-    public static Optional<PlatformSpecificRecipe> findBestMatch(List<PlatformSpecificRecipe> recipeList) {
-        return findBestMatch(CURRENT_PLATFORM, recipeList);
+    public static Optional<PlatformSpecificManifest> findBestMatch(List<PlatformSpecificManifest> recipeList) {
+        // TODO to be implemented
+        return Optional.empty();
     }
+
+
+//    /**
+//     * get closest platform.
+//     *
+//     * @param recipeList a list of recipe input
+//     * @return closest recipe
+//     */
+//    public static Optional<PlatformSpecificRecipe> findBestMatch(List<PlatformSpecificRecipe> recipeList) {
+//        return findBestMatch(CURRENT_PLATFORM, recipeList);
+//    }
 
     /**
      * find best match from a list of recipes.
