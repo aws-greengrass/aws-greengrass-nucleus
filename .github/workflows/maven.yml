@@ -104,7 +104,6 @@ jobs:
         if: matrix.os == 'Linux'
   e2e-test:
     runs-on: [self-hosted, Linux, greengrass]
-    needs: build
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
