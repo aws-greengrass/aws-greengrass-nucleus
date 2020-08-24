@@ -14,7 +14,7 @@ import lombok.Value;
 @Value
 public class Platform {
     String os;
-    String osVersion;
+//    String osVersion;
     String architecture;
 
     @JsonPOJOBuilder(withPrefix = "")
