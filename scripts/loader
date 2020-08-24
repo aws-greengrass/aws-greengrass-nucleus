@@ -20,13 +20,13 @@ launch_kernel() {
     JVM_OPTIONS=$(cat "$LAUNCH_DIR/launch.params")
   fi
 
-  OPTIONS="--root $GG_ROOT"
+  OPTIONS="--root $GG_ROOT --setup-system-service false"
   if [ ! -z ${CONFIG_FILE} ]; then
     OPTIONS="$OPTIONS --config $CONFIG_FILE"
   fi
   echo "jvm options: "${JVM_OPTIONS}
   echo "kernel options: "${OPTIONS}
-  java ${JVM_OPTIONS} -Dlog.store=FILE -Dlog.storeName="$GG_ROOT/logs/evergreen.log" -cp "$LAUNCH_DIR/distro/lib/*" com.aws.iot.evergreen.kernel.KernelCommandLine ${OPTIONS}
+  java ${JVM_OPTIONS} -Dlog.store=FILE -Dlog.storeName="$GG_ROOT/logs/evergreen.log" -jar "$LAUNCH_DIR/distro/lib/Evergreen.jar" ${OPTIONS}
   kernel_exit_code=$?
   echo "kernel exit at code: "${kernel_exit_code}
 }

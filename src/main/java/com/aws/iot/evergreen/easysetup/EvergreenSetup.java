@@ -161,9 +161,9 @@ public class EvergreenSetup {
                 setup.outStream.println("Installed Evergreen CLI");
             }
 
-            kernel.shutdown();
             setup.outStream.println("Launching kernel...");
             if (setup.setupSystemService) {
+                kernel.shutdown();
                 boolean ok = Platform.getInstance().setupSystemService(
                         kernel.getContext().get(KernelAlternatives.class));
                 if (ok) {
