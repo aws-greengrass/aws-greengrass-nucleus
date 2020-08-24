@@ -25,11 +25,11 @@ public class SystemdUtils extends SystemServiceUtils {
             Path serviceConfig = kernelAlternatives.getServiceTemplatePath();
             runCommand(String.format(SED_CMD, PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath(), serviceConfig));
             runCommand(String.format(SED_CMD, LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath(), serviceConfig));
-            runCommand(String.format("sudo cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
-            runCommand("sudo systemctl daemon-reload");
-            runCommand("sudo systemctl unmask greengrass.service");
-            runCommand("sudo systemctl start greengrass.service");
-            runCommand("sudo systemctl enable greengrass.service");
+            runCommand(String.format("cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
+            runCommand("systemctl daemon-reload");
+            runCommand("systemctl unmask greengrass.service");
+            runCommand("systemctl start greengrass.service");
+            runCommand("systemctl enable greengrass.service");
             logger.atInfo().log("Successfully set up systemd service");
             return true;
         } catch (IOException | InterruptedException | URISyntaxException e) {

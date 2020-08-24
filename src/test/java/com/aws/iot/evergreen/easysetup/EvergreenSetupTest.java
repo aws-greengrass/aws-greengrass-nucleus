@@ -79,7 +79,5 @@ public class EvergreenSetupTest {
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).updateKernelConfigWithTesRoleInfo(any(), any());
-        verify(deviceProvisioningHelper, times(0)).setUpEmptyPackagesForFirstPartyServices();
     }
-
 }

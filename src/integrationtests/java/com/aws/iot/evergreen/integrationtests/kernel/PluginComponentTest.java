@@ -111,7 +111,7 @@ public class PluginComponentTest extends BaseITCase {
         assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
         kernel.getContext().get(EZPlugins.class)
-                .forName("com.aws.iot.evergreen.integrationtests.kernel.resource" + ".PluginDependency");
+                .forName("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginDependency");
     }
 
     private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {
