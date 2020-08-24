@@ -3,74 +3,72 @@ package com.aws.iot.evergreen.builtin.services.lifecycle;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
-import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
-import com.aws.iot.evergreen.ipc.common.FrameReader;
-import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
-import com.aws.iot.evergreen.ipc.services.common.IPCUtil;
-import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleClientOpCodes;
+import com.aws.iot.evergreen.ipc.common.ServiceEventHelper;
+import com.aws.iot.evergreen.ipc.services.lifecycle.DeferComponentUpdateRequest;
+import com.aws.iot.evergreen.ipc.services.lifecycle.DeferComponentUpdateResponse;
+import com.aws.iot.evergreen.ipc.services.lifecycle.DeferComponentUpdateResponse.DeferComponentUpdateResponseBuilder;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleGenericResponse;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleListenRequest;
 import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleResponseStatus;
-import com.aws.iot.evergreen.ipc.services.lifecycle.StateChangeRequest;
-import com.aws.iot.evergreen.ipc.services.lifecycle.StateTransitionEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.LifecycleServiceOpCodes;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PostComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.SubscribeToComponentUpdatesResponse;
+import com.aws.iot.evergreen.ipc.services.lifecycle.UpdateStateRequest;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.util.DefaultConcurrentHashMap;
 
-import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import javax.inject.Inject;
+
+import static com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode.LIFECYCLE;
 
 /**
  * Class to handle business logic for all Lifecycle requests over IPC.
  */
 public class LifecycleIPCAgent implements InjectionActions {
-    // Map from service that is listened to --> Map of connection --> Function to call when service state changes
-    private static final Map<String, Map<ConnectionContext, BiConsumer<State, State>>> listeners =
-            new DefaultConcurrentHashMap<>(ConcurrentHashMap::new);
-    private static final int TIMEOUT_SECONDS = 30;
+
+    private final Set<ConnectionContext> componentUpdateListeners = new CopyOnWriteArraySet<>();
+
+    // When a PreComponentUpdateEvent is pushed to components, a future is created for each component. When the
+    // component responds with DeferComponentUpdateRequest the future is marked as complete. The caller of
+    // sendPreComponentUpdateEvent will have reference to the set of futures.
+    // deferUpdateFuturesMap maps the context of a component to the future created for the component.
+    private final Map<ConnectionContext, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
+            new ConcurrentHashMap<>();
 
     @Inject
     private Kernel kernel;
 
     @Inject
-    private ExecutorService executor;
+    private ServiceEventHelper serviceEventHelper;
 
     private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
 
-    private final GlobalStateChangeListener onServiceChange = (service, oldState, newState) -> {
-        if (listeners.containsKey(service.getName())) {
-            listeners.get(service.getName()).values().forEach(x -> x.accept(oldState, newState));
-        }
-    };
 
     @Override
     public void postInject() {
-        kernel.getContext().addGlobalStateChangeListener(onServiceChange);
     }
 
     /**
      * Report the state of the service which the request is coming from.
      *
-     * @param stateChangeRequest incoming request
+     * @param updateStateRequest incoming request
      * @param context            caller context
      * @return response for setting state
      */
-    public LifecycleGenericResponse reportState(StateChangeRequest stateChangeRequest, ConnectionContext context) {
+    public LifecycleGenericResponse updateState(UpdateStateRequest updateStateRequest, ConnectionContext context) {
 
-        State s = State.valueOf(stateChangeRequest.getState());
+        State s = State.valueOf(updateStateRequest.getState());
         Optional<EvergreenService> service =
                 Optional.ofNullable(kernel.getContext().get(EvergreenService.class, context.getServiceName()));
 
@@ -88,57 +86,86 @@ public class LifecycleIPCAgent implements InjectionActions {
     }
 
     /**
-     * Set up a listener for state changes for a requested service. (Currently any service can listen to any other
-     * service's lifecycle changes).
+     * handle component request to subscribe to component update events.
      *
-     * @param lifecycleListenRequest incoming listen request
-     * @param context                caller context
-     * @return response
+     * @param context client context
      */
-    public LifecycleGenericResponse listenToStateChanges(LifecycleListenRequest lifecycleListenRequest,
-                                                         ConnectionContext context) {
-        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
-        listeners.get(lifecycleListenRequest.getServiceName())
-                .put(context, sendStateUpdateToListener(lifecycleListenRequest, context));
-        context.onDisconnect(() -> listeners.values().forEach(map -> map.remove(context)));
-
-        return LifecycleGenericResponse.builder().status(LifecycleResponseStatus.Success).build();
+    public SubscribeToComponentUpdatesResponse subscribeToComponentUpdate(ConnectionContext context) {
+        log.debug("{} subscribed to component update", context.getServiceName());
+        componentUpdateListeners.add(context);
+        context.onDisconnect(() -> componentUpdateListeners.remove(context));
+        return SubscribeToComponentUpdatesResponse.builder().responseStatus(LifecycleResponseStatus.Success).build();
     }
 
-    private BiConsumer<State, State> sendStateUpdateToListener(LifecycleListenRequest listenRequest,
-                                                               ConnectionContext context) {
-        return (oldState, newState) -> {
-            StateTransitionEvent stateTransitionEvent =
-                    StateTransitionEvent.builder().newState(newState.toString()).oldState(oldState.toString())
-                            .service(listenRequest.getServiceName()).build();
+    /**
+     * Signal components about pending component updates.
+     *
+     * @param preComponentUpdateEvent event sent to subscribed components
+     * @param deferUpdateFutures      futures tracking the response to preComponentUpdateEvent
+     */
+    public void sendPreComponentUpdateEvent(PreComponentUpdateEvent preComponentUpdateEvent,
+                                            List<Future<DeferUpdateRequest>> deferUpdateFutures) {
+        discardDeferComponentUpdateFutures();
+        componentUpdateListeners.forEach((context) -> {
+            //TODO: error handling if sendServiceEvent fails
+            log.info("Sending preComponentUpdate event to {}", context.getServiceName());
+            serviceEventHelper.sendServiceEvent(context, preComponentUpdateEvent, LIFECYCLE,
+                    LifecycleServiceOpCodes.PRE_COMPONENT_UPDATE_EVENT.ordinal(), LifecycleImpl.API_VERSION);
+            CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
+            deferUpdateFutures.add(deferUpdateFuture);
+            deferUpdateFuturesMap.put(context, deferUpdateFuture);
+        });
 
-            log.info("Pushing state change notification to {} from {} to {}", listenRequest.getServiceName(), oldState,
-                    newState);
-            try {
-                ApplicationMessage applicationMessage = ApplicationMessage.builder().version(LifecycleImpl.API_VERSION)
-                        .opCode(LifecycleClientOpCodes.STATE_TRANSITION.ordinal())
-                        .payload(IPCUtil.encode(stateTransitionEvent)).build();
-                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
-                Future<FrameReader.Message> fut = context.serverPush(BuiltInServiceDestinationCode.LIFECYCLE.getValue(),
-                        new FrameReader.Message(applicationMessage.toByteArray()));
+    }
 
-                // call the blocking "get" in a separate thread so we don't block the publish queue
-                executor.execute(() -> {
-                    try {
-                        fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                        // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        // Log
-                        log.atError("error-sending-lifecycle-update").kv("context", context)
-                                .log("Error sending lifecycle update to client", e);
-                    }
-                });
+    /**
+     * Signal component that updates are complete.
+     *
+     * @param postComponentUpdateEvent event sent to subscribed components
+     */
+    public void sendPostComponentUpdateEvent(PostComponentUpdateEvent postComponentUpdateEvent) {
+        componentUpdateListeners.forEach((context) -> {
+            log.info("Sending postComponentUpdate event to " + context.getServiceName());
+            serviceEventHelper.sendServiceEvent(context, postComponentUpdateEvent, LIFECYCLE,
+                    LifecycleServiceOpCodes.POST_COMPONENT_UPDATE_EVENT.ordinal(), LifecycleImpl.API_VERSION);
+        });
+    }
 
-            } catch (IOException e) {
-                // Log
-                log.atError("error-sending-lifecycle-update").kv("context", context)
-                        .log("Error sending lifecycle update to client", e);
-            }
-        };
+    /**
+     * Discard the futures used to track components responding to PreComponentUpdateEvent. This is invoked when
+     * the max time limit to respond to PreComponentUpdateEvent is reached.
+     */
+    public void discardDeferComponentUpdateFutures() {
+        log.debug("Discarding {} DeferComponentUpdateRequest futures", deferUpdateFuturesMap.size());
+        deferUpdateFuturesMap.clear();
+    }
+
+    /**
+     * Accepts defer updates requests and sets the corresponding future with the information.
+     *
+     * @param request response for PreComponentUpdateEvent
+     * @param context client context
+     * @return response to the request
+     */
+    public DeferComponentUpdateResponse handleDeferComponentUpdateRequest(DeferComponentUpdateRequest request,
+                                                                          ConnectionContext context) {
+        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        DeferComponentUpdateResponseBuilder responseBuilder = DeferComponentUpdateResponse.builder();
+        if (!componentUpdateListeners.contains(context)) {
+            return responseBuilder.responseStatus(LifecycleResponseStatus.InvalidRequest)
+                    .errorMessage("Component is not subscribed to component update events").build();
+        }
+
+        CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
+                deferUpdateFuturesMap.get(context);
+        if (deferComponentUpdateRequestFuture == null) {
+            return responseBuilder.responseStatus(LifecycleResponseStatus.InvalidRequest)
+                    .errorMessage("Time limit to respond to PreComponentUpdateEvent exceeded").build();
+        }
+
+        deferComponentUpdateRequestFuture.complete(new DeferUpdateRequest(context.getServiceName(),
+                request.getMessage(), request.getRecheckTimeInMs()));
+        deferUpdateFuturesMap.remove(context);
+        return responseBuilder.responseStatus(LifecycleResponseStatus.Success).build();
     }
 }

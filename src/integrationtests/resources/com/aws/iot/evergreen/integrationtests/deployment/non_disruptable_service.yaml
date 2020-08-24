@@ -5,30 +5,3 @@ services:
   nondisruptable:
     lifecycle:
       install:
-        posix: rm /tmp/safeUpdateRetry || exit 0
-        windows: powershell -command Remove-Item safeUpdateRetry -ErrorAction SilentlyContinue; exit 0
-      checkIfSafeToUpdate:
-        recheckPeriod: 5
-        script:
-          posix: |-
-            if [ -f "/tmp/safeUpdateRetry" ]; then
-              echo "Safe Update"
-              rm /tmp/safeUpdateRetry
-              exit 0
-            else
-              echo "Not SafeUpdate"
-              touch /tmp/safeUpdateRetry
-              exit 1
-            fi
-          windows: >-
-            powershell -command "& {if ([System.IO.File]::Exists(\"safeUpdateRetry\")) {
-            echo \"Safe Update\";
-            Remove-Item safeUpdateRetry;
-            } else {
-            echo \"Not SafeUpdate\";
-            New-Item safeUpdateRetry;
-            exit 1;
-            }}"
-      updatesCompleted:
-        posix: echo "Yes! Updates completed"
-        windows: powershell -command echo \"Yes! Updates completed\"

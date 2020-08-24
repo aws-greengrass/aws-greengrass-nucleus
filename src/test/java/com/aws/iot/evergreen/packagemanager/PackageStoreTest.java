@@ -249,17 +249,17 @@ class PackageStoreTest {
         // expected return: MonitoringService 1.0.0 and 1.1.0
         assertThat(packageMetadataList, iterableWithSize(2));
 
-        // 1.0.0
-        PackageMetadata packageMetadata = packageMetadataList.get(0);
-        assertThat(packageMetadata.getPackageIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
-        assertThat(packageMetadata.getPackageIdentifier().getVersion(), is(new Semver("1.0.0")));
-        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(new Semver("1.0.0"))));
-
         // 1.1.0
-        packageMetadata = packageMetadataList.get(1);
+        PackageMetadata packageMetadata = packageMetadataList.get(0);
         assertThat(packageMetadata.getPackageIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
         assertThat(packageMetadata.getPackageIdentifier().getVersion(), is(new Semver("1.1.0")));
         assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(new Semver("1.1.0"))));
+
+        // 1.0.0
+        packageMetadata = packageMetadataList.get(1);
+        assertThat(packageMetadata.getPackageIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
+        assertThat(packageMetadata.getPackageIdentifier().getVersion(), is(new Semver("1.0.0")));
+        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(new Semver("1.0.0"))));
     }
 
     private void preloadRecipeFileFromTestResource(String fileName) throws IOException {
