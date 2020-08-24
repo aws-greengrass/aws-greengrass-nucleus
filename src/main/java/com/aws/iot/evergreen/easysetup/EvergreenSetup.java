@@ -6,7 +6,7 @@ import com.aws.iot.evergreen.kernel.KernelAlternatives;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.platforms.Platform;
+import com.aws.iot.evergreen.util.orchestration.SystemServiceUtils;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -164,7 +164,7 @@ public class EvergreenSetup {
             setup.outStream.println("Launching kernel...");
             if (setup.setupSystemService) {
                 kernel.shutdown();
-                boolean ok = Platform.getInstance().setupSystemService(
+                boolean ok = SystemServiceUtils.getInstance().setupSystemService(
                         kernel.getContext().get(KernelAlternatives.class));
                 if (ok) {
                     setup.outStream.println("Successfully set up Kernel as a system service");
@@ -266,10 +266,7 @@ public class EvergreenSetup {
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
             outStream.println("Configuring kernel with TokenExchangeService role details...");
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
-            outStream.println("Creating an empty component for TokenExchangeService...");
-            deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
             outStream.println("Successfully configured TokenExchangeService!");
-
         }
     }
 

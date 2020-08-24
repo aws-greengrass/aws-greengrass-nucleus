@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
 import com.aws.iot.evergreen.util.IotSdkClientFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,6 +100,7 @@ public class DeviceProvisioningHelperTest {
     @Mock
     private ListAttachedPoliciesResponse listAttachedPoliciesResponse;
     private DeviceProvisioningHelper deviceProvisioningHelper;
+    private Kernel kernel;
 
     private String getThingArn() {
         return Arn.builder().withService("testService")
@@ -109,6 +111,13 @@ public class DeviceProvisioningHelperTest {
     @BeforeEach
     public void setup() {
         deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, cmsClient);
+    }
+
+    @AfterEach
+    public void cleanup() {
+        if (kernel != null) {
+            kernel.shutdown();
+        }
     }
 
     @Test
@@ -173,7 +182,7 @@ public class DeviceProvisioningHelperTest {
     @Test
     public void GIVEN_test_update_device_config_WHEN_thing_info_provided_THEN_add_config_to_config_store()
             throws Exception {
-        Kernel kernel = new Kernel()
+        kernel = new Kernel()
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
@@ -181,19 +190,17 @@ public class DeviceProvisioningHelperTest {
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
                         "credEndpoint"), TEST_REGION);
         assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
-        kernel.shutdown();
     }
 
     @Test
     public void GIVEN_test_tes_role_config_WHEN_role_info_provided_THEN_add_config_to_config_store() {
-        Kernel kernel = new Kernel()
+        kernel = new Kernel()
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, "roleAliasName");
         assertEquals("roleAliasName", kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY,
                         IOT_ROLE_ALIAS_TOPIC).getOnce());
-        kernel.shutdown();
     }
 
     @Test
