@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -151,8 +150,11 @@ public class KernelConfigResolver {
 
         // State information for deployments
         resolvedServiceConfig.put(VERSION_CONFIG_KEY, packageRecipe.getVersion().getValue());
-        resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParams.stream()
-                .collect(Collectors.toMap(PackageParameter::getName, PackageParameter::getValue)));
+        Map<String, String> map = new HashMap<>();
+        for (PackageParameter resolvedParam : resolvedParams) {
+            map.put(resolvedParam.getName(), resolvedParam.getValue());
+        }
+        resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, map);
 
         return resolvedServiceConfig;
     }
