@@ -135,6 +135,11 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionWithMessageSubstring(context, "Failed to connect to service endpoint:");
         ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
 
+        // Ignore exceptions on setting up Kernel initial launch directory which assumes provisioning from zip file
+        ignoreExceptionWithMessage(context, "Unable to setup Kernel launch directory");
+        ignoreExceptionWithMessage(context, "Unable to locate the parent directory of Kernel Jar file");
+        ignoreExceptionWithMessage(context, "Unable to locate the unpack directory of Kernel artifacts");
+
         ignoreExceptionOfType(context, RejectedExecutionException.class);
     }
 
