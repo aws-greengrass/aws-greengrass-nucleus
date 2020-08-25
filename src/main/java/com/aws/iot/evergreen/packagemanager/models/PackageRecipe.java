@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -15,6 +16,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,6 +32,8 @@ import java.util.Set;
 @Getter
 @NoArgsConstructor(force = true, access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Builder
+@AllArgsConstructor
 public class PackageRecipe {
     private static final String DEPENDENCY_VERSION_REQUIREMENTS_KEY = "versionrequirements";
     private static final String DEPENDENCY_TYPE_KEY = "dependencytype";
@@ -54,8 +59,7 @@ public class PackageRecipe {
 
     private final Map<String, Object> lifecycle;
 
-
-    private final Map<String, List<ComponentArtifact>> artifacts;
+    private final List<ComponentArtifact> artifacts;
 
     private final Map<String, RecipeDependencyProperties> dependencies;
 
@@ -75,6 +79,7 @@ public class PackageRecipe {
      * @param componentType         Type of component to be created
      * @throws SemverException if the semver fails to be created
      */
+    @Deprecated
     @JsonCreator
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public PackageRecipe(@JsonProperty("RecipeTemplateVersion") RecipeTemplateVersion recipeTemplateVersion,
@@ -83,9 +88,10 @@ public class PackageRecipe {
                          @JsonProperty("Parameters") Set<PackageParameter> packageParameters,
                          @JsonProperty("Platforms") List<String> platforms, @JsonProperty("Lifecycle") @JsonDeserialize(
             using = MapFieldDeserializer.class) Map<String, Object> lifecycle,
-                         @JsonProperty("Artifacts") Map<String, List<ComponentArtifact>> artifacts,
-                         @JsonProperty("Dependencies")
-                             @JsonDeserialize(using = DependencyMapDeserializer.class)
+                         @JsonProperty("Artifacts") @JsonDeserialize(
+                                 using = ArtifactDeserializer.class) List<ComponentArtifact> artifacts,
+                         @JsonProperty("Dependencies") @JsonDeserialize(
+                                 using = DependencyMapDeserializer.class)
                                      Map<String, RecipeDependencyProperties> dependencies,
                          @JsonProperty("ComponentType") String componentType) {
 
@@ -99,7 +105,7 @@ public class PackageRecipe {
         this.platforms = platforms;
         this.packageParameters = packageParameters == null ? Collections.emptySet() : packageParameters;
         this.lifecycle = lifecycle == null ? Collections.emptyMap() : lifecycle;
-        this.artifacts = artifacts == null ? Collections.emptyMap() : artifacts;
+        this.artifacts = artifacts == null ? Collections.emptyList() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
         this.componentType = componentType;
     }
@@ -109,6 +115,27 @@ public class PackageRecipe {
         return version;
     }
 
+    @Deprecated
+    private static class ArtifactDeserializer extends JsonDeserializer<List<ComponentArtifact>> {
+        @Override
+        @SuppressWarnings("unchecked")
+        public List<ComponentArtifact> deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
+                throws IOException {
+
+
+            Map<String, List<ComponentArtifact>> artifacts = SerializerFactory
+                                                .getRecipeSerializer()
+                                                .convertValue(
+                                                        jsonParser.readValueAsTree(),
+                                                        new TypeReference<Map<String, List<ComponentArtifact>>>() {});
+
+            Map<Object, Object> map = new HashMap<>(artifacts);
+
+            return (List<ComponentArtifact>) PlatformResolver.resolvePlatform(map);
+        }
+    }
+
+    @Deprecated
     private static class MapFieldDeserializer extends JsonDeserializer<Map<String, Object>> {
         @Override
         @SuppressWarnings("unchecked")
@@ -121,6 +148,7 @@ public class PackageRecipe {
         }
     }
 
+    @Deprecated
     private static class DependencyMapDeserializer extends JsonDeserializer<Map<String, RecipeDependencyProperties>> {
         @Override
         public Map<String, RecipeDependencyProperties> deserialize(JsonParser p, DeserializationContext ctxt)

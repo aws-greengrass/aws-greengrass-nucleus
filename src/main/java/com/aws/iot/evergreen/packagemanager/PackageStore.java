@@ -19,6 +19,7 @@ import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NonNull;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -72,14 +73,15 @@ public class PackageStore {
     /**
      * Creates or updates a package recipe in the package store on the disk.
      *
-     * @param packageRecipe package recipe to be create.
+     * @param pkgId the id for the component
+     * @param recipeContent recipe content to save
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void savePackageRecipe(@NonNull PackageRecipe packageRecipe) throws PackageLoadingException {
-        Path recipePath = resolveRecipePath(packageRecipe.getComponentName(), packageRecipe.getVersion());
+    void savePackageRecipe(@NonNull PackageIdentifier pkgId, String recipeContent) throws PackageLoadingException {
+        Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
 
         try {
-            RECIPE_SERIALIZER.writeValue(recipePath.toFile(), packageRecipe);
+            FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
         } catch (IOException e) {
             // TODO refine exception
             throw new PackageLoadingException(String.format("Failed to save package recipe to %s", recipePath), e);

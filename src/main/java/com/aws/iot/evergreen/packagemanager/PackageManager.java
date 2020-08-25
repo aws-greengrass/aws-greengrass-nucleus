@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -36,7 +35,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -163,11 +161,7 @@ public class PackageManager implements InjectionActions {
         logger.atInfo().setEventType("prepare-package-start").addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier).log();
         try {
             PackageRecipe pkg = findRecipeDownloadIfNotExisted(packageIdentifier);
-            Map artifacts = pkg.getArtifacts();
-            if (!artifacts.isEmpty()) {
-                prepareArtifacts(packageIdentifier,
-                        (List<ComponentArtifact>) PlatformResolver.resolvePlatform(artifacts));
-            }
+            prepareArtifacts(packageIdentifier, pkg.getArtifacts());
             logger.atInfo("prepare-package-finished").kv(PACKAGE_IDENTIFIER, packageIdentifier).log();
         } catch (PackageLoadingException | PackageDownloadException e) {
             logger.atError().log("Failed to prepare package {}", packageIdentifier, e);
@@ -187,10 +181,10 @@ public class PackageManager implements InjectionActions {
         if (packageOptional.isPresent()) {
             return packageOptional.get();
         }
-        PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-        packageStore.savePackageRecipe(packageRecipe);
-        logger.atDebug().kv("component", packageIdentifier).log("Downloaded from component service");
-        return packageRecipe;
+        String downloadRecipeContent = greengrassPackageServiceHelper.downloadPackageRecipeAsString(packageIdentifier);
+        packageStore.savePackageRecipe(packageIdentifier, downloadRecipeContent);
+        logger.atDebug().kv("pkgId", packageIdentifier).log("Downloaded from component service");
+        return packageStore.getPackageRecipe(packageIdentifier);
     }
 
     void prepareArtifacts(PackageIdentifier packageIdentifier, List<ComponentArtifact> artifacts)
