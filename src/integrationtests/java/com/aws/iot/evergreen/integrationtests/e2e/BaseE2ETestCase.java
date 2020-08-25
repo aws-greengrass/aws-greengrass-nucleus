@@ -159,32 +159,27 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
-    private static final PackageIdentifier[] componentsWithArtifactsInGG =
-            {createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
-                    createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
-                    createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
-                    createPackageIdentifier("SomeService", new Semver("1.0.0")),
-                    createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
-                    createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("RedSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
-                    createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
-                    createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
-                    createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
-                    createPackageIdentifier("Log", new Semver("2.0.0")),
-                    createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
-                    createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
     private static final PackageIdentifier[] componentsWithArtifactsInS3 =
-            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0"))};
+            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
+            createPackageIdentifier("SomeService", new Semver("1.0.0")),
+            createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
+            createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
+            createPackageIdentifier("RedSignal", new Semver("1.0.0")),
+            createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
+            createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
+            createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
+            createPackageIdentifier("Log", new Semver("2.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
 
     @BeforeAll
     static void beforeAll() throws Exception {
         initializePackageStore();
-
-        uploadTestComponentsToCms(componentsWithArtifactsInGG);
-        uploadComponentArtifactsToGG(componentsWithArtifactsInGG);
-        commitTestComponentsToCms(componentsWithArtifactsInGG);
 
         // Self hosted artifacts must exist in S3 before creating a component version
         createS3BucketsForTestComponentArtifacts();
@@ -197,8 +192,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     @AfterAll
     static void afterAll() {
         try {
-            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInGG));
-            allComponents.addAll(Arrays.asList(componentsWithArtifactsInS3));
+            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (PackageIdentifier component : allComponents) {
                 DeleteComponentResult result = GreengrassPackageServiceHelper
                         .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
@@ -289,10 +283,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         // update recipe
         String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
-        Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInGG)
+        Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInS3)
                 .map(component -> component.getName()).collect(Collectors.toSet());
-        componentNameSet.addAll(Arrays.stream(componentsWithArtifactsInS3)
-                .map(component -> component.getName()).collect(Collectors.toSet()));
 
         for (String cloudPkgName: componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
