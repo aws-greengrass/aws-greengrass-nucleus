@@ -14,7 +14,9 @@ import com.aws.iot.evergreen.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -34,6 +36,13 @@ public class KernelAlternatives {
     private static final String CURRENT_DIR = "current";
     private static final String OLD_DIR = "old";
     private static final String BROKEN_DIR = "broken";
+
+    private static final String INITIAL_SETUP_DIR = "init";
+    private static final String KERNEL_DISTRIBUTION_DIR = "distro";
+    private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
+    private static final String KERNEL_BIN_DIR = "bin";
+    private static final String LOADER_PID_FILE = "loader.pid";
+    private static final String LOADER_FILE = "loader";
 
     private final Path altsDir;
     // Symlink to the current launch directory
@@ -56,6 +65,64 @@ public class KernelAlternatives {
         this.currentDir = kernelAltsPath.resolve(CURRENT_DIR).toAbsolutePath();
         this.oldDir = kernelAltsPath.resolve(OLD_DIR).toAbsolutePath();
         this.brokenDir = kernelAltsPath.resolve(BROKEN_DIR).toAbsolutePath();
+    }
+
+    /**
+     * Get pid file for loader.
+     *
+     * @return path to pid file
+     */
+    public Path getLoaderPidPath() {
+        return altsDir.resolve(LOADER_PID_FILE);
+    }
+
+    /**
+     * Get loader file.
+     *
+     * @return path to loader file
+     */
+    public Path getLoaderPath() {
+        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(LOADER_FILE);
+    }
+
+    public Path getServiceTemplatePath() {
+        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(SYSTEMD_SERVICE_FILE);
+    }
+
+    public boolean isLaunchDirSetup() {
+        // TODO: check for file and directory corruptions
+        return currentDir.toFile().exists();
+    }
+
+    /**
+     * Create launch directory in the initial setup.
+     *
+     * @throws IOException on I/O error
+     * @throws URISyntaxException if unable to determine source path of the Jar file
+     */
+    public void setupInitLaunchDirIfAbsent() throws IOException, URISyntaxException {
+        if (isLaunchDirSetup()) {
+            return;
+        }
+        Path initialLaunchDir = altsDir.resolve(INITIAL_SETUP_DIR);
+        Utils.createPaths(initialLaunchDir);
+
+        setupLinkToDirectory(initialLaunchDir.resolve(KERNEL_DISTRIBUTION_DIR), locateCurrentKernelUnpackDir());
+        setupLinkToDirectory(currentDir, initialLaunchDir);
+    }
+
+    private Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
+        // TODO: validate file directory tree. Assuming unpackDir/lib/kernel.jar for now
+        Path parentDir = new File(KernelAlternatives.class.getProtectionDomain().getCodeSource().getLocation()
+                .toURI()).toPath().getParent();
+        if (parentDir == null || ! Files.exists(parentDir)) {
+            throw new IOException("Unable to locate the parent directory of Kernel Jar file");
+        }
+        Path unpackDir = parentDir.getParent();
+        if (unpackDir == null || ! Files.exists(unpackDir)) {
+            throw new IOException("Unable to locate the unpack directory of Kernel artifacts");
+        }
+        return unpackDir;
     }
 
     /**

@@ -222,7 +222,6 @@ class TESTest extends BaseITCase {
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName, thingInfo.getCertificateArn());
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, roleAliasName);
-        deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 
     private String getResponseString(URL url, String token) throws Exception {

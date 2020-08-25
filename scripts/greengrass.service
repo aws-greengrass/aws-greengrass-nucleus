@@ -1,0 +1,12 @@
+[Unit]
+Description=Greengrass Core
+
+[Service]
+Type=simple
+PIDFile=REPLACE_WITH_GG_LOADER_PID_FILE
+Restart=always
+RestartSec=10
+ExecStart=REPLACE_WITH_GG_LOADER_FILE
+
+[Install]
+WantedBy=multi-user.target
