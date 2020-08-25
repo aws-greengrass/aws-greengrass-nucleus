@@ -3,6 +3,7 @@ package com.aws.iot.evergreen.packagemanager.models;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -14,6 +15,7 @@ import java.util.Set;
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @JsonSerialize
+@Builder
 public class PackageParameter {
 
     @EqualsAndHashCode.Include

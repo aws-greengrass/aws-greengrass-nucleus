@@ -7,43 +7,21 @@ import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsCollectionWithSize;
 import org.hamcrest.collection.IsMapContaining;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static com.aws.iot.evergreen.config.PlatformResolver.RANKS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(EGExtension.class)
-public class PackageRecipeTest {
-    private static Map<String, Integer> backupRanks;
-    private static AtomicReference<Map<String, Integer>> ranksField;
-
-    @BeforeAll
-    static void beforeAll() {
-        ranksField = RANKS;
-        backupRanks = ranksField.get();
-        ranksField.set(new HashMap<String, Integer>() {{
-            put("macos", 99);
-            put("linux", 1);
-        }});
-    }
-
-    @AfterAll
-    static void afterAll() {
-        ranksField.set(backupRanks);
-    }
+class PackageRecipeTest {
 
     @Test
     void GIVEN_valid_package_recipe_WHEN_attempt_package_recipe_create_THEN_valid_package_recipe_created()
@@ -60,8 +38,7 @@ public class PackageRecipeTest {
         assertThat(testPkg.getLifecycle().size(), is(2));
         assertThat(testPkg.getLifecycle(), IsMapContaining.hasKey("run"));
 
-        // TODO: Check for providers
-        assertThat(testPkg.getArtifacts().get("all"), IsCollectionWithSize.hasSize(1));
+        assertThat(testPkg.getArtifacts(), IsCollectionWithSize.hasSize(1));
 
         Map<String, RecipeDependencyProperties> dependencies = testPkg.getDependencies();
         assertThat(dependencies.size(), is(1));
