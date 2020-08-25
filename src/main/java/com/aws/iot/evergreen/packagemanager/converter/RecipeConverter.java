@@ -3,11 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 package com.aws.iot.evergreen.packagemanager.converter;
 
 import com.aws.iot.evergreen.config.PlatformResolver;
@@ -27,9 +22,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.inject.Inject;
 
 /**
@@ -96,13 +93,13 @@ public class RecipeConverter {
         if (parameters == null || parameters.isEmpty()) {
             return Collections.emptySet();
         }
-        return parameters.stream().map(this::convertParameterFromFile).collect(Collectors.toSet());
+        return parameters.stream()
+                         .filter(Objects::nonNull)
+                         .map(this::convertParameterFromFile)
+                         .collect(Collectors.toSet());
     }
 
-    private PackageParameter convertParameterFromFile(ComponentParameter parameter) {
-        if (parameter == null) {
-            return null;
-        }
+    private PackageParameter convertParameterFromFile(@Nonnull ComponentParameter parameter) {
         return PackageParameter.builder()
                                .name(parameter.getName())
                                .value(parameter.getValue())
@@ -116,15 +113,14 @@ public class RecipeConverter {
         if (artifacts == null || artifacts.isEmpty()) {
             return Collections.emptyList();
         }
-        return artifacts.stream().map(this::convertArtifactFromFile).collect(Collectors.toList());
+        return artifacts.stream()
+                        .filter(Objects::nonNull)
+                        .map(this::convertArtifactFromFile)
+                        .collect(Collectors.toList());
     }
 
     private ComponentArtifact convertArtifactFromFile(
-            com.aws.iot.evergreen.packagemanager.common.ComponentArtifact componentArtifact) {
-        if (componentArtifact == null) {
-            return null;
-        }
-
+            @Nonnull com.aws.iot.evergreen.packagemanager.common.ComponentArtifact componentArtifact) {
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())
                                 .algorithm(componentArtifact.getAlgorithm())
@@ -140,6 +136,7 @@ public class RecipeConverter {
         }
         return dependencies.entrySet()
                            .stream()
+                           .filter(Objects::nonNull)
                            .collect(Collectors.toMap(Map.Entry::getKey,
                                    entry -> new RecipeDependencyProperties(entry.getValue().getVersionRequirement(),
                                            entry.getValue().getDependencyType())));
