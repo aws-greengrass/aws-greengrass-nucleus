@@ -24,9 +24,7 @@ Lifecycle:
     run: git status
 Artifacts:
   all:
-    - uri: s3://some-bucket/hello_world.py
-      digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
-      algorithm: SHA-256
+    - Uri: %s/MonitoringService-1.0.0/monitor_artifact_100.txt
 Dependencies:
   all:
     Log:
