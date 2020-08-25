@@ -61,6 +61,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 
@@ -193,29 +194,37 @@ class PackageManagerTest {
 
     @Test
     void GIVEN_package_identifier_WHEN_request_to_prepare_package_THEN_task_succeed() throws Exception {
-        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
+        PackageIdentifier pkgId = new PackageIdentifier("MonitoringService", new Semver("1.0.0"), SCOPE);
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
-        PackageRecipe pkg = SerializerFactory.getRecipeSerializer()
-                .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        PackageRecipe packageRecipe = SerializerFactory.getRecipeSerializer()
+                                              .readValue(sourceRecipeString, PackageRecipe.class);
 
-        when(packageServiceHelper.downloadPackageRecipe(any())).thenReturn(pkg);
+
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
+        when(packageStore.getPackageRecipe(pkgId)).thenReturn(packageRecipe);
         Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
         future.get(5, TimeUnit.SECONDS);
 
         assertThat(future.isDone(), is(true));
 
-        verify(packageServiceHelper).downloadPackageRecipe(pkgId);
+        verify(packageServiceHelper).downloadPackageRecipeAsString(pkgId);
+        verify(packageStore).findPackageRecipe(pkgId);
+        verify(packageStore).savePackageRecipe(pkgId, sourceRecipeString);
+        verify(packageStore).getPackageRecipe(pkgId);
+        verifyNoMoreInteractions(packageStore);
+
     }
 
     @Test
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context)
             throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
-        when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenThrow(PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
         Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
@@ -233,7 +242,7 @@ class PackageManagerTest {
                 .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
 
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
-        when(packageServiceHelper.downloadPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
+        when(packageServiceHelper.downloadPackageRecipeAsString(pkgId1)).thenAnswer(invocationOnMock -> {
             startedPreparingPkgId1.countDown();
             Thread.sleep(2_000);
             return pkg1;
@@ -243,8 +252,8 @@ class PackageManagerTest {
         assertTrue(startedPreparingPkgId1.await(1, TimeUnit.SECONDS));
         future.cancel(true);
 
-        verify(packageServiceHelper).downloadPackageRecipe(pkgId1);
-        verify(packageServiceHelper, times(0)).downloadPackageRecipe(pkgId2);
+        verify(packageServiceHelper).downloadPackageRecipeAsString(pkgId1);
+        verify(packageServiceHelper, times(0)).downloadPackageRecipeAsString(pkgId2);
     }
 
     @Test

@@ -23,11 +23,14 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,11 +65,19 @@ public class ServiceDependencyLifecycleTest {
 
     private Kernel kernel;
 
+    @TempDir
+    protected Path tempDir;
+
     @AfterEach
     void teardown() {
         if (kernel != null) {
             kernel.shutdown();
         }
+    }
+
+    @BeforeEach
+    void startup() {
+        System.setProperty("root", tempDir.toAbsolutePath().toString());
     }
 
     @SuppressWarnings({"PMD.LooseCoupling", "PMD.CloseResource"})

@@ -2,9 +2,11 @@ package com.aws.iot.evergreen.easysetup;
 
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.KernelAlternatives;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.orchestration.SystemServiceUtilsFactory;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -78,6 +80,10 @@ public class EvergreenSetup {
     private static final String INSTALL_CLI_ARG_SHORT = "-ic";
     private static final boolean INSTALL_CLI_ARG_DEFAULT = false;
 
+    private static final String SETUP_SYSTEM_SERVICE_ARG = "--setup-system-service";
+    private static final String SETUP_SYSTEM_SERVICE_ARG_SHORT = "-ss";
+    private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = false;
+
     // TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
 
     private static final Logger logger = LogManager.getLogger(EvergreenSetup.class);
@@ -96,6 +102,7 @@ public class EvergreenSetup {
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
     private boolean setupTes = SETUP_TES_DEFAULT;
     private boolean installCli = INSTALL_CLI_ARG_DEFAULT;
+    private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -148,15 +155,26 @@ public class EvergreenSetup {
                 setup.provision(kernel);
             }
 
-            setup.outStream.println("Launching kernel...");
-            kernel.launch();
-            setup.outStream.println("Launched kernel successfully.");
-
             // Install Evergreen cli
             if (setup.installCli) {
                 // TODO : Download CLI binary from CDN and install
                 setup.outStream.println("Installed Evergreen CLI");
             }
+
+            setup.outStream.println("Launching kernel...");
+            if (setup.setupSystemService) {
+                kernel.shutdown();
+                boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
+                        kernel.getContext().get(KernelAlternatives.class));
+                if (ok) {
+                    setup.outStream.println("Successfully set up Kernel as a system service");
+                    // Kernel will be launched by OS as a service
+                    System.exit(0);
+                }
+                setup.outStream.println("Unable to set up Kernel as a system service");
+            }
+            kernel.launch();
+            setup.outStream.println("Launched kernel successfully.");
         } catch (Throwable t) {
             logger.atError().setCause(t).log("Error while trying to setup Evergreen kernel");
             System.err.println("Error while trying to setup Evergreen kernel");
@@ -211,6 +229,10 @@ public class EvergreenSetup {
                 case INSTALL_CLI_ARG_SHORT:
                     this.installCli = Coerce.toBoolean(getArg());
                     break;
+                case SETUP_SYSTEM_SERVICE_ARG:
+                case SETUP_SYSTEM_SERVICE_ARG_SHORT:
+                    this.setupSystemService = Coerce.toBoolean(getArg());
+                    break;
                 default:
                     RuntimeException rte =
                             new RuntimeException(String.format("Undefined command line argument: %s", arg));
@@ -244,10 +266,7 @@ public class EvergreenSetup {
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
             outStream.println("Configuring kernel with TokenExchangeService role details...");
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
-            outStream.println("Creating an empty component for TokenExchangeService...");
-            deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
             outStream.println("Successfully configured TokenExchangeService!");
-
         }
     }
 

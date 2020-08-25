@@ -2,6 +2,7 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -13,25 +14,22 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class PlatformResolver {
+public class PlatformResolver {
     private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
     public static final AtomicReference<Map<String, Integer>> RANKS =
             new AtomicReference<>(Collections.unmodifiableMap(initializeRanks()));
 
-    private PlatformResolver() {
-    }
-
     private static Set<String> initializeSupportedPlatforms() {
-        Set<String> platforms = new HashSet<>();
-        platforms.addAll(Arrays
-                .asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora", "ubuntu", "macos",
+        return new HashSet<>(
+                Arrays.asList("all", "any", "unix", "posix", "linux", "debian", "windows", "fedora", "ubuntu", "macos",
                         "raspbian", "qnx", "cygwin", "freebsd", "solaris", "sunos"));
-        return platforms;
     }
 
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
@@ -148,5 +146,16 @@ public final class PlatformResolver {
         }
         return bestRankNode;
         */
+    }
+
+    /**
+     * Find the best match platform manifest.
+     *
+     * @param manifests list of manifests
+     * @return the best match platform; empty if not found.
+     */
+    public Optional<PlatformSpecificManifest> findBestMatch(List<PlatformSpecificManifest> manifests) {
+        // TODO @shirlez will implement
+        return Optional.empty();
     }
 }

@@ -13,14 +13,6 @@ Lifecycle:
     install:
       skipif: onpath git
       script: sudo apt-get install git
-  debian:
-    install:
-      skipif: onpath git
-      script: sudo apt-get install git
-  macos:
-    install:
-      skipif: onpath git
-      script: brew install git
     run: git status
 Artifacts:
   all:
@@ -31,7 +23,3 @@ Dependencies:
       VersionRequirements: '2.0'
     Cool-Database:
       VersionRequirements: '1.0'
-  macos:
-    mac-log:
-      VersionRequirements: '1.0'
-

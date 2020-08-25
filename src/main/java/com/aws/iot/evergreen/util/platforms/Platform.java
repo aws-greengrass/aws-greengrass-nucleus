@@ -6,11 +6,14 @@
 package com.aws.iot.evergreen.util.platforms;
 
 import com.aws.iot.evergreen.config.PlatformResolver;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Exec;
 
 import java.io.IOException;
 
 public abstract class Platform {
+    protected static final Logger logger = LogManager.getLogger(Platform.class);
     private static Platform INSTANCE;
 
     /**
