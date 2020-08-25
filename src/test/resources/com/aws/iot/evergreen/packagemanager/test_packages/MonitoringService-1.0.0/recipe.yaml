@@ -18,6 +18,7 @@ Lifecycle:
     install:
       skipif: onpath git
       script: sudo apt-get install git
+    run: git status
   macos:
     install:
       skipif: onpath git
