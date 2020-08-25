@@ -32,12 +32,12 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: acquire code-artifact token
-        run: for /f %i in ('aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text') do set CODEARTIFACT_AUTH_TOKEN=%i
+        run: for /f %i in ('aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text --region us-west-2') do set CODEARTIFACT_AUTH_TOKEN=%i
         shell: cmd
         if: matrix.os == 'Windows'
       - name: acquire code-artifact token
         run: |
-          export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text`
+          export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text --region us-west-2`
           echo $CODEARTIFACT_AUTH_TOKEN
         if: matrix.os != 'Windows'
       - name: Build with Maven
