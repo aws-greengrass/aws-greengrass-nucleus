@@ -1,0 +1,10 @@
+---
+RecipeTemplateVersion: '2020-01-25'
+ComponentName: A
+Version: '1.0.0'
+Platforms:
+  - all
+Artifacts:
+  all:
+    - Uri: greengrass:zip.zip
+      Unarchive: ZIP

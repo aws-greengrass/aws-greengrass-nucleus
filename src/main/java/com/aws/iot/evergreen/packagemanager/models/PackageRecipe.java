@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
@@ -107,6 +108,11 @@ public class PackageRecipe {
         this.artifacts = artifacts == null ? Collections.emptyList() : artifacts;
         this.dependencies = dependencies == null ? Collections.emptyMap() : dependencies;
         this.componentType = componentType;
+    }
+
+    @JsonSerialize(using = SemverSerializer.class)
+    public Semver getVersion() {
+        return version;
     }
 
     @Deprecated

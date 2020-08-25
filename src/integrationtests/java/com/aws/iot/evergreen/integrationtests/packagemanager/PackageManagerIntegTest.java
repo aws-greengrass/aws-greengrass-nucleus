@@ -10,20 +10,17 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
-import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
@@ -60,12 +57,11 @@ class PackageManagerIntegTest extends BaseITCase {
         });
 
         GreengrassPackageServiceHelper mockServiceHelper = mock(GreengrassPackageServiceHelper.class);
-        when(mockServiceHelper.downloadPackageRecipe(any())).thenReturn(
-                new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, "A", new Semver("1.0.0"), "", "",
-                        Collections.emptySet(), Collections.emptyList(), Collections.emptyMap(),
-                        Collections.singletonList(
-                                new ComponentArtifact(new URI("greengrass:zip.zip"), null, null, Unarchive.ZIP.name())),
-                        Collections.emptyMap(), null));
+
+
+        String testRecipeContent =
+                FileUtils.readFileToString(Paths.get(this.getClass().getResource("zip.yaml").toURI()).toFile());
+        when(mockServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(testRecipeContent);
         kernel.getContext().put(GreengrassPackageServiceHelper.class, mockServiceHelper);
 
         // THEN

@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
+import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsCollectionWithSize;
@@ -41,8 +42,11 @@ class PackageRecipeTest {
         assertThat(testPkg.getArtifacts(), IsCollectionWithSize.hasSize(1));
 
         Map<String, RecipeDependencyProperties> dependencies = testPkg.getDependencies();
-        assertThat(dependencies.size(), is(1));
-        assertThat(dependencies, IsMapContaining.hasEntry("mac-log", new RecipeDependencyProperties("1.0")));
+        assertThat(dependencies.size(), is(2));
+        assertThat(dependencies,
+                IsMapContaining.hasEntry("Log", new RecipeDependencyProperties("2.0")));
+        assertThat(dependencies, IsMapContaining.hasEntry("Cool-Database",
+                new RecipeDependencyProperties("1.0")));
 
         Set<PackageParameter> paramList = testPkg.getPackageParameters();
         assertThat(paramList.isEmpty(), is(false));
@@ -139,8 +143,9 @@ class PackageRecipeTest {
     @Test
     void GIVEN_invalid_dependency_missing_version_requirements_WHEN_try_create_package_recipe_THEN_throws_exception()
             throws IOException, URISyntaxException {
-        String recipeContents = TestHelper
-                .getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME, "1.0.0");
+        String recipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME,
+                        "1.0.0");
         assertThrows(IOException.class, () -> TestHelper.getPackageObject(recipeContents),
                 "Expected PackageLoadingException but didn't throw");
     }

@@ -181,10 +181,10 @@ public class PackageManager implements InjectionActions {
         if (packageOptional.isPresent()) {
             return packageOptional.get();
         }
-        PackageRecipe packageRecipe = greengrassPackageServiceHelper.downloadPackageRecipe(packageIdentifier);
-        packageStore.savePackageRecipe(packageRecipe);
-        logger.atDebug().kv("component", packageIdentifier).log("Downloaded from component service");
-        return packageRecipe;
+        String downloadRecipeContent = greengrassPackageServiceHelper.downloadPackageRecipeAsString(packageIdentifier);
+        packageStore.savePackageRecipe(packageIdentifier, downloadRecipeContent);
+        logger.atDebug().kv("pkgId", packageIdentifier).log("Downloaded from component service");
+        return packageStore.getPackageRecipe(packageIdentifier);
     }
 
     void prepareArtifacts(PackageIdentifier packageIdentifier, List<ComponentArtifact> artifacts)

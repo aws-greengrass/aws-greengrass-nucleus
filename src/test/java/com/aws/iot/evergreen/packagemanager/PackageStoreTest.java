@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,9 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Every test in PackageStoreTest start with a new and clean package store by creating a temp folder. It pre loads
- * files from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
- * any static folder directly as package store. The package store folder is deleted after each test.
+ * Every test in PackageStoreTest start with a new and clean package store by creating a temp folder. It pre loads files
+ * from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume any
+ * static folder directly as package store. The package store folder is deleted after each test.
  */
 @ExtendWith({EGExtension.class})
 class PackageStoreTest {
@@ -97,21 +98,19 @@ class PackageStoreTest {
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = "MonitoringService-1.0.0.yaml";
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        PackageRecipe recipe =
-                RECIPE_SERIALIZER.readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
 
+        String recipeContent = "recipeContent";
 
         File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
-        packageStore.savePackageRecipe(recipe);
+        packageStore.savePackageRecipe(new PackageIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
 
         // THEN
         assertThat(expectedRecipeFile, anExistingFile());
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
-        assertThat(fileContent, is(equalTo(RECIPE_SERIALIZER.writeValueAsString(recipe))));
+        assertThat(fileContent, is(equalTo(recipeContent)));
     }
 
     @Test
@@ -119,26 +118,22 @@ class PackageStoreTest {
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = "MonitoringService-1.0.0.yaml";
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        PackageRecipe recipe =
-                RECIPE_SERIALIZER.readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        String recipeContent = "recipeContent";
 
 
         File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
 
         assertThat(expectedRecipeFile, not(anExistingFile()));
-
-        boolean fileCreated = expectedRecipeFile.createNewFile();
-        assertTrue(fileCreated, "Failed to create empty recipe file.");
+        FileUtils.writeStringToFile(expectedRecipeFile, "old content that will be replaced");
 
         assertThat(expectedRecipeFile, is(anExistingFile()));
 
         // WHEN
-        packageStore.savePackageRecipe(recipe);
+        packageStore.savePackageRecipe(new PackageIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
 
         // THEN
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
-        assertThat(fileContent, is(equalTo(RECIPE_SERIALIZER.writeValueAsString(recipe))));
+        assertThat(fileContent, is(equalTo(recipeContent)));
     }
 
 
@@ -275,7 +270,7 @@ class PackageStoreTest {
         Path artifactPath = packageStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID);
 
         Path expectedArtifactPath = artifactDirectory.resolve(MONITORING_SERVICE_PKG_ID.getName())
-                .resolve(MONITORING_SERVICE_PKG_ID.getVersion().getValue());
+                                                     .resolve(MONITORING_SERVICE_PKG_ID.getVersion().getValue());
         assertThat(artifactPath.toAbsolutePath(), is(equalTo(expectedArtifactPath)));
     }
 

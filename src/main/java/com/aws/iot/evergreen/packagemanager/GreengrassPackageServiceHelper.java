@@ -21,13 +21,8 @@ import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
-import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.util.SerializerFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
@@ -37,6 +32,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,8 +42,6 @@ import javax.inject.Inject;
 
 public class GreengrassPackageServiceHelper {
 
-    private static final String PACKAGE_RECIPE_PARSING_EXCEPTION_FMT = "Error parsing downloaded recipe for package %s";
-    private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
     // Service logger instance
     protected static final Logger logger = LogManager.getLogger(GreengrassPackageServiceHelper.class);
@@ -63,25 +57,28 @@ public class GreengrassPackageServiceHelper {
             throws PackageDownloadException {
         FindComponentVersionsByPlatformRequest findComponentRequest =
                 new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
-                        .withVersionConstraint(versionRequirement.toString())
-                        .withPlatform(PlatformResolver.getPlatform());
+                                                            .withVersionConstraint(versionRequirement.toString())
+                                                            .withPlatform(PlatformResolver.getPlatform());
         List<PackageMetadata> ret = new ArrayList<>();
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
             //  not go through all the pagination
             String pagination = null;
             do {
-                FindComponentVersionsByPlatformResult findComponentResult = evgCmsClient
-                        .findComponentVersionsByPlatform(findComponentRequest.withLastPaginationToken(pagination));
+                FindComponentVersionsByPlatformResult findComponentResult =
+                        evgCmsClient.findComponentVersionsByPlatform(
+                                findComponentRequest.withLastPaginationToken(pagination));
                 pagination = findComponentResult.getLastPaginationToken();
                 List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
 
                 ret.addAll(componentSelectedMetadataList.stream().map(componentMetadata -> {
                     PackageIdentifier packageIdentifier = new PackageIdentifier(componentMetadata.getComponentName(),
                             new Semver(componentMetadata.getComponentVersion()), componentMetadata.getScope());
-                    return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
-                            Collectors.toMap(ComponentNameVersion::getComponentName,
-                                    ComponentNameVersion::getComponentVersionConstraint)));
+                    return new PackageMetadata(packageIdentifier,
+                            componentMetadata.getDependencies()
+                                             .stream()
+                                             .collect(Collectors.toMap(ComponentNameVersion::getComponentName,
+                                                     ComponentNameVersion::getComponentVersionConstraint)));
                 }).collect(Collectors.toList()));
             } while (pagination != null);
 
@@ -100,14 +97,13 @@ public class GreengrassPackageServiceHelper {
      * @param packageIdentifier identifier of the recipe to be downloaded
      * @return recipe
      * @throws PackageDownloadException if downloading fails
-     * @throws PackageLoadingException  if parsing the recipe fails
      */
-    public PackageRecipe downloadPackageRecipe(PackageIdentifier packageIdentifier)
-            throws PackageDownloadException, PackageLoadingException {
+    public String downloadPackageRecipeAsString(PackageIdentifier packageIdentifier) throws PackageDownloadException {
         GetComponentRequest getComponentRequest =
                 new GetComponentRequest().withComponentName(packageIdentifier.getName())
-                        .withComponentVersion(packageIdentifier.getVersion().toString()).withType(RecipeFormatType.YAML)
-                        .withScope(packageIdentifier.getScope());
+                                         .withComponentVersion(packageIdentifier.getVersion().toString())
+                                         .withType(RecipeFormatType.YAML)
+                                         .withScope(packageIdentifier.getScope());
 
         GetComponentResult getPackageResult;
         try {
@@ -118,13 +114,7 @@ public class GreengrassPackageServiceHelper {
             throw new PackageDownloadException(errorMsg, e);
         }
 
-        try {
-            ByteBuffer recipeBuf = getPackageResult.getRecipe();
-            return RECIPE_SERIALIZER.readValue(new ByteBufferBackedInputStream(recipeBuf), PackageRecipe.class);
-        } catch (IOException e) {
-            String errorMsg = String.format(PACKAGE_RECIPE_PARSING_EXCEPTION_FMT, packageIdentifier);
-            throw new PackageLoadingException(errorMsg, e);
-        }
+        return StandardCharsets.UTF_8.decode(getPackageResult.getRecipe()).toString();
     }
 
     /**
@@ -158,12 +148,15 @@ public class GreengrassPackageServiceHelper {
     public static void createAndUploadComponentArtifact(AWSEvergreen cmsClient, File artifact, String componentName,
                                                         String componentVersion) throws IOException {
         if (skipComponentArtifactUpload(artifact)) {
-            logger.atDebug("upload-component-artifact").kv("filePath", artifact.getAbsolutePath())
-                    .log("Skip artifact upload. Not a regular file");
+            logger.atDebug("upload-component-artifact")
+                  .kv("filePath", artifact.getAbsolutePath())
+                  .log("Skip artifact upload. Not a regular file");
             return;
         }
-        logger.atDebug("upload-component-artifact").kv("artifactName", artifact.getName())
-                .kv("filePath", artifact.getAbsolutePath()).log();
+        logger.atDebug("upload-component-artifact")
+              .kv("artifactName", artifact.getName())
+              .kv("filePath", artifact.getAbsolutePath())
+              .log();
         CreateComponentArtifactUploadUrlResult artifactUploadUrlResult =
                 createComponentArtifactUploadUrl(cmsClient, componentName, componentVersion, artifact.getName());
         uploadComponentArtifact(artifactUploadUrlResult.getUrl(), artifact);
@@ -173,9 +166,10 @@ public class GreengrassPackageServiceHelper {
                                                                                              String componentName,
                                                                                              String componentVersion,
                                                                                              String artifactName) {
-        CreateComponentArtifactUploadUrlRequest artifactUploadUrlRequest =
-                new CreateComponentArtifactUploadUrlRequest().withComponentName(componentName)
-                        .withComponentVersion(componentVersion).withArtifactName(artifactName);
+        CreateComponentArtifactUploadUrlRequest artifactUploadUrlRequest = new CreateComponentArtifactUploadUrlRequest()
+                .withComponentName(componentName)
+                .withComponentVersion(componentVersion)
+                .withArtifactName(artifactName);
         return cmsClient.createComponentArtifactUploadUrl(artifactUploadUrlRequest);
     }
 
@@ -193,8 +187,11 @@ public class GreengrassPackageServiceHelper {
         try (BufferedOutputStream bos = new BufferedOutputStream(connection.getOutputStream())) {
             long length = Files.copy(artifact.toPath(), bos);
             bos.flush();
-            logger.atDebug("upload-component-artifact").kv("artifactName", artifact.getName()).kv("fileSize", length)
-                    .kv("status", connection.getResponseMessage()).log();
+            logger.atDebug("upload-component-artifact")
+                  .kv("artifactName", artifact.getName())
+                  .kv("fileSize", length)
+                  .kv("status", connection.getResponseMessage())
+                  .log();
         }
     }
 

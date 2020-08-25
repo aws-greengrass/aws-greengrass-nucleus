@@ -14,16 +14,6 @@ Lifecycle:
       skipif: onpath git
       script: sudo apt-get install git
     run: git status
-  debian:
-    install:
-      skipif: onpath git
-      script: sudo apt-get install git
-    run: git status
-  macos:
-    install:
-      skipif: onpath git
-      script: brew install git
-    run: git status
 Artifacts:
   all:
     - Uri: %s/MonitoringService-1.0.0/monitor_artifact_100.txt
@@ -33,7 +23,3 @@ Dependencies:
       VersionRequirements: '2.0'
     Cool-Database:
       VersionRequirements: '1.0'
-  macos:
-    mac-log:
-      VersionRequirements: '1.0'
-
