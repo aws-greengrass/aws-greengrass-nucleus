@@ -36,7 +36,9 @@ jobs:
         shell: cmd
         if: matrix.os == 'Windows'
       - name: acquire code-artifact token
-        run: export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text`
+        run: |
+          export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text`
+          echo $CODEARTIFACT_AUTH_TOKEN
         if: matrix.os != 'Windows'
       - name: Build with Maven
         run: mvn -ntp -U clean verify
