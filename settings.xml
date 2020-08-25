@@ -8,5 +8,10 @@
             <username>${access-key-id}</username>
             <password>${access-key-secret}</password>
         </server>
+        <server>
+            <id>code-artifact</id>
+            <username>aws</username>
+            <password>${env.CODEARTIFACT_AUTH_TOKEN}</password>
+        </server>
     </servers>
 </settings>
