@@ -9,7 +9,6 @@ import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
 import com.amazonaws.services.evergreen.model.GetComponentRequest;
 import com.amazonaws.services.evergreen.model.GetComponentResult;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,17 +64,11 @@ class GreengrassPackageServiceHelperTest {
         ByteBuffer testRecipeBytes = ByteBuffer.wrap(recipeContents.getBytes());
         GetComponentResult testResult = new GetComponentResult().withRecipe(testRecipeBytes);
         doReturn(testResult).when(client).getComponent(getComponentRequestArgumentCaptor.capture());
-        PackageRecipe testPackage =
-                helper.downloadPackageRecipe(new PackageIdentifier(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
+        String downloadPackageRecipeAsString =
+                helper.downloadPackageRecipeAsString(new PackageIdentifier(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
                                                                    new Semver("1.0.0"), "private"));
 
-        GetComponentRequest generatedRequest = getComponentRequestArgumentCaptor.getValue();
-        assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, generatedRequest.getComponentName());
-        assertEquals("1.0.0", generatedRequest.getComponentVersion());
-        assertEquals("YAML", generatedRequest.getType());
-        assertEquals("private", generatedRequest.getScope());
-        assertEquals(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, testPackage.getComponentName());
-        assertEquals(new Semver("1.0.0"), testPackage.getVersion());
+        assertEquals(recipeContents, downloadPackageRecipeAsString);
     }
 
     // TODO: Add test cases for failure status codes once the SDK model is updated to return proper http responses

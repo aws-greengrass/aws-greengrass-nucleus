@@ -5,6 +5,6 @@ Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
 Dependencies:
-  macos:
+  all:
     Log: '2.0'
     Cool-Database: '2.0'

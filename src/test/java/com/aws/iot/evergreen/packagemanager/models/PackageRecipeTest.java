@@ -7,43 +7,21 @@ import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsCollectionWithSize;
 import org.hamcrest.collection.IsMapContaining;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static com.aws.iot.evergreen.config.PlatformResolver.RANKS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(EGExtension.class)
-public class PackageRecipeTest {
-    private static Map<String, Integer> backupRanks;
-    private static AtomicReference<Map<String, Integer>> ranksField;
-
-    @BeforeAll
-    static void beforeAll() {
-        ranksField = RANKS;
-        backupRanks = ranksField.get();
-        ranksField.set(new HashMap<String, Integer>() {{
-            put("macos", 99);
-            put("linux", 1);
-        }});
-    }
-
-    @AfterAll
-    static void afterAll() {
-        ranksField.set(backupRanks);
-    }
+class PackageRecipeTest {
 
     @Test
     void GIVEN_valid_package_recipe_WHEN_attempt_package_recipe_create_THEN_valid_package_recipe_created()
@@ -60,12 +38,14 @@ public class PackageRecipeTest {
         assertThat(testPkg.getLifecycle().size(), is(2));
         assertThat(testPkg.getLifecycle(), IsMapContaining.hasKey("run"));
 
-        // TODO: Check for providers
-        assertThat(testPkg.getArtifacts().get("all"), IsCollectionWithSize.hasSize(1));
+        assertThat(testPkg.getArtifacts(), IsCollectionWithSize.hasSize(1));
 
         Map<String, RecipeDependencyProperties> dependencies = testPkg.getDependencies();
-        assertThat(dependencies.size(), is(1));
-        assertThat(dependencies, IsMapContaining.hasEntry("mac-log", new RecipeDependencyProperties("1.0")));
+        assertThat(dependencies.size(), is(2));
+        assertThat(dependencies,
+                IsMapContaining.hasEntry("Log", new RecipeDependencyProperties("2.0")));
+        assertThat(dependencies, IsMapContaining.hasEntry("Cool-Database",
+                new RecipeDependencyProperties("1.0")));
 
         Set<PackageParameter> paramList = testPkg.getPackageParameters();
         assertThat(paramList.isEmpty(), is(false));
@@ -162,8 +142,9 @@ public class PackageRecipeTest {
     @Test
     void GIVEN_invalid_dependency_missing_version_requirements_WHEN_try_create_package_recipe_THEN_throws_exception()
             throws IOException, URISyntaxException {
-        String recipeContents = TestHelper
-                .getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME, "1.0.0");
+        String recipeContents =
+                TestHelper.getPackageRecipeForTestPackage(TestHelper.INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME,
+                        "1.0.0");
         assertThrows(IOException.class, () -> TestHelper.getPackageObject(recipeContents),
                 "Expected PackageLoadingException but didn't throw");
     }
