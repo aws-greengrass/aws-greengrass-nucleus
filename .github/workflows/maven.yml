@@ -31,22 +31,15 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - run: rm -rf /tmp/*
         continue-on-error: true
-      - name: acquire code-artifact token
-        run: for /f %i in ('aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text --region us-west-2') do set CODEARTIFACT_AUTH_TOKEN=%i
+      - name: Build with Maven
+        run: |
+          for /f %i in ('aws codeartifact get-authorization-token --domain evergreen --domain-owner 698947471564 --query authorizationToken --output text --region us-west-2') do set CODEARTIFACT_AUTH_TOKEN=%i
+          mvn -ntp -U clean verify
         shell: cmd
         if: matrix.os == 'Windows'
-      - name: acquire code-artifact token
+      - name: Build with Maven
         run: |
           export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --query authorizationToken --output text --region us-west-2`
-          echo $CODEARTIFACT_AUTH_TOKEN
-        if: matrix.os != 'Windows'
-      - name: Build with Maven
-        run: mvn -ntp -U clean verify
-        shell: cmd
-        if: matrix.os == 'Windows'
-      - name: Build with Maven
-        run: |
-          echo $CODEARTIFACT_AUTH_TOKEN
           mvn -ntp -U clean verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
