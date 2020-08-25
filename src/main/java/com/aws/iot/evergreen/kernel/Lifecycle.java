@@ -730,23 +730,32 @@ public class Lifecycle {
     }
 
     /**
-     * Restart Service.
+     * Restart Service. Will not restart if the service has not been started once and there's no desired state.
+     *
+     * @return true if the request will happen, false otherwise.
      */
-    final void requestRestart() {
+    final boolean requestRestart() {
         // Ignore restart requests if the service is closed
         if (isClosed.get()) {
-            return;
+            return false;
         }
         synchronized (desiredStateList) {
+            // If there are no more desired states and the service is currently new, then do not
+            // restart. Only restart when the service is "RUNNING" (which includes several states)
+            if (desiredStateList.isEmpty() && State.NEW.equals(getState())) {
+                return false;
+            }
+
             // don't override in the case of re-install
             int index = desiredStateList.indexOf(State.NEW);
             if (index == -1) {
                 setDesiredState(State.INSTALLED, State.RUNNING);
-                return;
+                return true;
             }
             desiredStateList.subList(index + 1, desiredStateList.size()).clear();
             desiredStateList.add(State.RUNNING);
         }
+        return true;
     }
 
     /**
