@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsCollectionWithSize;
