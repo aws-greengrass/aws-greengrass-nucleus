@@ -13,6 +13,7 @@ Lifecycle:
     install:
       skipif: onpath git
       script: sudo apt-get install git
+    run: git status
   debian:
     install:
       skipif: onpath git
