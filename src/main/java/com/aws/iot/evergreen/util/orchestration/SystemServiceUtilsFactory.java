@@ -16,12 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import javax.inject.Inject;
 
-@AllArgsConstructor
+@AllArgsConstructor(onConstructor_ = {@Inject})
 public class SystemServiceUtilsFactory {
     protected static final Logger logger = LogManager.getLogger(SystemServiceUtils.class);
 
-    @Inject
-    Context context;
+    private final Context context;
 
     /**
      * Get the appropriate instance of Platform for the current platform.

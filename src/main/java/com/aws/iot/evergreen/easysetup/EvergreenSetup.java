@@ -82,7 +82,7 @@ public class EvergreenSetup {
 
     private static final String SETUP_SYSTEM_SERVICE_ARG = "--setup-system-service";
     private static final String SETUP_SYSTEM_SERVICE_ARG_SHORT = "-ss";
-    private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = true;
+    private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = false;
 
     // TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
 
