@@ -6,13 +6,16 @@
 package com.aws.iot.evergreen.util.orchestration;
 
 import com.aws.iot.evergreen.kernel.KernelAlternatives;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Exec;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 
-public class SystemdUtils extends SystemServiceUtils {
+public class SystemdUtils implements SystemServiceUtils {
+    protected static final Logger logger = LogManager.getLogger(SystemdUtils.class);
     private static final String PID_FILE_PARAM = "REPLACE_WITH_GG_LOADER_PID_FILE";
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
     private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";

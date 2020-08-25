@@ -6,7 +6,7 @@ import com.aws.iot.evergreen.kernel.KernelAlternatives;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.orchestration.SystemServiceUtils;
+import com.aws.iot.evergreen.util.orchestration.SystemServiceUtilsFactory;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -164,7 +164,7 @@ public class EvergreenSetup {
             setup.outStream.println("Launching kernel...");
             if (setup.setupSystemService) {
                 kernel.shutdown();
-                boolean ok = SystemServiceUtils.getInstance().setupSystemService(
+                boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
                         kernel.getContext().get(KernelAlternatives.class));
                 if (ok) {
                     setup.outStream.println("Successfully set up Kernel as a system service");
