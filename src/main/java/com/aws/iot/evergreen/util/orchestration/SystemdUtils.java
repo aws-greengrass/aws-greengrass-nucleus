@@ -41,11 +41,13 @@ public class SystemdUtils implements SystemServiceUtils {
         return false;
     }
 
-    private boolean runCommand(String command) throws IOException, InterruptedException {
-        return new Exec()
-            .withShell(command)
-            .withOut(s -> logger.atInfo().kv("command", command).kv("stdout", s.toString().trim()).log())
-            .withErr(s -> logger.atWarn().kv("command", command).kv("stderr", s.toString().trim()).log())
-            .successful(false);
+    private void runCommand(String command) throws IOException, InterruptedException {
+        boolean success = new Exec().withShell(command)
+                .withOut(s -> logger.atInfo().kv("command", command).kv("stdout", s.toString().trim()).log())
+                .withErr(s -> logger.atWarn().kv("command", command).kv("stderr", s.toString().trim()).log())
+                .successful(false);
+        if (!success) {
+            throw new IOException(String.format("Command %s failed", command));
+        }
     }
 }
