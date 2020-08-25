@@ -40,6 +40,7 @@ jobs:
       - name: Build with Maven
         run: |
           export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --query authorizationToken --output text --region us-west-2`
+          echo $CODEARTIFACT_AUTH_TOKEN
           mvn -ntp -U clean verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
