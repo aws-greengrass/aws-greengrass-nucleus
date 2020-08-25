@@ -12,25 +12,18 @@ Parameters:
 Artifacts:
   all:
     # TODO: set correct uri
-    - Uri: S3:GreengrassCore-2.0.0
+    - Uri: S3:GreengrassCore-2.0.0.zip
       Unarchive: zip
 Lifecycle:
   bootstrap:
     posix:
       script: |-
-        set -euo pipefail
-        KERNEL_ROOT={{kernel:rootPath}}
-        UNPACK_DIR={{artifacts:decompressedPath}}
+        set -eu
+        KERNEL_ROOT="{{kernel:rootPath}}"
+        UNPACK_DIR="{{artifacts:decompressedPath}}"
 
-        # TODO: remove unzip logic once package manager Unarchive is merged in
-        # https://github.com/aws/aws-greengrass-kernel/pull/359/
-        unzip "{{artifacts:path}}/GreengrassCore-2.0.0.zip" -d "$UNPACK_DIR"
+        rm -r "$KERNEL_ROOT/alts/current/*"
 
-        rm -r $KERNEL_ROOT/alts/current/*
-
-        echo "{{params:jvmOptions.value}}" > $KERNEL_ROOT/alts/current/launch.params
-        # TODO: calculate relativepath
-        ln -sf "$UNPACK_DIR" $KERNEL_ROOT/alts/current/distro
+        echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
+        ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
         exit 100
-
-

@@ -33,3 +33,16 @@ OPTIONS
 	--install-cli, -ic 		Y/N Indicate if you want to install Evergreen device CLI. {}
 ```
 
+## Set up steps with Greengrass zip file
+This workflow has been implemented for Ubuntu. Use as a reference.
+```
+# Move GreengrassCore-2.0.0.zip to test device
+# Set up aws creds
+unzip GreengrassCore-2.0.0.zip -d GreengrassCore
+sudo java -Droot=~/gg_home -Dlog.level=ERROR -jar ./GreengrassCore/lib/Evergreen.jar --provision true --aws-region us-east-1 --thing-name <test-device> --setup-tes true -tra <test-role-alias>
+
+# Verify the setup
+tree ~/gg_home/
+sudo service greengrass status
+sudo journalctl -u greengrass -f
+```
