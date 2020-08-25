@@ -31,7 +31,6 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -54,7 +53,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 public class FleetStatusServiceTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
-    private static final String FLEET_STATUS_ARN_RESOURCE_PREFIX = "configuration:%s:%s";
     private static final String FLEET_STATUS_ARN_SERVICE = "greengrass";
     private static final String FLEET_STATUS_ARN_PARTITION = "aws";
 
@@ -138,14 +136,9 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
 
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
         assertEquals(2, mqttMessagesList.get().size());
-
-        Arn arn = Arn.builder()
-                .withPartition(FLEET_STATUS_ARN_PARTITION)
-                .withService(FLEET_STATUS_ARN_SERVICE)
-                .withAccountId(Coerce.toString(Arn.fromString(thingInfo.getThingArn()).getAccountId()))
-                .withRegion(Coerce.toString(Arn.fromString(thingInfo.getThingArn()).getRegion()))
-                .withResource(String.format(FLEET_STATUS_ARN_RESOURCE_PREFIX, "thinggroup/" + thingGroupName, "1"))
-                .build();
+        String accountId = Coerce.toString(Arn.fromString(thingInfo.getThingArn()).getAccountId());
+        String region = Coerce.toString(Arn.fromString(thingInfo.getThingArn()).getRegion());
+        String resource = String.format("%s%s", "thinggroup/", thingGroupName);
 
         // Check the MQTT messages.
         // The first MQTT message should have all the services whose status changed during the first deployment.
@@ -157,12 +150,20 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertEquals(KERNEL_VERSION, fleetStatusDetails1.getGgcVersion());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails1.getOverallStatus());
         assertEquals(0, fleetStatusDetails1.getSequenceNumber());
-        fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
-            componentNames.remove(componentStatusDetails.getComponentName());
-        });
+        fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails ->
+                componentNames.remove(componentStatusDetails.getComponentName()));
         assertTrue(componentNames.isEmpty());
         fleetStatusDetails1.getComponentStatusDetails().forEach(componentStatusDetails -> {
-            assertEquals(Collections.singletonList(arn.toString()), componentStatusDetails.getFleetConfigArns());
+            assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+            Arn componentArn = Arn.fromString(componentStatusDetails.getFleetConfigArns().get(0));
+            assertEquals(region, componentArn.getRegion());
+            assertEquals(accountId, componentArn.getAccountId());
+            assertEquals(FLEET_STATUS_ARN_PARTITION, componentArn.getPartition());
+            assertEquals(FLEET_STATUS_ARN_SERVICE, componentArn.getService());
+            assertEquals(resource, componentArn.getResource().getResource());
+            // This will handle the case where tests are running in parallel and the deployment qualifier
+            // is not consistent.
+            assertNotNull(componentArn.getResource().getQualifier());
         });
 
         // The second MQTT message should contain only one component information which was removed during the second
