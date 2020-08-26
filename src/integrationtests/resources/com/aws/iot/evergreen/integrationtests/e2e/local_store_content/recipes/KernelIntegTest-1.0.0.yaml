@@ -19,7 +19,7 @@ Lifecycle:
       script: brew install git
 Artifacts:
   all:
-  - greengrass:kernel_integ_test_artifact.txt
+  - s3://{{eg-e2e-test-artifacts}}/KernelIntegTest-1.0.0/kernel_integ_test_artifact.txt
 Dependencies:
   all:
     {{Log}}:

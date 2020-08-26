@@ -5,8 +5,6 @@ import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.CommitComponentRequest;
 import com.amazonaws.services.evergreen.model.CommitComponentResult;
 import com.amazonaws.services.evergreen.model.ComponentNameVersion;
-import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlRequest;
-import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlResult;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
@@ -26,11 +24,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -137,65 +131,6 @@ public class GreengrassPackageServiceHelper {
     }
 
     /**
-     * Upload component artifacts for the specified component.
-     *
-     * @param cmsClient        client of Component Management Service
-     * @param artifact         artifact file
-     * @param componentName    name of the component that requires the artifact
-     * @param componentVersion version of the component that requires the artifact
-     * @throws IOException if file upload fails
-     */
-    public static void createAndUploadComponentArtifact(AWSEvergreen cmsClient, File artifact, String componentName,
-                                                        String componentVersion) throws IOException {
-        if (skipComponentArtifactUpload(artifact)) {
-            logger.atDebug("upload-component-artifact")
-                  .kv("filePath", artifact.getAbsolutePath())
-                  .log("Skip artifact upload. Not a regular file");
-            return;
-        }
-        logger.atDebug("upload-component-artifact")
-              .kv("artifactName", artifact.getName())
-              .kv("filePath", artifact.getAbsolutePath())
-              .log();
-        CreateComponentArtifactUploadUrlResult artifactUploadUrlResult =
-                createComponentArtifactUploadUrl(cmsClient, componentName, componentVersion, artifact.getName());
-        uploadComponentArtifact(artifactUploadUrlResult.getUrl(), artifact);
-    }
-
-    protected static CreateComponentArtifactUploadUrlResult createComponentArtifactUploadUrl(AWSEvergreen cmsClient,
-                                                                                             String componentName,
-                                                                                             String componentVersion,
-                                                                                             String artifactName) {
-        CreateComponentArtifactUploadUrlRequest artifactUploadUrlRequest = new CreateComponentArtifactUploadUrlRequest()
-                .withComponentName(componentName)
-                .withComponentVersion(componentVersion)
-                .withArtifactName(artifactName);
-        return cmsClient.createComponentArtifactUploadUrl(artifactUploadUrlRequest);
-    }
-
-    protected static void uploadComponentArtifact(String uploadUrl, File artifact) throws IOException {
-        URL s3PreSignedURL = new URL(uploadUrl);
-        uploadComponentArtifact(s3PreSignedURL, artifact);
-    }
-
-    protected static void uploadComponentArtifact(URL uploadUrl, File artifact) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) uploadUrl.openConnection();
-        connection.setDoOutput(true);
-        connection.setRequestMethod("PUT");
-        connection.connect();
-
-        try (BufferedOutputStream bos = new BufferedOutputStream(connection.getOutputStream())) {
-            long length = Files.copy(artifact.toPath(), bos);
-            bos.flush();
-            logger.atDebug("upload-component-artifact")
-                  .kv("artifactName", artifact.getName())
-                  .kv("fileSize", length)
-                  .kv("status", connection.getResponseMessage())
-                  .log();
-        }
-    }
-
-    /**
      * Commit a component of the given name and version.
      *
      * @param cmsClient        client of Component Management Service
@@ -229,9 +164,5 @@ public class GreengrassPackageServiceHelper {
         DeleteComponentResult deleteComponentResult = cmsClient.deleteComponent(deleteComponentRequest);
         logger.atDebug("delete-component").kv("result", deleteComponentResult).log();
         return deleteComponentResult;
-    }
-
-    private static boolean skipComponentArtifactUpload(File artifact) {
-        return artifact.getName().equals(".DS_Store") || artifact.isDirectory();
     }
 }
