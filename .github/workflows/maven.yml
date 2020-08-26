@@ -34,11 +34,13 @@ jobs:
       - name: Build with Maven
         run: |
           for /f %i in ('aws codeartifact get-authorization-token --domain evergreen --query authorizationToken --output text --region us-west-2') do set CODEARTIFACT_AUTH_TOKEN=%i
-          mvn -ntp -U --settings settings.xml clean verify
+#          mvn -ntp -U --settings settings.xml clean verify
         shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
-        run: mvn -ntp -U clean verify
+        run: |
+          export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain evergreen --query authorizationToken --output text --region us-west-2`
+          mvn -ntp -U --settings settings.xml clean verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
