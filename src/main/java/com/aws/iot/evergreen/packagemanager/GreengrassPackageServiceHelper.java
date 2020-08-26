@@ -5,8 +5,6 @@ import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.CommitComponentRequest;
 import com.amazonaws.services.evergreen.model.CommitComponentResult;
 import com.amazonaws.services.evergreen.model.ComponentNameVersion;
-import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlRequest;
-import com.amazonaws.services.evergreen.model.CreateComponentArtifactUploadUrlResult;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
@@ -26,11 +24,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -170,9 +164,5 @@ public class GreengrassPackageServiceHelper {
         DeleteComponentResult deleteComponentResult = cmsClient.deleteComponent(deleteComponentRequest);
         logger.atDebug("delete-component").kv("result", deleteComponentResult).log();
         return deleteComponentResult;
-    }
-
-    private static boolean skipComponentArtifactUpload(File artifact) {
-        return artifact.getName().equals(".DS_Store") || artifact.isDirectory();
     }
 }
