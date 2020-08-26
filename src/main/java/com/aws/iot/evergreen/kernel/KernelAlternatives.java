@@ -144,7 +144,7 @@ public class KernelAlternatives {
         }
         Path unpackDir = parentDir.getParent();
         if (unpackDir == null || ! Files.exists(unpackDir) || !Files.isDirectory(unpackDir.resolve(KERNEL_BIN_DIR))) {
-            throw new IOException("Unable to locate the unpack directory of Kernel artifacts`");
+            throw new IOException("Unable to locate the unpack directory of Kernel artifacts");
         }
         return unpackDir;
     }
