@@ -129,7 +129,7 @@ class TESTest extends BaseITCase {
         URL url = new URL(urlString);
         // Get the first token from the token map
         String token =
-                kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY)
+                kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)
                         .iterator().next().getName();
         assertNotNull(token);
         String response = getResponseString(url, token);
@@ -167,7 +167,7 @@ class TESTest extends BaseITCase {
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, newRoleAliasName, thingInfo.getCertificateArn());
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
                 .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(newRoleAliasName);
-        token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY)
+        token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)
                 .iterator().next().getName();
         assertNotNull(token);
         while (!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
