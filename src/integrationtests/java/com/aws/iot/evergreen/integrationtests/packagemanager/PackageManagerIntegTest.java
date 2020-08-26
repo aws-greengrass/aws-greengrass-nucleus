@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.vdurmont.semver4j.Semver;
@@ -46,7 +47,7 @@ class PackageManagerIntegTest extends BaseITCase {
 
         PackageIdentifier ident = new PackageIdentifier("A", new Semver("1.0.0"));
 
-        PackageStore store = new PackageStore(tempRootDir);
+        PackageStore store = new PackageStore(tempRootDir, new RecipeLoader()); // TODO fix
         kernel.getContext().put(PackageStore.class, store);
         GreengrassRepositoryDownloader mockDownloader = mock(GreengrassRepositoryDownloader.class);
         kernel.getContext().put(GreengrassRepositoryDownloader.class, mockDownloader);

@@ -27,27 +27,23 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.inject.Inject;
 
 /**
  * This class handles conversion between recipe file contract and device business model. It also resolves platform
  * resolving logic while converting.
  */
-public class RecipeConverter {
+public class RecipeLoader {
     // TODO add logging
-    //    private static final Logger logger = LogManager.getLogger(RecipeConverter.class);
-
-    @Inject
-    private PlatformResolver platformResolver;
+    //    private static final Logger logger = LogManager.getLogger(RecipeLoader.class);
 
     /**
-     * Converts.
+     * Converts from the recipe file with platform resolving.
      *
      * @param recipeFileContent recipe file content
      * @return Optional package recipe
      * @throws PackageLoadingException when failed to convert recipe file.
      */
-    public Optional<PackageRecipe> convertFromFile(String recipeFileContent) throws PackageLoadingException {
+    public static Optional<PackageRecipe> convertFromFile(String recipeFileContent) throws PackageLoadingException {
 
         ComponentRecipe componentRecipe;
         try {
@@ -61,7 +57,7 @@ public class RecipeConverter {
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =
-                platformResolver.findBestMatch(componentRecipe.getManifests());
+                PlatformResolver.findBestMatch(componentRecipe.getManifests());
 
         if (!optionalPlatformSpecificManifest.isPresent()) {
             return Optional.empty();
@@ -89,17 +85,17 @@ public class RecipeConverter {
         return Optional.of(packageRecipe);
     }
 
-    private Set<PackageParameter> convertParametersFromFile(List<ComponentParameter> parameters) {
+    private static Set<PackageParameter> convertParametersFromFile(List<ComponentParameter> parameters) {
         if (parameters == null || parameters.isEmpty()) {
             return Collections.emptySet();
         }
         return parameters.stream()
                          .filter(Objects::nonNull)
-                         .map(this::convertParameterFromFile)
+                         .map(RecipeLoader::convertParameterFromFile)
                          .collect(Collectors.toSet());
     }
 
-    private PackageParameter convertParameterFromFile(@Nonnull ComponentParameter parameter) {
+    private static PackageParameter convertParameterFromFile(@Nonnull ComponentParameter parameter) {
         return PackageParameter.builder()
                                .name(parameter.getName())
                                .value(parameter.getValue())
@@ -108,18 +104,18 @@ public class RecipeConverter {
 
     }
 
-    private List<ComponentArtifact> convertArtifactsFromFile(
+    private static List<ComponentArtifact> convertArtifactsFromFile(
             List<com.aws.iot.evergreen.packagemanager.common.ComponentArtifact> artifacts) {
         if (artifacts == null || artifacts.isEmpty()) {
             return Collections.emptyList();
         }
         return artifacts.stream()
                         .filter(Objects::nonNull)
-                        .map(this::convertArtifactFromFile)
+                        .map(RecipeLoader::convertArtifactFromFile)
                         .collect(Collectors.toList());
     }
 
-    private ComponentArtifact convertArtifactFromFile(
+    private static ComponentArtifact convertArtifactFromFile(
             @Nonnull com.aws.iot.evergreen.packagemanager.common.ComponentArtifact componentArtifact) {
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())
@@ -129,7 +125,7 @@ public class RecipeConverter {
                                 .build();
     }
 
-    private Map<String, RecipeDependencyProperties> convertDependencyFromFile(
+    private static Map<String, RecipeDependencyProperties> convertDependencyFromFile(
             Map<String, DependencyProperties> dependencies) {
         if (dependencies == null || dependencies.isEmpty()) {
             return Collections.emptyMap();

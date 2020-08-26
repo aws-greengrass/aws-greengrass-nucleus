@@ -31,6 +31,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.tes.CredentialRequestHandler;
@@ -229,7 +230,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
 
-        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
+        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir, new RecipeLoader()); //TODO fix
     }
 
     /**

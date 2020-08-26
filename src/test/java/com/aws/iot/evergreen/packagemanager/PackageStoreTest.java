@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
 
 import java.io.File;
 import java.io.IOException;
@@ -78,9 +80,12 @@ class PackageStoreTest {
     @TempDir
     Path packageStoreRootPath;
 
+    @Mock
+    private RecipeLoader converter;
+
     @BeforeEach
     void beforeEach() throws PackagingException {
-        packageStore = new PackageStore(packageStoreRootPath.toAbsolutePath());
+        packageStore = new PackageStore(packageStoreRootPath.toAbsolutePath(), converter);
         recipeDirectory = packageStoreRootPath.resolve("recipes");
         artifactDirectory = packageStoreRootPath.resolve("artifacts");
         artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-decompressed");

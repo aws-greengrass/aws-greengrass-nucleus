@@ -31,12 +31,12 @@ import static org.hamcrest.core.Is.is;
 
 
 @ExtendWith({EGExtension.class, MockitoExtension.class})
-class RecipeConverterTest {
+class RecipeLoaderTest {
 
     private static final ObjectMapper DESERIALIZER = SerializerFactory.getRecipeSerializer();
 
     @InjectMocks
-    private RecipeConverter converter;
+    private RecipeLoader converter;
 
     @Mock
     private PlatformResolver platformResolver;

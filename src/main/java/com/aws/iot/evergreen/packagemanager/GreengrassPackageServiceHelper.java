@@ -58,7 +58,7 @@ public class GreengrassPackageServiceHelper {
         FindComponentVersionsByPlatformRequest findComponentRequest =
                 new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
                                                             .withVersionConstraint(versionRequirement.toString())
-                                                            .withPlatform(PlatformResolver.getPlatform());
+                                                            .withOs(PlatformResolver.getPlatform());
         List<PackageMetadata> ret = new ArrayList<>();
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
