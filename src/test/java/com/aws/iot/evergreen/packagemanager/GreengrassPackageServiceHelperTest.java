@@ -1,7 +1,6 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.CommitComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
@@ -75,16 +74,6 @@ class GreengrassPackageServiceHelperTest {
 
         CreateComponentRequest createComponentRequest = createComponentRequestArgumentCaptor.getValue();
         assertEquals(recipePath.toFile().length(), createComponentRequest.getRecipe().limit());
-    }
-
-    @Test
-    void GIVEN_component_name_version_WHEN_commit_component_THEN_send_service_request() {
-        ArgumentCaptor<CommitComponentRequest> requestCaptor = ArgumentCaptor.forClass(CommitComponentRequest.class);
-        GreengrassPackageServiceHelper.commitComponent(client, "mockName", "mockVersion");
-        verify(client, times(1)).commitComponent(requestCaptor.capture());
-        CommitComponentRequest request = requestCaptor.getValue();
-        assertEquals("mockName", request.getComponentName());
-        assertEquals("mockVersion", request.getComponentVersion());
     }
 
     @Test
