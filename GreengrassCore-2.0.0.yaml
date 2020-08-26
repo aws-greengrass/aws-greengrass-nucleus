@@ -1,8 +1,8 @@
 ---
 RecipeTemplateVersion: '2020-01-25'
-ComponentName: GreengrassCore
-Description: GreengrassCore
-Publisher: Me
+ComponentName: aws.greengrass.core
+Description: Core functionality for device side orchestration of deployments and life-cycle management for execution of Greengrass components and applications.
+Publisher: AWS
 Version: '2.0.0'
 Parameters:
 - name: jvmOptions
