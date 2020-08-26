@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.auth;
 
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -22,6 +23,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Kernel.findServiceForNode;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -78,6 +80,9 @@ public class AuthorizationHandler  {
                         return;
                     }
                     if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        if (newv.childOf(SERVICES_NAMESPACE_TOPIC) && WhatHappened.childRemoved.equals(why)) {
+                            authModule.clearPermissions(newv.getName());
+                        }
                         return;
                     }
                     if (!(newv instanceof Topic)) {
@@ -225,7 +230,7 @@ public class AuthorizationHandler  {
             }
         }
         if (isUpdate) {
-            authModule.clearComponentPermissions(componentName);
+            authModule.deletePermissionsWithDestination(componentName);
         }
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy : policies) {

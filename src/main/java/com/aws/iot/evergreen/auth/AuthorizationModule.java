@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.util.Utils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -43,10 +44,32 @@ public class AuthorizationModule {
      * Clear the permission list for a given destination. This is used when updating policies for a component.
      * @param destination destination value
      */
-    public void clearComponentPermissions(String destination) {
+    public void deletePermissionsWithDestination(String destination) {
         if (permissions.containsKey(destination) && !Utils.isEmpty(permissions.get(destination))) {
             permissions.get(destination).clear();
         }
+    }
+
+    /**
+     * Clear the permission list with a given principal.
+     *
+     * @param component component name
+     */
+    public void deletePermissionsWithPrincipal(String component) {
+        for (Map.Entry<String, List<Permission>> permissionSet : permissions.entrySet()) {
+            permissionSet.getValue().removeIf(entry -> entry.hasPrincipal(component));
+        }
+    }
+
+    /**
+     * Clear permissions for a given component. This is used when a component is removed.
+     *
+     * @param component component name
+     */
+    public void clearPermissions(String component) {
+        deletePermissionsWithPrincipal(component);
+        deletePermissionsWithDestination(component);
+        permissions.remove(component);
     }
 
     /**

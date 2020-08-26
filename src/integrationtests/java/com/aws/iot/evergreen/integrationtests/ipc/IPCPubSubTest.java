@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
@@ -123,6 +124,26 @@ class IPCPubSubTest {
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
         cb.getLeft().get(2, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void GIVEN_pubsubclient_WHEN_service_removed_THEN_fail(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, AuthorizationException.class);
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
+                TEST_SERVICE_NAME, this.getClass());
+        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
+        client = new IPCClientImpl(config);
+        PubSub c = new PubSubImpl(client);
+        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+        });
+
+        Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
+        if (serviceTopic != null) {
+            serviceTopic.remove();
+        }
+        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
+        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
     }
 
 

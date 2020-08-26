@@ -13,4 +13,8 @@ public class Permission {
     @NonNull String principal;
     @NonNull String operation;
     String resource;
+
+    public boolean hasPrincipal(String component) {
+        return principal.equals(component);
+    }
 }
