@@ -14,11 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(EGExtension.class)
 public class PlatformResolverTest {
@@ -59,4 +57,11 @@ public class PlatformResolverTest {
             }
         }
     }
+
+    @Test
+    public void testCurrentPlatform() throws Exception {
+        // TODO: move to UAT test
+        System.out.println(PlatformResolver.CURRENT_PLATFORM);
+    }
+
 }
