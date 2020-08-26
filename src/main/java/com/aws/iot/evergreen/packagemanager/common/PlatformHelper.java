@@ -3,7 +3,6 @@ package com.aws.iot.evergreen.packagemanager.common;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,22 +16,7 @@ import static com.aws.iot.evergreen.packagemanager.common.Platform.ALL_KEYWORD;
 
 public final class PlatformHelper {
 
-    public static final OS OS_ALL = new OS(null, ALL_KEYWORD);
-    public static final OS OS_WINDOWS = OS_ALL.addChild("windows");
-    public static final OS OS_UNIX = OS_ALL.addChild("unix");
-    public static final OS OS_LINUX = OS_UNIX.addChild("linux");
-    public static final OS OS_FEDORA = OS_LINUX.addChild("fedora");
-    public static final OS OS_DEBIAN = OS_LINUX.addChild("debian");
-    public static final OS OS_UBUNTU = OS_DEBIAN.addChild("ubuntu");
-    public static final OS OS_RASPBIAN = OS_DEBIAN.addChild("raspbian");
-    public static final OS OS_DARWIN = OS_UNIX.addChild("darwin");
-    public static final OS OS_MAC_OS = OS_DARWIN.addChild("macOs");
-
-    public static final Collection<OS> OS_SUPPORTED = OS_ALL.getChildrenRecursively();
-
-    public static final Architecture ARCH_AMD64 = new Architecture("amd64");
-    public static final Architecture ARCH_ARM = new Architecture("arm");
-    public static final Architecture ARCH_ALL = new Architecture(ALL_KEYWORD);
+    public static final Collection<OS> OS_SUPPORTED = OS.ALL.getChildrenRecursively();
 
     private PlatformHelper() {
     }
@@ -69,7 +53,7 @@ public final class PlatformHelper {
                     .filter(r -> r.getName().equalsIgnoreCase(currentPlatform.getOs()))
                     .findFirst().orElse(null);
 
-            while (currentOS != null && !OS_ALL.equals(currentOS)) {
+            while (currentOS != null && !OS.ALL.equals(currentOS)) {
                 OS osToCheck = currentOS;
                 Optional<PlatformSpecificManifest> recipe = candidateRecipes.stream()
                         .filter(r -> r.getPlatform() != null
@@ -86,7 +70,7 @@ public final class PlatformHelper {
             // if no match find, try to match the 'all'.
             Optional<PlatformSpecificManifest> recipe = candidateRecipes.stream()
                     .filter(r -> r.getPlatform() == null || r.getPlatform().getOs() == null
-                            || r.getPlatform().getOs().equalsIgnoreCase(OS_ALL.getName()))
+                            || r.getPlatform().getOs().equalsIgnoreCase(ALL_KEYWORD))
                     // TODO: filter version match
                     .findFirst();
 
@@ -99,7 +83,7 @@ public final class PlatformHelper {
     }
 
     /**
-     * Find the higher rank (more specific one) between OS info.
+     * Find the higher rank (more specific one) between OS info. This doesn't check the two OS are on the same branch.
      * @param thisOS this
      * @param other other
      * @return higer rank OS
@@ -121,7 +105,18 @@ public final class PlatformHelper {
      * Non customer-facing class. Keeps the OS hierarchy data.
      */
     @Getter
-    public static class OS {
+    public enum OS {
+        ALL(null, ALL_KEYWORD),
+        WINDOWS(ALL, "windows"),
+        UNIX(ALL, "unix"),
+        LINUX(UNIX, "linux"),
+        FEDORA(LINUX, "fedora"),
+        DEBIAN(LINUX, "debian"),
+        UBUNTU(DEBIAN, "ubuntu"),
+        RASPBIAN(DEBIAN, "raspbian"),
+        DARWIN(UNIX, "darwin"),
+        MAC_OS(DARWIN, "macOS");
+
         private final OS parent;
         private final String name;
         private final Collection<OS> children;
@@ -130,21 +125,16 @@ public final class PlatformHelper {
         OS(OS parent, String name) {
             this.parent = parent;
             this.name = name;
-            this.children = new ArrayList<>();
+            this.children = new HashSet<>();
             if (parent == null) {
                 this.rank = 0;
             } else {
                 this.rank = parent.getRank() + 1;
+                parent.getChildren().add(this);
             }
         }
 
-        private OS addChild(String name) {
-            OS child = new OS(this, name);
-            children.add(child);
-            return child;
-        }
-
-        private Set<OS> getChildrenRecursively() {
+        Set<OS> getChildrenRecursively() {
             Set<OS> result = new HashSet<>(children);
             for (OS child: children) {
                 result.addAll(child.getChildrenRecursively());
@@ -158,7 +148,8 @@ public final class PlatformHelper {
      */
     @Getter
     @AllArgsConstructor
-    public static class Architecture {
+    public enum Architecture {
+        ALL(ALL_KEYWORD), AMD64("amd64"), ARM("arm");
         private final String name;
     }
 }

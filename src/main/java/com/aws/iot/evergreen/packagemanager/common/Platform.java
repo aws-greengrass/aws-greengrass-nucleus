@@ -16,7 +16,7 @@ import lombok.Value;
 public class Platform {
     public static final String ALL_KEYWORD = "all";
     String os;
-    String osVersion;
+    // String osVersion;
     String architecture;
 
     @JsonPOJOBuilder(withPrefix = "")
