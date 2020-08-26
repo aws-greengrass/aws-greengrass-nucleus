@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager.plugins;
 
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.ArtifactChecksumMismatchException;
@@ -11,11 +10,11 @@ import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriExcepti
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.tes.TokenExchangeService;
 import com.aws.iot.evergreen.util.S3SdkClientFactory;
 import com.aws.iot.evergreen.util.Utils;
-import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -41,18 +40,17 @@ public class S3Downloader implements ArtifactDownloader {
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
             "Failed to download artifact %s for component %s-%s, reason: %s";
     private final S3Client s3Client;
-    private final Kernel kernel;
+    private final S3SdkClientFactory s3ClientFactory;
 
     /**
      * Constructor.
      *
      * @param clientFactory S3 client factory
-     * @param kernel        kernel
      */
     @Inject
-    public S3Downloader(S3SdkClientFactory clientFactory, Kernel kernel) {
+    public S3Downloader(S3SdkClientFactory clientFactory) {
         this.s3Client = clientFactory.getS3Client();
-        this.kernel = kernel;
+        this.s3ClientFactory = clientFactory;
     }
 
     @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
@@ -100,14 +98,18 @@ public class S3Downloader implements ArtifactDownloader {
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     private byte[] getObject(String bucket, String key, ComponentArtifact artifact, PackageIdentifier packageIdentifier)
             throws PackageDownloadException {
         try {
-            TokenExchangeService tokenExchangeService = kernel.getContext().get(TokenExchangeService.class);
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder().overrideConfiguration(
-                    AwsRequestOverrideConfiguration.builder().credentialsProvider(tokenExchangeService).build())
-                    .bucket(bucket).key(key).build();
-            return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
+            GetBucketLocationRequest getBucketLocationRequest =
+                    GetBucketLocationRequest.builder().bucket(bucket).build();
+            String region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();
+            // If the region is empty, it is us-east-1
+            S3Client regionClient =
+                    s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key).build();
+            return regionClient.getObjectAsBytes(getObjectRequest).asByteArray();
         } catch (S3Exception e) {
             throw new PackageDownloadException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifact.getArtifactUri(),
