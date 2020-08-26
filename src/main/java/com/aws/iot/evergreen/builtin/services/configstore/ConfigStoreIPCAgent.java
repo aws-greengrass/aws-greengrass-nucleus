@@ -362,8 +362,6 @@ public class ConfigStoreIPCAgent {
     public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
                                          CompletableFuture<ConfigurationValidityReport> reportFuture)
             throws ValidateEventRegistrationException {
-        // TODO : Will handling a collection of components to abstract validation for the whole deployment
-        //  be better?
         if (configValidationReportFutures.containsKey(componentName)) {
             throw new ValidateEventRegistrationException(
                     "A validation request to this component is already waiting for response");
