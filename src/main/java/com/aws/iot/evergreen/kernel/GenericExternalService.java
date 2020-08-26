@@ -95,7 +95,7 @@ public class GenericExternalService extends EvergreenService {
     public void postInject() {
         // Register token before calling super so that the token is available when the lifecyle thread
         // starts running
-        AuthenticationHandler.registerAuthToken(this);
+        AuthenticationHandler.registerAuthenticationToken(this);
         super.postInject();
     }
 

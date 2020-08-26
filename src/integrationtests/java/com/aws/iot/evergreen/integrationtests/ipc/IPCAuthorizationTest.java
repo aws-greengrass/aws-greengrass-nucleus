@@ -25,7 +25,7 @@ import java.nio.file.Path;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
-import static com.aws.iot.evergreen.ipc.AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY;
+import static com.aws.iot.evergreen.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -96,7 +96,7 @@ class IPCAuthorizationTest {
     @Test
     void GIVEN_authorizationClient_WHEN_valid_token_provided_THEN_succeeds() throws AuthorizationException {
         //Grab a real, randomly assigned auth token for an existing service
-        Topics authTokensArray = kernel.findServiceTopic(AUTH_TOKEN_LOOKUP_KEY);
+        Topics authTokensArray = kernel.findServiceTopic(AUTHENTICATION_TOKEN_LOOKUP_KEY);
         Topic authTokenTopic = (Topic) authTokensArray.children.values().toArray()[0];
 
         AuthorizationResponse response = authorizationClient.validateToken(authTokenTopic.getName());

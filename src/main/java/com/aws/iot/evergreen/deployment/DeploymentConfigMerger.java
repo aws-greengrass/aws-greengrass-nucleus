@@ -35,7 +35,7 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.ipc.AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY;
+import static com.aws.iot.evergreen.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_NAME_KEY;
 
@@ -298,7 +298,7 @@ public class DeploymentConfigMerger {
 
         rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
         servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTH_TOKEN_LOOKUP_KEY,
+        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
         insideServiceMergeBehavior.getChildOverride().put(
                 EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);

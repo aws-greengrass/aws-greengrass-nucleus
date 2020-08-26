@@ -1,13 +1,10 @@
 package com.aws.iot.evergreen.packagemanager.plugins;
 
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.TestHelper;
 import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.tes.TokenExchangeService;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.S3SdkClientFactory;
 import com.vdurmont.semver4j.Semver;
@@ -19,6 +16,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -35,6 +34,7 @@ import java.util.Collections;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -60,20 +60,18 @@ public class S3DownloaderTest {
     @Mock
     private S3SdkClientFactory s3SdkClientFactory;
 
-    @Mock
-    private Kernel kernel;
-
     private S3Downloader s3Downloader;
 
     @BeforeEach
     void setup() {
         when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
-        s3Downloader = new S3Downloader(s3SdkClientFactory, kernel);
+        lenient().when(s3SdkClientFactory.getClientForRegion(any())).thenReturn(s3Client);
+        lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class))).thenReturn(mock(GetBucketLocationResponse.class));
+        s3Downloader = new S3Downloader(s3SdkClientFactory);
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_download_to_path_THEN_succeed() throws Exception {
-        Context mockContext = mock(Context.class);
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
@@ -82,8 +80,6 @@ public class S3DownloaderTest {
             String checksum = Base64.getEncoder()
                     .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
 
-            when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
-            when(kernel.getContext()).thenReturn(mockContext);
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
             when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(responseBytes);
@@ -101,21 +97,16 @@ public class S3DownloaderTest {
         } finally {
             TestHelper.cleanDirectory(testCache);
             TestHelper.cleanDirectory(artifactFilePath);
-            mockContext.close();
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_download_recipe_with_no_checksum_specified_THEN_succeed() throws Exception {
-        Context mockContext = mock(Context.class);
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         try {
-
-            when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
-            when(kernel.getContext()).thenReturn(mockContext);
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
             when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(responseBytes);
@@ -133,7 +124,6 @@ public class S3DownloaderTest {
         } finally {
             TestHelper.cleanDirectory(testCache);
             TestHelper.cleanDirectory(artifactFilePath);
-            mockContext.close();
         }
     }
 
@@ -153,7 +143,6 @@ public class S3DownloaderTest {
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_checksum_THEN_fail() throws Exception {
-        Context mockContext = mock(Context.class);
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
@@ -161,8 +150,6 @@ public class S3DownloaderTest {
         try {
             String checksum = Base64.getEncoder().encodeToString("WrongChecksum".getBytes(StandardCharsets.UTF_8));
 
-            when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
-            when(kernel.getContext()).thenReturn(mockContext);
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
             when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(responseBytes);
@@ -177,14 +164,12 @@ public class S3DownloaderTest {
         } finally {
             TestHelper.cleanDirectory(testCache);
             TestHelper.cleanDirectory(artifactFilePath);
-            mockContext.close();
         }
 
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_algorithm_THEN_fail() throws Exception {
-        Context mockContext = mock(Context.class);
         Path testCache = TestHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
@@ -193,8 +178,6 @@ public class S3DownloaderTest {
             String checksum = Base64.getEncoder()
                     .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
 
-            when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
-            when(kernel.getContext()).thenReturn(mockContext);
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
             when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(responseBytes);
@@ -206,17 +189,13 @@ public class S3DownloaderTest {
         } finally {
             TestHelper.cleanDirectory(testCache);
             TestHelper.cleanDirectory(artifactFilePath);
-            mockContext.close();
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_error_in_getting_from_s3_THEN_fail() throws Exception {
-        Context mockContext = mock(Context.class);
         Path testCache = TestHelper.getPathForLocalTestCache();
         try {
-            when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
-            when(kernel.getContext()).thenReturn(mockContext);
             when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenThrow(S3Exception.class);
 
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
@@ -226,7 +205,6 @@ public class S3DownloaderTest {
                     saveToPath));
         } finally {
             TestHelper.cleanDirectory(testCache);
-            mockContext.close();
         }
     }
 }
