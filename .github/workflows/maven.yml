@@ -33,9 +33,9 @@ jobs:
         continue-on-error: true
       - name: Build with Maven
         run: |
-          for /f %i in ('aws codeartifact get-authorization-token --domain evergreen --query authorizationToken --output text --region us-west-2') do set CODEARTIFACT_AUTH_TOKEN=%i
+          $CODEARTIFACT_TOKEN = aws codeartifact get-authorization-token --domain evergreen --query authorizationToken --output text --region us-west-2
 #          mvn -ntp -U --settings settings.xml clean verify
-        shell: cmd
+        shell: pwsh
         if: matrix.os == 'Windows'
       - name: Build with Maven
         run: |
