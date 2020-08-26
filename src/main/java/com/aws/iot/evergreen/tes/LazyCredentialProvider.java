@@ -26,12 +26,25 @@ public class LazyCredentialProvider implements AWSCredentialsProvider, AwsCreden
         this.context = context;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidInstanceofChecksInCatchClause"})
     @Override
     public AwsCredentials resolveCredentials() {
         try {
-            return context.get(TokenExchangeService.class).resolveCredentials();
+            TokenExchangeService tes = context.get(TokenExchangeService.class);
+            AwsCredentials creds = tes.resolveCredentials();
+            if (creds == null && tes.retryUntilCredentialsExist()) {
+                CredentialRequestHandler handler = context.get(CredentialRequestHandler.class);
+                while (creds == null) {
+                    Thread.sleep(10_000L);
+                    creds = handler.getAwsCredentialsBypassCache();
+                }
+                return creds;
+            }
+            return creds;
         } catch (Throwable t) {
+            if (t instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw SdkClientException.create("Failed to fetch credentials", t);
         }
     }

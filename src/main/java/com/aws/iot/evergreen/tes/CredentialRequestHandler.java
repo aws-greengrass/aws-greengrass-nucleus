@@ -16,7 +16,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.DefaultConcurrentHashMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -153,7 +152,7 @@ public class CredentialRequestHandler implements HttpHandler {
      *
      * @return credentials
      */
-    public byte[] getCredentialsBypassCache() {
+    private byte[] getCredentialsBypassCache() {
         byte[] response;
         LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log("Got request for credentials, querying iot");
 
@@ -254,12 +253,21 @@ public class CredentialRequestHandler implements HttpHandler {
      * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
      */
     public AwsCredentials getAwsCredentials() {
+        return getCredentialsFromByte(getCredentials());
+    }
+
+    /**
+     * API for kernel to directly fetch credentials from TES instead of using HTTP server.
+     *
+     * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
+     */
+    public AwsCredentials getAwsCredentialsBypassCache() {
+        return getCredentialsFromByte(getCredentialsBypassCache());
+    }
+
+    private AwsCredentials getCredentialsFromByte(byte[] data) {
         try {
-            // Call to getCredentials will make sure cached credentials can be utilized
-            final byte[] credentialsResponse = getCredentials();
-            Map<String, String> credentials =
-                    OBJECT_MAPPER.readValue(credentialsResponse, new TypeReference<Map<String, String>>() {
-                    });
+            Map<String, String> credentials = OBJECT_MAPPER.readValue(data, Map.class);
             return AwsSessionCredentials
                     .create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR), credentials.get(SECRET_ACCESS_DOWNSTREAM_STR),
                             credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
