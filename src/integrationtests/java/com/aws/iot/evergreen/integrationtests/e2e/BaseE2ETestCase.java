@@ -303,33 +303,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
     }
 
-    protected static void uploadComponentArtifactsToGG(PackageIdentifier... pkgIds) throws IOException {
-        List<String> errors = new ArrayList<>();
-        for (PackageIdentifier pkgId : pkgIds) {
-            PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
-            Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
-            File[] artifactFiles = artifactDirPath.toFile().listFiles();
-            if (artifactFiles == null) {
-                logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
-                        .log("Skip artifact upload. No artifacts found");
-            } else {
-                for (File artifact : artifactFiles) {
-                    try {
-                        GreengrassPackageServiceHelper
-                                .createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
-                                        pkgId.getVersion().toString());
-                    } catch (InvalidInputException | ForbiddenException e) {
-                        // Don't fail the test if the component is already committed
-                        errors.add(e.getMessage());
-                    }
-                }
-                if (!errors.isEmpty()) {
-                    logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
-                }
-            }
-        }
-    }
-
     protected static void createS3BucketsForTestComponentArtifacts() {
         try {
             s3Client.createBucket(
@@ -341,8 +314,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    // TODO : Fast follow item to change all e2e tests to upload artifacts to S3
-    //  instead of the component management service
     protected static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
         for (PackageIdentifier pkgId : pkgIds) {
             PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
