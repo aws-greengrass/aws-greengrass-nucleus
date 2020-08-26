@@ -142,6 +142,7 @@ class IPCPubSubTest {
         if (serviceTopic != null) {
             serviceTopic.remove();
         }
+        Thread.sleep(500);
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
         assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
     }
