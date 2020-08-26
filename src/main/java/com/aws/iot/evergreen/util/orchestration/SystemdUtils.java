@@ -11,7 +11,6 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Exec;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 
 public class SystemdUtils implements SystemServiceUtils {
@@ -35,8 +34,10 @@ public class SystemdUtils implements SystemServiceUtils {
             runCommand("systemctl enable greengrass.service");
             logger.atInfo().log("Successfully set up systemd service");
             return true;
-        } catch (IOException | InterruptedException | URISyntaxException e) {
-            logger.atError().log("Failed to set up systemd service", e);
+        } catch (IOException ioe) {
+            logger.atError().log("Failed to set up systemd service", ioe);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }
