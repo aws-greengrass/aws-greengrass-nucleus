@@ -2,7 +2,6 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.iot.evergreen.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.exceptions.DynamicConfigurationValidationException;
@@ -30,11 +29,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -78,11 +75,11 @@ public class DynamicComponentConfigurationValidator {
     }
 
     /**
-     * A component will not be asked to validate configuration if the deployment also has changes for it that
-     * will cause restart, e.g. version change/lifecycle change etc. This helps prevent failures when the
-     * configuration to be validated has new keys or schema that the running version of the component doesn't
-     * understand and won't be able to validate. We rely on the fact that component startup logic will need to
-     * handle any configuration usage since it would be needed for the 1st time startup anyway.
+     * A component will not be asked to validate configuration if the deployment also intends to change its
+     * version. This helps prevent failures when the configuration to be validated has new keys or schema
+     * that the running version of the component doesn't understand and won't be able to validate. We rely
+     * on the fact that since the component will restart on version change, its startup logic will handle
+     * any configuration usage.
      */
     private Set<ComponentToValidate> getComponentsToValidate(Map<String, Object> servicesConfig, long proposedTimestamp)
             throws InvalidConfigFormatException {
@@ -109,35 +106,17 @@ public class DynamicComponentConfigurationValidator {
             }
             Map<String, Object> proposedServiceConfig = (Map) servicesConfig.get(serviceName);
 
-            if (!willServiceRestart(proposedServiceConfig, currentServiceConfig, proposedTimestamp)
-                    && willChildTopicsChange(proposedServiceConfig, currentServiceConfig, PARAMETERS_CONFIG_KEY,
-                    proposedTimestamp)) {
+            // TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be restarted
+            //  since it's likely if services can't handle dynamic config they are not IPC aware at all
+            if (!willChildTopicChange(proposedServiceConfig, currentServiceConfig, VERSION_CONFIG_KEY,
+                    proposedTimestamp) && willChildTopicsChange(proposedServiceConfig, currentServiceConfig,
+                    PARAMETERS_CONFIG_KEY, proposedTimestamp)) {
                 componentsToValidate.add(new ComponentToValidate(serviceName,
                         (Map<String, Object>) proposedServiceConfig.get(PARAMETERS_CONFIG_KEY)));
             }
         }
         return componentsToValidate;
     }
-
-    private boolean willServiceRestart(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
-                                       long proposedTimestamp) throws InvalidConfigFormatException {
-        // A service can also restart when its dependencies list changes or state of individual dependencies
-        // changes, but there is no reason to not validate configuration in that case. Hence this does not worry
-        // about restart due to dependencies for simplicity.
-        if (willChildTopicChange(proposedServiceConfig, currentServiceConfig, VERSION_CONFIG_KEY, proposedTimestamp)) {
-            return true;
-        }
-
-        if (willChildTopicsChange(proposedServiceConfig, currentServiceConfig, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                proposedTimestamp)) {
-            return true;
-        }
-
-        // TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be restarted
-        //  since it's likely if services can't handle dynamic config they are not IPC aware at all
-        return false;
-    }
-
 
     private boolean willChildTopicsChange(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
                                           String key, long proposedTimestamp) throws InvalidConfigFormatException {

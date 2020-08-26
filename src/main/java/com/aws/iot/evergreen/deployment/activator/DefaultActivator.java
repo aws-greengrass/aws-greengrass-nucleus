@@ -34,7 +34,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_T
  * Activation and rollback of default deployments.
  */
 public class DefaultActivator extends DeploymentActivator {
-    private DynamicComponentConfigurationValidator validator;
+    private final DynamicComponentConfigurationValidator validator;
 
     @Inject
     public DefaultActivator(Kernel kernel, DynamicComponentConfigurationValidator validator) {
