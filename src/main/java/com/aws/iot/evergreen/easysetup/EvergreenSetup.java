@@ -152,7 +152,7 @@ public class EvergreenSetup {
         EvergreenSetup evergreenSetup = new EvergreenSetup(System.out, System.err, args);
         try {
             evergreenSetup.parseArgs();
-            evergreenSetup.performSetUp();
+            evergreenSetup.performSetup();
         } catch (Throwable t) {
             logger.atError().setCause(t).log("Error while trying to setup Evergreen kernel");
             System.err.println("Error while trying to setup Evergreen kernel");
@@ -161,7 +161,7 @@ public class EvergreenSetup {
         }
     }
 
-    void performSetUp() throws IOException, DeviceConfigurationException {
+    void performSetup() throws IOException, DeviceConfigurationException {
         // Describe usage of the command
         if (showHelp) {
             outStream.println(SHOW_HELP_RESPONSE);

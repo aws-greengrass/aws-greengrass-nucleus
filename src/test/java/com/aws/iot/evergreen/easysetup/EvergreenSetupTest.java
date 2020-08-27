@@ -95,7 +95,7 @@ public class EvergreenSetupTest {
         EvergreenSetup evergreenSetupSpy = spy(evergreenSetup);
         doReturn(kernel).when(evergreenSetupSpy).getKernel();
         evergreenSetupSpy.parseArgs();
-        evergreenSetupSpy.performSetUp();
+        evergreenSetupSpy.performSetup();
         verify(kernel, times(0)).launch();
     }
 }
