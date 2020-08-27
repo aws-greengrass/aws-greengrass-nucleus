@@ -11,6 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,5 +81,17 @@ public class EvergreenSetupTest {
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).updateKernelConfigWithTesRoleInfo(any(), any());
+    }
+
+    @Test
+    void GIVEN_setup_script_WHEN_dry_run_THEN_kernel_not_launched() throws Exception {
+        evergreenSetup =
+                new EvergreenSetup(System.out, deviceProvisioningHelper, "--config", "mock_config_path", "--root",
+                        "mock_root", "--dry-run", "true");
+
+        EvergreenSetup evergreenSetupSpy = spy(evergreenSetup);
+        doReturn(kernel).when(evergreenSetupSpy).getKernel();
+        evergreenSetupSpy.performSetUp();
+        verify(kernel, times(0)).launch();
     }
 }
