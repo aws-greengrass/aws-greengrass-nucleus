@@ -188,7 +188,16 @@ public class LogsUploaderService extends EvergreenService {
     /**
      * Merge all available log files and upload the logs to the cloud.
      *
-     * @implSpec :
+     * @implSpec : The service will first check if there was already a cloudwatch attempt in progess. If so, it will
+     *     return.
+     *     It will then go through the components log configuration map and check if there are any log files from that
+     *     component that needs to be uploaded to the cloud.
+     *     The service will first get all the files from the log file directory and then sort them by the last modified
+     *     time.
+     *     It will then get all the log files which have not yet been uploaded to the cloud. This is done by checking
+     *     the last uploaded log file time for that component.
+     *     The service will then perform a k-way merge for all components log files and then upload the logs to cloud
+     *     watch.
      */
     private void mergeLogsAndUpload() {
         // If there is already an upload ongoing, don't do anything. Wait for the next schedule to trigger to
