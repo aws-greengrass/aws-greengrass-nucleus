@@ -89,7 +89,12 @@ public class Kernel {
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
-    private static final int DEFAULT_KERNEL_COMPONENTS_STATE_PERIOD = 300;
+
+    // Kernel metrics
+    private static final int DEFAULT_KERNEL_COMPONENTS_STATE_PERIOD = 5;
+    private static final String KERNEL_METRIC_STORE = "Kernel";
+    private static Map<TelemetryMetricName, MetricDataBuilder> kernelMetrics = new HashMap<>();
+    private static Map<TelemetryMetricName, Integer> kernelMetricsData = new HashMap<>();
 
     @Getter
     private final Context context;
@@ -550,8 +555,10 @@ public class Kernel {
         return kernelCommandLine.deTilde(filename);
     }
 
+    /**
+     * Collect kernel metrics - Number of components running in each state.
+     */
     private void collectKernelComponentState() {
-        Map<TelemetryMetricName, MetricDataBuilder> metricsMap = new HashMap<>();
         for (TelemetryMetricName telemetryMetricName : TelemetryMetricName.KernelComponents.values()) {
             Metric metric = Metric.builder()
                     .metricNamespace(TelemetryNamespace.Kernel)
@@ -559,22 +566,19 @@ public class Kernel {
                     .metricUnit(TelemetryUnit.Count)
                     .metricAggregation(TelemetryAggregation.Sum)
                     .build();
-            MetricDataBuilder metricDataBuilder = new MetricFactory().addMetric(metric);
-            metricsMap.put(telemetryMetricName, metricDataBuilder);
+            MetricDataBuilder metricDataBuilder = new MetricFactory(KERNEL_METRIC_STORE).addMetric(metric);
+            kernelMetrics.put(telemetryMetricName, metricDataBuilder);
         }
-        Map<TelemetryMetricName, Integer> numComponentState = new HashMap<>();
         for (TelemetryMetricName telemetryMetricName : TelemetryMetricName.KernelComponents.values()) {
-            numComponentState.put(telemetryMetricName, 0);
+            kernelMetricsData.put(telemetryMetricName, 0);
         }
 
         ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
-        executor.scheduleAtFixedRate(emitMetrics(metricsMap, numComponentState), 0,
+        executor.scheduleAtFixedRate(emitMetrics(), 0,
                 DEFAULT_KERNEL_COMPONENTS_STATE_PERIOD, TimeUnit.SECONDS);
-
     }
 
-    private Runnable emitMetrics(Map<TelemetryMetricName, MetricDataBuilder> metricsMap,
-                                 Map<TelemetryMetricName, Integer> numComponentState) {
+    private Runnable emitMetrics() {
         return () -> {
             Collection<EvergreenService> evergreenServices = orderedDependencies();
             for (EvergreenService evergreenService : evergreenServices) {
@@ -582,12 +586,12 @@ public class Kernel {
                 serviceState = serviceState.charAt(0) + serviceState.substring(1).toLowerCase();
                 TelemetryMetricName telemetryMetricName = TelemetryMetricName.KernelComponents
                         .valueOf("NumberOfComponents" + serviceState);
-                numComponentState.put(telemetryMetricName, numComponentState.get(telemetryMetricName) + 1);
+                kernelMetricsData.put(telemetryMetricName, kernelMetricsData.get(telemetryMetricName) + 1);
             }
-            for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> metricMap : metricsMap.entrySet()) {
-                MetricDataBuilder metricDataBuilder = metricMap.getValue();
-                metricDataBuilder.putMetricData(numComponentState.get(metricMap.getKey())).emit();
-                numComponentState.put(metricMap.getKey(),0);
+            for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> kernelMetric : kernelMetrics.entrySet()) {
+                MetricDataBuilder metricDataBuilder = kernelMetric.getValue();
+                metricDataBuilder.putMetricData(kernelMetricsData.get(kernelMetric.getKey())).emit();
+                kernelMetricsData.put(kernelMetric.getKey(),0);
             }
         };
     }

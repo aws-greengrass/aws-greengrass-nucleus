@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.telemetry;
 
-
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
