@@ -2,7 +2,7 @@ package com.aws.iot.evergreen.packagemanager.plugins;
 
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.packagemanager.TestHelper;
+import com.aws.iot.evergreen.packagemanager.ComponentTestResourceHelper;
 import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
@@ -74,7 +74,7 @@ public class S3DownloaderTest {
     @Test
     void GIVEN_s3_artifact_uri_WHEN_download_to_path_THEN_succeed() throws Exception {
         Context mockContext = mock(Context.class);
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -99,8 +99,8 @@ public class S3DownloaderTest {
             assertThat("Content of downloaded file should be same as the artifact content",
                     Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
             mockContext.close();
         }
     }
@@ -108,7 +108,7 @@ public class S3DownloaderTest {
     @Test
     void GIVEN_s3_artifact_uri_WHEN_download_recipe_with_no_checksum_specified_THEN_succeed() throws Exception {
         Context mockContext = mock(Context.class);
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -131,15 +131,15 @@ public class S3DownloaderTest {
             assertThat("Content of downloaded file should be same as the artifact content",
                     Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
             mockContext.close();
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_uri_THEN_fail() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         try {
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
             assertThrows(InvalidArtifactUriException.class, () -> s3Downloader.downloadToPath(
@@ -147,14 +147,14 @@ public class S3DownloaderTest {
                     new ComponentArtifact(new URI(INVALID_ARTIFACT_URI), "somechecksum", VALID_ALGORITHM, null),
                     saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_checksum_THEN_fail() throws Exception {
         Context mockContext = mock(Context.class);
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -175,8 +175,8 @@ public class S3DownloaderTest {
                     new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
             mockContext.close();
         }
 
@@ -185,7 +185,7 @@ public class S3DownloaderTest {
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_algorithm_THEN_fail() throws Exception {
         Context mockContext = mock(Context.class);
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -204,8 +204,8 @@ public class S3DownloaderTest {
                     new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, "WrongAlgorithm", null), saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
             mockContext.close();
         }
     }
@@ -213,7 +213,7 @@ public class S3DownloaderTest {
     @Test
     void GIVEN_s3_artifact_uri_WHEN_error_in_getting_from_s3_THEN_fail() throws Exception {
         Context mockContext = mock(Context.class);
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         try {
             when(mockContext.get(TokenExchangeService.class)).thenReturn(mock(TokenExchangeService.class));
             when(kernel.getContext()).thenReturn(mockContext);
@@ -225,7 +225,7 @@ public class S3DownloaderTest {
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM, VALID_ALGORITHM, null),
                     saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
             mockContext.close();
         }
     }

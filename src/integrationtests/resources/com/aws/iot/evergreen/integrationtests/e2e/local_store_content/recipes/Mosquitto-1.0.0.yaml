@@ -1,23 +1,20 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{Mosquitto}}
 Description: Mosquitto MQTT Server
 Publisher: Eclipse Foundation
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-  - windows
-Lifecycle:
-  startup:
-    script: echo "Hello this is mosquitto getting started"
-  install:
-    script: echo "Hello This is mosquitto being installed"
-  shutdown:
-    script: echo "By mosquitto signing off!"
-Dependencies:
-  all:
-    {{GreenSignal}}:
-      VersionRequirements: "=1.0.0"
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      startup:
+        script: echo "Hello this is mosquitto getting started"
+      install:
+        script: echo "Hello This is mosquitto being installed"
+      shutdown:
+        script: echo "By mosquitto signing off!"
+    Dependencies:
+      {{GreenSignal}}:
+        VersionRequirement: "=1.0.0"
 

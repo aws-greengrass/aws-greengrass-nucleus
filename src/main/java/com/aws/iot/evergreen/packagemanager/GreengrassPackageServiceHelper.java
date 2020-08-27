@@ -20,7 +20,9 @@ import com.amazonaws.services.evergreen.model.ResolvedComponent;
 import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.vdurmont.semver4j.Requirement;
@@ -125,10 +127,16 @@ public class GreengrassPackageServiceHelper {
      * @return {@link CreateComponentResult}
      * @throws IOException if file reading fails
      */
+    // TODO make this an instance method
     public static CreateComponentResult createComponent(AWSEvergreen cmsClient, Path recipeFilePath)
             throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
-
+        System.out.println(new String(recipeBuf.array()));
+        try {
+            RecipeLoader.loadFromFile(new String(recipeBuf.array()));
+        } catch (PackageLoadingException e) {
+            e.printStackTrace();
+        }
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipeBuf);
         logger.atDebug("create-component").kv("request", createComponentRequest).log();
         CreateComponentResult createComponentResult = cmsClient.createComponent(createComponentRequest);

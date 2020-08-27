@@ -1,30 +1,22 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{KernelIntegTest}}
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-  - windows
-Lifecycle:
-  install:
-    debian:
-      skipif: onpath git
-      script: sudo apt-get install git
-    macos:
-      skipif: onpath git
-      script: brew install git
-Artifacts:
-  all:
-  - greengrass:kernel_integ_test_artifact.txt
-Dependencies:
-  all:
-    {{Log}}:
-      VersionRequirements: '>1.0'
-      DependencyType: Soft
-    {{KernelIntegTestDependency}}:
-      VersionRequirements: '1.0.0'
-      DependencyType: Hard
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      install:
+        skipif: onpath git
+        script: echo KernelIntegTest-1.0.0
+    Artifacts:
+      - Uri: greengrass:kernel_integ_test_artifact.txt
+    Dependencies:
+      {{Log}}:
+        VersionRequirement: '>1.0'
+        DependencyType: Soft
+      {{KernelIntegTestDependency}}:
+        VersionRequirement: '1.0.0'
+        DependencyType: Hard

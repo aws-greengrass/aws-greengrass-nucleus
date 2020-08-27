@@ -1,20 +1,17 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{CustomerApp}}
 Description: A customer app
 Publisher: Me
 Version: '0.9.1'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-Lifecycle:
-  all:
-    startup: |-
-      sleep 2
-      echo "CustomerApp succeeds."
-      exit 0
-Dependencies:
-  all:
-    {{Mosquitto}}:
-      VersionRequirements: 1.0.0
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      startup: |-
+        sleep 2
+        echo "CustomerApp succeeds."
+        exit 0
+    Dependencies:
+      {{Mosquitto}}:
+        VersionRequirement: 1.0.0

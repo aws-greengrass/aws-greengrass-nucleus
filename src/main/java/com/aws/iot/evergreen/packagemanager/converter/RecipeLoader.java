@@ -18,6 +18,8 @@ import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +34,9 @@ import javax.annotation.Nonnull;
  * This class handles conversion between recipe file contract and device business model. It also resolves platform
  * resolving logic while converting.
  */
-public class RecipeLoader {
+
+@NoArgsConstructor(access = AccessLevel.PRIVATE) // so that it can't be 'new'
+public final class RecipeLoader {
     // TODO add logging
     //    private static final Logger logger = LogManager.getLogger(RecipeLoader.class);
 
@@ -43,7 +47,7 @@ public class RecipeLoader {
      * @return Optional package recipe
      * @throws PackageLoadingException when failed to convert recipe file.
      */
-    public static Optional<PackageRecipe> convertFromFile(String recipeFileContent) throws PackageLoadingException {
+    public static Optional<PackageRecipe> loadFromFile(String recipeFileContent) throws PackageLoadingException {
 
         ComponentRecipe componentRecipe;
         try {

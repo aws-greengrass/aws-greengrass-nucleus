@@ -21,7 +21,6 @@ import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.packagemanager.PackageManager;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
@@ -119,7 +118,7 @@ public class PluginComponentTest extends BaseITCase {
         Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
         Path e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
-        PackageStore e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir, kernel.getContext().get(RecipeLoader.class));
+        PackageStore e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
 
         componentId = new PackageIdentifier("plugin", new Semver("1.0.0"));
         Files.move(e2eTestPackageStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar"),

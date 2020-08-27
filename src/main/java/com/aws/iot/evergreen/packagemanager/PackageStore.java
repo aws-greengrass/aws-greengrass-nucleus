@@ -13,9 +13,7 @@ import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingExcept
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.util.SerializerFactory;
 import com.aws.iot.evergreen.util.Utils;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -24,6 +22,7 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -45,15 +43,11 @@ public class PackageStore {
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-decompressed";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
-    private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
-
     private final Path recipeDirectory;
 
     private final Path artifactDirectory;
 
     private final Path artifactsDecompressedDirectory;
-
-    private final RecipeLoader recipeLoader;
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact unpack directory.
@@ -62,12 +56,11 @@ public class PackageStore {
      * @throws PackagingException if fails to create recipe or artifact directory.
      */
     @Inject
-    public PackageStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path packageStoreDirectory,
-                        @Nonnull RecipeLoader recipeLoader) throws PackagingException {
+    public PackageStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path packageStoreDirectory)
+            throws PackagingException {
         this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
         this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
         this.artifactsDecompressedDirectory = packageStoreDirectory.resolve(ARTIFACTS_DECOMPRESSED_DIRECTORY);
-        this.recipeLoader = recipeLoader;
         try {
             Utils.createPaths(recipeDirectory, artifactDirectory, artifactsDecompressedDirectory);
         } catch (IOException e) {
@@ -109,14 +102,17 @@ public class PackageStore {
             return Optional.empty();
         }
 
-        byte[] recipeContent;
+        String recipeContent;
+
+
         try {
-            recipeContent = Files.readAllBytes(recipePath);
+            recipeContent = new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", recipePath), e);
+            throw new PackageLoadingException(
+                    String.format("Failed to read package recipe from disk with path: `%s`", recipePath), e);
         }
 
-        return recipeLoader.convertFromFile(new String(recipeContent));
+        return RecipeLoader.loadFromFile(recipeContent);
     }
 
     /**

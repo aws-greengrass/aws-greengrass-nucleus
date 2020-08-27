@@ -11,9 +11,11 @@ import com.amazonaws.services.evergreen.model.GetComponentResult;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -59,14 +61,13 @@ class GreengrassPackageServiceHelperTest {
 
     @Test
     void GIVEN_component_name_version_WHEN_download_component_recipe_THEN_task_succeed() throws Exception {
-        String recipeContents =
-                TestHelper.getPackageRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
+        String recipeContents = "testRecipeContent";
         ByteBuffer testRecipeBytes = ByteBuffer.wrap(recipeContents.getBytes());
         GetComponentResult testResult = new GetComponentResult().withRecipe(testRecipeBytes);
         doReturn(testResult).when(client).getComponent(getComponentRequestArgumentCaptor.capture());
-        String downloadPackageRecipeAsString =
-                helper.downloadPackageRecipeAsString(new PackageIdentifier(TestHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                                                                   new Semver("1.0.0"), "private"));
+        String downloadPackageRecipeAsString = helper.downloadPackageRecipeAsString(
+                new PackageIdentifier(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, new Semver("1.0.0"),
+                        "private"));
 
         assertEquals(recipeContents, downloadPackageRecipeAsString);
     }
@@ -74,22 +75,27 @@ class GreengrassPackageServiceHelperTest {
     // TODO: Add test cases for failure status codes once the SDK model is updated to return proper http responses
 
     @Test
-    void GIVEN_recipe_file_WHEN_create_component_THEN_upload_the_recipe() throws Exception {
+    void GIVEN_recipe_file_WHEN_create_component_THEN_upload_the_recipe(@TempDir Path recipeDir) throws Exception {
         ArgumentCaptor<CreateComponentRequest> createComponentRequestArgumentCaptor =
                 ArgumentCaptor.forClass(CreateComponentRequest.class);
         CreateComponentResult mockResult = new CreateComponentResult();
         doReturn(mockResult).when(client).createComponent(createComponentRequestArgumentCaptor.capture());
-        Path recipePath = TestHelper.getRecipeForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
+
+        String testRecipeContent = "testContent";
+        Path recipePath = recipeDir.resolve("recipe.yaml");
+        FileUtils.writeStringToFile(recipePath.toFile(), testRecipeContent);
         GreengrassPackageServiceHelper.createComponent(client, recipePath);
 
         CreateComponentRequest createComponentRequest = createComponentRequestArgumentCaptor.getValue();
-        assertEquals(recipePath.toFile().length(), createComponentRequest.getRecipe().limit());
+        assertEquals(testRecipeContent, new String(createComponentRequest.getRecipe().array()));
     }
 
     @Test
     void GIVEN_a_non_regular_file_WHEN_upload_as_artifact_THEN_skip_file_upload() throws Exception {
-        Path artifactPath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
-        GreengrassPackageServiceHelper.createAndUploadComponentArtifact(client, artifactPath.toFile(), TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
+        Path artifactPath = ComponentTestResourceHelper.getPathForTestPackage(
+                ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
+        GreengrassPackageServiceHelper.createAndUploadComponentArtifact(client, artifactPath.toFile(),
+                ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0");
         verify(client, times(0)).createComponentArtifactUploadUrl(any());
     }
 
@@ -104,15 +110,17 @@ class GreengrassPackageServiceHelperTest {
         doReturn(baos).when(mockConn).getOutputStream();
         doReturn(mockConn).when(mockUrl).openConnection();
 
-        File artifactFile = TestHelper.getArtifactForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0",
-                "monitor_artifact_100.txt").toFile();
+        File artifactFile = ComponentTestResourceHelper.getArtifactForTestPackage(
+                ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0", "monitor_artifact_100.txt")
+                                                       .toFile();
         GreengrassPackageServiceHelper.uploadComponentArtifact(mockUrl, artifactFile);
         assertEquals(artifactFile.length(), baos.size());
     }
 
     @Test
     void GIVEN_component_name_version_and_artifact_name_WHEN_create_artifact_upload_url_THEN_send_service_request() {
-        ArgumentCaptor<CreateComponentArtifactUploadUrlRequest> requestCaptor = ArgumentCaptor.forClass(CreateComponentArtifactUploadUrlRequest.class);
+        ArgumentCaptor<CreateComponentArtifactUploadUrlRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateComponentArtifactUploadUrlRequest.class);
         GreengrassPackageServiceHelper.createComponentArtifactUploadUrl(client, "mockName", "mockVersion",
                 "mockArtifact");
         verify(client, times(1)).createComponentArtifactUploadUrl(requestCaptor.capture());

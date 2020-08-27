@@ -31,7 +31,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
-import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.tes.CredentialRequestHandler;
@@ -96,32 +95,25 @@ import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRAS
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Base class for Evergreen E2E tests, with the following functionality:
- *  * Bootstrap one IoT thing group and one IoT thing, and add thing to the group.
- *  * Manages integration points and API calls to Evergreen cloud services in Beta stage.
+ * Base class for Evergreen E2E tests, with the following functionality: * Bootstrap one IoT thing group and one IoT
+ * thing, and add thing to the group. * Manages integration points and API calls to Evergreen cloud services in Beta
+ * stage.
  */
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    protected static final String FCS_GAMMA_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
+    protected static final String EG_CLOUD_GAMMA_ENDPOINT =
+            "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Beta";
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
     protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias" + UUID.randomUUID().toString();
     private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy" + UUID.randomUUID().toString();
-    private static final String TES_ROLE_POLICY_DOCUMENT = "{\n"
-            + "    \"Version\": \"2012-10-17\",\n"
-            + "    \"Statement\": [\n"
-            + "        {\n"
-            + "            \"Effect\": \"Allow\",\n"
-            + "            \"Action\": [\n"
-            + "                \"greengrass:*\",\n"
-            + "                \"s3:Get*\",\n"
-            + "                \"s3:List*\"\n"
-            + "            ],\n"
-            + "            \"Resource\": \"*\"\n"
-            + "        }\n"
-            + "    ]\n"
-            + "}";
+    private static final String TES_ROLE_POLICY_DOCUMENT =
+            "{\n" + "    \"Version\": \"2012-10-17\",\n" + "    \"Statement\": [\n" + "        {\n"
+                    + "            \"Effect\": \"Allow\",\n" + "            \"Action\": [\n"
+                    + "                \"greengrass:*\",\n" + "                \"s3:Get*\",\n"
+                    + "                \"s3:List*\"\n" + "            ],\n" + "            \"Resource\": \"*\"\n"
+                    + "        }\n" + "    ]\n" + "}";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX = "eg-e2e-test-artifacts";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET =
             TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + UUID.randomUUID().toString();
@@ -150,13 +142,15 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected Kernel kernel;
 
-    protected static final IotClient iotClient = IotSdkClientFactory
-            .getIotClient(GAMMA_REGION.toString(), new HashSet<>(Arrays.asList(InvalidRequestException.class,
-                    DeleteConflictException.class)));
+    protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(GAMMA_REGION.toString(),
+            new HashSet<>(Arrays.asList(InvalidRequestException.class, DeleteConflictException.class)));
     private static AWSEvergreen fcsClient;
-    protected static final AWSEvergreen cmsClient =
-            AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, GAMMA_REGION.toString())).build();
+    protected static final AWSEvergreen cmsClient = AWSEvergreenClientBuilder.standard()
+                                                                             .withEndpointConfiguration(
+                                                                                     new AwsClientBuilder.EndpointConfiguration(
+                                                                                             GREENGRASS_SERVICE_ENDPOINT,
+                                                                                             GAMMA_REGION.toString()))
+                                                                             .build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
@@ -201,8 +195,9 @@ public class BaseE2ETestCase implements AutoCloseable {
             List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInGG));
             allComponents.addAll(Arrays.asList(componentsWithArtifactsInS3));
             for (PackageIdentifier component : allComponents) {
-                DeleteComponentResult result = GreengrassPackageServiceHelper
-                        .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
+                DeleteComponentResult result =
+                        GreengrassPackageServiceHelper.deleteComponent(cmsClient, component.getName(),
+                                component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
             }
         } finally {
@@ -230,21 +225,15 @@ public class BaseE2ETestCase implements AutoCloseable {
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
 
-        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir, new RecipeLoader()); //TODO fix
+        e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
     }
 
     /**
-     * Load recipes from local store and publish components to CMS.
-     * Directory tree layout should follow the local component store. e.g.
-     * src/integrationtests/resources/com/aws/iot/evergreen/integrationtests/e2e
-     * └── local_store_content
-     *     ├── artifacts
-     *     │  └── KernelIntegTest
-     *     │      └── 1.0.0
-     *     │          └── kernel_integ_test_artifact.txt
-     *     └── recipes
-     *         ├── KernelIntegTest-1.0.0.yaml
-     *         └── KernelIntegTestDependency-1.0.0.yaml
+     * Load recipes from local store and publish components to CMS. Directory tree layout should follow the local
+     * component store. e.g. src/integrationtests/resources/com/aws/iot/evergreen/integrationtests/e2e └──
+     * local_store_content ├── artifacts │  └── KernelIntegTest │      └── 1.0.0 │          └──
+     * kernel_integ_test_artifact.txt └── recipes ├── KernelIntegTest-1.0.0.yaml └──
+     * KernelIntegTestDependency-1.0.0.yaml
      *
      * @param pkgIds list of component identifiers
      */
@@ -267,8 +256,8 @@ public class BaseE2ETestCase implements AutoCloseable {
         List<String> errors = new ArrayList<>();
         for (PackageIdentifier pkgId : pkgIds) {
             try {
-                GreengrassPackageServiceHelper
-                        .commitComponent(cmsClient, pkgId.getName(), pkgId.getVersion().toString());
+                GreengrassPackageServiceHelper.commitComponent(cmsClient, pkgId.getName(),
+                        pkgId.getVersion().toString());
             } catch (InvalidInputException e) {
                 // Don't fail the test if the component is already committed
                 errors.add(e.getMessage());
@@ -280,8 +269,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     private static PackageIdentifier getLocalPackageIdentifier(PackageIdentifier pkgIdCloud) {
-        return new PackageIdentifier(removeTestComponentNameCloudSuffix(pkgIdCloud.getName()),
-                pkgIdCloud.getVersion(), pkgIdCloud.getScope());
+        return new PackageIdentifier(removeTestComponentNameCloudSuffix(pkgIdCloud.getName()), pkgIdCloud.getVersion(),
+                pkgIdCloud.getScope());
     }
 
     private static void draftComponent(PackageIdentifier pkgIdCloud) throws IOException {
@@ -291,22 +280,25 @@ public class BaseE2ETestCase implements AutoCloseable {
         // update recipe
         String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
         Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInGG)
-                .map(component -> component.getName()).collect(Collectors.toSet());
+                                             .map(component -> component.getName())
+                                             .collect(Collectors.toSet());
         componentNameSet.addAll(Arrays.stream(componentsWithArtifactsInS3)
-                .map(component -> component.getName()).collect(Collectors.toSet()));
+                                      .map(component -> component.getName())
+                                      .collect(Collectors.toSet()));
 
-        for (String cloudPkgName: componentNameSet) {
+        for (String cloudPkgName : componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
             content = content.replaceAll("\\{\\{" + localPkgName + "}}", cloudPkgName);
-            content = content.replaceAll("\\{\\{" + TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + "}}", TEST_COMPONENT_ARTIFACTS_S3_BUCKET);
+            content = content.replaceAll("\\{\\{" + TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + "}}",
+                    TEST_COMPONENT_ARTIFACTS_S3_BUCKET);
         }
 
         testRecipePath = e2eTestPackageStore.resolveRecipePath(pkgIdCloud);
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
-        CreateComponentResult createComponentResult = GreengrassPackageServiceHelper.createComponent(cmsClient,
-                testRecipePath);
+        CreateComponentResult createComponentResult =
+                GreengrassPackageServiceHelper.createComponent(cmsClient, testRecipePath);
         assertEquals("DRAFT", createComponentResult.getStatus());
         assertEquals(pkgIdCloud.getName(), createComponentResult.getComponentName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
@@ -319,14 +311,15 @@ public class BaseE2ETestCase implements AutoCloseable {
             Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
             File[] artifactFiles = artifactDirPath.toFile().listFiles();
             if (artifactFiles == null) {
-                logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
-                        .log("Skip artifact upload. No artifacts found");
+                logger.atInfo()
+                      .kv("component", pkgIdLocal)
+                      .kv("artifactPath", artifactDirPath.toAbsolutePath())
+                      .log("Skip artifact upload. No artifacts found");
             } else {
                 for (File artifact : artifactFiles) {
                     try {
-                        GreengrassPackageServiceHelper
-                                .createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
-                                        pkgId.getVersion().toString());
+                        GreengrassPackageServiceHelper.createAndUploadComponentArtifact(cmsClient, artifact,
+                                pkgId.getName(), pkgId.getVersion().toString());
                     } catch (InvalidInputException | ForbiddenException e) {
                         // Don't fail the test if the component is already committed
                         errors.add(e.getMessage());
@@ -341,8 +334,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected static void createS3BucketsForTestComponentArtifacts() {
         try {
-            s3Client.createBucket(
-                    CreateBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
+            s3Client.createBucket(CreateBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
         } catch (BucketAlreadyExistsException e) {
             logger.atError().setCause(e).log("Bucket name is taken, please retry the tests");
         } catch (BucketAlreadyOwnedByYouException e) {
@@ -358,15 +350,20 @@ public class BaseE2ETestCase implements AutoCloseable {
             Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
             File[] artifactFiles = artifactDirPath.toFile().listFiles();
             if (artifactFiles == null) {
-                logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
-                        .log("Skip artifact upload. No artifacts found");
+                logger.atInfo()
+                      .kv("component", pkgIdLocal)
+                      .kv("artifactPath", artifactDirPath.toAbsolutePath())
+                      .log("Skip artifact upload. No artifacts found");
             } else {
                 for (File artifact : artifactFiles) {
                     try {
                         // Path is <bucket>/<component_name>-<component>_<component_version>/<filename>
-                        s3Client.putObject(PutObjectRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET)
-                                .key(pkgIdLocal.getName() + "-" + pkgIdLocal.getVersion().toString() + "/" + artifact
-                                        .getName()).build(), RequestBody.fromFile(artifact));
+                        s3Client.putObject(PutObjectRequest.builder()
+                                                           .bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET)
+                                                           .key(pkgIdLocal.getName() + "-" + pkgIdLocal.getVersion()
+                                                                                                       .toString() + "/"
+                                                                   + artifact.getName())
+                                                           .build(), RequestBody.fromFile(artifact));
                     } catch (S3Exception e) {
                         logger.atError().setCause(e).log("Could not upload artifacts to S3");
                     }
@@ -381,25 +378,26 @@ public class BaseE2ETestCase implements AutoCloseable {
             ListObjectsResponse objectsInArtifactsBucket = s3Client.listObjects(
                     ListObjectsRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
             for (S3Object artifact : objectsInArtifactsBucket.contents()) {
-                s3Client.deleteObject(
-                        DeleteObjectRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).key(artifact.key())
-                                .build());
+                s3Client.deleteObject(DeleteObjectRequest.builder()
+                                                         .bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET)
+                                                         .key(artifact.key())
+                                                         .build());
             }
             s3Client.deleteBucket(DeleteBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
         } catch (NoSuchKeyException | NoSuchBucketException e) {
             // No-op
         } catch (S3Exception e) {
-            logger.atInfo().addKeyValue("error-message", e.getMessage())
-                    .log("Could not clean up test component artifacts");
+            logger.atInfo()
+                  .addKeyValue("error-message", e.getMessage())
+                  .log("Could not clean up test component artifacts");
         }
     }
 
     protected static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
-            AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                    FCS_GAMMA_ENDPOINT, GAMMA_REGION.toString());
-            fcsClient = AWSEvergreenClientBuilder.standard()
-                    .withEndpointConfiguration(endpointConfiguration).build();
+            AwsClientBuilder.EndpointConfiguration endpointConfiguration =
+                    new AwsClientBuilder.EndpointConfiguration(EG_CLOUD_GAMMA_ENDPOINT, GAMMA_REGION.toString());
+            fcsClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(endpointConfiguration).build();
         }
         return fcsClient;
     }
@@ -417,19 +415,19 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         // set default value
         if (setRequest.getDeploymentPolicies() == null) {
-            setRequest.withDeploymentPolicies(new DeploymentPolicies()
-                .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
+            setRequest.withDeploymentPolicies(
+                    new DeploymentPolicies().withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
+                                            .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
         }
 
         logger.atInfo().kv("setRequest", setRequest).log();
         SetConfigurationResult setResult = client.setConfiguration(setRequest);
         logger.atInfo().kv("setResult", setResult).log();
 
-        PublishConfigurationRequest publishRequest = new PublishConfigurationRequest()
-                .withTargetName(setRequest.getTargetName())
-                .withTargetType(setRequest.getTargetType())
-                .withRevisionId(setResult.getRevisionId());
+        PublishConfigurationRequest publishRequest =
+                new PublishConfigurationRequest().withTargetName(setRequest.getTargetName())
+                                                 .withTargetType(setRequest.getTargetType())
+                                                 .withRevisionId(setResult.getRevisionId());
         logger.atInfo().kv("publishRequest", publishRequest).log();
         PublishConfigurationResult publishResult = client.publishConfiguration(publishRequest);
         logger.atInfo().kv("publishResult", publishResult).log();
@@ -439,7 +437,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected void cleanup() {
         deviceProvisioningHelper.cleanThing(iotClient, thingInfo);
-        createdThingGroups.forEach(thingGroup-> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
+        createdThingGroups.forEach(thingGroup -> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
         createdThingGroups.clear();
         createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
         createdIotJobIds.clear();
@@ -456,18 +454,21 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected void setupTesRoleAndAlias() throws InterruptedException {
         try {
-            deviceProvisioningHelper
-                    .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+            deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME,
+                    thingInfo.getCertificateArn());
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
 
-            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
-                    CreatePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME)
-                            .policyDocument(TES_ROLE_POLICY_DOCUMENT)
-                            .description("Defines permissions to access AWS services for E2E test device TES role")
-                            .build());
+            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(CreatePolicyRequest.builder()
+                                                                                                  .policyName(
+                                                                                                          TES_ROLE_POLICY_NAME)
+                                                                                                  .policyDocument(
+                                                                                                          TES_ROLE_POLICY_DOCUMENT)
+                                                                                                  .description(
+                                                                                                          "Defines permissions to access AWS services for E2E test device TES role")
+                                                                                                  .build());
             tesRolePolicyArn = createPolicyResponse.policy().arn();
-            iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME)
-                    .policyArn(tesRolePolicyArn).build());
+            iamClient.attachRolePolicy(
+                    AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn).build());
         } catch (EntityAlreadyExistsException e) {
             // No-op if resources already exist
         }
@@ -475,10 +476,11 @@ public class BaseE2ETestCase implements AutoCloseable {
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
 
-        while(!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
+        while (!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
                 StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
-            logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
-                    .log("Waiting 5 seconds for TES to get credentials that work");
+            logger.atInfo()
+                  .kv("roleAlias", TES_ROLE_ALIAS_NAME)
+                  .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
         }
     }
@@ -486,7 +488,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static void cleanUpTesRoleAndAlias() {
         try {
             iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
-            iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn).build());
+            iamClient.detachRolePolicy(
+                    DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn).build());
             iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
             iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn).build());
         } catch (ResourceNotFoundException | NoSuchEntityException e) {
