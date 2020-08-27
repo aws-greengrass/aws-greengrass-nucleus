@@ -3,9 +3,11 @@
 
 package com.aws.iot.evergreen.util;
 
+import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.tes.LazyCredentialProvider;
 import lombok.Getter;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
@@ -25,14 +27,22 @@ public class S3SdkClientFactory {
     /**
      * Constructor.
      *
+     * @param deviceConfiguration device configuration
      * @param credentialsProvider credential provider from TES
      */
     @Inject
-    public S3SdkClientFactory(LazyCredentialProvider credentialsProvider) {
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
+        Region region;
+        try {
+            region = new DefaultAwsRegionProviderChain().getRegion();
+        } catch (RuntimeException ignored) {
+            region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
+        }
         this.s3Client =
                 S3Client.builder().serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
-                        .credentialsProvider(credentialsProvider).build();
+                        .credentialsProvider(credentialsProvider).region(region).build();
     }
 
     /**
