@@ -95,8 +95,7 @@ class TESTest extends BaseITCase {
         kernel.launch();
         assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
 
-        while (!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", roleAliasName)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
@@ -170,8 +169,7 @@ class TESTest extends BaseITCase {
         token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)
                 .iterator().next().getName();
         assertNotNull(token);
-        while (!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             Thread.sleep(5_000);
         }
         String newResponse = getResponseString(url, token);
