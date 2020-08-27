@@ -7,7 +7,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import javax.inject.Inject;
 
@@ -26,9 +25,7 @@ public class HttpServerImpl implements Server {
      * @throws IOException When server creation fails
      */
     HttpServerImpl(int port, HttpHandler credentialRequestHandler) throws IOException {
-        // Only start the server on default loopback (127.0.0.1)
-        // TODO: Validate this works with mutiple loopback interfaces
-        httpImpl = HttpServer.create(new InetSocketAddress(InetAddress.getByName(null), port), 0);
+        httpImpl = HttpServer.create(new InetSocketAddress("localhost", port), 0);
         this.credentialRequestHandler = credentialRequestHandler;
     }
 
