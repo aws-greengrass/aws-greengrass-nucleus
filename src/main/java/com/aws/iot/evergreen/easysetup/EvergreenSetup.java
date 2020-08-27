@@ -95,6 +95,7 @@ public class EvergreenSetup {
     private final List<String> kernelArgs = new ArrayList<>();
     private final DeviceProvisioningHelper deviceProvisioningHelper;
     private final PrintStream outStream;
+    private final PrintStream errStream;
     private int argpos = 0;
     private String arg;
     private boolean showHelp = false;
@@ -112,27 +113,30 @@ public class EvergreenSetup {
     /**
      * Constructor to create an instance using CLI args.
      *
-     * @param ps        writer to use to send text response to user
+     * @param outStream writer to use to send text response to user
+     * @param errStream writer to use to send error response to user
      * @param setupArgs CLI args for setup script
      */
-    public EvergreenSetup(PrintStream ps, String... setupArgs) {
+    public EvergreenSetup(PrintStream outStream, PrintStream errStream, String... setupArgs) {
         this.setupArgs = setupArgs;
-        this.outStream = ps;
-        parseArgs();
+        this.outStream = outStream;
+        this.errStream = errStream;
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, this.outStream);
     }
 
     /**
      * Constructor for unit tests.
      *
-     * @param ps                       writer to use to send text response to user
+     * @param outStream                writer to use to send text response to user
+     * @param errStream                writer to use to send error response to user
      * @param deviceProvisioningHelper Prebuilt DeviceProvisioningHelper instance
      * @param setupArgs                CLI args for setup script
      */
-    EvergreenSetup(PrintStream ps, DeviceProvisioningHelper deviceProvisioningHelper, String... setupArgs) {
+    EvergreenSetup(PrintStream outStream, PrintStream errStream, DeviceProvisioningHelper deviceProvisioningHelper,
+                   String... setupArgs) {
         this.setupArgs = setupArgs;
-        this.outStream = ps;
-        parseArgs();
+        this.outStream = outStream;
+        this.errStream = errStream;
         this.deviceProvisioningHelper = deviceProvisioningHelper;
     }
 
@@ -145,13 +149,14 @@ public class EvergreenSetup {
     @SuppressWarnings(
             {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.DoNotCallSystemExit", "PMD.SystemPrintln"})
     public static void main(String[] args) {
+        EvergreenSetup evergreenSetup = new EvergreenSetup(System.out, System.err, args);
         try {
-            EvergreenSetup evergreenSetup = new EvergreenSetup(System.out, args);
+            evergreenSetup.parseArgs();
             evergreenSetup.performSetUp();
         } catch (Throwable t) {
             logger.atError().setCause(t).log("Error while trying to setup Evergreen kernel");
             System.err.println("Error while trying to setup Evergreen kernel");
-            t.printStackTrace(System.err);
+            t.printStackTrace(evergreenSetup.errStream);
             System.exit(1);
         }
     }
@@ -197,7 +202,7 @@ public class EvergreenSetup {
         outStream.println("Launched kernel successfully.");
     }
 
-    private void parseArgs() {
+    void parseArgs() {
         while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case HELP_ARG:
