@@ -2,6 +2,10 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.common.Platform;
+import com.aws.iot.evergreen.packagemanager.common.Platform.Architecture;
+import com.aws.iot.evergreen.packagemanager.common.Platform.OS;
+import com.aws.iot.evergreen.packagemanager.common.PlatformHelper;
 import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -20,11 +24,36 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class PlatformResolver {
+import static com.aws.iot.evergreen.packagemanager.common.PlatformHelper.findMoreSpecificOS;
+
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
+public final class PlatformResolver {
+    public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
     private static final Logger logger = LogManager.getLogger(PlatformResolver.class);
     public static final AtomicReference<Map<String, Integer>> RANKS =
             new AtomicReference<>(Collections.unmodifiableMap(initializeRanks()));
+
+    public static final Platform CURRENT_PLATFORM = initializePlatformInfo();
+
+    private static Platform initializePlatformInfo() {
+        try {
+            return Platform.builder()
+                    .os(getOSInfo())
+                    .architecture(getArchInfo())
+                    .build();
+        } catch (InterruptedException | IOException e) {
+            // TODO: Better err handling
+            logger.atError().setCause(e).log("Fail to read platform info");
+            return Platform.builder()
+                    .os(OS.ALL)
+                    .architecture(Architecture.ALL)
+                    .build();
+        }
+    }
+
+    private PlatformResolver() {
+    }
 
     private static Set<String> initializeSupportedPlatforms() {
         return new HashSet<>(
@@ -33,6 +62,7 @@ public class PlatformResolver {
     }
 
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
+    @Deprecated
     private static Map<String, Integer> initializeRanks() {
         Map<String, Integer> ranks = new HashMap<>();
         // figure out what OS we're running and add applicable tags
@@ -50,19 +80,21 @@ public class PlatformResolver {
         if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
             ranks.put("debian", 11);
         }
-        if (Exec.isWindows) {
+        if (isWindows) {
             ranks.put("windows", 5);
         }
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
             ranks.put("fedora", 11);
         }
-        if (!Exec.isWindows) {
+        if (!isWindows) {
             try {
                 String sysver = Exec.sh("uname -a").toLowerCase();
                 if (sysver.contains("ubuntu")) {
                     ranks.put("ubuntu", 20);
                 }
                 if (sysver.contains("darwin")) {
+                    ranks.put("darwin", 10);
+                    // TODO: currently we assume darwin is MacOS
                     ranks.put("macos", 20);
                 }
                 if (sysver.contains("raspbian")) {
@@ -87,16 +119,79 @@ public class PlatformResolver {
         return ranks;
     }
 
+    @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
+    private static OS getOSInfo() throws IOException, InterruptedException {
+        if (isWindows) {
+            return OS.WINDOWS;
+        }
+
+        // TODO: use UNRECOGNIZED instead.
+        OS currentOS = OS.ALL;
+        String sysver = Exec.sh("uname -a").toLowerCase();
+        String osNameFromSysProperty = System.getProperty("os.name").toLowerCase();
+
+        if (Files.exists(Paths.get("/bin/sh")) || Files.exists(Paths.get("/usr/bin/sh"))) {
+            currentOS = findMoreSpecificOS(currentOS, OS.UNIX);
+        }
+        if (sysver.contains("darwin")) {
+            currentOS = findMoreSpecificOS(currentOS, OS.DARWIN);
+        }
+        if (osNameFromSysProperty.replaceAll("\\s","").contains("macos")) {
+            currentOS = findMoreSpecificOS(currentOS, OS.MAC_OS);
+        }
+        if (Files.exists(Paths.get("/proc"))) {
+            currentOS = findMoreSpecificOS(currentOS, OS.LINUX);
+        }
+        if (Files.exists(Paths.get("/usr/bin/yum"))) {
+            currentOS = findMoreSpecificOS(currentOS, OS.FEDORA);
+        }
+        if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
+            currentOS = findMoreSpecificOS(currentOS, OS.DEBIAN);
+        }
+        if (sysver.contains("raspbian") || sysver.contains("raspberry")) {
+            currentOS = findMoreSpecificOS(currentOS, OS.RASPBIAN);
+        }
+        if (sysver.contains("ubuntu")) {
+            currentOS = findMoreSpecificOS(currentOS, OS.UBUNTU);
+        }
+
+        return currentOS;
+    }
+
+    private static Architecture getArchInfo() {
+        String arch = System.getProperty("os.arch").toLowerCase();
+        if ("x86_64".equals(arch) || "amd64".equals(arch)) {
+            return Architecture.AMD64; // x86_64 & amd64 are same
+        }
+        if (arch.contains("arm")) {
+            return Architecture.ARM;
+        }
+        // TODO: use UNRECOGNIZED instead.
+        return Architecture.ALL;
+    }
+
+    /**
+     * get closest platform from a list of manifests.
+     *
+     * @param recipeList a list of recipe input
+     * @return closest recipe
+     */
+    public Optional<PlatformSpecificManifest> findBestMatch(List<PlatformSpecificManifest> recipeList) {
+        return PlatformHelper.findBestMatch(CURRENT_PLATFORM, recipeList);
+    }
+
     /**
      * Get the most specific platform string for the current system.
      *
      * @return platform
      */
+    @Deprecated
     public static String getPlatform() {
         return RANKS.get().entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue)).map(Map.Entry::getKey)
                 .orElse("all");
     }
 
+    @Deprecated
     public static Object resolvePlatform(Map<Object, Object> input) {
         return resolvePlatform(RANKS.get(), input);
     }
@@ -148,14 +243,4 @@ public class PlatformResolver {
         */
     }
 
-    /**
-     * Find the best match platform manifest.
-     *
-     * @param manifests list of manifests
-     * @return the best match platform; empty if not found.
-     */
-    public Optional<PlatformSpecificManifest> findBestMatch(List<PlatformSpecificManifest> manifests) {
-        // TODO @shirlez will implement
-        return Optional.empty();
-    }
 }
