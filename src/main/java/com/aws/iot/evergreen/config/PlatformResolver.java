@@ -3,9 +3,9 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.common.Platform;
+import com.aws.iot.evergreen.packagemanager.common.Platform.Architecture;
+import com.aws.iot.evergreen.packagemanager.common.Platform.OS;
 import com.aws.iot.evergreen.packagemanager.common.PlatformHelper;
-import com.aws.iot.evergreen.packagemanager.common.PlatformHelper.Architecture;
-import com.aws.iot.evergreen.packagemanager.common.PlatformHelper.OS;
 import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -39,15 +39,15 @@ public final class PlatformResolver {
     private static Platform initializePlatformInfo() {
         try {
             return Platform.builder()
-                    .os(getOSInfo().getName())
-                    .architecture(getArchInfo().getName())
+                    .os(getOSInfo())
+                    .architecture(getArchInfo())
                     .build();
         } catch (InterruptedException | IOException e) {
             // TODO: Better err handling
             logger.atError().setCause(e).log("Fail to read platform info");
             return Platform.builder()
-                    .os(Platform.ALL_KEYWORD)
-                    .architecture(Platform.ALL_KEYWORD)
+                    .os(OS.ALL)
+                    .architecture(Architecture.ALL)
                     .build();
         }
     }
@@ -125,6 +125,7 @@ public final class PlatformResolver {
             return OS.WINDOWS;
         }
 
+        // TODO: use UNRECOGNIZED instead.
         OS currentOS = OS.ALL;
         String sysver = Exec.sh("uname -a").toLowerCase();
         String osNameFromSysProperty = System.getProperty("os.name").toLowerCase();
@@ -165,6 +166,7 @@ public final class PlatformResolver {
         if (arch.contains("arm")) {
             return Architecture.ARM;
         }
+        // TODO: use UNRECOGNIZED instead.
         return Architecture.ALL;
     }
 
