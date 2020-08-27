@@ -90,7 +90,7 @@ public class EvergreenSetupTest {
     void GIVEN_setup_script_WHEN_dry_run_THEN_kernel_not_launched() throws Exception {
         evergreenSetup =
                 new EvergreenSetup(System.out, System.err, deviceProvisioningHelper, "--config", "mock_config_path", "--root",
-                        "mock_root", "--dry-run", "true");
+                        "mock_root", "--start", "false");
 
         EvergreenSetup evergreenSetupSpy = spy(evergreenSetup);
         doReturn(kernel).when(evergreenSetupSpy).getKernel();

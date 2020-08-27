@@ -84,9 +84,9 @@ public class EvergreenSetup {
     private static final String SETUP_SYSTEM_SERVICE_ARG_SHORT = "-ss";
     private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = false;
 
-    private static final String KERNEL_DRY_RUN_ARG = "--dry-run";
-    private static final String KERNEL_DRY_RUN_ARG_SHORT = "-dr";
-    private static final boolean KERNEL_DRY_RUN_ARG_DEFAULT = false;
+    private static final String KERNEL_START_ARG = "--start";
+    private static final String KERNEL_START_ARG_SHORT = "-s";
+    private static final boolean KERNEL_START_ARG_DEFAULT = true;
 
     // TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
 
@@ -108,7 +108,7 @@ public class EvergreenSetup {
     private boolean setupTes = SETUP_TES_DEFAULT;
     private boolean installCli = INSTALL_CLI_ARG_DEFAULT;
     private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
-    private boolean kernelDryRun = KERNEL_DRY_RUN_ARG_DEFAULT;
+    private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -192,8 +192,8 @@ public class EvergreenSetup {
             }
             return;
         }
-        if (kernelDryRun) {
-            outStream.println("Dry run, shutting down kernel...");
+        if (!kernelStart) {
+            outStream.println("Kernel start set to false, exiting...");
             kernel.shutdown();
             return;
         }
@@ -252,9 +252,9 @@ public class EvergreenSetup {
                 case SETUP_SYSTEM_SERVICE_ARG_SHORT:
                     this.setupSystemService = Coerce.toBoolean(getArg());
                     break;
-                case KERNEL_DRY_RUN_ARG:
-                case KERNEL_DRY_RUN_ARG_SHORT:
-                    this.kernelDryRun = Coerce.toBoolean(getArg());
+                case KERNEL_START_ARG:
+                case KERNEL_START_ARG_SHORT:
+                    this.kernelStart = Coerce.toBoolean(getArg());
                     break;
                 default:
                     RuntimeException rte =
