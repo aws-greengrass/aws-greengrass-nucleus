@@ -115,7 +115,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
         }
     }
 
-
     @Override
     public AwsCredentials resolveCredentials() {
         return credentialRequestHandler.getAwsCredentials();

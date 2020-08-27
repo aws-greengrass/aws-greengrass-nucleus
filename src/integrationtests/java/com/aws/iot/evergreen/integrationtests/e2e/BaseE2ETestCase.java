@@ -13,7 +13,6 @@ import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.InvalidInputException;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
@@ -184,7 +183,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         createS3BucketsForTestComponentArtifacts();
         uploadComponentArtifactToS3(componentsWithArtifactsInS3);
         uploadTestComponentsToCms(componentsWithArtifactsInS3);
-        commitTestComponentsToCms(componentsWithArtifactsInS3);
 
     }
 
@@ -247,22 +245,6 @@ public class BaseE2ETestCase implements AutoCloseable {
                 draftComponent(pkgId);
             } catch (ResourceAlreadyExistException e) {
                 // Don't fail the test if the component exists
-                errors.add(e.getMessage());
-            }
-        }
-        if (!errors.isEmpty()) {
-            logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
-        }
-    }
-
-    private static void commitTestComponentsToCms(PackageIdentifier... pkgIds) {
-        List<String> errors = new ArrayList<>();
-        for (PackageIdentifier pkgId : pkgIds) {
-            try {
-                GreengrassPackageServiceHelper
-                        .commitComponent(cmsClient, pkgId.getName(), pkgId.getVersion().toString());
-            } catch (InvalidInputException e) {
-                // Don't fail the test if the component is already committed
                 errors.add(e.getMessage());
             }
         }
@@ -436,8 +418,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
 
-        while(!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
