@@ -115,15 +115,6 @@ public class TokenExchangeService extends EvergreenService implements AwsCredent
         }
     }
 
-    /**
-     * True if TES should continually retry.
-     *
-     * @return
-     */
-    public boolean retryUntilCredentialsExist() {
-        return Coerce.toBoolean(config.lookup(PARAMETERS_CONFIG_KEY, "expectCredentials"));
-    }
-
     @Override
     public AwsCredentials resolveCredentials() {
         return credentialRequestHandler.getAwsCredentials();

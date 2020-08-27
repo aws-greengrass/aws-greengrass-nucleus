@@ -272,7 +272,7 @@ public class CredentialRequestHandler implements HttpHandler {
                     .create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR), credentials.get(SECRET_ACCESS_DOWNSTREAM_STR),
                             credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
         } catch (IOException e) {
-            LOGGER.atError().setCause(e).kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+            LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Error in retrieving AwsCredentials from TES");
             return null;
         }
