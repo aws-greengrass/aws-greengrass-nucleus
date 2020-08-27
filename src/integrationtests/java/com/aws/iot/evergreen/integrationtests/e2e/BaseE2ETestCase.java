@@ -13,7 +13,6 @@ import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.ForbiddenException;
 import com.amazonaws.services.evergreen.model.InvalidInputException;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
@@ -159,32 +158,27 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
-    private static final PackageIdentifier[] componentsWithArtifactsInGG =
-            {createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
-                    createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
-                    createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
-                    createPackageIdentifier("SomeService", new Semver("1.0.0")),
-                    createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
-                    createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("RedSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
-                    createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
-                    createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
-                    createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
-                    createPackageIdentifier("Log", new Semver("2.0.0")),
-                    createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
-                    createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
     private static final PackageIdentifier[] componentsWithArtifactsInS3 =
-            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0"))};
+            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
+            createPackageIdentifier("SomeService", new Semver("1.0.0")),
+            createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
+            createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
+            createPackageIdentifier("RedSignal", new Semver("1.0.0")),
+            createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
+            createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
+            createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
+            createPackageIdentifier("Log", new Semver("2.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
 
     @BeforeAll
     static void beforeAll() throws Exception {
         initializePackageStore();
-
-        uploadTestComponentsToCms(componentsWithArtifactsInGG);
-        uploadComponentArtifactsToGG(componentsWithArtifactsInGG);
-        commitTestComponentsToCms(componentsWithArtifactsInGG);
 
         // Self hosted artifacts must exist in S3 before creating a component version
         createS3BucketsForTestComponentArtifacts();
@@ -197,8 +191,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     @AfterAll
     static void afterAll() {
         try {
-            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInGG));
-            allComponents.addAll(Arrays.asList(componentsWithArtifactsInS3));
+            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (PackageIdentifier component : allComponents) {
                 DeleteComponentResult result = GreengrassPackageServiceHelper
                         .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
@@ -289,10 +282,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         // update recipe
         String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
-        Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInGG)
+        Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInS3)
                 .map(component -> component.getName()).collect(Collectors.toSet());
-        componentNameSet.addAll(Arrays.stream(componentsWithArtifactsInS3)
-                .map(component -> component.getName()).collect(Collectors.toSet()));
 
         for (String cloudPkgName: componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
@@ -311,33 +302,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
     }
 
-    protected static void uploadComponentArtifactsToGG(PackageIdentifier... pkgIds) throws IOException {
-        List<String> errors = new ArrayList<>();
-        for (PackageIdentifier pkgId : pkgIds) {
-            PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
-            Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
-            File[] artifactFiles = artifactDirPath.toFile().listFiles();
-            if (artifactFiles == null) {
-                logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
-                        .log("Skip artifact upload. No artifacts found");
-            } else {
-                for (File artifact : artifactFiles) {
-                    try {
-                        GreengrassPackageServiceHelper
-                                .createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
-                                        pkgId.getVersion().toString());
-                    } catch (InvalidInputException | ForbiddenException e) {
-                        // Don't fail the test if the component is already committed
-                        errors.add(e.getMessage());
-                    }
-                }
-                if (!errors.isEmpty()) {
-                    logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
-                }
-            }
-        }
-    }
-
     protected static void createS3BucketsForTestComponentArtifacts() {
         try {
             s3Client.createBucket(
@@ -349,8 +313,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    // TODO : Fast follow item to change all e2e tests to upload artifacts to S3
-    //  instead of the component management service
     protected static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
         for (PackageIdentifier pkgId : pkgIds) {
             PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
