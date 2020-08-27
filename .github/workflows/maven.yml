@@ -33,7 +33,7 @@ jobs:
         continue-on-error: true
       - name: Build with Maven
         run: mvn -ntp -U clean verify
-        shell: powershell
+        shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
         run: mvn -ntp -U clean verify
