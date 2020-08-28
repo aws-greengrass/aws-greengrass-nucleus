@@ -4,12 +4,13 @@ ComponentName: botocore
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.12.134'
-Dependencies:
-  docutils:
-    VersionRequirement: '>=0.10.0'
-  jmespath:
-    VersionRequirement: '>=0.7.1 <1.0.0'
-  python-dateutil:
-    VersionRequirement: '>=2.1.0 <3.0.0'
-  urllib3:
-    VersionRequirement: '>=1.20.0 <1.25.0'
+Manifests:
+  - Dependencies:
+      docutils:
+        VersionRequirement: '>=0.10.0'
+      jmespath:
+        VersionRequirement: '>=0.7.1 <1.0.0'
+      python-dateutil:
+        VersionRequirement: '>=2.1.0 <3.0.0'
+      urllib3:
+        VersionRequirement: '>=1.20.0 <1.25.0'

@@ -4,6 +4,7 @@ ComponentName: python-dateutil
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '2.3.0'
-Dependencies:
-  six:
-    VersionRequirement: ''
+Manifests:
+  - Dependencies:
+      six:
+        VersionRequirement: ''

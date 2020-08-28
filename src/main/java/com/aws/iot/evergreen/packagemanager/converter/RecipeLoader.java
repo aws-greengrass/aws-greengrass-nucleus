@@ -60,6 +60,12 @@ public final class RecipeLoader {
                             recipeFileContent), e);
         }
 
+        if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
+            throw new PackageLoadingException(
+                    String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
+                            componentRecipe.getVersion().toString()));
+        }
+
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =
                 PlatformResolver.findBestMatch(componentRecipe.getManifests());
 
