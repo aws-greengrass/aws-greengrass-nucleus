@@ -23,6 +23,6 @@ public class RecipeDependencyProperties {
     // dependencyType could be null now. TODO not allow null after changing to enum
     public RecipeDependencyProperties(String versionRequirements) {
         this.versionRequirements = versionRequirements;
-        this.dependencyType = "HARD";
+        this.dependencyType = null;
     }
 }

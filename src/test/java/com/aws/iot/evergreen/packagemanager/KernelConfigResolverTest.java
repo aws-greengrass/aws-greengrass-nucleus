@@ -151,6 +151,7 @@ class KernelConfigResolverTest {
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
                 dependencyListContains("main", "IpcService" + ":" + DependencyType.HARD, servicesConfig));
+        System.out.println(servicesConfig);
         assertThat("New service must depend on dependency service",
                 dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
@@ -495,7 +496,7 @@ class KernelConfigResolverTest {
     private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
         Iterable<String> dependencyList =
                 (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
-        return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.equals(dependencyName));
+        return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.contains(dependencyName));
     }
 
     private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
