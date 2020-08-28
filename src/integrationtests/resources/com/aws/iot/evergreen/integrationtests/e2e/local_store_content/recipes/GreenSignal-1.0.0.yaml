@@ -15,7 +15,7 @@ Manifests:
       run: "echo Go ahead with {{params:NumApprovals.value}} approvals"
 
   - Platform:
-      os: debian
+      os: unbuntu
     Parameters:
       - name: NumApprovals
         type: NUMBER

@@ -16,7 +16,7 @@ Manifests:
           "echo proceed with caution {{params:message.value}}"
 
   - Platform:
-      os: debian
+      os: unbuntu
     Parameters:
       - name: message
         type: STRING

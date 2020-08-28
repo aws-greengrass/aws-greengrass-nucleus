@@ -11,6 +11,6 @@ Manifests:
       install: sleep 5
 
   - Platform:
-      os: debian
+      os: unbuntu
     Lifecycle:
       install: sleep 5

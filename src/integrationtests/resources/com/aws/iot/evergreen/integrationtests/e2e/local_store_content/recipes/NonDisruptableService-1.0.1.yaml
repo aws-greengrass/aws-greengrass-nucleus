@@ -13,7 +13,7 @@ Manifests:
         echo "running non disruptable service version 1.0.1"; sleep 5
         done
   - Platform:
-      os: debian
+      os: unbuntu
     Lifecycle:
       run: |-
         while true; do

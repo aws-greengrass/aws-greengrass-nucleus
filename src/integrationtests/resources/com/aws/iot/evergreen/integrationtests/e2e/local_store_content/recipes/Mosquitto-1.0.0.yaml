@@ -19,7 +19,7 @@ Manifests:
         VersionRequirement: "=1.0.0"
 
   - Platform:
-      os: debian
+      os: unbuntu
     Lifecycle:
       startup:
         script: echo "Hello this is mosquitto getting started"
