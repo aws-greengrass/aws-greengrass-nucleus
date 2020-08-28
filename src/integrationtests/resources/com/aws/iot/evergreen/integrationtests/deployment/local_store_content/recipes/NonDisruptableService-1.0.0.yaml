@@ -1,31 +1,31 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: NonDisruptableService
 Description: A service that can be performing important task so should not be restarted if not safe
 Publisher: Me
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-  - windows
-Lifecycle:
-  posix:
-    run: |-
-      while true; do
-      echo "running non disruptable service version 1.0.0"; sleep 5
-      done
-    checkIfSafeToUpdate:
-      recheckPeriod: 5
-      script: |-
-        echo "Not SafeUpdate"
-        exit 1
-    updatesCompleted: echo "Yes! Updates completed"
-  windows:
-    run: |-
-      powershell -command "& { while(1) { sleep 5 } }"
-    checkIfSafeToUpdate:
-      recheckPeriod: 5
-      script: |-
-        exit 1
-    updatesCompleted: echo "Yes! Updates completed"
+Manifests:
+  - Platform:
+      os: unix
+    Lifecycle:
+      run: |-
+        while true; do
+        echo "running non disruptable service version 1.0.0"; sleep 5
+        done
+        checkIfSafeToUpdate:
+        recheckPeriod: 5
+        script: |-
+          echo "Not SafeUpdate"
+          exit 1
+        updatesCompleted: echo "Yes! Updates completed"
+
+  - Platform:
+      os: windows
+    Lifecycle:
+      run: |-
+        powershell -command "& { while(1) { sleep 5 } }"
+      checkIfSafeToUpdate:
+        recheckPeriod: 5
+        script: |-
+          exit 1
+      updatesCompleted: echo "Yes! Updates completed"

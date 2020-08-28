@@ -1,18 +1,26 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{YellowSignal}}
 Description: A service signalling proceed with caution
 Publisher: Me
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-Parameters:
-  - name: message
-    type: STRING
-    value: This is a test
-Lifecycle:
-  all:
-    run:
-      "echo proceed with caution {{params:message.value}}"
+Manifests:
+  - Platform:
+      os: macos
+    Parameters:
+      - name: message
+        type: STRING
+        value: This is a test
+    Lifecycle:
+        run:
+          "echo proceed with caution {{params:message.value}}"
+
+  - Platform:
+      os: ubuntu
+    Parameters:
+      - name: message
+        type: STRING
+        value: This is a test
+    Lifecycle:
+      run:
+        "echo proceed with caution {{params:message.value}}"

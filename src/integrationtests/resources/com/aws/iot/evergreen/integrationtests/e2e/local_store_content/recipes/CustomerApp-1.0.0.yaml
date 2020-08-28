@@ -1,24 +1,34 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{CustomerApp}}
 Description: A customer app
 Publisher: Me
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-  - windows
-Parameters:
-  - name: sampleText
-    value: This is a test
-    type: STRING
-Lifecycle:
-  all:
-    run: |-
-      sleep 2
-      echo "Hello evergreen. {{params:sampleText.value}}"
-Dependencies:
-  all:
-    {{Mosquitto}}:
-      VersionRequirements: 1.0.0
+Manifests:
+  - Platform:
+      os: macos
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run: |-
+        sleep 2
+        echo "Hello evergreen. {{params:sampleText.value}}"
+    Dependencies:
+      {{Mosquitto}}:
+        VersionRequirement: 1.0.0
+
+  - Platform:
+      os: ubuntu
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run: |-
+        sleep 2
+        echo "Hello evergreen. {{params:sampleText.value}}"
+    Dependencies:
+        {{Mosquitto}}:
+          VersionRequirement: 1.0.0

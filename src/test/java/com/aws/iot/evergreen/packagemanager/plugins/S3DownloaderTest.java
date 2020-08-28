@@ -1,6 +1,6 @@
 package com.aws.iot.evergreen.packagemanager.plugins;
 
-import com.aws.iot.evergreen.packagemanager.TestHelper;
+import com.aws.iot.evergreen.packagemanager.ComponentTestResourceHelper;
 import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
@@ -38,7 +38,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings("PMD.CloseResource")
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class S3DownloaderTest {
 
@@ -66,19 +65,21 @@ public class S3DownloaderTest {
     void setup() {
         when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
         lenient().when(s3SdkClientFactory.getClientForRegion(any())).thenReturn(s3Client);
-        lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class))).thenReturn(mock(GetBucketLocationResponse.class));
+        lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class)))
+                 .thenReturn(mock(GetBucketLocationResponse.class));
         s3Downloader = new S3Downloader(s3SdkClientFactory);
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_download_to_path_THEN_succeed() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         try {
             String checksum = Base64.getEncoder()
-                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
+                                    .encodeToString(MessageDigest.getInstance("SHA-256")
+                                                                 .digest(Files.readAllBytes(artifactFilePath)));
 
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
@@ -95,14 +96,14 @@ public class S3DownloaderTest {
             assertThat("Content of downloaded file should be same as the artifact content",
                     Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_download_recipe_with_no_checksum_specified_THEN_succeed() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -122,14 +123,14 @@ public class S3DownloaderTest {
             assertThat("Content of downloaded file should be same as the artifact content",
                     Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_uri_THEN_fail() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         try {
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
             assertThrows(InvalidArtifactUriException.class, () -> s3Downloader.downloadToPath(
@@ -137,13 +138,13 @@ public class S3DownloaderTest {
                     new ComponentArtifact(new URI(INVALID_ARTIFACT_URI), "somechecksum", VALID_ALGORITHM, null),
                     saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_checksum_THEN_fail() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -162,21 +163,22 @@ public class S3DownloaderTest {
                     new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
         }
 
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_bad_algorithm_THEN_fail() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
                 Files.write(tempDir.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         try {
             String checksum = Base64.getEncoder()
-                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
+                                    .encodeToString(MessageDigest.getInstance("SHA-256")
+                                                                 .digest(Files.readAllBytes(artifactFilePath)));
 
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
@@ -187,14 +189,14 @@ public class S3DownloaderTest {
                     new PackageIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, "WrongAlgorithm", null), saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
-            TestHelper.cleanDirectory(artifactFilePath);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(artifactFilePath);
         }
     }
 
     @Test
     void GIVEN_s3_artifact_uri_WHEN_error_in_getting_from_s3_THEN_fail() throws Exception {
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         try {
             when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenThrow(S3Exception.class);
 
@@ -204,7 +206,7 @@ public class S3DownloaderTest {
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM, VALID_ALGORITHM, null),
                     saveToPath));
         } finally {
-            TestHelper.cleanDirectory(testCache);
+            ComponentTestResourceHelper.cleanDirectory(testCache);
         }
     }
 }

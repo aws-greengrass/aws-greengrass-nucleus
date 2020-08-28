@@ -1,24 +1,28 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{KernelIntegTestDependency}}
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-  - windows
-Lifecycle:
-  install:
-    debian:
-      skipif: onpath git
-      script: sudo apt-get install git
-    macos:
-      skipif: onpath git
-      script: brew install git
-Dependencies:
-  all:
-    {{Log}}:
-      VersionRequirements: '2.0'
-      DependencyType: Soft
+Manifests:
+  - Platform:
+      os: macos
+    Lifecycle:
+      install:
+        skipif: onpath git
+        script: sudo KernelIntegTestDependency-1.0.0
+    Dependencies:
+      {{Log}}:
+        VersionRequirement: '2.0'
+        DependencyType: Soft
+
+  - Platform:
+      os: ubuntu
+    Lifecycle:
+      install:
+        skipif: onpath git
+        script: sudo KernelIntegTestDependency-1.0.0
+    Dependencies:
+        {{Log}}:
+          VersionRequirement: '2.0'
+          DependencyType: Soft

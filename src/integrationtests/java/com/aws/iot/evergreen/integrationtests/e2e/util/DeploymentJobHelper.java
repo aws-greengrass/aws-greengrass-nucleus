@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
+import static com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase.getTestComponentNameInCloud;
 import static com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils.generateMockConfigurationArn;
 
 public class DeploymentJobHelper {
@@ -38,7 +39,8 @@ public class DeploymentJobHelper {
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
-                        .packages(Collections.singletonMap(targetPkgName, new PackageInfo(true, "1.0.0", null)))
+                        .packages(Collections.singletonMap(getTestComponentNameInCloud(targetPkgName),
+                                new PackageInfo(true, "1.0.0", null)))
                         .build()
         );
     }

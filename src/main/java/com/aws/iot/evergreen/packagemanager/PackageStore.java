@@ -6,15 +6,14 @@ package com.aws.iot.evergreen.packagemanager;
 import com.aws.iot.evergreen.constants.FileSuffix;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.UnexpectedPackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.util.SerializerFactory;
 import com.aws.iot.evergreen.util.Utils;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -23,6 +22,7 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -42,8 +42,6 @@ public class PackageStore {
     public static final String ARTIFACT_DIRECTORY = "artifacts";
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-decompressed";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
-
-    private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
 
     private final Path recipeDirectory;
 
@@ -73,7 +71,7 @@ public class PackageStore {
     /**
      * Creates or updates a package recipe in the package store on the disk.
      *
-     * @param pkgId the id for the component
+     * @param pkgId         the id for the component
      * @param recipeContent recipe content to save
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
@@ -104,19 +102,17 @@ public class PackageStore {
             return Optional.empty();
         }
 
-        byte[] recipeContent;
-        try {
-            recipeContent = Files.readAllBytes(recipePath);
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to load package recipe at %s", recipePath), e);
-        }
+        String recipeContent;
+
 
         try {
-            // TODO Add validation to validate recipe retried matches pkgId
-            return Optional.of(RECIPE_SERIALIZER.readValue(recipeContent, PackageRecipe.class));
+            recipeContent = new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to parse package recipe at %s", recipePath), e);
+            throw new PackageLoadingException(
+                    String.format("Failed to read package recipe from disk with path: `%s`", recipePath), e);
         }
+
+        return RecipeLoader.loadFromFile(recipeContent);
     }
 
     /**
@@ -147,8 +143,8 @@ public class PackageStore {
      */
     PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
         Map<String, String> dependencyMetadata = new HashMap<>();
-        getPackageRecipe(pkgId).getDependencies().forEach((name, prop) ->
-                dependencyMetadata.put(name, prop.getVersionRequirements()));
+        getPackageRecipe(pkgId).getDependencies()
+                               .forEach((name, prop) -> dependencyMetadata.put(name, prop.getVersionRequirements()));
         return new PackageMetadata(pkgId, dependencyMetadata);
     }
 
@@ -197,7 +193,7 @@ public class PackageStore {
      */
     public Path resolveArtifactDirectoryPath(@NonNull PackageIdentifier packageIdentifier) {
         return artifactDirectory.resolve(packageIdentifier.getName())
-                .resolve(packageIdentifier.getVersion().getValue());
+                                .resolve(packageIdentifier.getVersion().getValue());
     }
 
     /**
@@ -216,6 +212,7 @@ public class PackageStore {
 
     /**
      * Resolve the artifact unpack directory path and creates the directory if absent.
+     *
      * @param packageIdentifier packageIdentifier
      * @return artifact unpack directory path
      * @throws PackageLoadingException if un-able to create artifact unpack directory path
@@ -223,7 +220,7 @@ public class PackageStore {
     public Path resolveAndSetupArtifactsUnpackDirectory(@NonNull PackageIdentifier packageIdentifier)
             throws PackageLoadingException {
         Path path = artifactsDecompressedDirectory.resolve(packageIdentifier.getName())
-                .resolve(packageIdentifier.getVersion().getValue());
+                                                  .resolve(packageIdentifier.getVersion().getValue());
         try {
             Utils.createPaths(path);
             return path;
