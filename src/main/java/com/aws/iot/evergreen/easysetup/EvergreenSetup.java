@@ -84,6 +84,10 @@ public class EvergreenSetup {
     private static final String SETUP_SYSTEM_SERVICE_ARG_SHORT = "-ss";
     private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = false;
 
+    private static final String KERNEL_START_ARG = "--start";
+    private static final String KERNEL_START_ARG_SHORT = "-s";
+    private static final boolean KERNEL_START_ARG_DEFAULT = true;
+
     // TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
 
     private static final Logger logger = LogManager.getLogger(EvergreenSetup.class);
@@ -91,6 +95,7 @@ public class EvergreenSetup {
     private final List<String> kernelArgs = new ArrayList<>();
     private final DeviceProvisioningHelper deviceProvisioningHelper;
     private final PrintStream outStream;
+    private final PrintStream errStream;
     private int argpos = 0;
     private String arg;
     private boolean showHelp = false;
@@ -103,31 +108,35 @@ public class EvergreenSetup {
     private boolean setupTes = SETUP_TES_DEFAULT;
     private boolean installCli = INSTALL_CLI_ARG_DEFAULT;
     private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
+    private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
 
     /**
      * Constructor to create an instance using CLI args.
      *
-     * @param ps        writer to use to send text response to user
+     * @param outStream writer to use to send text response to user
+     * @param errStream writer to use to send error response to user
      * @param setupArgs CLI args for setup script
      */
-    public EvergreenSetup(PrintStream ps, String... setupArgs) {
+    public EvergreenSetup(PrintStream outStream, PrintStream errStream, String... setupArgs) {
         this.setupArgs = setupArgs;
-        this.outStream = ps;
-        parseArgs();
+        this.outStream = outStream;
+        this.errStream = errStream;
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, this.outStream);
     }
 
     /**
      * Constructor for unit tests.
      *
-     * @param ps                       writer to use to send text response to user
+     * @param outStream                writer to use to send text response to user
+     * @param errStream                writer to use to send error response to user
      * @param deviceProvisioningHelper Prebuilt DeviceProvisioningHelper instance
      * @param setupArgs                CLI args for setup script
      */
-    EvergreenSetup(PrintStream ps, DeviceProvisioningHelper deviceProvisioningHelper, String... setupArgs) {
+    EvergreenSetup(PrintStream outStream, PrintStream errStream, DeviceProvisioningHelper deviceProvisioningHelper,
+                   String... setupArgs) {
         this.setupArgs = setupArgs;
-        this.outStream = ps;
-        parseArgs();
+        this.outStream = outStream;
+        this.errStream = errStream;
         this.deviceProvisioningHelper = deviceProvisioningHelper;
     }
 
@@ -140,50 +149,60 @@ public class EvergreenSetup {
     @SuppressWarnings(
             {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.DoNotCallSystemExit", "PMD.SystemPrintln"})
     public static void main(String[] args) {
+        EvergreenSetup evergreenSetup = new EvergreenSetup(System.out, System.err, args);
         try {
-            EvergreenSetup setup = new EvergreenSetup(System.out, args);
-
-            // Describe usage of the command
-            if (setup.showHelp) {
-                setup.outStream.println(SHOW_HELP_RESPONSE);
-                System.exit(0);
-            }
-
-            Kernel kernel = new Kernel().parseArgs(setup.kernelArgs.toArray(new String[]{}));
-
-            if (setup.needProvisioning) {
-                setup.provision(kernel);
-            }
-
-            // Install Evergreen cli
-            if (setup.installCli) {
-                // TODO : Download CLI binary from CDN and install
-                setup.outStream.println("Installed Evergreen CLI");
-            }
-
-            setup.outStream.println("Launching kernel...");
-            if (setup.setupSystemService) {
-                kernel.shutdown();
-                boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
-                        kernel.getContext().get(KernelAlternatives.class));
-                if (ok) {
-                    setup.outStream.println("Successfully set up Kernel as a system service");
-                    // Kernel will be launched by OS as a service
-                    System.exit(0);
-                }
-                setup.outStream.println("Unable to set up Kernel as a system service");
-            }
-            kernel.launch();
-            setup.outStream.println("Launched kernel successfully.");
+            evergreenSetup.parseArgs();
+            evergreenSetup.performSetup();
         } catch (Throwable t) {
             logger.atError().setCause(t).log("Error while trying to setup Evergreen kernel");
             System.err.println("Error while trying to setup Evergreen kernel");
-            t.printStackTrace(System.err);
+            t.printStackTrace(evergreenSetup.errStream);
             System.exit(1);
         }
     }
 
-    private void parseArgs() {
+    void performSetup() throws IOException, DeviceConfigurationException {
+        // Describe usage of the command
+        if (showHelp) {
+            outStream.println(SHOW_HELP_RESPONSE);
+            return;
+        }
+
+        Kernel kernel = getKernel();
+
+        if (needProvisioning) {
+            provision(kernel);
+        }
+
+        // Install Evergreen cli
+        if (installCli) {
+            // TODO : Download CLI binary from CDN and install
+            outStream.println("Installed Evergreen CLI");
+        }
+
+        if (setupSystemService) {
+            kernel.shutdown();
+            boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
+                    kernel.getContext().get(KernelAlternatives.class));
+            if (ok) {
+                outStream.println("Successfully set up Kernel as a system service");
+                // Kernel will be launched by OS as a service
+            } else {
+                outStream.println("Unable to set up Kernel as a system service");
+            }
+            return;
+        }
+        if (!kernelStart) {
+            outStream.println("Kernel start set to false, exiting...");
+            kernel.shutdown();
+            return;
+        }
+        outStream.println("Launching kernel...");
+        kernel.launch();
+        outStream.println("Launched kernel successfully.");
+    }
+
+    void parseArgs() {
         while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case HELP_ARG:
@@ -233,6 +252,10 @@ public class EvergreenSetup {
                 case SETUP_SYSTEM_SERVICE_ARG_SHORT:
                     this.setupSystemService = Coerce.toBoolean(getArg());
                     break;
+                case KERNEL_START_ARG:
+                case KERNEL_START_ARG_SHORT:
+                    this.kernelStart = Coerce.toBoolean(getArg());
+                    break;
                 default:
                     RuntimeException rte =
                             new RuntimeException(String.format("Undefined command line argument: %s", arg));
@@ -268,6 +291,10 @@ public class EvergreenSetup {
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
             outStream.println("Successfully configured TokenExchangeService!");
         }
+    }
+
+    Kernel getKernel() {
+        return new Kernel().parseArgs(kernelArgs.toArray(new String[]{}));
     }
 
 }

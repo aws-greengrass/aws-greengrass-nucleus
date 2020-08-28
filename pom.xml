@@ -95,7 +95,12 @@
         <dependency>
             <groupId>com.amazonaws.services</groupId>
             <artifactId>evergreen</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>1.0.0-platform_support-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aws.iot</groupId>
+            <artifactId>component-common</artifactId>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
@@ -463,7 +468,7 @@
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.54</minimum>
+                                            <minimum>0.53</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

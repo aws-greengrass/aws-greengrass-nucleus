@@ -2,8 +2,6 @@ package com.aws.iot.evergreen.packagemanager;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.CommitComponentRequest;
-import com.amazonaws.services.evergreen.model.CommitComponentResult;
 import com.amazonaws.services.evergreen.model.ComponentNameVersion;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
@@ -52,7 +50,8 @@ public class GreengrassPackageServiceHelper {
         FindComponentVersionsByPlatformRequest findComponentRequest =
                 new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
                                                             .withVersionConstraint(versionRequirement.toString())
-                                                            .withPlatform(PlatformResolver.getPlatform());
+                                                            .withOs(PlatformResolver.CURRENT_PLATFORM.getOs()
+                                                                                                     .getName());
         List<PackageMetadata> ret = new ArrayList<>();
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
@@ -119,10 +118,10 @@ public class GreengrassPackageServiceHelper {
      * @return {@link CreateComponentResult}
      * @throws IOException if file reading fails
      */
+    // TODO make this an instance method
     public static CreateComponentResult createComponent(AWSEvergreen cmsClient, Path recipeFilePath)
             throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
-
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipeBuf);
         logger.atDebug("create-component").kv("request", createComponentRequest).log();
         CreateComponentResult createComponentResult = cmsClient.createComponent(createComponentRequest);
@@ -130,23 +129,6 @@ public class GreengrassPackageServiceHelper {
         return createComponentResult;
     }
 
-    /**
-     * Commit a component of the given name and version.
-     *
-     * @param cmsClient        client of Component Management Service
-     * @param componentName    name of the component to commit
-     * @param componentVersion version of the component to commit
-     * @return {@link CommitComponentResult}
-     */
-    public static CommitComponentResult commitComponent(AWSEvergreen cmsClient, String componentName,
-                                                        String componentVersion) {
-        CommitComponentRequest commitComponentRequest =
-                new CommitComponentRequest().withComponentName(componentName).withComponentVersion(componentVersion);
-        logger.atDebug("commit-component").kv("request", commitComponentRequest).log();
-        CommitComponentResult commitComponentResult = cmsClient.commitComponent(commitComponentRequest);
-        logger.atDebug("commit-component").kv("result", commitComponentResult).log();
-        return commitComponentResult;
-    }
 
     /**
      * Delete a component of the given name and version.

@@ -16,7 +16,8 @@ import lombok.NoArgsConstructor;
 public final class SerializerFactory {
     private static final ObjectMapper RECIPE_SERIALIZER =
             new ObjectMapper(new YAMLFactory()).enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
-                    .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                                               .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
+                                               .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     public static ObjectMapper getRecipeSerializer() {
         return RECIPE_SERIALIZER;

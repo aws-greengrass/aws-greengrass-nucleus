@@ -1,18 +1,22 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{SomeOldService}}
 Description: A random service to run in Evergreen
 Publisher: Me
 Version: '0.9.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-Lifecycle:
-  all:
-    run:
-      echo "Hello evergreen. Don't mind me I'm going to be removed soon"
-Dependencies:
-  all:
-    {{Mosquitto}}:
-      VersionRequirements: "=0.9.0"
+Manifests:
+  - Platform:
+      os: macos
+    Lifecycle:
+      run: echo "Hello evergreen. Don't mind me I'm going to be removed soon"
+    Dependencies:
+      {{Mosquitto}}:
+        VersionRequirement: "=0.9.0"
+
+  - Platform:
+      os: ubuntu
+    Lifecycle:
+      run: echo "Hello evergreen. Don't mind me I'm going to be removed soon"
+    Dependencies:
+        {{Mosquitto}}:
+          VersionRequirement: "=0.9.0"
