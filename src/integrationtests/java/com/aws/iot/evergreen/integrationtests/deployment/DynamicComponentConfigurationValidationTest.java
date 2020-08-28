@@ -154,7 +154,7 @@ public class DynamicComponentConfigurationValidationTest {
                 assertThat(configMap, IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
                 eventReceivedByClient.countDown();
                 try {
-                    c.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
+                    c.sendConfigurationValidityReport(ConfigurationValidityStatus.INVALID, null);
                 } catch (ConfigStoreIPCException e) {
                 }
             });
