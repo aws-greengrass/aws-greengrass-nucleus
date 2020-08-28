@@ -47,7 +47,7 @@ public class Platform {
         UBUNTU(DEBIAN, "ubuntu"),
         RASPBIAN(DEBIAN, "raspbian"),
         DARWIN(UNIX, "darwin"),
-        MAC_OS(DARWIN, "macOS");
+        MAC_OS(DARWIN, "macos");
 
         @JsonValue
         private final String name;
