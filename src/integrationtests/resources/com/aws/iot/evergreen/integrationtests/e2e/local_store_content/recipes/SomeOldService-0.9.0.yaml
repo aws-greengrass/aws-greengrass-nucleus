@@ -6,9 +6,17 @@ Publisher: Me
 Version: '0.9.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
     Lifecycle:
       run: echo "Hello evergreen. Don't mind me I'm going to be removed soon"
     Dependencies:
       {{Mosquitto}}:
         VersionRequirement: "=0.9.0"
+
+  - Platform:
+      os: debian
+    Lifecycle:
+      run: echo "Hello evergreen. Don't mind me I'm going to be removed soon"
+    Dependencies:
+        {{Mosquitto}}:
+          VersionRequirement: "=0.9.0"

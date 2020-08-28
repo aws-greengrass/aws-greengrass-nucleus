@@ -6,7 +6,7 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
     Parameters:
       - name: message
         type: STRING
@@ -14,3 +14,13 @@ Manifests:
     Lifecycle:
         run:
           "echo proceed with caution {{params:message.value}}"
+
+  - Platform:
+      os: debian
+    Parameters:
+      - name: message
+        type: STRING
+        value: This is a test
+    Lifecycle:
+      run:
+        "echo proceed with caution {{params:message.value}}"

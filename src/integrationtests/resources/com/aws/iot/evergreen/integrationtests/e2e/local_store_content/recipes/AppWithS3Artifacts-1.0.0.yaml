@@ -6,7 +6,16 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
+    Lifecycle:
+      run: |-
+        sleep 2
+        echo "Hello evergreen"
+    Artifacts:
+      - Uri: s3://{{eg-e2e-test-artifacts}}/AppWithS3Artifacts-1.0.0/artifact.txt
+
+  - Platform:
+      os: debian
     Lifecycle:
       run: |-
         sleep 2

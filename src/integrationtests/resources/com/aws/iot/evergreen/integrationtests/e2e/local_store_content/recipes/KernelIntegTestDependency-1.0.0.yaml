@@ -6,7 +6,7 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
     Lifecycle:
       install:
         skipif: onpath git
@@ -15,3 +15,14 @@ Manifests:
       {{Log}}:
         VersionRequirement: '2.0'
         DependencyType: Soft
+
+  - Platform:
+      os: debian
+    Lifecycle:
+      install:
+        skipif: onpath git
+        script: sudo KernelIntegTestDependency-1.0.0
+    Dependencies:
+        {{Log}}:
+          VersionRequirement: '2.0'
+          DependencyType: Soft

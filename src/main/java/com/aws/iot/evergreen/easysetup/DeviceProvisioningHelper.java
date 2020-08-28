@@ -68,7 +68,7 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
     // TODO : Remove once global components are implemented
     public static final String GCS_ENDPOINT =
-//            "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
+                //"https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
                 "https://uqtyx1gsuk.execute-api.us-east-1.amazonaws.com/Beta";
 
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections

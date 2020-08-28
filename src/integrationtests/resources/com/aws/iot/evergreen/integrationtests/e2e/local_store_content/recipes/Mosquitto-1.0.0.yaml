@@ -6,7 +6,7 @@ Publisher: Eclipse Foundation
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
     Lifecycle:
       startup:
         script: echo "Hello this is mosquitto getting started"
@@ -17,4 +17,17 @@ Manifests:
     Dependencies:
       {{GreenSignal}}:
         VersionRequirement: "=1.0.0"
+
+  - Platform:
+      os: debian
+    Lifecycle:
+      startup:
+        script: echo "Hello this is mosquitto getting started"
+      install:
+        script: echo "Hello This is mosquitto being installed"
+      shutdown:
+        script: echo "By mosquitto signing off!"
+    Dependencies:
+        {{GreenSignal}}:
+          VersionRequirement: "=1.0.0"
 

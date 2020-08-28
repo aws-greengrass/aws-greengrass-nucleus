@@ -6,13 +6,14 @@ Publisher: Me
 Version: '2.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
     Lifecycle:
       startup: |-
         sleep 2
         exit 0
-
   - Platform:
-      os: windows
+      os: debian
     Lifecycle:
-      startup: powershell -command sleep 2
+      startup: |-
+        sleep 2
+        exit 0

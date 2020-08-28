@@ -6,6 +6,11 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
+    Lifecycle:
+      install: sleep 5
+
+  - Platform:
+      os: debian
     Lifecycle:
       install: sleep 5

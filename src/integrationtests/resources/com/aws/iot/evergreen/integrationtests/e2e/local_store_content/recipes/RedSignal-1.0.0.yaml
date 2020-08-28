@@ -6,6 +6,10 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
+    Lifecycle:
+      run: "echo Stop what you are doing"
+  - Platform:
+      os: debian
     Lifecycle:
       run: "echo Stop what you are doing"

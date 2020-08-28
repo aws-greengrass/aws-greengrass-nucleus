@@ -6,7 +6,7 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
     Lifecycle:
       install:
         skipif: onpath git
@@ -20,3 +20,19 @@ Manifests:
       {{KernelIntegTestDependency}}:
         VersionRequirement: '1.0.0'
         DependencyType: Hard
+
+  - Platform:
+      os: debian
+    Lifecycle:
+      install:
+        skipif: onpath git
+        script: echo KernelIntegTest-1.0.0
+    Artifacts:
+      - Uri: s3://{{eg-e2e-test-artifacts}}/KernelIntegTest-1.0.0/kernel_integ_test_artifact.txt
+    Dependencies:
+        {{Log}}:
+          VersionRequirement: '>1.0'
+          DependencyType: Soft
+          {{KernelIntegTestDependency}}:
+          VersionRequirement: '1.0.0'
+          DependencyType: Hard

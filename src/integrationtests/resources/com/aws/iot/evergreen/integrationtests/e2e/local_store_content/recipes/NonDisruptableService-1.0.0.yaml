@@ -6,7 +6,15 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
+    Lifecycle:
+      run: |-
+        while true; do
+        echo "running non disruptable service version 1.0.0"; sleep 5
+        done
+
+  - Platform:
+      os: debian
     Lifecycle:
       run: |-
         while true; do

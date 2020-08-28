@@ -20,6 +20,7 @@ import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.amazonaws.services.evergreen.model.SetConfigurationResult;
+import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
@@ -179,6 +180,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     @BeforeAll
     static void beforeAll() throws Exception {
+        System.out.println("Ethan: " + PlatformResolver.CURRENT_PLATFORM.getOs());
         initializePackageStore();
 
         // Self hosted artifacts must exist in S3 before creating a component version

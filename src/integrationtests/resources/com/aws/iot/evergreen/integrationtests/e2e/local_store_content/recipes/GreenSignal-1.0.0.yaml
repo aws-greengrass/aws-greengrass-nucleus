@@ -6,7 +6,16 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macos
+    Parameters:
+      - name: NumApprovals
+        type: NUMBER
+        value: 2
+    Lifecycle:
+      run: "echo Go ahead with {{params:NumApprovals.value}} approvals"
+
+  - Platform:
+      os: debian
     Parameters:
       - name: NumApprovals
         type: NUMBER

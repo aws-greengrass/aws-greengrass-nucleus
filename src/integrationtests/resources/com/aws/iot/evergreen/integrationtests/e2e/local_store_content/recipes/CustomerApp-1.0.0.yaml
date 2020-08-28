@@ -6,7 +6,7 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: macOS
+      os: macos
     Parameters:
       - name: sampleText
         value: This is a test
@@ -18,3 +18,17 @@ Manifests:
     Dependencies:
       {{Mosquitto}}:
         VersionRequirement: 1.0.0
+
+  - Platform:
+      os: debian
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run: |-
+        sleep 2
+        echo "Hello evergreen. {{params:sampleText.value}}"
+    Dependencies:
+        {{Mosquitto}}:
+          VersionRequirement: 1.0.0
