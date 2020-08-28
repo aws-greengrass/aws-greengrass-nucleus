@@ -23,7 +23,7 @@ Manifests:
       install: sleep 5
 
   - Platform:
-      os: unbuntu
+      os: ubuntu
     Lifecycle:
       install: sleep 5
 ```

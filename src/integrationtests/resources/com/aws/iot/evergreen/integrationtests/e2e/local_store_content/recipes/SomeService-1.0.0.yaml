@@ -15,7 +15,7 @@ Manifests:
         VersionRequirement: 1.0.0
 
   - Platform:
-      os: unbuntu
+      os: ubuntu
     Lifecycle:
       run:
         echo "Hello evergreen. Don't mind me I'm going to be removed soon"

@@ -10,6 +10,6 @@ Manifests:
     Lifecycle:
       run: "echo Stop what you are doing"
   - Platform:
-      os: unbuntu
+      os: ubuntu
     Lifecycle:
       run: "echo Stop what you are doing"

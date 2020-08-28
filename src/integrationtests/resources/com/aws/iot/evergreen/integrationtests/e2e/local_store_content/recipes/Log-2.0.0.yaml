@@ -12,7 +12,7 @@ Manifests:
         sleep 2
         exit 0
   - Platform:
-      os: unbuntu
+      os: ubuntu
     Lifecycle:
       startup: |-
         sleep 2

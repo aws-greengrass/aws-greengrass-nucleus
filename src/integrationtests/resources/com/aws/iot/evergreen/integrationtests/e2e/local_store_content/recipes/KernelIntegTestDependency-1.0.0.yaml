@@ -17,7 +17,7 @@ Manifests:
         DependencyType: Soft
 
   - Platform:
-      os: unbuntu
+      os: ubuntu
     Lifecycle:
       install:
         skipif: onpath git
