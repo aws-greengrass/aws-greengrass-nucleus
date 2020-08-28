@@ -13,14 +13,12 @@ import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.GetComponentRequest;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.amazonaws.services.evergreen.model.SetConfigurationResult;
-import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
@@ -180,7 +178,6 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     @BeforeAll
     static void beforeAll() throws Exception {
-        System.out.println("Ethan: " + PlatformResolver.CURRENT_PLATFORM.getOs());
         initializePackageStore();
 
         // Self hosted artifacts must exist in S3 before creating a component version
@@ -281,24 +278,10 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
-        System.out.println(content);
-//        try {
-//            RecipeLoader.loadFromFile(content);
-//        } catch (PackageLoadingException e) {
-//            e.printStackTrace();
-//        }
         CreateComponentResult createComponentResult =
                 GreengrassPackageServiceHelper.createComponent(cmsClient, testRecipePath);
         assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
-
-        GetComponentRequest g = new GetComponentRequest();
-        g.setComponentName(pkgIdCloud.getName());
-        g.setComponentVersion(pkgIdCloud.getVersion().toString());
-        String content2 = new String(cmsClient.getComponent(g).getRecipe().array());
-        System.out.println("GetComponentResult: ");
-
-        System.out.println(content2);
     }
 
     private static void createS3BucketsForTestComponentArtifacts() {
@@ -468,7 +451,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         return new PackageIdentifier(getTestComponentNameInCloud(name), version, "private");
     }
 
-    protected static String getTestComponentNameInCloud(String name) {
+    public static String getTestComponentNameInCloud(String name) {
         if (name.endsWith(testComponentSuffix)) {
             return name;
         }

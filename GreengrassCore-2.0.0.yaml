@@ -6,7 +6,7 @@ Publisher: AWS
 Version: '2.0.0'
 Manifests:
   - Platform:
-      os: unix
+      os: macos
     Parameters:
       - name: jvmOptions
         # TODO: consider change to nested structure
@@ -28,3 +28,27 @@ Manifests:
             echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
             ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
             exit 100
+
+  - Platform:
+      os: unbuntu
+    Parameters:
+      - name: jvmOptions
+        # TODO: consider change to nested structure
+        value: -Xms512m -Xmx512m
+        type: STRING
+    Artifacts:
+      # TODO: set correct uri
+      - Uri: S3:GreengrassCore-2.0.0.zip
+        Unarchive: zip
+    Lifecycle:
+      bootstrap:
+        script: |-
+          set -eu
+          KERNEL_ROOT="{{kernel:rootPath}}"
+          UNPACK_DIR="{{artifacts:decompressedPath}}"
+
+          rm -r "$KERNEL_ROOT/alts/current/*"
+
+          echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
+          ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
+          exit 100
