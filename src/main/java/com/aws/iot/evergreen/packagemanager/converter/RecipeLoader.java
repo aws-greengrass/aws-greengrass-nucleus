@@ -139,7 +139,7 @@ public final class RecipeLoader {
                            .filter(Objects::nonNull)
                            .collect(Collectors.toMap(Map.Entry::getKey,
                                    entry -> new RecipeDependencyProperties(entry.getValue().getVersionRequirement(),
-                                           entry.getValue().getDependencyType() == null? "HARD" :
+                                           entry.getValue().getDependencyType() == null ? "HARD" :
                                                    entry.getValue().getDependencyType())));
     }
 }
