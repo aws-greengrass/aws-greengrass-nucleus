@@ -31,6 +31,8 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceHelper;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.tes.CredentialRequestHandler;
@@ -101,8 +103,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    protected static final String EG_CLOUD_GAMMA_ENDPOINT =
-            "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Beta";
+    protected static final String FCS_GAMMA_ENDPOINT =
+            "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
@@ -297,6 +299,11 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
+        try {
+            RecipeLoader.loadFromFile(content);
+        } catch (PackageLoadingException e) {
+            e.printStackTrace();
+        }
         CreateComponentResult createComponentResult =
                 GreengrassPackageServiceHelper.createComponent(cmsClient, testRecipePath);
         assertEquals("DRAFT", createComponentResult.getStatus());
@@ -396,7 +403,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration =
-                    new AwsClientBuilder.EndpointConfiguration(EG_CLOUD_GAMMA_ENDPOINT, GAMMA_REGION.toString());
+                    new AwsClientBuilder.EndpointConfiguration(FCS_GAMMA_ENDPOINT, GAMMA_REGION.toString());
             fcsClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(endpointConfiguration).build();
         }
         return fcsClient;
