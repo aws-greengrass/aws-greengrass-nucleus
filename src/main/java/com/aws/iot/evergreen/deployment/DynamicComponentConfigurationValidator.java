@@ -2,7 +2,7 @@ package com.aws.iot.evergreen.deployment;
 
 import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.iot.evergreen.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
-import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.exceptions.DynamicConfigurationValidationException;
 import com.aws.iot.evergreen.deployment.exceptions.InvalidConfigFormatException;
@@ -16,8 +16,10 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 import java.time.Duration;
@@ -38,6 +40,8 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 /**
  * Asks component processes over IPC to validate proposed component configuration a deployment brings.
  */
+@AllArgsConstructor
+@NoArgsConstructor
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(60).toMillis();
@@ -75,11 +79,10 @@ public class DynamicComponentConfigurationValidator {
     }
 
     /**
-     * A component will not be asked to validate configuration if the deployment also intends to change its
-     * version. This helps prevent failures when the configuration to be validated has new keys or schema
-     * that the running version of the component doesn't understand and won't be able to validate. We rely
-     * on the fact that since the component will restart on version change, its startup logic will handle
-     * any configuration usage.
+     * A component will not be asked to validate configuration if the deployment also intends to change its version.
+     * This helps prevent failures when the configuration to be validated has new keys or schema that the running
+     * version of the component doesn't understand and won't be able to validate. We rely on the fact that since the
+     * component will restart on version change, its startup logic will handle any configuration usage.
      */
     private Set<ComponentToValidate> getComponentsToValidate(Map<String, Object> servicesConfig, long proposedTimestamp)
             throws InvalidConfigFormatException {
@@ -122,41 +125,36 @@ public class DynamicComponentConfigurationValidator {
                                           String key, long proposedTimestamp) throws InvalidConfigFormatException {
         Object proposed = proposedServiceConfig.get(key);
         Topics current = currentServiceConfig.findTopics(key);
-        if (proposed instanceof Map) {
-            return willTopicsChange((Map<String, Object>) proposed, current, proposedTimestamp);
+        if (!(proposed instanceof Map)) {
+            throw new InvalidConfigFormatException("Config for " + key + " must be a map");
         }
-        throw new InvalidConfigFormatException("Config for " + key + " must be a map");
+        return willNodeChange(proposed, current, proposedTimestamp);
     }
 
     private boolean willChildTopicChange(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
                                          String key, long proposedTimestamp) {
-        return willTopicChange(proposedServiceConfig.get(key), currentServiceConfig.find(key), proposedTimestamp);
+        return willNodeChange(proposedServiceConfig.get(key), currentServiceConfig.findNode(key), proposedTimestamp);
     }
 
-    private boolean willTopicsChange(Map<String, Object> proposedConfig, Topics currentConfig, long proposedTimestamp) {
-       return proposedTimestamp > currentConfig.getModtime() && !Objects.deepEquals(proposedConfig, currentConfig);
-    }
-
-    private boolean willTopicChange(Object proposedConfig, Topic currentConfig, long proposedTimestamp) {
-        return proposedTimestamp > currentConfig.getModtime() && !currentConfig.toPOJO().equals(proposedConfig);
+    private boolean willNodeChange(Object proposedConfig, Node currentConfig, long proposedTimestamp) {
+        return Objects.isNull(currentConfig) ? Objects.isNull(proposedConfig)
+                : proposedTimestamp > currentConfig.getModtime() && !Objects.deepEquals(proposedConfig, currentConfig);
     }
 
     private boolean validateOverIpc(Set<ComponentToValidate> componentsToValidate,
                                     CompletableFuture deploymentResultFuture) {
         try {
-            String failureMsg = "Components reported that their to-be-deployed configuration is invalid";
-            boolean validationRequested = true;
+            String failureMsg = null;
+            boolean validationRequested = false;
             boolean valid = true;
             for (ComponentToValidate componentToValidate : componentsToValidate) {
                 try {
-                    validationRequested = configStoreIPCAgent
+                    if (configStoreIPCAgent
                             .validateConfiguration(componentToValidate.componentName, componentToValidate.configuration,
-                                    componentToValidate.response);
-                    if (!validationRequested) {
-                        failureMsg = "Error requesting validation from component" + componentToValidate.componentName;
-                        valid = false;
-                        break;
+                                    componentToValidate.response)) {
+                        validationRequested = true;
                     }
+                    // Do nothing if service has not subscribed for validation
                 } catch (ValidateEventRegistrationException e) {
                     validationRequested = false;
                     failureMsg = "Error requesting validation from component" + componentToValidate.componentName;
@@ -170,6 +168,7 @@ public class DynamicComponentConfigurationValidator {
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
                             .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+                    failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
                         ConfigurationValidityReport report = componentToValidate.response.join();
                         if (ConfigurationValidityStatus.INVALID.equals(report.getStatus())) {
