@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.logsuploader;
 
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttempt;
+import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogFileInformation;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogInformation;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
@@ -27,6 +28,7 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsResponse
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,12 +83,15 @@ public class CloudWatchLogsUploaderTest extends EGServiceTestUtil  {
                 .timestamp(Instant.now().toEpochMilli())
                 .message("test2")
                 .build());
+        Map<String, CloudWatchAttemptLogFileInformation> attemptLogFileInformationMap = new HashMap<>();
+        attemptLogFileInformationMap.put("test.log", CloudWatchAttemptLogFileInformation.builder()
+                .startPosition(0)
+                .bytesRead(100)
+                .build());
         logSteamForGroup1Map.put(mockStreamNameForGroup,
                 CloudWatchAttemptLogInformation.builder()
                         .logEvents(inputLogEventsForStream1OfGroup1)
-                        .fileName("test.log")
-                        .startPosition(0)
-                        .bytesRead(100)
+                        .attemptLogFileInformationList(attemptLogFileInformationMap)
                         .build());
         logGroupsMap.put(mockGroupName, logSteamForGroup1Map);
         attempt.setLogGroupsToLogStreamsMap(logGroupsMap);

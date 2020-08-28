@@ -44,6 +44,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyRequest;
@@ -113,7 +114,14 @@ public class BaseE2ETestCase implements AutoCloseable {
             + "            \"Action\": [\n"
             + "                \"greengrass:*\",\n"
             + "                \"s3:Get*\",\n"
-            + "                \"s3:List*\"\n"
+            + "                \"s3:List*\",\n"
+            + "                \"logs:CreateLogGroup\",\n"
+            + "                \"logs:DeleteLogGroup\",\n"
+            + "                \"logs:CreateLogStream\",\n"
+            + "                \"logs:DeleteLogStream\",\n"
+            + "                \"logs:PutLogEvents\",\n"
+            + "                \"logs:DescribeLogGroups\",\n"
+            + "                \"logs:DescribeLogStreams\"\n"
             + "            ],\n"
             + "            \"Resource\": \"*\"\n"
             + "        }\n"
@@ -156,6 +164,8 @@ public class BaseE2ETestCase implements AutoCloseable {
             new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, GAMMA_REGION.toString())).build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
+    protected static final CloudWatchLogsClient cloudWatchLogsClient = CloudWatchLogsClient.builder()
+            .region(GAMMA_REGION).build();
 
     private static final PackageIdentifier[] componentsWithArtifactsInS3 =
             {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0")),

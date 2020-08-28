@@ -1,0 +1,15 @@
+---
+services:
+  main:
+    dependencies:
+      - LogsUploaderService
+  TokenExchangeService:
+    parameters:
+      port: 2020
+    lifecycle:
+  LogsUploaderService:
+    dependencies:
+      - TokenExchangeService
+    parameters:
+      logsUploaderPeriodicUpdateIntervalSec: 10
+    lifecycle:

@@ -93,10 +93,10 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         CloudWatchAttemptLogInformation logEventsForStream1 = logGroupInfo.get(logStream);
         assertNotNull(logEventsForStream1.getLogEvents());
         assertEquals(7, logEventsForStream1.getLogEvents().size());
-        assertEquals(0, logEventsForStream1.getStartPosition());
-        assertEquals(7, logEventsForStream1.getBytesRead());
+        assertTrue(logEventsForStream1.getAttemptLogFileInformationList().containsKey(file1.getAbsolutePath()));
+        assertEquals(0, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getStartPosition());
+        assertEquals(7, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream1.getComponentName());
-        assertEquals(file1.getAbsolutePath(), logEventsForStream1.getFileName());
     }
 
     @Test
@@ -138,17 +138,17 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         CloudWatchAttemptLogInformation logEventsForStream2 = logGroupInfo.get(logStream2);
         assertNotNull(logEventsForStream1.getLogEvents());
         assertEquals(7, logEventsForStream1.getLogEvents().size());
-        assertEquals(0, logEventsForStream1.getStartPosition());
-        assertEquals(7, logEventsForStream1.getBytesRead());
+        assertTrue(logEventsForStream1.getAttemptLogFileInformationList().containsKey(file1.getAbsolutePath()));
+        assertEquals(0, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getStartPosition());
+        assertEquals(7, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream1.getComponentName());
-        assertEquals(file1.getAbsolutePath(), logEventsForStream1.getFileName());
 
         assertNotNull(logEventsForStream2.getLogEvents());
         assertEquals(4, logEventsForStream2.getLogEvents().size());
-        assertEquals(0, logEventsForStream2.getStartPosition());
-        assertEquals(1252, logEventsForStream2.getBytesRead());
+        assertTrue(logEventsForStream2.getAttemptLogFileInformationList().containsKey(file2.getAbsolutePath()));
+        assertEquals(0, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getStartPosition());
+        assertEquals(1252, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream2.getComponentName());
-        assertEquals(file2.getAbsolutePath(), logEventsForStream2.getFileName());
     }
 
     @Test
@@ -194,16 +194,16 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         CloudWatchAttemptLogInformation logEventsForStream1 = logGroupInfo.get(logStream);
         CloudWatchAttemptLogInformation logEventsForStream2 = logGroupInfo2.get(logStream2);
         assertEquals(7, logEventsForStream1.getLogEvents().size());
-        assertEquals(0, logEventsForStream1.getStartPosition());
-        assertEquals(7, logEventsForStream1.getBytesRead());
+        assertTrue(logEventsForStream1.getAttemptLogFileInformationList().containsKey(file1.getAbsolutePath()));
+        assertEquals(0, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getStartPosition());
+        assertEquals(7, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream1.getComponentName());
-        assertEquals(file1.getAbsolutePath(), logEventsForStream1.getFileName());
 
         assertEquals(4, logEventsForStream2.getLogEvents().size());
-        assertEquals(0, logEventsForStream2.getStartPosition());
-        assertEquals(1252, logEventsForStream2.getBytesRead());
+        assertTrue(logEventsForStream2.getAttemptLogFileInformationList().containsKey(file2.getAbsolutePath()));
+        assertEquals(0, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getStartPosition());
+        assertEquals(1252, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent2", logEventsForStream2.getComponentName());
-        assertEquals(file2.getAbsolutePath(), logEventsForStream2.getFileName());
     }
 
     @Test

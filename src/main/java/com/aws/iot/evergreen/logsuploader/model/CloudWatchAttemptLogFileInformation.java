@@ -6,15 +6,15 @@
 package com.aws.iot.evergreen.logsuploader.model;
 
 import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
-import lombok.Value;
-
-import java.io.File;
+import lombok.Setter;
 
 @Builder
-@Value
+@Data
 @Getter
-public class LogFileInformation {
-    private File file;
+@Setter
+public class CloudWatchAttemptLogFileInformation {
     private long startPosition;
+    private long bytesRead;
 }

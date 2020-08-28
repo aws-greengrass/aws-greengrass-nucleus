@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttempt;
 import com.aws.iot.evergreen.util.CloudWatchClientFactory;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
+import software.amazon.awssdk.services.cloudwatchlogs.model.CloudWatchLogsException;
 import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogStreamRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.DataAlreadyAcceptedException;
@@ -27,6 +28,7 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceNotFoundExce
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -53,7 +55,7 @@ public class CloudWatchLogsUploader {
      *
      * @param attempt {@link CloudWatchAttempt}
      */
-    public void upload(CloudWatchAttempt attempt) {
+    public boolean upload(CloudWatchAttempt attempt) {
         attempt.getLogGroupsToLogStreamsMap().forEach((groupName, streamNameMap) -> {
             createNewLogGroup(groupName);
             streamNameMap.forEach((streamName, attemptLogInformation) -> {
@@ -67,6 +69,7 @@ public class CloudWatchLogsUploader {
             });
         });
         listeners.values().forEach(consumer -> consumer.accept(attempt));
+        return true;
     }
 
     /**
@@ -118,12 +121,12 @@ public class CloudWatchLogsUploader {
         } catch (InvalidSequenceTokenException e) {
             // Get correct token using describe
             logger.atError().cause(e).log("Get correct token.");
-            addNextSequenceToken(logGroupName, logStreamName, getSequenceToken(logGroupName, logStreamName));
+            Optional<String> sequenceNumber = getSequenceToken(logGroupName, logStreamName);
+            sequenceNumber.ifPresent(s -> addNextSequenceToken(logGroupName, logStreamName, s));
             // TODO: better do the retry mechanism? Maybe need to have a scheduled task to handle this.
             uploadLogs(logGroupName, logStreamName, logEvents);
         } catch (DataAlreadyAcceptedException e) {
             // Don't do anything since the data already exists.
-            logger.atError().cause(e).log("Dont do anything.");
         } catch (ResourceNotFoundException e) {
             // Handle no log group/log stream
             logger.atError().cause(e).log("Create.");
@@ -135,19 +138,23 @@ public class CloudWatchLogsUploader {
     }
 
     private void createNewLogGroup(String logGroupName) {
+        logger.atDebug().log("Creating log group {}", logGroupName);
         CreateLogGroupRequest request = CreateLogGroupRequest.builder().logGroupName(logGroupName).build();
         try {
             this.cloudWatchLogsClient.createLogGroup(request);
         } catch (ResourceAlreadyExistsException e) {
             // Don't do anything if the resource already exists.
-            logger.atError().cause(e).log("Dont do anything.");
         } catch (LimitExceededException e) {
             // Back off for some time before retrying.
-            logger.atError().cause(e).log("Wait for sometime.");
+            // TODO: implement backoff.
+            logger.atError().cause(e).log("Unable to create log group {}. Retrying in some time.", logGroupName);
+        } catch (CloudWatchLogsException e) {
+            logger.atError().cause(e).log("Unable to create log group {}.", logGroupName);
         }
     }
 
     private void createNewLogSteam(String logGroupName, String logStreamName) {
+        logger.atDebug().log("Creating log stream {} for group {}", logStreamName, logGroupName);
         CreateLogStreamRequest request = CreateLogStreamRequest.builder()
                 .logGroupName(logGroupName)
                 .logStreamName(logStreamName)
@@ -156,20 +163,32 @@ public class CloudWatchLogsUploader {
             this.cloudWatchLogsClient.createLogStream(request);
         } catch (ResourceAlreadyExistsException e) {
             // Don't do anything if the resource already exists.
-            logger.atError().cause(e).log("Dont do anything.");
         } catch (LimitExceededException e) {
             // Back off for some time before retrying.
-            logger.atError().cause(e).log("Wait for sometime.");
+            logger.atError().cause(e)
+                    .log("Unable to create log stream {} for group {}. Retrying in some time.",
+                            logStreamName, logGroupName);
+        } catch (CloudWatchLogsException e) {
+            logger.atError().cause(e).log("Unable to create log stream {} for group {}.", logStreamName, logGroupName);
         }
     }
 
-    private String getSequenceToken(String logGroupName, String logStreamName) {
+    private Optional<String> getSequenceToken(String logGroupName, String logStreamName) {
+        logger.atDebug().log("Getting sequence number for stream {} in group {}", logStreamName, logGroupName);
         DescribeLogStreamsRequest request = DescribeLogStreamsRequest.builder()
                 .logGroupName(logGroupName)
                 .logStreamNamePrefix(logStreamName)
                 .build();
-        DescribeLogStreamsResponse response = this.cloudWatchLogsClient.describeLogStreams(request);
-        return response.nextToken();
+        try {
+            DescribeLogStreamsResponse response = this.cloudWatchLogsClient.describeLogStreams(request);
+            return Optional.of(response.nextToken());
+        } catch (ResourceNotFoundException e) {
+            //TODO: Create group/stream?
+        } catch (CloudWatchLogsException e) {
+            logger.atError().cause(e).log("Unable to get next sequence number for stream {} in group {}.",
+                    logStreamName, logGroupName);
+        }
+        return Optional.empty();
     }
 
     /**

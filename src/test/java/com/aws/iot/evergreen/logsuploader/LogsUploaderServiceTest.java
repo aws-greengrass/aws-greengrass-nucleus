@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.logging.impl.config.EvergreenLogConfig;
 import com.aws.iot.evergreen.logging.impl.config.LogStore;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttempt;
+import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogFileInformation;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogInformation;
 import com.aws.iot.evergreen.logsuploader.model.ComponentLogFileInformation;
 import com.aws.iot.evergreen.logsuploader.model.ComponentType;
@@ -170,17 +171,24 @@ public class LogsUploaderServiceTest extends EGServiceTestUtil  {
         Map<String, CloudWatchAttemptLogInformation> logStreamsToLogInformationMap = new HashMap<>();
         File file1 = new File(getClass().getResource("testlogs2.log").toURI());
         File file2 = new File(getClass().getResource("testlogs1.log").toURI());
-        CloudWatchAttemptLogInformation attemptLogInformation1 = CloudWatchAttemptLogInformation.builder()
-                .bytesRead(13)
+        Map<String, CloudWatchAttemptLogFileInformation> attemptLogFileInformationMap1 = new HashMap<>();
+        attemptLogFileInformationMap1.put(file1.getAbsolutePath(), CloudWatchAttemptLogFileInformation.builder()
                 .startPosition(0)
-                .fileName(file1.getAbsolutePath())
+                .bytesRead(13)
+                .build());
+        Map<String, CloudWatchAttemptLogFileInformation> attemptLogFileInformationMap2 = new HashMap<>();
+        attemptLogFileInformationMap2.put(file2.getAbsolutePath(), CloudWatchAttemptLogFileInformation.builder()
+                .startPosition(0)
+                .bytesRead(1061)
+                .build());
+
+        CloudWatchAttemptLogInformation attemptLogInformation1 = CloudWatchAttemptLogInformation.builder()
                 .componentName("TestComponent")
+                .attemptLogFileInformationList(attemptLogFileInformationMap1)
                 .build();
         CloudWatchAttemptLogInformation attemptLogInformation2 = CloudWatchAttemptLogInformation.builder()
-                .bytesRead(1061)
-                .startPosition(0)
-                .fileName(file2.getAbsolutePath())
                 .componentName("TestComponent2")
+                .attemptLogFileInformationList(attemptLogFileInformationMap2)
                 .build();
         logStreamsToLogInformationMap.put("testStream", attemptLogInformation1);
         logStreamsToLogInformationMap.put("testStream2", attemptLogInformation2);

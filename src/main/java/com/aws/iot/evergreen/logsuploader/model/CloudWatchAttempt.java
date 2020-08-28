@@ -25,6 +25,7 @@ public class CloudWatchAttempt {
 
     /**
      * This will be used in the uploader to determine whether it is time to stop retrying to upload this attempt.
+     * TODO: Need to implement this.
      */
     private int retryCounts;
     /**

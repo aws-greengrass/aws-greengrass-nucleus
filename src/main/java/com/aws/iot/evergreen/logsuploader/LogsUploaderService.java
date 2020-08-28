@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttempt;
+import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogFileInformation;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogInformation;
 import com.aws.iot.evergreen.logsuploader.model.ComponentLogConfiguration;
 import com.aws.iot.evergreen.logsuploader.model.ComponentLogFileInformation;
@@ -45,10 +46,10 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 
 @ImplementsService(name = LogsUploaderService.LOGS_UPLOADER_SERVICE_TOPICS, version = "1.0.0")
 public class LogsUploaderService extends EvergreenService {
-    public static final String LOGS_UPLOADER_SERVICE_TOPICS = "aws.greengrass.logsuploader";
+    public static final String LOGS_UPLOADER_SERVICE_TOPICS = "LogsUploaderService";
     public static final String LOGS_UPLOADER_PERIODIC_UPDATE_INTERVAL_SEC = "logsUploaderPeriodicUpdateIntervalSec";
     private static final String SYSTEM_LOGS_COMPONENT_NAME = "System";
-    private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 30_000;
+    private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 300;
 
     final Map<String, Instant> lastComponentUploadedLogFileInstantMap = new ConcurrentHashMap<>();
     final Map<String, CurrentProcessingFileInformation> componentCurrentProcessingLogFile =
@@ -105,6 +106,7 @@ public class LogsUploaderService extends EvergreenService {
     /**
      * Handle the attempt to upload logs to CloudWatch.
      *
+     * @param cloudWatchAttempt The cloud watch attempt.
      * @implSpec : The method gets the attempt from the uploader which has information about which log groups and
      *     log streams have been successfully uploaded to CloudWatch. Based on that information, it will update
      *     the appropriate information about each component.
@@ -115,50 +117,21 @@ public class LogsUploaderService extends EvergreenService {
      *     latest log file's information.
      *     If the file was partially read, then the method will update that information about what is the current
      *     processing log file for the component and what is the starting position of the next log line.
-     *
-     * @param cloudWatchAttempt The cloud watch attempt.
      */
     private void handleCloudWatchAttemptStatus(CloudWatchAttempt cloudWatchAttempt) {
         Map<String, Set<String>> completedLogFilePerComponent = new ConcurrentHashMap<>();
         Map<String, CurrentProcessingFileInformation> currentProcessingLogFilePerComponent = new ConcurrentHashMap<>();
 
-        cloudWatchAttempt.getLogStreamUploadedMap().forEach((groupName, streamNames) -> {
-            streamNames.forEach(streamName -> {
-
-                CloudWatchAttemptLogInformation attemptLogInformation =
-                        cloudWatchAttempt.getLogGroupsToLogStreamsMap().get(groupName).get(streamName);
-
-                File file = new File(attemptLogInformation.getFileName());
-                if (file.length() == attemptLogInformation.getBytesRead() + attemptLogInformation.getStartPosition()) {
-                    Set<String> completedFileNames = completedLogFilePerComponent
-                            .getOrDefault(attemptLogInformation.getComponentName(), new HashSet<>());
-                    completedFileNames.add(attemptLogInformation.getFileName());
-                    completedLogFilePerComponent.put(attemptLogInformation.getComponentName(), completedFileNames);
-                    if (currentProcessingLogFilePerComponent.containsKey(attemptLogInformation.getComponentName())) {
-                        CurrentProcessingFileInformation fileInformation = currentProcessingLogFilePerComponent
-                                .get(attemptLogInformation.getComponentName());
-                        if (fileInformation.fileName.equals(attemptLogInformation.getFileName())) {
-                            currentProcessingLogFilePerComponent.remove(attemptLogInformation.getComponentName());
-                        }
-                    }
-                } else {
-                    if (completedLogFilePerComponent.containsKey(attemptLogInformation.getComponentName())
-                            && completedLogFilePerComponent.get(attemptLogInformation.getComponentName())
-                            .contains(attemptLogInformation.getFileName())) {
-                        return;
-                    }
-                    CurrentProcessingFileInformation processingFileInformation =
-                            CurrentProcessingFileInformation.builder()
-                                    .fileName(attemptLogInformation.getFileName())
-                                    .startPosition(attemptLogInformation.getStartPosition()
-                                            + attemptLogInformation.getBytesRead())
-                                    .build();
-                    currentProcessingLogFilePerComponent.put(attemptLogInformation.getComponentName(),
-                            processingFileInformation);
-                }
-            });
-
-        });
+        cloudWatchAttempt.getLogStreamUploadedMap().forEach((groupName, streamNames) ->
+                streamNames.forEach(streamName -> {
+                    CloudWatchAttemptLogInformation attemptLogInformation =
+                            cloudWatchAttempt.getLogGroupsToLogStreamsMap().get(groupName).get(streamName);
+                    attemptLogInformation.getAttemptLogFileInformationList().forEach(
+                            (fileName, cloudWatchAttemptLogFileInformation) ->
+                                    processCloudWatchAttemptLogInformation(completedLogFilePerComponent,
+                                            currentProcessingLogFilePerComponent, attemptLogInformation, fileName,
+                                            cloudWatchAttemptLogFileInformation));
+                }));
 
         completedLogFilePerComponent.forEach((componentName, fileNames) ->
                 fileNames.stream().map(File::new).forEach(file -> {
@@ -173,6 +146,43 @@ public class LogsUploaderService extends EvergreenService {
         isCurrentlyUploading.set(false);
 
         //TODO: Persist this information to the disk.
+    }
+
+    private void processCloudWatchAttemptLogInformation(Map<String, Set<String>> completedLogFilePerComponent,
+                                                        Map<String, CurrentProcessingFileInformation>
+                                                                currentProcessingLogFilePerComponent,
+                                                        CloudWatchAttemptLogInformation attemptLogInformation,
+                                                        String fileName,
+                                                        CloudWatchAttemptLogFileInformation
+                                                                cloudWatchAttemptLogFileInformation) {
+        File file = new File(fileName);
+        if (file.length() == cloudWatchAttemptLogFileInformation.getBytesRead()
+                + cloudWatchAttemptLogFileInformation.getStartPosition()) {
+            Set<String> completedFileNames = completedLogFilePerComponent
+                    .getOrDefault(attemptLogInformation.getComponentName(), new HashSet<>());
+            completedFileNames.add(fileName);
+            completedLogFilePerComponent.put(attemptLogInformation.getComponentName(), completedFileNames);
+            if (currentProcessingLogFilePerComponent.containsKey(attemptLogInformation.getComponentName())) {
+                CurrentProcessingFileInformation fileInformation = currentProcessingLogFilePerComponent
+                        .get(attemptLogInformation.getComponentName());
+                if (fileInformation.fileName.equals(fileName)) {
+                    currentProcessingLogFilePerComponent.remove(attemptLogInformation.getComponentName());
+                }
+            }
+        } else {
+            if (completedLogFilePerComponent.containsKey(attemptLogInformation.getComponentName())
+                    && completedLogFilePerComponent.get(attemptLogInformation.getComponentName()).contains(fileName)) {
+                return;
+            }
+            CurrentProcessingFileInformation processingFileInformation =
+                    CurrentProcessingFileInformation.builder()
+                            .fileName(fileName)
+                            .startPosition(cloudWatchAttemptLogFileInformation.getStartPosition()
+                                    + cloudWatchAttemptLogFileInformation.getBytesRead())
+                            .build();
+            currentProcessingLogFilePerComponent.put(attemptLogInformation.getComponentName(),
+                    processingFileInformation);
+        }
     }
 
     private void schedulePeriodicLogsUploaderUpdate() {
@@ -284,6 +294,7 @@ public class LogsUploaderService extends EvergreenService {
 
     @Override
     public void shutdown() {
+        logger.atDebug().log("Shutting DOWN!!!!!");
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
