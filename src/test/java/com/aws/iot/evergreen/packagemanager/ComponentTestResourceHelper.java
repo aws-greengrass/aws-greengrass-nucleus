@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
-import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -18,7 +17,7 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
-public final class TestHelper {
+public final class ComponentTestResourceHelper {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
     public static final String MONITORING_SERVICE_PACKAGE_NAME = "MonitoringService";
     public static final String CONVEYOR_BELT_PACKAGE_NAME = "ConveyorBelt";
@@ -32,12 +31,12 @@ public final class TestHelper {
         OBJECT_MAPPER.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
     }
 
-    private TestHelper() {
+    private ComponentTestResourceHelper() {
     }
 
     public static Path getPathForLocalTestCache() {
         try {
-        Path path = Paths.get(TestHelper.class.getResource("plugins").toURI()).resolve("test_cache_local");
+        Path path = Paths.get(ComponentTestResourceHelper.class.getResource("plugins").toURI()).resolve("test_cache_local");
         if (Files.notExists(path)) {
             Files.createDirectories(path);
         }
@@ -49,13 +48,8 @@ public final class TestHelper {
 
     public static Path getPathForTestPackage(String testPackageName, String testPackageVersion)
             throws URISyntaxException {
-        Path rootPath = Paths.get(TestHelper.class.getResource("test_packages").toURI());
+        Path rootPath = Paths.get(ComponentTestResourceHelper.class.getResource("test_packages").toURI());
         return rootPath.resolve(testPackageName + "-" + testPackageVersion);
-    }
-
-    public static Path getRecipeForTestPackage(String testPackageName, String testPackageVersion)
-            throws URISyntaxException {
-        return getPathForTestPackage(testPackageName, testPackageVersion).resolve("recipe.yaml");
     }
 
     public static Path getArtifactForTestPackage(String testPackageName, String testPackageVersion,
@@ -63,13 +57,9 @@ public final class TestHelper {
         return getPathForTestPackage(testPackageName, testPackageVersion).resolve(testArtifactName);
     }
 
-    public static PackageRecipe getPackageObject(String recipe) throws IOException {
-        return OBJECT_MAPPER.readValue(recipe, PackageRecipe.class);
-    }
-
     public static String getPackageRecipeForTestPackage(String testPackageName, String testPackageVersion)
             throws IOException, URISyntaxException {
-        URI rootPath = TestHelper.class.getResource("test_packages").toURI();
+        URI rootPath = ComponentTestResourceHelper.class.getResource("test_packages").toURI();
         Path path = Paths.get(rootPath).resolve(testPackageName + "-" + testPackageVersion).resolve("recipe.yaml");
         String recipeFmt = new String(Files.readAllBytes(path));
         return String.format(recipeFmt, rootPath.toString());

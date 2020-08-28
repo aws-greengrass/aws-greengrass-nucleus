@@ -1,33 +1,19 @@
----
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: MonitoringService
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '1.0.0'
-Parameters:
-  - name: TestParam
-    value: TestVal
-    type: String
-Lifecycle:
-  all:
-    install:
-      skipif: onpath git
-      script: sudo apt-get install git
-  debian:
-    install:
-      skipif: onpath git
-      script: sudo apt-get install git
-  macos:
-    install:
-      skipif: onpath git
-      script: brew install git
-    run: git status
-Artifacts:
-  all:
-    - Uri: greengrass:/MonitoringService-1.0.0/monitor_artifact_100.txt
-Dependencies:
-  all:
-    Log:
-      VersionRequirements: '1.0.0'
-    Cool-Database:
-      VersionRequirements: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Parameters:
+      - name: TestParam
+        value: TestVal
+        type: STRING
+    Lifecycle:
+      run: echo MonitoringService-1.1.0
+    Dependencies:
+      Log:
+        VersionRequirement: '1.0.0'
+      Cool-Database:
+        VersionRequirement: '1.0.0'

@@ -176,7 +176,7 @@ public final class PlatformResolver {
      * @param recipeList a list of recipe input
      * @return closest recipe
      */
-    public Optional<PlatformSpecificManifest> findBestMatch(List<PlatformSpecificManifest> recipeList) {
+    public static Optional<PlatformSpecificManifest> findBestMatch(List<PlatformSpecificManifest> recipeList) {
         return PlatformHelper.findBestMatch(CURRENT_PLATFORM, recipeList);
     }
 

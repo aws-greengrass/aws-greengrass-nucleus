@@ -1,15 +1,15 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: {{RedSignal}}
 Description: A service revoking approval to proceed
 Publisher: Me
 Version: '1.0.0'
-Platforms:
-  - ubuntu
-  - debian
-  - macos
-  - windows
-Lifecycle:
-  all:
-    run:
-      "echo Stop what you are doing"
+Manifests:
+  - Platform:
+      os: macos
+    Lifecycle:
+      run: "echo Stop what you are doing"
+  - Platform:
+      os: ubuntu
+    Lifecycle:
+      run: "echo Stop what you are doing"

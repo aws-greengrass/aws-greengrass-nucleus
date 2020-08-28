@@ -25,7 +25,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Objects;
 
-import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
+import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GCS_ENDPOINT;
 import static com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
 import static com.aws.iot.evergreen.packagemanager.PackageStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.iot.evergreen.util.Utils.HOME_PATH;
@@ -112,7 +112,7 @@ public class KernelCommandLine {
         // Endpoint for Beta CMS in us-east-1
         // TODO: Once service is available in multiple regions, this should not be a static config and
         // use the region value to determine endpoint
-        kernel.getContext().put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, GREENGRASS_SERVICE_ENDPOINT);
+        kernel.getContext().put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, GCS_ENDPOINT);
     }
 
     private void initPaths(String rootAbsolutePath) {
