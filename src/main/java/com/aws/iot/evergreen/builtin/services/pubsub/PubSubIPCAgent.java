@@ -21,6 +21,8 @@ import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.DefaultConcurrentHashMap;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -37,6 +39,8 @@ import javax.inject.Inject;
 /**
  * Class to handle business logic for all PubSub requests over IPC.
  */
+@NoArgsConstructor
+@AllArgsConstructor
 public class PubSubIPCAgent {
     // Map from connection --> Function to call for each published message
     private static final Map<String, Set<Object>> listeners = new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new);
