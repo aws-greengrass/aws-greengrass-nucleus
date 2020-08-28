@@ -42,10 +42,14 @@ public class PubSubIPCAgent {
     private static final Map<String, Set<Object>> listeners = new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new);
     private static final int TIMEOUT_SECONDS = 30;
 
-    @Inject
-    private ExecutorService executor;
+    private final ExecutorService executor;
 
     private static final Logger log = LogManager.getLogger(PubSubIPCAgent.class);
+
+    @Inject
+    public PubSubIPCAgent(ExecutorService executor) {
+        this.executor = executor;
+    }
 
     /**
      * Publish a message to all subscribers.
