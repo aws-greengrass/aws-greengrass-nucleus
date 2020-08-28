@@ -7,8 +7,12 @@ import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.tes.LazyCredentialProvider;
 import lombok.Getter;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 
 /**
@@ -16,11 +20,40 @@ import javax.inject.Inject;
  */
 @Getter
 public class S3SdkClientFactory {
+    private static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
     private final S3Client s3Client;
+    private final LazyCredentialProvider credentialsProvider;
 
+    /**
+     * Constructor.
+     *
+     * @param deviceConfiguration device configuration
+     * @param credentialsProvider credential provider from TES
+     */
     @Inject
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
-        this.s3Client = S3Client.builder().credentialsProvider(credentialsProvider)
-                .region(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()))).build();
+        this.credentialsProvider = credentialsProvider;
+        Region region;
+        try {
+            region = new DefaultAwsRegionProviderChain().getRegion();
+        } catch (RuntimeException ignored) {
+            region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
+        }
+        this.s3Client =
+                S3Client.builder().serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
+                        .credentialsProvider(credentialsProvider).region(region).build();
+    }
+
+    /**
+     * Get a client for a specific region.
+     *
+     * @param r region
+     * @return s3client
+     */
+    public S3Client getClientForRegion(Region r) {
+        return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
+                .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
+                .credentialsProvider(credentialsProvider).region(r).build());
     }
 }

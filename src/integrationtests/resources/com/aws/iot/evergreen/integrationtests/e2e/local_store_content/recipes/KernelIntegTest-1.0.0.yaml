@@ -1,5 +1,5 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeTemplateVersion: '2020-01-25'
 ComponentName: {{KernelIntegTest}}
 Description: Test recipe for Evergreen packages
 Publisher: Me
@@ -12,7 +12,7 @@ Manifests:
         skipif: onpath git
         script: echo KernelIntegTest-1.0.0
     Artifacts:
-      - Uri: greengrass:kernel_integ_test_artifact.txt
+      - Uri: s3://{{eg-e2e-test-artifacts}}/KernelIntegTest-1.0.0/kernel_integ_test_artifact.txt
     Dependencies:
       {{Log}}:
         VersionRequirement: '>1.0'
