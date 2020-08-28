@@ -60,7 +60,7 @@ class RecipeLoaderTest {
         assertThat(recipe.getDependencies().size(), is(2));
         assertThat(recipe.getDependencies(), hasEntry("BarService", new RecipeDependencyProperties("^1.1", "soft")));
 
-        assertThat(recipe.getDependencies(), hasEntry("BazService", new RecipeDependencyProperties("^2.0")));
+        assertThat(recipe.getDependencies(), hasEntry("BazService", new RecipeDependencyProperties("^2.0", "HARD")));
 
     }
 
