@@ -1,7 +1,5 @@
 package com.aws.iot.evergreen.packagemanager.plugins;
 
-import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.ComponentTestResourceHelper;
 import com.aws.iot.evergreen.packagemanager.exceptions.InvalidArtifactUriException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
@@ -40,7 +38,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings("PMD.CloseResource")
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class S3DownloaderTest {
 
@@ -68,7 +65,8 @@ public class S3DownloaderTest {
     void setup() {
         when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
         lenient().when(s3SdkClientFactory.getClientForRegion(any())).thenReturn(s3Client);
-        lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class))).thenReturn(mock(GetBucketLocationResponse.class));
+        lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class)))
+                 .thenReturn(mock(GetBucketLocationResponse.class));
         s3Downloader = new S3Downloader(s3SdkClientFactory);
     }
 
@@ -80,7 +78,8 @@ public class S3DownloaderTest {
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         try {
             String checksum = Base64.getEncoder()
-                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
+                                    .encodeToString(MessageDigest.getInstance("SHA-256")
+                                                                 .digest(Files.readAllBytes(artifactFilePath)));
 
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
@@ -178,7 +177,8 @@ public class S3DownloaderTest {
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         try {
             String checksum = Base64.getEncoder()
-                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
+                                    .encodeToString(MessageDigest.getInstance("SHA-256")
+                                                                 .digest(Files.readAllBytes(artifactFilePath)));
 
             ResponseBytes responseBytes = mock(ResponseBytes.class);
             when(responseBytes.asByteArray()).thenReturn(Files.readAllBytes(artifactFilePath));
