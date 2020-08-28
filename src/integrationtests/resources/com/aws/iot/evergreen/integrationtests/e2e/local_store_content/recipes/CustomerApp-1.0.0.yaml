@@ -6,7 +6,7 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      os: macOS
     Parameters:
       - name: sampleText
         value: This is a test

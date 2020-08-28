@@ -6,7 +6,7 @@ Publisher: Me
 Version: '2.0.0'
 Manifests:
   - Platform:
-      os: unix
+      os: all
     Lifecycle:
       startup: |-
         sleep 2

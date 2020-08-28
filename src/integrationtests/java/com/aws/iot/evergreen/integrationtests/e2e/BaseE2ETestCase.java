@@ -13,6 +13,7 @@ import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
+import com.amazonaws.services.evergreen.model.GetComponentRequest;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
@@ -99,10 +100,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
     private static final String FCS_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
-    private static final String GCS_ENDPOINT =
-            //            "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
-            "https://uqtyx1gsuk.execute-api.us-east-1.amazonaws.com/Beta";
-
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
@@ -156,7 +153,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final AWSEvergreen cmsClient = AWSEvergreenClientBuilder.standard()
                                                                              .withEndpointConfiguration(
                                                                                      new AwsClientBuilder.EndpointConfiguration(
-                                                                                             GCS_ENDPOINT,
+                                                                                             DeviceProvisioningHelper.GCS_ENDPOINT,
                                                                                              GAMMA_REGION.toString()))
                                                                              .build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
@@ -282,6 +279,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
+        System.out.println(content);
 //        try {
 //            RecipeLoader.loadFromFile(content);
 //        } catch (PackageLoadingException e) {
@@ -291,9 +289,17 @@ public class BaseE2ETestCase implements AutoCloseable {
                 GreengrassPackageServiceHelper.createComponent(cmsClient, testRecipePath);
         assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
+
+        GetComponentRequest g = new GetComponentRequest();
+        g.setComponentName(pkgIdCloud.getName());
+        g.setComponentVersion(pkgIdCloud.getVersion().toString());
+        String content2 = new String(cmsClient.getComponent(g).getRecipe().array());
+        System.out.println("GetComponentResult: ");
+
+        System.out.println(content2);
     }
 
-    protected static void createS3BucketsForTestComponentArtifacts() {
+    private static void createS3BucketsForTestComponentArtifacts() {
         try {
             s3Client.createBucket(
                     CreateBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
@@ -304,7 +310,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
+    private static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
         for (PackageIdentifier pkgId : pkgIds) {
             PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
             Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
@@ -328,7 +334,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static void cleanUpTestComponentArtifactsFromS3() {
+    private static void cleanUpTestComponentArtifactsFromS3() {
         try {
             ListObjectsResponse objectsInArtifactsBucket = s3Client.listObjects(
                     ListObjectsRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
@@ -346,7 +352,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static synchronized AWSEvergreen getFcsClient() {
+    private static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
                     FCS_ENDPOINT, GAMMA_REGION.toString());

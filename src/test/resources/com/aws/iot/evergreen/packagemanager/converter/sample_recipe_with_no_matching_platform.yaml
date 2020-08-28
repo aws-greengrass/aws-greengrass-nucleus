@@ -7,7 +7,7 @@ version: '1.0.0'
 componentType: raw
 manifests:
   - platform:
-      os: solaris # not supported
+      os: fedora # not supported
       architecture: all
     lifecycle:
       install: echo install

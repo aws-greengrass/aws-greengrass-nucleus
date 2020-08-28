@@ -6,7 +6,7 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
-      os: all
+      Os: macOS
     Lifecycle:
       run:
         echo "Hello evergreen. Don't mind me I'm going to be removed soon"
