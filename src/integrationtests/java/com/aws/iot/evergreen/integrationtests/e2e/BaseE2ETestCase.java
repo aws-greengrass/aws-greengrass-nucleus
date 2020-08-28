@@ -306,9 +306,8 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
         CreateComponentResult createComponentResult =
                 GreengrassPackageServiceHelper.createComponent(cmsClient, testRecipePath);
-        assertEquals("DRAFT", createComponentResult.getStatus());
-        assertEquals(pkgIdCloud.getName(), createComponentResult.getComponentName(), createComponentResult.toString());
-        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
+        assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
+        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
     }
 
     protected static void uploadComponentArtifactsToGG(PackageIdentifier... pkgIds) throws IOException {
