@@ -1,19 +1,19 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: awscli
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.16.144'
 Dependencies:
   botocore:
-    VersionRequirements: '==1.12.134'
+    VersionRequirement: '==1.12.134'
   colorama:
-    VersionRequirements: '>=0.2.5 <=0.3.9'
+    VersionRequirement: '>=0.2.5 <=0.3.9'
   docutils:
-    VersionRequirements: '>=0.10.0'
+    VersionRequirement: '>=0.10.0'
   PyYAML:
-    VersionRequirements: '>=3.10.0 <=3.13.0'
+    VersionRequirement: '>=3.10.0 <=3.13.0'
   rsa:
-    VersionRequirements: '>=3.1.2 <=3.5.0'
+    VersionRequirement: '>=3.1.2 <=3.5.0'
   s3transfer:
-    VersionRequirements: '>=0.2.0 <0.3.0'
+    VersionRequirement: '>=0.2.0 <0.3.0'

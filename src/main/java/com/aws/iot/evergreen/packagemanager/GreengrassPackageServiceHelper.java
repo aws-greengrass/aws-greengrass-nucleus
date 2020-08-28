@@ -50,7 +50,8 @@ public class GreengrassPackageServiceHelper {
         FindComponentVersionsByPlatformRequest findComponentRequest =
                 new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
                                                             .withVersionConstraint(versionRequirement.toString())
-                                                            .withPlatform(PlatformResolver.getPlatform());
+                                                            .withOs(PlatformResolver.CURRENT_PLATFORM.getOs()
+                                                                                                     .getName());
         List<PackageMetadata> ret = new ArrayList<>();
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
@@ -117,10 +118,10 @@ public class GreengrassPackageServiceHelper {
      * @return {@link CreateComponentResult}
      * @throws IOException if file reading fails
      */
+    // TODO make this an instance method
     public static CreateComponentResult createComponent(AWSEvergreen cmsClient, Path recipeFilePath)
             throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
-
         CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipeBuf);
         logger.atDebug("create-component").kv("request", createComponentRequest).log();
         CreateComponentResult createComponentResult = cmsClient.createComponent(createComponentRequest);

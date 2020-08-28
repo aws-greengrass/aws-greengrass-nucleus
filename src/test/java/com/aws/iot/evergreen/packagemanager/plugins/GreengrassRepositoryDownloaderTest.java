@@ -4,7 +4,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
 import com.aws.iot.evergreen.packagemanager.GreengrassPackageServiceClientFactory;
-import com.aws.iot.evergreen.packagemanager.TestHelper;
+import com.aws.iot.evergreen.packagemanager.ComponentTestResourceHelper;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -71,12 +71,12 @@ class GreengrassRepositoryDownloaderTest {
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
-        Path mockArtifactPath = TestHelper.getPathForTestPackage(TestHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0")
-                .resolve("monitor_artifact_100.txt");
+        Path mockArtifactPath = ComponentTestResourceHelper.getPathForTestPackage(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0")
+                                                           .resolve("monitor_artifact_100.txt");
         when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
 
         PackageIdentifier pkgId = new PackageIdentifier("CoolService", new Semver("1.0.0"), "private");
-        Path testCache = TestHelper.getPathForLocalTestCache();
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
         downloader.downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:artifactName"), null, null, null),
@@ -92,7 +92,7 @@ class GreengrassRepositoryDownloaderTest {
         byte[] downloadFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
         assertThat(Arrays.equals(originalFile, downloadFile), is(true));
 
-        TestHelper.cleanDirectory(testCache);
+        ComponentTestResourceHelper.cleanDirectory(testCache);
     }
 
     @Test

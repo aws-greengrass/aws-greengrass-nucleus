@@ -3,14 +3,13 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackagingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.util.SerializerFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
@@ -30,8 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.aws.iot.evergreen.packagemanager.TestHelper.COOL_DB_PACKAGE_NAME;
-import static com.aws.iot.evergreen.packagemanager.TestHelper.LOG_PACKAGE_NAME;
+import static com.aws.iot.evergreen.packagemanager.ComponentTestResourceHelper.COOL_DB_PACKAGE_NAME;
+import static com.aws.iot.evergreen.packagemanager.ComponentTestResourceHelper.LOG_PACKAGE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
@@ -51,8 +50,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @ExtendWith({EGExtension.class})
 class PackageStoreTest {
-    private static final ObjectMapper RECIPE_SERIALIZER = SerializerFactory.getRecipeSerializer();
-
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.0.0", Semver.SemverType.NPM);
     private static final PackageIdentifier MONITORING_SERVICE_PKG_ID =
@@ -151,8 +148,7 @@ class PackageStoreTest {
         // THEN
         assertTrue(optionalPackageRecipe.isPresent());
 
-        PackageRecipe expectedRecipe =
-                RECIPE_SERIALIZER.readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        PackageRecipe expectedRecipe = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
         assertThat(optionalPackageRecipe.get(), equalTo(expectedRecipe));
     }
 
@@ -200,8 +196,7 @@ class PackageStoreTest {
         // THEN
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
-        PackageRecipe expectedRecipe =
-                RECIPE_SERIALIZER.readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        PackageRecipe expectedRecipe = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
         assertThat(packageRecipe, equalTo(expectedRecipe));
     }
 

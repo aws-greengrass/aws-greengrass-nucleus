@@ -1,5 +1,5 @@
 ---
-RecipeTemplateVersion: 'Invalid'
+TemplateVersion: 'Invalid'
 ComponentName: InvalidRecipeVersion
 Description: Test recipe for Evergreen packages
 Publisher: Me
@@ -21,6 +21,6 @@ Config:
     - Uri: %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
   Dependencies:
     Log:
-      VersionRequirements: '2.0'
+      VersionRequirement: '2.0'
     Cool-Database:
-      VersionRequirements: '1.0'
+      VersionRequirement: '1.0'

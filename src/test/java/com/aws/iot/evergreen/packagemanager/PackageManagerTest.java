@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
@@ -18,7 +19,6 @@ import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.util.SerializerFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
@@ -201,8 +201,7 @@ class PackageManagerTest {
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-        PackageRecipe packageRecipe = SerializerFactory.getRecipeSerializer()
-                                              .readValue(sourceRecipeString, PackageRecipe.class);
+        PackageRecipe packageRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
 
 
         when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
@@ -238,8 +237,7 @@ class PackageManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        PackageRecipe pkg1 = SerializerFactory.getRecipeSerializer()
-                .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        PackageRecipe pkg1 = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
 
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
         when(packageServiceHelper.downloadPackageRecipeAsString(pkgId1)).thenAnswer(invocationOnMock -> {
@@ -291,8 +289,8 @@ class PackageManagerTest {
                 new ArrayList<>(Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0, packageMetadata_2_0_0)));
 
 
-        when(packageStore.getPackageMetadata(new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, ACTIVE_VERSION)))
-                .thenReturn(packageMetadata_2_0_0);
+        when(packageStore.getPackageMetadata(
+                new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, ACTIVE_VERSION))).thenReturn(packageMetadata_2_0_0);
 
         // WHEN
         Iterator<PackageMetadata> iterator =
@@ -336,8 +334,8 @@ class PackageManagerTest {
                 new PackageMetadata(new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
                         getExpectedDependencies(new Semver("1.1.0")));
 
-        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement))
-                .thenReturn(Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
+        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement)).thenReturn(
+                Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
 
         // WHEN
         Iterator<PackageMetadata> iterator =
@@ -384,8 +382,8 @@ class PackageManagerTest {
                 new PackageMetadata(new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
                         getExpectedDependencies(new Semver("1.1.0")));
 
-        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement))
-                .thenReturn(Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
+        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement)).thenReturn(
+                Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
 
 
         // WHEN

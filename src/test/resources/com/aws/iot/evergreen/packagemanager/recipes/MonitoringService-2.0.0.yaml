@@ -1,16 +1,19 @@
----
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: MonitoringService
 Description: Test recipe for Evergreen packages
 Publisher: Me
 Version: '2.0.0'
-Lifecycle:
-  install:
-    skipif: onpath git
-    script: sudo apt-get install git
-  run: /path/to/run
-Dependencies:
-  Log:
-    VersionRequirements: '2.0.0'
-  Cool-Database:
-    VersionRequirements: '2.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Parameters:
+      - name: TestParam
+        value: TestVal
+        type: STRING
+    Lifecycle:
+      run: echo MonitoringService-2.0.0
+    Dependencies:
+      Log:
+        VersionRequirement: '2.0.0'
+      Cool-Database:
+        VersionRequirement: '2.0.0'
