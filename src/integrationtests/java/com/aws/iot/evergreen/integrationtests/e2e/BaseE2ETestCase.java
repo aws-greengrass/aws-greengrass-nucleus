@@ -427,8 +427,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
 
-        while(!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);

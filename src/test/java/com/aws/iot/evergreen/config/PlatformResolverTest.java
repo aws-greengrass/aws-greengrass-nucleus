@@ -18,6 +18,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+
 @ExtendWith(EGExtension.class)
 public class PlatformResolverTest {
     ObjectMapper mapper = new ObjectMapper();

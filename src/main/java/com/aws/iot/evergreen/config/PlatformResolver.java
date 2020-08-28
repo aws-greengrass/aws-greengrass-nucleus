@@ -3,9 +3,9 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.common.Platform;
+import com.aws.iot.evergreen.packagemanager.common.Platform.Architecture;
+import com.aws.iot.evergreen.packagemanager.common.Platform.OS;
 import com.aws.iot.evergreen.packagemanager.common.PlatformHelper;
-import com.aws.iot.evergreen.packagemanager.common.PlatformHelper.Architecture;
-import com.aws.iot.evergreen.packagemanager.common.PlatformHelper.OS;
 import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -39,16 +39,15 @@ public final class PlatformResolver {
     private static Platform initializePlatformInfo() {
         try {
             return Platform.builder()
-                    .os(getOSInfo().getName())
-                    .osVersion(System.getProperty("os.version")) // use os.version temporarily
-                    .architecture(getArchInfo().getName())
+                    .os(getOSInfo())
+                    .architecture(getArchInfo())
                     .build();
         } catch (InterruptedException | IOException e) {
             // TODO: Better err handling
             logger.atError().setCause(e).log("Fail to read platform info");
             return Platform.builder()
-                    .os(Platform.ALL_KEYWORD)
-                    .architecture(Platform.ALL_KEYWORD)
+                    .os(OS.ALL)
+                    .architecture(Architecture.ALL)
                     .build();
         }
     }
@@ -123,36 +122,37 @@ public final class PlatformResolver {
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
     private static OS getOSInfo() throws IOException, InterruptedException {
         if (isWindows) {
-            return PlatformHelper.OS_WINDOWS;
+            return OS.WINDOWS;
         }
 
-        OS currentOS = PlatformHelper.OS_ALL;
+        // TODO: use UNRECOGNIZED instead.
+        OS currentOS = OS.ALL;
         String sysver = Exec.sh("uname -a").toLowerCase();
         String osNameFromSysProperty = System.getProperty("os.name").toLowerCase();
 
         if (Files.exists(Paths.get("/bin/sh")) || Files.exists(Paths.get("/usr/bin/sh"))) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_UNIX);
+            currentOS = findMoreSpecificOS(currentOS, OS.UNIX);
         }
         if (sysver.contains("darwin")) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_DARWIN);
+            currentOS = findMoreSpecificOS(currentOS, OS.DARWIN);
         }
         if (osNameFromSysProperty.replaceAll("\\s","").contains("macos")) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_MAC_OS);
+            currentOS = findMoreSpecificOS(currentOS, OS.MAC_OS);
         }
         if (Files.exists(Paths.get("/proc"))) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_LINUX);
+            currentOS = findMoreSpecificOS(currentOS, OS.LINUX);
         }
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_FEDORA);
+            currentOS = findMoreSpecificOS(currentOS, OS.FEDORA);
         }
         if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_DEBIAN);
+            currentOS = findMoreSpecificOS(currentOS, OS.DEBIAN);
         }
         if (sysver.contains("raspbian") || sysver.contains("raspberry")) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_RASPBIAN);
+            currentOS = findMoreSpecificOS(currentOS, OS.RASPBIAN);
         }
         if (sysver.contains("ubuntu")) {
-            currentOS = findMoreSpecificOS(currentOS, PlatformHelper.OS_UBUNTU);
+            currentOS = findMoreSpecificOS(currentOS, OS.UBUNTU);
         }
 
         return currentOS;
@@ -161,12 +161,13 @@ public final class PlatformResolver {
     private static Architecture getArchInfo() {
         String arch = System.getProperty("os.arch").toLowerCase();
         if ("x86_64".equals(arch) || "amd64".equals(arch)) {
-            return PlatformHelper.ARCH_AMD64; // x86_64 & amd64 are same
+            return Architecture.AMD64; // x86_64 & amd64 are same
         }
         if (arch.contains("arm")) {
-            return PlatformHelper.ARCH_ARM;
+            return Architecture.ARM;
         }
-        return PlatformHelper.ARCH_ALL;
+        // TODO: use UNRECOGNIZED instead.
+        return Architecture.ALL;
     }
 
     /**
@@ -241,4 +242,5 @@ public final class PlatformResolver {
         return bestRankNode;
         */
     }
+
 }
