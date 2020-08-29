@@ -17,13 +17,17 @@ import com.aws.iot.evergreen.logsuploader.model.ComponentLogConfiguration;
 import com.aws.iot.evergreen.logsuploader.model.ComponentLogFileInformation;
 import com.aws.iot.evergreen.logsuploader.model.ComponentType;
 import com.aws.iot.evergreen.logsuploader.model.LogFileInformation;
+import com.aws.iot.evergreen.logsuploader.model.configuration.LogsUploaderConfiguration;
 import com.aws.iot.evergreen.util.Coerce;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,15 +52,17 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 public class LogsUploaderService extends EvergreenService {
     public static final String LOGS_UPLOADER_SERVICE_TOPICS = "LogsUploaderService";
     public static final String LOGS_UPLOADER_PERIODIC_UPDATE_INTERVAL_SEC = "logsUploaderPeriodicUpdateIntervalSec";
+    public static final String LOGS_UPLOADER_CONFIGURATION_TOPIC = "logsUploaderConfigurationJson";
     private static final String SYSTEM_LOGS_COMPONENT_NAME = "System";
     private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 300;
+    private static final ObjectMapper DESERIALIZER = new ObjectMapper();
 
     final Map<String, Instant> lastComponentUploadedLogFileInstantMap = new ConcurrentHashMap<>();
     final Map<String, CurrentProcessingFileInformation> componentCurrentProcessingLogFile =
             new ConcurrentHashMap<>();
     private final CloudWatchLogsUploader uploader;
     private final CloudWatchLogsMerger merger;
-    private final Set<ComponentLogConfiguration> componentLogConfigurations = new HashSet<>();
+    private Set<ComponentLogConfiguration> componentLogConfigurations = new HashSet<>();
     private final AtomicBoolean isCurrentlyUploading = new AtomicBoolean(false);
     private ScheduledFuture<?> periodicUpdateFuture;
     private int periodicUpdateIntervalSec;
@@ -79,15 +85,6 @@ public class LogsUploaderService extends EvergreenService {
         topics.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
                 .subscribe((why, node) -> updateThingName(Coerce.toString(node)));
 
-        //TODO: only get this if the configuration state to upload system metrics to cloud.
-        Optional<Path> logsDirectoryPath = LogManager.getLoggerDirectoryPath();
-        logsDirectoryPath.ifPresent(path -> componentLogConfigurations.add(ComponentLogConfiguration.builder()
-                // TODO: Have a better way to get this.
-                .fileNameRegex(Pattern.compile("^evergreen.log\\w*"))
-                .directoryPath(path)
-                .name(SYSTEM_LOGS_COMPONENT_NAME)
-                .componentType(ComponentType.GreenGrassSystemComponent)
-                .build()));
 
         topics.lookup(PARAMETERS_CONFIG_KEY, LOGS_UPLOADER_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
@@ -101,6 +98,45 @@ public class LogsUploaderService extends EvergreenService {
         this.uploader.registerAttemptStatus(LOGS_UPLOADER_SERVICE_TOPICS, this::handleCloudWatchAttemptStatus);
 
         //TODO: read configuration of components.
+        topics.lookup(PARAMETERS_CONFIG_KEY, LOGS_UPLOADER_CONFIGURATION_TOPIC)
+                .subscribe((why, newv) -> {
+                    try {
+                        LogsUploaderConfiguration config = DESERIALIZER.readValue(Coerce.toString(newv),
+                                LogsUploaderConfiguration.class);
+                        processConfiguration(config);
+                    } catch (JsonProcessingException e) {
+                        logger.atError().cause(e).log("Unable to parse configuration.");
+                    }
+                });
+    }
+
+    private void processConfiguration(LogsUploaderConfiguration config) {
+        Set<ComponentLogConfiguration> newComponentLogConfigurations = new HashSet<>();
+        if (config.getSystemLogConfiguration().isUploadToCloudWatch()) {
+            addSystemLogsConfiguration(newComponentLogConfigurations);
+        }
+        config.getComponentLogInformation().forEach(componentConfiguration -> {
+            ComponentLogConfiguration componentLogConfiguration = ComponentLogConfiguration.builder()
+                    .name(componentConfiguration.getComponentName())
+                    .fileNameRegex(Pattern.compile(componentConfiguration.getLogFileRegex()))
+                    .directoryPath(Paths.get(componentConfiguration.getLogFileDirectoryPath()))
+                    .componentType(ComponentType.UserComponent)
+                    .build();
+            // TODO: handle the different optional cases.
+            newComponentLogConfigurations.add(componentLogConfiguration);
+        });
+        componentLogConfigurations = newComponentLogConfigurations;
+    }
+
+    private void addSystemLogsConfiguration(Set<ComponentLogConfiguration> newComponentLogConfigurations) {
+        Optional<Path> logsDirectoryPath = LogManager.getLoggerDirectoryPath();
+        logsDirectoryPath.ifPresent(path -> newComponentLogConfigurations.add(ComponentLogConfiguration.builder()
+                // TODO: Have a better way to get this.
+                .fileNameRegex(Pattern.compile("^evergreen.log\\w*"))
+                .directoryPath(path)
+                .name(SYSTEM_LOGS_COMPONENT_NAME)
+                .componentType(ComponentType.GreenGrassSystemComponent)
+                .build()));
     }
 
     /**
@@ -156,6 +192,8 @@ public class LogsUploaderService extends EvergreenService {
                                                         CloudWatchAttemptLogFileInformation
                                                                 cloudWatchAttemptLogFileInformation) {
         File file = new File(fileName);
+        // If we have completely read the file, then we need add it to the completed files list and remove it
+        // it (if necessary) for the current processing list.
         if (file.length() == cloudWatchAttemptLogFileInformation.getBytesRead()
                 + cloudWatchAttemptLogFileInformation.getStartPosition()) {
             Set<String> completedFileNames = completedLogFilePerComponent
@@ -174,6 +212,8 @@ public class LogsUploaderService extends EvergreenService {
                     && completedLogFilePerComponent.get(attemptLogInformation.getComponentName()).contains(fileName)) {
                 return;
             }
+            // Add the file to the current processing list for the component.
+            // Note: There should always be only 1 file which will be in progress at any given time.
             CurrentProcessingFileInformation processingFileInformation =
                     CurrentProcessingFileInformation.builder()
                             .fileName(fileName)
@@ -247,6 +287,7 @@ public class LogsUploaderService extends EvergreenService {
                     long startPosition = 0;
                     // If the file was paritially read in the previous run, then get the starting position for new
                     // log lines.
+                    // TODO: Add file last modified time information to make sure it is the same file.
                     if (componentCurrentProcessingLogFile.containsKey(componentLogConfiguration.getName())) {
                         CurrentProcessingFileInformation processingFileInformation = componentCurrentProcessingLogFile
                                 .get(componentLogConfiguration.getName());
@@ -294,7 +335,6 @@ public class LogsUploaderService extends EvergreenService {
 
     @Override
     public void shutdown() {
-        logger.atDebug().log("Shutting DOWN!!!!!");
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }

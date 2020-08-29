@@ -6,7 +6,9 @@
 package com.aws.iot.evergreen.logsuploader;
 
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttempt;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogFileInformation;
 import com.aws.iot.evergreen.logsuploader.model.CloudWatchAttemptLogInformation;
@@ -37,18 +39,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 
 public class CloudWatchLogsMerger {
+    public static final String DEFAULT_LOG_GROUP_NAME = "/aws/greengrass/{componentType}/{region}/{name-of-component}";
+    public static final String DEFAULT_LOG_STREAM_NAME = "/{date}/{greengrass-fleet-id}/{name-of-core}";
     private static final int EVENT_STORAGE_OVERHEAD = 26;
+    private static final int TIMESTAMP_BYTES = 26;
     private static final int MAX_BATCH_SIZE = 1024 * 1024;
-    public static final SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH);
-    public static final String DEFAULT_LOG_GROUP_NAME =
-            "/aws/greengrass/{componentType}/{region}/{name-of-component}";
-    public static final String DEFAULT_LOG_STREAM_NAME =
-            "{date}/{greengrass-fleet-id}/{name-of-core}";
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
+    private final SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH);
     @Setter
     private String thingName;
     @Setter
     private String awsRegion;
+    private static final Logger logger = LogManager.getLogger(CloudWatchLogsMerger.class);
 
     @Inject
     public CloudWatchLogsMerger(DeviceConfiguration deviceConfiguration) {
@@ -173,6 +175,7 @@ public class CloudWatchLogsMerger {
                             data.append(partialLogLine);
                         } catch (IOException e) {
                             // Probably reached end of file.
+                            logger.atError().cause(e).log("Unable to read file {}", file.getAbsolutePath());
                             logFileInformation.getLogFileInformationList().remove(0);
                             if (logFileInformation.getLogFileInformationList().isEmpty()) {
                                 totalCompletelyReadAllComponentsCount.getAndIncrement();
@@ -181,8 +184,9 @@ public class CloudWatchLogsMerger {
                         }
                     }
                     logGroupsMap.put(logGroupName, logStreamsMap);
-                } catch (IOException ignored) {
+                } catch (IOException e) {
                     // File probaly does not exist.
+                    logger.atError().cause(e).log("Unable to read file {}", file.getAbsolutePath());
                     logFileInformation.getLogFileInformationList().remove(0);
                     if (logFileInformation.getLogFileInformationList().isEmpty()) {
                         totalCompletelyReadAllComponentsCount.getAndIncrement();
@@ -223,56 +227,52 @@ public class CloudWatchLogsMerger {
 
         Optional<EvergreenStructuredLogMessage> logMessage = tryGetEvergreenStructuredLogMessage(data);
         if (logMessage.isPresent()) {
-            synchronized (DATE_FORMATTER) {
-                logStreamName = logStreamName.replace("{date}",
-                        DATE_FORMATTER.format(new Date(logMessage.get().getTimestamp())));
-            }
+            logStreamName = logStreamName.replace("{date}",
+                    dateFormatter.format(new Date(logMessage.get().getTimestamp())));
             CloudWatchAttemptLogInformation attemptLogInformation = logStreamsMap.getOrDefault(logStreamName,
                     CloudWatchAttemptLogInformation.builder()
                             .componentName(componentName)
                             .logEvents(new ArrayList<>())
                             .attemptLogFileInformationList(new HashMap<>())
                             .build());
-            CloudWatchAttemptLogFileInformation attemptLogFileInformation =
-                    attemptLogInformation.getAttemptLogFileInformationList().getOrDefault(fileName,
-                            CloudWatchAttemptLogFileInformation.builder()
-                                    .startPosition(startPosition)
-                                    .build());
-            int dataSize = data.toString().getBytes(StandardCharsets.UTF_8).length;
-            boolean notReachedMaxSize = checkAndAddNewLogEvent(totalBytesRead, attemptLogInformation, data,
-                    desiredLogLevel, logMessage.get(), dataSize);
-            if (notReachedMaxSize) {
+            boolean reachedMaxSize = checkAndAddNewLogEvent(totalBytesRead, attemptLogInformation, data,
+                    desiredLogLevel, logMessage.get(), data.toString().getBytes(StandardCharsets.UTF_8).length);
+            if (reachedMaxSize) {
                 return true;
             }
-
-            attemptLogFileInformation.setBytesRead(currentPosition - attemptLogFileInformation.getStartPosition());
-            attemptLogInformation.getAttemptLogFileInformationList().put(fileName, attemptLogFileInformation);
-            logStreamsMap.put(logStreamName, attemptLogInformation);
+            updateCloudWatchAttemptLogInformation(logStreamName, logStreamsMap, fileName, startPosition,
+                    currentPosition, attemptLogInformation);
         } else {
-            synchronized (DATE_FORMATTER) {
-                logStreamName = logStreamName.replace("{date}", DATE_FORMATTER.format(new Date()));
-            }
+            logStreamName = logStreamName.replace("{date}", dateFormatter.format(new Date()));
             CloudWatchAttemptLogInformation attemptLogInformation = logStreamsMap.getOrDefault(logStreamName,
                     CloudWatchAttemptLogInformation.builder()
                             .componentName(componentName)
                             .logEvents(new ArrayList<>())
                             .build());
-            CloudWatchAttemptLogFileInformation attemptLogFileInformation =
-                    attemptLogInformation.getAttemptLogFileInformationList().getOrDefault(fileName,
-                            CloudWatchAttemptLogFileInformation.builder()
-                                    .startPosition(startPosition)
-                                    .build());
-            int dataSize = data.toString().getBytes(StandardCharsets.UTF_8).length;
-            boolean notReachedMaxSize = addNewLogEvent(totalBytesRead, attemptLogInformation, data.toString(),
+            boolean reachedMaxSize = addNewLogEvent(totalBytesRead, attemptLogInformation, data.toString(),
                     data.toString().getBytes(StandardCharsets.UTF_8).length);
-            if (notReachedMaxSize) {
+            if (reachedMaxSize) {
                 return true;
             }
-            attemptLogFileInformation.setBytesRead(currentPosition - attemptLogFileInformation.getStartPosition());
-            attemptLogInformation.getAttemptLogFileInformationList().put(fileName, attemptLogFileInformation);
-            logStreamsMap.put(logStreamName, attemptLogInformation);
+            updateCloudWatchAttemptLogInformation(logStreamName, logStreamsMap, fileName, startPosition,
+                    currentPosition, attemptLogInformation);
         }
         return false;
+    }
+
+    private void updateCloudWatchAttemptLogInformation(String logStreamName,
+                                                      Map<String, CloudWatchAttemptLogInformation> logStreamsMap,
+                                                      String fileName, long startPosition,
+                                                      long currentPosition,
+                                                      CloudWatchAttemptLogInformation attemptLogInformation) {
+        CloudWatchAttemptLogFileInformation attemptLogFileInformation =
+                attemptLogInformation.getAttemptLogFileInformationList().getOrDefault(fileName,
+                        CloudWatchAttemptLogFileInformation.builder()
+                                .startPosition(startPosition)
+                                .build());
+        attemptLogFileInformation.setBytesRead(currentPosition - attemptLogFileInformation.getStartPosition());
+        attemptLogInformation.getAttemptLogFileInformationList().put(fileName, attemptLogFileInformation);
+        logStreamsMap.put(logStreamName, attemptLogInformation);
     }
 
     private Optional<EvergreenStructuredLogMessage> tryGetEvergreenStructuredLogMessage(StringBuilder data) {
@@ -299,11 +299,13 @@ public class CloudWatchLogsMerger {
 
     private boolean addNewLogEvent(AtomicInteger totalBytesRead, CloudWatchAttemptLogInformation attemptLogInformation,
                                    String data, int dataSize) {
+        // Total bytes equal the number of bytes of the data plus 8 bytes for the timestamp since its a long
+        // and there is an overhead for each log event on the cloud watch side which needs to be added.
         //TODO: handle different encodings? Possibly getting it from the config.
-        if (totalBytesRead.get() + dataSize + 8 + EVENT_STORAGE_OVERHEAD > MAX_BATCH_SIZE) {
+        if (totalBytesRead.get() + dataSize + TIMESTAMP_BYTES + EVENT_STORAGE_OVERHEAD > MAX_BATCH_SIZE) {
             return true;
         }
-        totalBytesRead.addAndGet(dataSize + 8 + EVENT_STORAGE_OVERHEAD);
+        totalBytesRead.addAndGet(dataSize + TIMESTAMP_BYTES + EVENT_STORAGE_OVERHEAD);
 
         InputLogEvent inputLogEvent = InputLogEvent.builder()
                 .message(data)

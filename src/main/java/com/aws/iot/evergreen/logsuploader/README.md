@@ -5,13 +5,18 @@ logs uploader needs to be smart in order to handle these different formats of lo
 The logs uploader should be able to handle any network disruptions or device reboots. The logs uploader should smartly
 manage the log rotation for different logging frameworks and upload the logs on a “best effort” basis.
  
-The customers can add each components configuration for where the log files are location and how they are rotated.
+The customers can add each components configuration for where the log files are location and how they are rotated. The
+logs uploader will then perform a k-way merge and update the logs to CloudWatch in batches. After merging the different 
+log files the logs uploader will create the log groups and log streams as needed before pushing all the log events to
+CloudWatch.
+
 # Startup
 1. [***LogsUploaderService***](/src/main/java/com/aws/iot/evergreen/logsuploader/LogsUploaderService.java) starts as an
-evergreen service, which is by default disabled.
+evergreen service, which is by default disabled. After parsing the parameters, the logs uploader service will start
+pushing logs to CloudWatch. It will run on a scheduled interval.
 
 # Shutdown
-Service lifecycle is managed by kernel and as part of kernel shutdown.
+Service lifecycle is managed by kernel and as part of kernel shutdown it cancels the timer for logs upload to CloudWatch.
 
 # Workflow
 1. The customers add configuration for the component to specify log files directory and log files regex.
@@ -27,6 +32,6 @@ services:
     lifecycle:
   LogsUploaderService:
     parameters:
-      componentsLogsConfiguration: "{\"ComponentLogInformation\": {\"ComponentNameA\": {\"LogFileRegex\": \"^log.txt\w*”,\"LogFileDirectoryPath\": \"/var/usr/\", \"MultiLineStartPattern\": \"\{'timestamp”,\"MinimumLogLevel\": \"INFO\",\"DiskSpaceLimit\": \"10\",\"DiskSpaceLimitUnit\": \"GB\",\"DeleteLogFileAfterCloudUpload\": true},\"ComponentNameB\": {\"LogFileRegex\": \"^evergreen.log\w*”,\"LogFileDirectoryPath\": \"/tmp/.evergreen/\"},},\"SystemLogsConfiguration\": {\"UploadToCloudWatch\": true,\"MinimumLogLevel\": \"INFO\",\"DiskSpaceLimit\": \"25\",\"DiskSpaceLimitUnit\": \"MB\"}}"
+      logsUploaderConfigurationJson: "{\"ComponentLogInformation\": [{\"LogFileRegex\": \"^log.txt\\\\w*\",\"LogFileDirectoryPath\": \"/var/usr/\", \"MultiLineStartPattern\": \"\\{'timestamp\",\"MinimumLogLevel\": \"DEBUG\",\"DiskSpaceLimit\": \"10\",\"ComponentName\": \"UserComponentA\",\"DiskSpaceLimitUnit\": \"GB\",\"DeleteLogFileAfterCloudUpload\": \"true\"}],\"SystemLogsConfiguration\":{\"UploadToCloudWatch\": true,\"MinimumLogLevel\": \"INFO\",\"DiskSpaceLimit\": \"25\",\"DiskSpaceLimitUnit\": \"MB\"}}"
     lifecycle:
 ```

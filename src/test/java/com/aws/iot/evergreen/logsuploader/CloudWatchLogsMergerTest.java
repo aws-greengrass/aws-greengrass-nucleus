@@ -95,7 +95,7 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         assertEquals(7, logEventsForStream1.getLogEvents().size());
         assertTrue(logEventsForStream1.getAttemptLogFileInformationList().containsKey(file1.getAbsolutePath()));
         assertEquals(0, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getStartPosition());
-        assertEquals(7, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
+        assertEquals(13, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream1.getComponentName());
     }
 
@@ -131,7 +131,7 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         assertTrue(attempt.getLogGroupsToLogStreamsMap().containsKey(logGroup));
         Map<String, CloudWatchAttemptLogInformation> logGroupInfo = attempt.getLogGroupsToLogStreamsMap().get(logGroup);
         String logStream = calculateLogStreamName("testThing");
-        String logStream2 = "2020/02/10/{greengrass-fleet-id}/testThing";
+        String logStream2 = "/2020/02/10/{greengrass-fleet-id}/testThing";
         assertTrue(logGroupInfo.containsKey(logStream));
         assertTrue(logGroupInfo.containsKey(logStream2));
         CloudWatchAttemptLogInformation logEventsForStream1 = logGroupInfo.get(logStream);
@@ -140,14 +140,14 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         assertEquals(7, logEventsForStream1.getLogEvents().size());
         assertTrue(logEventsForStream1.getAttemptLogFileInformationList().containsKey(file1.getAbsolutePath()));
         assertEquals(0, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getStartPosition());
-        assertEquals(7, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
+        assertEquals(13, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream1.getComponentName());
 
         assertNotNull(logEventsForStream2.getLogEvents());
         assertEquals(4, logEventsForStream2.getLogEvents().size());
         assertTrue(logEventsForStream2.getAttemptLogFileInformationList().containsKey(file2.getAbsolutePath()));
         assertEquals(0, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getStartPosition());
-        assertEquals(1252, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getBytesRead());
+        assertEquals(1256, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream2.getComponentName());
     }
 
@@ -188,7 +188,7 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         Map<String, CloudWatchAttemptLogInformation> logGroupInfo = attempt.getLogGroupsToLogStreamsMap().get(logGroup);
         Map<String, CloudWatchAttemptLogInformation> logGroupInfo2 = attempt.getLogGroupsToLogStreamsMap().get(logGroup2);
         String logStream = calculateLogStreamName("testThing");
-        String logStream2 = "2020/02/10/{greengrass-fleet-id}/testThing";
+        String logStream2 = "/2020/02/10/{greengrass-fleet-id}/testThing";
         assertTrue(logGroupInfo.containsKey(logStream));
         assertTrue(logGroupInfo2.containsKey(logStream2));
         CloudWatchAttemptLogInformation logEventsForStream1 = logGroupInfo.get(logStream);
@@ -196,13 +196,13 @@ public class CloudWatchLogsMergerTest extends EGServiceTestUtil {
         assertEquals(7, logEventsForStream1.getLogEvents().size());
         assertTrue(logEventsForStream1.getAttemptLogFileInformationList().containsKey(file1.getAbsolutePath()));
         assertEquals(0, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getStartPosition());
-        assertEquals(7, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
+        assertEquals(13, logEventsForStream1.getAttemptLogFileInformationList().get(file1.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent", logEventsForStream1.getComponentName());
 
         assertEquals(4, logEventsForStream2.getLogEvents().size());
         assertTrue(logEventsForStream2.getAttemptLogFileInformationList().containsKey(file2.getAbsolutePath()));
         assertEquals(0, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getStartPosition());
-        assertEquals(1252, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getBytesRead());
+        assertEquals(1256, logEventsForStream2.getAttemptLogFileInformationList().get(file2.getAbsolutePath()).getBytesRead());
         assertEquals("TestComponent2", logEventsForStream2.getComponentName());
     }
 

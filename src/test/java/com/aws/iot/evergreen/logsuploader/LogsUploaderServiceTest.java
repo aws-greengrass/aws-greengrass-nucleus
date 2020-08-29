@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.iot.evergreen.logsuploader.LogsUploaderService.LOGS_UPLOADER_CONFIGURATION_TOPIC;
 import static com.aws.iot.evergreen.logsuploader.LogsUploaderService.LOGS_UPLOADER_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -61,7 +63,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
-public class LogsUploaderServiceTest extends EGServiceTestUtil  {
+public class LogsUploaderServiceTest extends EGServiceTestUtil {
     @Mock
     private CloudWatchLogsUploader mockUploader;
     @Mock
@@ -94,7 +96,7 @@ public class LogsUploaderServiceTest extends EGServiceTestUtil  {
             TimeUnit.SECONDS.sleep(1);
         }
         File currentFile = new File(directoryPath.resolve("evergreen.log").toUri());
-        try (OutputStream currentFileOutputStream =Files.newOutputStream(currentFile.toPath())) {
+        try (OutputStream currentFileOutputStream = Files.newOutputStream(currentFile.toPath())) {
             currentFileOutputStream.write("TEST".getBytes(StandardCharsets.UTF_8));
         }
     }
@@ -104,9 +106,9 @@ public class LogsUploaderServiceTest extends EGServiceTestUtil  {
         final File folder = new File(directoryPath.toUri());
         final File[] files = folder.listFiles();
         if (files != null) {
-            for ( final File file : files ) {
-                if ( file.getName().startsWith("evergreen.log") && !file.delete() ) {
-                    System.err.println( "Can't remove " + file.getAbsolutePath() );
+            for (final File file : files) {
+                if (file.getName().startsWith("evergreen.log") && !file.delete()) {
+                    System.err.println("Can't remove " + file.getAbsolutePath());
                 }
             }
         }
@@ -139,21 +141,45 @@ public class LogsUploaderServiceTest extends EGServiceTestUtil  {
                 .thenReturn(periodicUpdateIntervalMsTopic);
         when(mockMerger.performKWayMerge(componentLogsInformationCaptor.capture())).thenReturn(new CloudWatchAttempt());
 
+        String configuration =
+                "{\"ComponentLogInformation\": " +
+                        "[{\"LogFileRegex\": \"^log.txt\\\\w*\",\"LogFileDirectoryPath\": \"/var/usr/\", " +
+                        "\"MultiLineStartPattern\": \"\\\\{'timestamp\",\"MinimumLogLevel\": \"DEBUG\"," +
+                        "\"DiskSpaceLimit\": \"10\",\"ComponentName\": \"UserComponentA\"," +
+                        "\"DiskSpaceLimitUnit\": \"GB\",\"DeleteLogFileAfterCloudUpload\": \"true\"}]," +
+                        "\"SystemLogsConfiguration\":{\"UploadToCloudWatch\": true,\"MinimumLogLevel\": \"INFO\"," +
+                        "\"DiskSpaceLimit\": \"25\"," +
+                        "\"DiskSpaceLimitUnit\": \"MB\"}}";
+        Topic configTopic = Topic.of(context, LOGS_UPLOADER_CONFIGURATION_TOPIC, configuration);
+        when(config.lookup(PARAMETERS_CONFIG_KEY, LOGS_UPLOADER_CONFIGURATION_TOPIC))
+                .thenReturn(configTopic);
+
         logsUploaderService = new LogsUploaderService(config, mockUploader, mockDeviceConfiguration, mockMerger);
         logsUploaderService.startup();
 
         TimeUnit.SECONDS.sleep(5);
+        Set<String> componentNames = new HashSet<>();
+        componentNames.add("System");
+        componentNames.add("UserComponentA");
 
         assertNotNull(componentLogsInformationCaptor.getValue());
         Collection<ComponentLogFileInformation> componentLogFileInformationList = componentLogsInformationCaptor.getValue();
         assertFalse(componentLogFileInformationList.isEmpty());
         componentLogFileInformationList.iterator().forEachRemaining(componentLogFileInformation -> {
-            assertEquals("System", componentLogFileInformation.getName());
-            assertEquals(ComponentType.GreenGrassSystemComponent, componentLogFileInformation.getComponentType());
-            assertEquals(Level.INFO, componentLogFileInformation.getDesiredLogLevel());
-            assertNotNull(componentLogFileInformation.getLogFileInformationList());
-            assertThat(componentLogFileInformation.getLogFileInformationList(), IsNot.not(IsEmptyCollection.empty()));
-            assertTrue(componentLogFileInformation.getLogFileInformationList().size() >= 5);
+            if (componentLogFileInformation.getName().equals("System")) {
+                componentNames.remove("System");
+                assertEquals(ComponentType.GreenGrassSystemComponent, componentLogFileInformation.getComponentType());
+                assertEquals(Level.INFO, componentLogFileInformation.getDesiredLogLevel());
+                assertNotNull(componentLogFileInformation.getLogFileInformationList());
+                assertThat(componentLogFileInformation.getLogFileInformationList(), IsNot.not(IsEmptyCollection.empty()));
+                assertTrue(componentLogFileInformation.getLogFileInformationList().size() >= 5);
+            } else if (componentLogFileInformation.getName().equals("UserComponentA")) {
+                componentNames.remove("UserComponentA");
+                assertEquals(ComponentType.UserComponent, componentLogFileInformation.getComponentType());
+                assertEquals(Level.DEBUG, componentLogFileInformation.getDesiredLogLevel());
+                assertNotNull(componentLogFileInformation.getLogFileInformationList());
+                assertTrue(componentLogFileInformation.getLogFileInformationList().isEmpty());
+            }
         });
 
         verify(mockUploader, times(1)).upload(any(CloudWatchAttempt.class));
@@ -165,6 +191,15 @@ public class LogsUploaderServiceTest extends EGServiceTestUtil  {
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, LOGS_UPLOADER_PERIODIC_UPDATE_INTERVAL_SEC, "1000");
         when(config.lookup(PARAMETERS_CONFIG_KEY, LOGS_UPLOADER_PERIODIC_UPDATE_INTERVAL_SEC))
                 .thenReturn(periodicUpdateIntervalMsTopic);
+
+        String configuration =
+                "{\"ComponentLogInformation\": " +
+                        "[],\"SystemLogsConfiguration\":{\"UploadToCloudWatch\": true,\"MinimumLogLevel\": \"INFO\"," +
+                        "\"DiskSpaceLimit\": \"25\"," +
+                        "\"DiskSpaceLimitUnit\": \"MB\"}}";
+        Topic configTopic = Topic.of(context, LOGS_UPLOADER_CONFIGURATION_TOPIC, configuration);
+        when(config.lookup(PARAMETERS_CONFIG_KEY, LOGS_UPLOADER_CONFIGURATION_TOPIC))
+                .thenReturn(configTopic);
 
         CloudWatchAttempt attempt = new CloudWatchAttempt();
         Map<String, Map<String, CloudWatchAttemptLogInformation>> logGroupsToLogStreamsMap = new HashMap<>();

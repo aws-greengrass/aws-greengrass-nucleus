@@ -25,6 +25,7 @@ public class CloudWatchClientFactory {
      * @param credentialsProvider credential provider from TES
      */
     @Inject
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public CloudWatchClientFactory(DeviceConfiguration deviceConfiguration,
                                    LazyCredentialProvider credentialsProvider) {
         Region region;

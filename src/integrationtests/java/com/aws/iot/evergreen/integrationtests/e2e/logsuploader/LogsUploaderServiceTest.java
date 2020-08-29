@@ -4,7 +4,6 @@ import com.amazonaws.AbortedException;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.logging.impl.config.LogStore;
 import com.aws.iot.evergreen.logsuploader.model.ComponentType;
@@ -19,9 +18,6 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.event.Level;
-import software.amazon.awssdk.services.cloudwatchlogs.model.CloudWatchLogsException;
-import software.amazon.awssdk.services.cloudwatchlogs.model.DeleteLogGroupRequest;
-import software.amazon.awssdk.services.cloudwatchlogs.model.DeleteLogStreamRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.DescribeLogGroupsRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.DescribeLogGroupsResponse;
 import software.amazon.awssdk.services.cloudwatchlogs.model.DescribeLogStreamsRequest;
@@ -29,11 +25,12 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.DescribeLogStreamsRe
 import software.amazon.awssdk.services.iot.model.ResourceAlreadyExistsException;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.logsuploader.CloudWatchLogsMerger.DATE_FORMATTER;
 import static com.aws.iot.evergreen.logsuploader.CloudWatchLogsMerger.DEFAULT_LOG_GROUP_NAME;
 import static com.aws.iot.evergreen.logsuploader.CloudWatchLogsMerger.DEFAULT_LOG_STREAM_NAME;
 import static com.aws.iot.evergreen.logsuploader.LogsUploaderService.LOGS_UPLOADER_SERVICE_TOPICS;
@@ -46,9 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class LogsUploaderServiceTest extends BaseE2ETestCase {
+    private final SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH);
     private String logGroupName;
     private String logStreamName;
-    private static final Logger logger = LogManager.getLogger(LogsUploaderServiceTest.class);
 
     @BeforeAll
     static void setup() {
@@ -72,7 +69,7 @@ public class LogsUploaderServiceTest extends BaseE2ETestCase {
 
     @AfterEach
     void afterEach() {
-        try {
+        /*try {
             cloudWatchLogsClient.deleteLogStream(DeleteLogStreamRequest.builder()
                     .logGroupName(logGroupName)
                     .logStreamName(logStreamName)
@@ -82,7 +79,7 @@ public class LogsUploaderServiceTest extends BaseE2ETestCase {
                     .build());
         } catch (CloudWatchLogsException e) {
             logger.atError().cause(e).log();
-        }
+        }*/
 
         try {
             if (kernel != null) {
@@ -132,7 +129,7 @@ public class LogsUploaderServiceTest extends BaseE2ETestCase {
         ignoreExceptionUltimateCauseOfType(context, AbortedException.class);
         ignoreExceptionWithMessageSubstring(context, "The specified log group already exists");
         ignoreExceptionWithMessageSubstring(context, "The specified log stream already exists");
-        TimeUnit.SECONDS.sleep(30);
+        TimeUnit.SECONDS.sleep(90);
 
 
         DescribeLogGroupsRequest describeLogGroupsRequest = DescribeLogGroupsRequest.builder()

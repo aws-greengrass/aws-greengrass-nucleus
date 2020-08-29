@@ -12,4 +12,5 @@ services:
       - TokenExchangeService
     parameters:
       logsUploaderPeriodicUpdateIntervalSec: 10
+      logsUploaderConfigurationJson: "{\"ComponentLogInformation\": [{\"LogFileRegex\": \"^evergreen.log\\\\w*\",\"LogFileDirectoryPath\": \"/Users/nikkhim/Documents/Work/evergreen/aws-greengrass-kernel/Test\",\"MinimumLogLevel\": \"DEBUG\",\"ComponentName\": \"UserComponentA\"}],\"SystemLogsConfiguration\":{\"UploadToCloudWatch\": true,\"MinimumLogLevel\": \"INFO\",\"DiskSpaceLimit\": \"25\",\"DiskSpaceLimitUnit\": \"MB\"}}"
     lifecycle:
