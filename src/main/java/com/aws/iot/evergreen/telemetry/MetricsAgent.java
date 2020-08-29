@@ -4,32 +4,54 @@
 package com.aws.iot.evergreen.telemetry;
 
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.telemetry.config.TelemetryDataConfig;
 
-import javax.inject.Inject;
+import java.util.HashMap;
+import java.util.Map;
 
 @ImplementsService(name = MetricsAgent.METRICS_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
 public class MetricsAgent extends EvergreenService {
     public static final String METRICS_AGENT_SERVICE_TOPICS = "MetricsAgent";
-    private final MetricsAgentFactory metricsAgentFactory = new MetricsAgentFactory();
-
-    @Inject
-    private Context context;
+    private final SystemMetricsEmitter systemMetricsEmitter = new SystemMetricsEmitter();
+    private final MetricsAggregator metricsAggregator = new MetricsAggregator();
+    private final MetricsUploader metricsUploader = new MetricsUploader();
 
     public MetricsAgent(Topics topics) {
         super(topics);
     }
 
     @Override
-    protected void startup() {
-        reportState(State.RUNNING);
-        this.metricsAgentFactory.collectSystemMetrics(this.context);
+    public void startup() {
+        // Is it always going to be true that STARTING precedes RUNNING?
+        if (this.getState().equals(State.STARTING)) {
+            reportState(State.RUNNING);
+            this.systemMetricsEmitter.collectSystemMetrics(getContext());
+            this.metricsAggregator.aggregateMetrics(getContext());
+            this.metricsUploader.uploadMetrics();
+
+
+        } else {
+            reportState(this.getState());
+        }
     }
 
     @Override
-    protected void shutdown() {
+    public void shutdown() {
+    }
+
+    /**
+     * This will be removed when we read the data from config file.
+     * @return Map with namespace as a key and metric data config as a value.
+     */
+    public static Map<String, TelemetryDataConfig> createSampleConfiguration() {
+        TelemetryDataConfig kernelConfig = new TelemetryDataConfig("KernelComponents",10,30,"Average");
+        TelemetryDataConfig systemMetricsConfig = new TelemetryDataConfig("SystemMetrics",10,30,"Average");
+        Map<String, TelemetryDataConfig> configMap = new HashMap<>();
+        configMap.put(kernelConfig.getMetricNamespace(),kernelConfig);
+        configMap.put(systemMetricsConfig.getMetricNamespace(),systemMetricsConfig);
+        return configMap;
     }
 }

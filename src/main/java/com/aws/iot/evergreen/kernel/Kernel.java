@@ -29,7 +29,6 @@ import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.telemetry.api.MetricDataBuilder;
 import com.aws.iot.evergreen.telemetry.impl.Metric;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
-import com.aws.iot.evergreen.telemetry.models.TelemetryAggregation;
 import com.aws.iot.evergreen.telemetry.models.TelemetryMetricName;
 import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
 import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
@@ -55,6 +54,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -76,6 +76,7 @@ import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.RE
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.iot.evergreen.telemetry.MetricsAgent.createSampleConfiguration;
 
 /**
  * Evergreen-kernel.
@@ -91,8 +92,9 @@ public class Kernel {
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
 
     // Kernel metrics
-    private static final int DEFAULT_KERNEL_COMPONENTS_STATE_PERIOD = 5;
-    private static final String KERNEL_METRIC_STORE = "Kernel";
+    private static final long KERNEL_COMPONENTS_STATE_PERIOD =
+            createSampleConfiguration().get(TelemetryNamespace.KernelComponents.toString()).getEmitFrequency();
+    private static final String KERNEL_COMPONENT_METRIC_STORE = TelemetryNamespace.KernelComponents.toString();
     private static Map<TelemetryMetricName, MetricDataBuilder> kernelMetrics = new HashMap<>();
     private static Map<TelemetryMetricName, Integer> kernelMetricsData = new HashMap<>();
 
@@ -559,23 +561,23 @@ public class Kernel {
      * Collect kernel metrics - Number of components running in each state.
      */
     private void collectKernelComponentState() {
-        for (TelemetryMetricName telemetryMetricName : TelemetryMetricName.KernelComponents.values()) {
+        List<TelemetryMetricName> telemetryMetricNames =
+                TelemetryMetricName.getMetricNamesOf(TelemetryNamespace.KernelComponents);
+        for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
             Metric metric = Metric.builder()
-                    .metricNamespace(TelemetryNamespace.Kernel)
+                    .metricNamespace(TelemetryNamespace.KernelComponents)
                     .metricName(telemetryMetricName)
                     .metricUnit(TelemetryUnit.Count)
-                    .metricAggregation(TelemetryAggregation.Sum)
                     .build();
-            MetricDataBuilder metricDataBuilder = new MetricFactory(KERNEL_METRIC_STORE).addMetric(metric);
+            MetricDataBuilder metricDataBuilder = new MetricFactory(KERNEL_COMPONENT_METRIC_STORE).addMetric(metric);
             kernelMetrics.put(telemetryMetricName, metricDataBuilder);
         }
-        for (TelemetryMetricName telemetryMetricName : TelemetryMetricName.KernelComponents.values()) {
+        for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
             kernelMetricsData.put(telemetryMetricName, 0);
         }
 
         ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
-        executor.scheduleAtFixedRate(emitMetrics(), 0,
-                DEFAULT_KERNEL_COMPONENTS_STATE_PERIOD, TimeUnit.SECONDS);
+        executor.scheduleAtFixedRate(emitMetrics(), 0, KERNEL_COMPONENTS_STATE_PERIOD, TimeUnit.SECONDS);
     }
 
     private Runnable emitMetrics() {
@@ -584,8 +586,8 @@ public class Kernel {
             for (EvergreenService evergreenService : evergreenServices) {
                 String serviceState = evergreenService.getState().toString();
                 serviceState = serviceState.charAt(0) + serviceState.substring(1).toLowerCase();
-                TelemetryMetricName telemetryMetricName = TelemetryMetricName.KernelComponents
-                        .valueOf("NumberOfComponents" + serviceState);
+                TelemetryMetricName telemetryMetricName =
+                        TelemetryMetricName.valueOf("NumberOfComponents" + serviceState);
                 kernelMetricsData.put(telemetryMetricName, kernelMetricsData.get(telemetryMetricName) + 1);
             }
             for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> kernelMetric : kernelMetrics.entrySet()) {
