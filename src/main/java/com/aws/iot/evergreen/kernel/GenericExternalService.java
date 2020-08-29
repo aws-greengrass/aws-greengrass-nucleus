@@ -18,12 +18,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,12 +37,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 
 public class GenericExternalService extends EvergreenService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
-    public static final String SAFE_UPDATE_TOPIC_NAME = "checkIfSafeToUpdate";
-    public static final String UPDATES_COMPLETED_TOPIC_NAME = "updatesCompleted";
     public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
-    public static final int DEFAULT_SAFE_UPDATE_TIMEOUT = 5;
-    public static final int DEFAULT_SAFE_UPDATE_RECHECK_TIME = 30;
-    public static final String RECHECK_PERIOD_TOPIC_NAME = "recheckPeriod";
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
@@ -54,7 +46,6 @@ public class GenericExternalService extends EvergreenService {
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
     private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
-    private final List<Exec> safeUpdateProcesses = new CopyOnWriteArrayList<>();
 
     /**
      * Create a new GenericExternalService.
@@ -104,7 +95,7 @@ public class GenericExternalService extends EvergreenService {
     public void postInject() {
         // Register token before calling super so that the token is available when the lifecyle thread
         // starts running
-        AuthenticationHandler.registerAuthToken(this);
+        AuthenticationHandler.registerAuthenticationToken(this);
         super.postInject();
     }
 
@@ -267,86 +258,8 @@ public class GenericExternalService extends EvergreenService {
         logger.atInfo().setEventType("generic-service-shutdown").log();
     }
 
-    @Override
-    public long whenIsDisruptionOK() {
-        stopAllSafeUpdateProcesses();
-        try {
-            CompletableFuture<Integer> exitFuture = new CompletableFuture<>();
-            Pair<RunStatus, Exec> result = run(SAFE_UPDATE_TOPIC_NAME, exitFuture::complete, safeUpdateProcesses);
-
-            // If we didn't do anything then it is safe to update
-            if (result.getLeft().equals(RunStatus.NothingDone)) {
-                return 0L;
-            }
-
-            // If it ran, then check the result or timeout
-            if (result.getLeft().equals(RunStatus.OK)) {
-                int timeout = Coerce.toInt(
-                        config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                                SAFE_UPDATE_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
-                try {
-                    int exitCode = exitFuture.get(timeout, TimeUnit.SECONDS);
-                    // Define exit code 0 to mean that it is safe to update right now
-                    if (exitCode == 0) {
-                        logger.atDebug().log("{} returned 0, so it is safe to update now", SAFE_UPDATE_TOPIC_NAME);
-                        return 0L;
-                    }
-                } catch (ExecutionException e) {
-                    // Not possible
-                } catch (TimeoutException e) {
-                    logger.atWarn()
-                            .log("Timed out while running {}. Will try to update again later", SAFE_UPDATE_TOPIC_NAME);
-                }
-                result.getRight().close();
-            }
-        } catch (InterruptedException ignore) {
-        } catch (IOException e) {
-            logger.atWarn().log("Error while running {}. Will try to update again later", SAFE_UPDATE_TOPIC_NAME, e);
-        }
-
-        int recheckSeconds = Coerce.toInt(
-                config.findOrDefault(DEFAULT_SAFE_UPDATE_RECHECK_TIME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                        SAFE_UPDATE_TOPIC_NAME, RECHECK_PERIOD_TOPIC_NAME));
-        logger.atInfo().kv(RECHECK_PERIOD_TOPIC_NAME, recheckSeconds)
-                .log("{} decided it is unsafe to update now. Will try to update again later", SAFE_UPDATE_TOPIC_NAME);
-
-        // By default, if anything goes wrong we will assume it is not safe to update right now
-        return Instant.now().plusSeconds(recheckSeconds).toEpochMilli();
-    }
-
-    @Override
-    public void disruptionCompleted() {
-        stopAllSafeUpdateProcesses();
-        CompletableFuture<Integer> exitFuture = new CompletableFuture<>();
-        try {
-            Pair<RunStatus, Exec> result = run(UPDATES_COMPLETED_TOPIC_NAME, exitFuture::complete, safeUpdateProcesses);
-            if (result.getLeft().equals(RunStatus.NothingDone) || result.getLeft().equals(RunStatus.Errored)) {
-                return;
-            }
-
-            int timeout = Coerce.toInt(
-                    config.findOrDefault(DEFAULT_SAFE_UPDATE_TIMEOUT, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                            UPDATES_COMPLETED_TOPIC_NAME, TIMEOUT_NAMESPACE_TOPIC));
-            try {
-                exitFuture.get(timeout, TimeUnit.SECONDS);
-            } catch (ExecutionException e) {
-                // Not possible
-            } catch (TimeoutException e) {
-                logger.atWarn().log("Timed out while running {}", UPDATES_COMPLETED_TOPIC_NAME);
-            }
-            result.getRight().close();
-        } catch (InterruptedException ignore) {
-        } catch (IOException e) {
-            logger.atWarn().log("Error while running {}", UPDATES_COMPLETED_TOPIC_NAME, e);
-        }
-    }
-
     private synchronized void stopAllLifecycleProcesses() {
         stopProcesses(lifecycleProcesses);
-    }
-
-    private synchronized void stopAllSafeUpdateProcesses() {
-        stopProcesses(safeUpdateProcesses);
     }
 
     @SuppressWarnings("PMD.CloseResource")

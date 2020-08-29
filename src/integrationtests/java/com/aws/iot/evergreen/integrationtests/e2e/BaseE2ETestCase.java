@@ -13,8 +13,6 @@ import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.ForbiddenException;
-import com.amazonaws.services.evergreen.model.InvalidInputException;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
@@ -91,7 +89,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_ENDPOINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -101,7 +98,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(EGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    protected static final String FCS_GAMMA_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
+    private static final String FCS_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
@@ -149,56 +146,51 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected Kernel kernel;
 
-    protected static final IotClient iotClient = IotSdkClientFactory
-            .getIotClient(GAMMA_REGION.toString(), new HashSet<>(Arrays.asList(InvalidRequestException.class,
-                    DeleteConflictException.class)));
+    protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(GAMMA_REGION.toString(),
+            new HashSet<>(Arrays.asList(InvalidRequestException.class, DeleteConflictException.class)));
     private static AWSEvergreen fcsClient;
-    protected static final AWSEvergreen cmsClient =
-            AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, GAMMA_REGION.toString())).build();
+    protected static final AWSEvergreen cmsClient = AWSEvergreenClientBuilder.standard()
+                                                                             .withEndpointConfiguration(
+                                                                                     new AwsClientBuilder.EndpointConfiguration(
+                                                                                             DeviceProvisioningHelper.GCS_ENDPOINT,
+                                                                                             GAMMA_REGION.toString()))
+                                                                             .build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
-    private static final PackageIdentifier[] componentsWithArtifactsInGG =
-            {createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
-                    createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
-                    createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
-                    createPackageIdentifier("SomeService", new Semver("1.0.0")),
-                    createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
-                    createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("RedSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
-                    createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
-                    createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
-                    createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
-                    createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
-                    createPackageIdentifier("Log", new Semver("2.0.0")),
-                    createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
-                    createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
     private static final PackageIdentifier[] componentsWithArtifactsInS3 =
-            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0"))};
+            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
+            createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
+            createPackageIdentifier("SomeService", new Semver("1.0.0")),
+            createPackageIdentifier("SomeOldService", new Semver("0.9.0")),
+            createPackageIdentifier("GreenSignal", new Semver("1.0.0")),
+            createPackageIdentifier("RedSignal", new Semver("1.0.0")),
+            createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
+            createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
+            createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
+            createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
+            createPackageIdentifier("Log", new Semver("2.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
 
     @BeforeAll
     static void beforeAll() throws Exception {
         initializePackageStore();
 
-        uploadTestComponentsToCms(componentsWithArtifactsInGG);
-        uploadComponentArtifactsToGG(componentsWithArtifactsInGG);
-        commitTestComponentsToCms(componentsWithArtifactsInGG);
-
         // Self hosted artifacts must exist in S3 before creating a component version
         createS3BucketsForTestComponentArtifacts();
         uploadComponentArtifactToS3(componentsWithArtifactsInS3);
         uploadTestComponentsToCms(componentsWithArtifactsInS3);
-        commitTestComponentsToCms(componentsWithArtifactsInS3);
 
     }
 
     @AfterAll
     static void afterAll() {
         try {
-            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInGG));
-            allComponents.addAll(Arrays.asList(componentsWithArtifactsInS3));
+            List<PackageIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (PackageIdentifier component : allComponents) {
                 DeleteComponentResult result = GreengrassPackageServiceHelper
                         .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
@@ -262,22 +254,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    private static void commitTestComponentsToCms(PackageIdentifier... pkgIds) {
-        List<String> errors = new ArrayList<>();
-        for (PackageIdentifier pkgId : pkgIds) {
-            try {
-                GreengrassPackageServiceHelper
-                        .commitComponent(cmsClient, pkgId.getName(), pkgId.getVersion().toString());
-            } catch (InvalidInputException e) {
-                // Don't fail the test if the component is already committed
-                errors.add(e.getMessage());
-            }
-        }
-        if (!errors.isEmpty()) {
-            logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
-        }
-    }
-
     private static PackageIdentifier getLocalPackageIdentifier(PackageIdentifier pkgIdCloud) {
         return new PackageIdentifier(removeTestComponentNameCloudSuffix(pkgIdCloud.getName()),
                 pkgIdCloud.getVersion(), pkgIdCloud.getScope());
@@ -289,10 +265,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         // update recipe
         String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
-        Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInGG)
+        Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInS3)
                 .map(component -> component.getName()).collect(Collectors.toSet());
-        componentNameSet.addAll(Arrays.stream(componentsWithArtifactsInS3)
-                .map(component -> component.getName()).collect(Collectors.toSet()));
 
         for (String cloudPkgName: componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
@@ -304,41 +278,13 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
-        CreateComponentResult createComponentResult = GreengrassPackageServiceHelper.createComponent(cmsClient,
-                testRecipePath);
-        assertEquals("DRAFT", createComponentResult.getStatus());
-        assertEquals(pkgIdCloud.getName(), createComponentResult.getComponentName(), createComponentResult.toString());
-        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
+        CreateComponentResult createComponentResult =
+                GreengrassPackageServiceHelper.createComponent(cmsClient, testRecipePath);
+        assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
+        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
     }
 
-    protected static void uploadComponentArtifactsToGG(PackageIdentifier... pkgIds) throws IOException {
-        List<String> errors = new ArrayList<>();
-        for (PackageIdentifier pkgId : pkgIds) {
-            PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
-            Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
-            File[] artifactFiles = artifactDirPath.toFile().listFiles();
-            if (artifactFiles == null) {
-                logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
-                        .log("Skip artifact upload. No artifacts found");
-            } else {
-                for (File artifact : artifactFiles) {
-                    try {
-                        GreengrassPackageServiceHelper
-                                .createAndUploadComponentArtifact(cmsClient, artifact, pkgId.getName(),
-                                        pkgId.getVersion().toString());
-                    } catch (InvalidInputException | ForbiddenException e) {
-                        // Don't fail the test if the component is already committed
-                        errors.add(e.getMessage());
-                    }
-                }
-                if (!errors.isEmpty()) {
-                    logger.atWarn().kv("errors", errors).log("Ignore errors if a component already exists");
-                }
-            }
-        }
-    }
-
-    protected static void createS3BucketsForTestComponentArtifacts() {
+    private static void createS3BucketsForTestComponentArtifacts() {
         try {
             s3Client.createBucket(
                     CreateBucketRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
@@ -349,9 +295,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    // TODO : Fast follow item to change all e2e tests to upload artifacts to S3
-    //  instead of the component management service
-    protected static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
+    private static void uploadComponentArtifactToS3(PackageIdentifier... pkgIds) {
         for (PackageIdentifier pkgId : pkgIds) {
             PackageIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
             Path artifactDirPath = e2eTestPackageStore.resolveArtifactDirectoryPath(pkgIdLocal);
@@ -375,7 +319,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static void cleanUpTestComponentArtifactsFromS3() {
+    private static void cleanUpTestComponentArtifactsFromS3() {
         try {
             ListObjectsResponse objectsInArtifactsBucket = s3Client.listObjects(
                     ListObjectsRequest.builder().bucket(TEST_COMPONENT_ARTIFACTS_S3_BUCKET).build());
@@ -393,10 +337,10 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static synchronized AWSEvergreen getFcsClient() {
+    private static synchronized AWSEvergreen getFcsClient() {
         if (fcsClient == null) {
             AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                    FCS_GAMMA_ENDPOINT, GAMMA_REGION.toString());
+                    FCS_ENDPOINT, GAMMA_REGION.toString());
             fcsClient = AWSEvergreenClientBuilder.standard()
                     .withEndpointConfiguration(endpointConfiguration).build();
         }
@@ -474,8 +418,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
 
-        while(!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
@@ -508,7 +451,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         return new PackageIdentifier(getTestComponentNameInCloud(name), version, "private");
     }
 
-    protected static String getTestComponentNameInCloud(String name) {
+    public static String getTestComponentNameInCloud(String name) {
         if (name.endsWith(testComponentSuffix)) {
             return name;
         }

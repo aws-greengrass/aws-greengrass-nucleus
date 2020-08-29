@@ -1,9 +1,10 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: python-dateutil
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '2.8.1'
-Dependencies:
-  six:
-    VersionRequirements: '>=1.5.0'
+Manifests:
+  - Dependencies:
+      six:
+        VersionRequirement: '>=1.5.0'

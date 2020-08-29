@@ -37,7 +37,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     private static final Logger logger = LogManager.getLogger(IPCChannelHandler.class);
 
     @Inject
-    private AuthenticationHandler auth;
+    private AuthenticationHandler authenticationHandler;
 
     @Inject
     private IPCRouter router;
@@ -77,7 +77,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
 
         // When there isn't context yet, we expect a call to be authorized first
         if (ctx.channel().attr(CONNECTION_CONTEXT_KEY).get() == null) {
-            auth.handleAuth(ctx, message);
+            authenticationHandler.handleAuthentication(ctx, message);
             return;
         }
 

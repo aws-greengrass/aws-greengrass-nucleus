@@ -1,6 +1,8 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: PyYAML
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '3.10.0'
+manifests:
+  - lifecycle: {}

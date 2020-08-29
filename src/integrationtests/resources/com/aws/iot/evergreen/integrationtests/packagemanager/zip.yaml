@@ -1,0 +1,10 @@
+---
+TemplateVersion: '2020-01-25'
+ComponentName: A
+Version: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Artifacts:
+      - Uri: greengrass:zip.zip
+        Unarchive: ZIP

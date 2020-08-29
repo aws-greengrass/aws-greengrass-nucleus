@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+
 @ExtendWith(EGExtension.class)
 public class PlatformResolverTest {
     ObjectMapper mapper = new ObjectMapper();
@@ -59,4 +60,11 @@ public class PlatformResolverTest {
             }
         }
     }
+
+    @Test
+    public void testCurrentPlatform() throws Exception {
+        // TODO: move to UAT test
+        System.out.println(PlatformResolver.CURRENT_PLATFORM);
+    }
+
 }

@@ -1,6 +1,8 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: colorama
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '0.2.5'
+manifests:
+  - lifecycle: {}

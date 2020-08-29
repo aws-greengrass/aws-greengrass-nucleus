@@ -3,9 +3,6 @@ package com.aws.iot.evergreen.easysetup;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
-import com.amazonaws.services.evergreen.model.CommitComponentRequest;
-import com.amazonaws.services.evergreen.model.CreateComponentRequest;
-import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
@@ -47,7 +44,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URL;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -71,10 +67,11 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
     // TODO : Remove once global components are implemented
-    public static final String GREENGRASS_SERVICE_ENDPOINT =
-            "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
+    public static final String GCS_ENDPOINT =
+                "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
+
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
-            .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"RecipeTemplateVersion\": \"2020-01-25\",\n"
+            .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"TemplateVersion\": \"2020-01-25\",\n"
                     + "\t\"ComponentName\": \"TokenExchangeService\",\n"
                     + "\t\"Description\": \"Enable Evergreen devices to interact with AWS services using certs\",\n"
                     + "\t\"Publisher\": \"Evergreen\",\n\t\"Version\": \"1.0.0\"\n}");
@@ -94,7 +91,7 @@ public class DeviceProvisioningHelper {
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion);
         this.iamClient = IamSdkClientFactory.getIamClient();
         this.cmsClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration(GREENGRASS_SERVICE_ENDPOINT, awsRegion)).build();
+                new AwsClientBuilder.EndpointConfiguration(GCS_ENDPOINT, awsRegion)).build();
         this.outStream = outStream;
     }
 
@@ -312,38 +309,6 @@ public class DeviceProvisioningHelper {
     public void updateKernelConfigWithTesRoleInfo(Kernel kernel, String roleAliasName) {
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
         tesTopics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
-    }
-
-    // TODO : Remove once global packages are supported
-
-    /**
-     * Create empty packages in customer's account for first party services.
-     */
-    public void setUpEmptyPackagesForFirstPartyServices() {
-        createEmptyComponent(cmsClient, TOKEN_EXCHANGE_SERVICE_TOPICS);
-    }
-
-    // TODO : Remove once global packages are supported
-
-    /*
-     * Create and commit an empty component.
-     */
-    private void createEmptyComponent(AWSEvergreen cmsClient, String componentName) {
-        outStream.println("Creating empty component " + componentName);
-        ByteBuffer recipe =
-                ByteBuffer.wrap(FIRST_PARTY_COMPONENT_RECIPES.get(componentName).getBytes(StandardCharsets.UTF_8));
-        CreateComponentRequest createComponentRequest = new CreateComponentRequest().withRecipe(recipe);
-        try {
-            cmsClient.createComponent(createComponentRequest);
-
-            CommitComponentRequest commitComponentRequest =
-                    new CommitComponentRequest().withComponentName(componentName).withComponentVersion("1.0.0");
-            cmsClient.commitComponent(commitComponentRequest);
-        } catch (ResourceAlreadyExistException e) {
-            // No need to replace the component if it exists
-            outStream.println(
-                    String.format("Component \"%s\" already exists, skipping re-creating component", componentName));
-        }
     }
 
     @AllArgsConstructor

@@ -1,13 +1,14 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
+TemplateVersion: '2020-01-25'
 ComponentName: boto3
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.9.128'
-Dependencies:
-  botocore:
-    VersionRequirements: '>=1.12.128 <1.13.0'
-  jmespath:
-    VersionRequirements: '>=0.7.1 <1.0.0'
-  s3transfer:
-    VersionRequirements: '>=0.2.0 <0.3.0'
+Manifests:
+  - Dependencies:
+      botocore:
+        VersionRequirement: '>=1.12.128 <1.13.0'
+      jmespath:
+        VersionRequirement: '>=0.7.1 <1.0.0'
+      s3transfer:
+        VersionRequirement: '>=0.2.0 <0.3.0'

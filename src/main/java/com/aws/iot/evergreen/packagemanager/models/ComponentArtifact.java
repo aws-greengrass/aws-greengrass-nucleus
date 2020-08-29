@@ -3,32 +3,23 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.Builder;
+import lombok.NonNull;
+import lombok.Value;
 
 import java.net.URI;
 
-@Getter
+@Value
+@Builder
 @AllArgsConstructor
-@NoArgsConstructor
 public class ComponentArtifact {
 
-    @JsonProperty("Uri")
-    private URI artifactUri;
+    @NonNull URI artifactUri;
 
-    @JsonProperty("Checksum")
-    private String checksum;
+    String checksum;
 
-    @JsonProperty("Algorithm")
-    private String algorithm;
+    String algorithm;
 
-    @JsonProperty("Unarchive")
-    private String unarchive;
-
-    @Override
-    public String toString() {
-        return artifactUri.toString();
-    }
+    String unarchive; //TODO make it enum
 }

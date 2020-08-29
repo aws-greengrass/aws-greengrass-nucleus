@@ -3,15 +3,24 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.builtin.services.lifecycle.DeferUpdateRequest;
+import com.aws.iot.evergreen.builtin.services.lifecycle.LifecycleIPCAgent;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PostComponentUpdateEvent;
+import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -33,19 +42,19 @@ import javax.inject.Singleton;
 public class UpdateSystemSafelyService extends EvergreenService {
     private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
+    private long defaultTimeOutInMs = TimeUnit.SECONDS.toMillis(60);
 
-    private final Kernel kernel;
+    @Inject
+    private LifecycleIPCAgent lifecycleIPCAgent;
 
     /**
      * Constructor for injection.
      *
      * @param c topics root
-     * @param k kernel
      */
     @Inject
-    public UpdateSystemSafelyService(Topics c, Kernel k) {
+    public UpdateSystemSafelyService(Topics c) {
         super(c);
-        this.kernel = k;
     }
 
     /**
@@ -78,9 +87,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
             }
         }
         pendingActions.clear();
-        for (EvergreenService s : kernel.orderedDependencies()) {
-            s.disruptionCompleted(); // Notify disruption is over
-        }
+        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         runningUpdateActions.set(false);
     }
 
@@ -123,23 +130,50 @@ public class UpdateSystemSafelyService extends EvergreenService {
                 }
             }
             logger.atInfo().setEventType("get-available-service-update").log();
-            // TODO: should really use an injected clock to support simulation-time
-            //      it's a big project and would affect many parts of the system.
-            final long now = System.currentTimeMillis();
-            long maxt = now;
-
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
-            for (EvergreenService s : kernel.orderedDependencies()) {
-                long ct = s.whenIsDisruptionOK();
-                if (ct > maxt) {
-                    maxt = ct;
+
+            //TODO: set isGgcRestarting to true if the updates involves kernel restart
+            PreComponentUpdateEvent preComponentUpdateEvent = PreComponentUpdateEvent.builder()
+                    .isGgcRestarting(false).build();
+            List<Future<DeferUpdateRequest>> deferRequestFutures = new ArrayList<>();
+            lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent, deferRequestFutures);
+
+            // TODO: should really use an injected clock to support simulation-time
+            //      it's a big project and would affect many parts of the system.
+            final long currentTimeMillis = System.currentTimeMillis();
+            long maxTimeToReCheck = currentTimeMillis;
+            while ((System.currentTimeMillis() - currentTimeMillis) < defaultTimeOutInMs
+                    && !deferRequestFutures.isEmpty()) {
+                Iterator<Future<DeferUpdateRequest>> iterator = deferRequestFutures.iterator();
+                while (iterator.hasNext()) {
+                    Future<DeferUpdateRequest> fut = iterator.next();
+                    if (fut.isDone()) {
+                        try {
+                            DeferUpdateRequest deferRequest = fut.get();
+                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
+                            if (timeToRecheck > maxTimeToReCheck) {
+                                maxTimeToReCheck = timeToRecheck;
+                                logger.atInfo().setEventType("service-update-deferred")
+                                        .log("deferred by {} for {} millis with message {}",
+                                                deferRequest.getMessage(), deferRequest.getRecheckTimeInMs(),
+                                                deferRequest.getMessage());
+                            }
+                        } catch (ExecutionException e) {
+                            logger.error("Failed to process component update request", e);
+                        }
+                        iterator.remove();
+                    }
                 }
+                Thread.sleep(TimeUnit.SECONDS.toMillis(1));
             }
-            if (maxt > now) {
-                logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", maxt - now).log();
-                Thread.sleep(maxt - now);
+
+            if (maxTimeToReCheck > currentTimeMillis) {
+                logger.atDebug().setEventType("service-update-pending")
+                        .addKeyValue("waitInMS", maxTimeToReCheck - currentTimeMillis).log();
+                Thread.sleep(maxTimeToReCheck - currentTimeMillis);
             } else {
+                lifecycleIPCAgent.discardDeferComponentUpdateFutures();
                 logger.atDebug().setEventType("service-update-scheduled").log();
                 try {
                     context.get(ExecutorService.class).submit(() -> {
@@ -154,4 +188,10 @@ public class UpdateSystemSafelyService extends EvergreenService {
             }
         }
     }
+
+    //only for testing
+    public void setDefaultTimeOutInMs(long defaultTimeOutInMs) {
+        this.defaultTimeOutInMs = defaultTimeOutInMs;
+    }
+
 }

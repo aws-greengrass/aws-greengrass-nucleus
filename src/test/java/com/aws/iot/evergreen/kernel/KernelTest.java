@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -64,7 +65,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(EGExtension.class)
+@ExtendWith({MockitoExtension.class, EGExtension.class})
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "services:\n"
@@ -176,8 +177,6 @@ class KernelTest {
     @Test
     void GIVEN_kernel_with_services_WHEN_writeConfig_THEN_service_config_written_to_file()
             throws Exception {
-        kernel.parseArgs();
-
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
@@ -188,6 +187,8 @@ class KernelTest {
         EvergreenService service1 = new EvergreenService(
                 kernel.getConfig().lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, "service1"));
         service1.postInject();
+
+        kernel.parseArgs();
 
         // Add dependency on service1 to main
         mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);

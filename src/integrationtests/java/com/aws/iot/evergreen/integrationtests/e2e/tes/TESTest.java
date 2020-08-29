@@ -95,8 +95,7 @@ class TESTest extends BaseITCase {
         kernel.launch();
         assertTrue(tesRunning.await(5, TimeUnit.SECONDS));
 
-        while (!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", roleAliasName)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
@@ -129,7 +128,7 @@ class TESTest extends BaseITCase {
         URL url = new URL(urlString);
         // Get the first token from the token map
         String token =
-                kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY)
+                kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)
                         .iterator().next().getName();
         assertNotNull(token);
         String response = getResponseString(url, token);
@@ -167,11 +166,10 @@ class TESTest extends BaseITCase {
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, newRoleAliasName, thingInfo.getCertificateArn());
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
                 .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(newRoleAliasName);
-        token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTH_TOKEN_LOOKUP_KEY)
+        token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)
                 .iterator().next().getName();
         assertNotNull(token);
-        while (!(new String(kernel.getContext().get(CredentialRequestHandler.class).getCredentialsBypassCache(),
-                StandardCharsets.UTF_8).toLowerCase().contains("accesskeyid"))) {
+        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             Thread.sleep(5_000);
         }
         String newResponse = getResponseString(url, token);
@@ -222,7 +220,6 @@ class TESTest extends BaseITCase {
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName, thingInfo.getCertificateArn());
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, roleAliasName);
-        deviceProvisioningHelper.setUpEmptyPackagesForFirstPartyServices();
     }
 
     private String getResponseString(URL url, String token) throws Exception {

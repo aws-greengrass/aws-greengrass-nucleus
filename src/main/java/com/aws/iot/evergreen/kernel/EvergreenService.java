@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
-public class EvergreenService implements InjectionActions, DisruptableCheck {
+public class EvergreenService implements InjectionActions {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String RUNTIME_STORE_NAMESPACE_TOPIC = "runtime";
     public static final String PRIVATE_STORE_NAMESPACE_TOPIC = "_private";
@@ -205,10 +205,12 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
     }
 
     /**
-     * Restart Service.
+     * Restart Service. Will not restart if the service has not been started once and there's no desired state.
+     *
+     * @return true if the request will happen, false otherwise.
      */
-    public final void requestRestart() {
-        lifecycle.requestRestart();
+    public final boolean requestRestart() {
+        return lifecycle.requestRestart();
     }
 
     /**
@@ -289,26 +291,6 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
         if (t != null) {
             t.shutdown();
         }
-    }
-
-    /**
-     * Called to check if the service can be disrupted to process a deployment. Default implementation returns 0,
-     * meaning that the service is safe to be disrupted.
-     *
-     * @return Estimated time when this handler will be willing to be disrupted, expressed as milliseconds since the
-     *         epoch. If the returned value is less than now (System.currentTimeMillis()) the handler is granting
-     *         permission to be disrupted.  Otherwise, it will be asked again sometime later.
-     */
-    @Override
-    public long whenIsDisruptionOK() {
-        return 0;
-    }
-
-    /**
-     * Called when the disruption to the service has concluded.
-     */
-    @Override
-    public void disruptionCompleted() {
     }
 
     /**
@@ -634,13 +616,16 @@ public class EvergreenService implements InjectionActions, DisruptableCheck {
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
 
-    // TODO: Rewrite this builtin service detection, reconsider if it is needed at all, reconsider how it is implemented
-    // If a service is a Builtin service, it is supposed to auto-start after kernel launches or deployment
     public boolean isBuiltin() {
         ImplementsService serviceAnnotation = getClass().getAnnotation(ImplementsService.class);
-        return serviceAnnotation != null && serviceAnnotation.autostart();
+        return serviceAnnotation != null;
     }
 
+    /**
+     * Determines if the service should automatically start after a deployment.
+     *
+     * @return true if the service should be started after deployment
+     */
     public boolean shouldAutoStart() {
         return true;
     }

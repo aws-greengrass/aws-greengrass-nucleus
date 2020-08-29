@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.packagemanager.converter.RecipeLoader;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
@@ -18,7 +19,6 @@ import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.util.SerializerFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +28,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
@@ -58,9 +57,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 
@@ -193,29 +194,36 @@ class PackageManagerTest {
 
     @Test
     void GIVEN_package_identifier_WHEN_request_to_prepare_package_THEN_task_succeed() throws Exception {
-        PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
+        PackageIdentifier pkgId = new PackageIdentifier("MonitoringService", new Semver("1.0.0"), SCOPE);
         when(packageStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
-        PackageRecipe pkg = SerializerFactory.getRecipeSerializer()
-                .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        PackageRecipe packageRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
 
-        when(packageServiceHelper.downloadPackageRecipe(any())).thenReturn(pkg);
+
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
+        when(packageStore.getPackageRecipe(pkgId)).thenReturn(packageRecipe);
         Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
         future.get(5, TimeUnit.SECONDS);
 
         assertThat(future.isDone(), is(true));
 
-        verify(packageServiceHelper).downloadPackageRecipe(pkgId);
+        verify(packageServiceHelper).downloadPackageRecipeAsString(pkgId);
+        verify(packageStore).findPackageRecipe(pkgId);
+        verify(packageStore).savePackageRecipe(pkgId, sourceRecipeString);
+        verify(packageStore).getPackageRecipe(pkgId);
+        verifyNoMoreInteractions(packageStore);
+
     }
 
     @Test
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context)
             throws Exception {
         PackageIdentifier pkgId = new PackageIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
-        when(packageServiceHelper.downloadPackageRecipe(any())).thenThrow(PackageDownloadException.class);
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenThrow(PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
         Future<Void> future = packageManager.preparePackages(Collections.singletonList(pkgId));
@@ -229,11 +237,10 @@ class PackageManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        PackageRecipe pkg1 = SerializerFactory.getRecipeSerializer()
-                .readValue(new String(Files.readAllBytes(sourceRecipe)), PackageRecipe.class);
+        PackageRecipe pkg1 = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
 
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
-        when(packageServiceHelper.downloadPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
+        when(packageServiceHelper.downloadPackageRecipeAsString(pkgId1)).thenAnswer(invocationOnMock -> {
             startedPreparingPkgId1.countDown();
             Thread.sleep(2_000);
             return pkg1;
@@ -243,8 +250,8 @@ class PackageManagerTest {
         assertTrue(startedPreparingPkgId1.await(1, TimeUnit.SECONDS));
         future.cancel(true);
 
-        verify(packageServiceHelper).downloadPackageRecipe(pkgId1);
-        verify(packageServiceHelper, times(0)).downloadPackageRecipe(pkgId2);
+        verify(packageServiceHelper).downloadPackageRecipeAsString(pkgId1);
+        verify(packageServiceHelper, times(0)).downloadPackageRecipeAsString(pkgId2);
     }
 
     @Test
@@ -252,9 +259,10 @@ class PackageManagerTest {
             throws Exception {
 
         // GIVEN
-        Topics serviceConfigTopics = Mockito.mock(Topics.class);
-        Topic versionTopic = Mockito.mock(Topic.class);
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
+        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
@@ -281,8 +289,8 @@ class PackageManagerTest {
                 new ArrayList<>(Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0, packageMetadata_2_0_0)));
 
 
-        when(packageStore.getPackageMetadata(new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, ACTIVE_VERSION)))
-                .thenReturn(packageMetadata_2_0_0);
+        when(packageStore.getPackageMetadata(
+                new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, ACTIVE_VERSION))).thenReturn(packageMetadata_2_0_0);
 
         // WHEN
         Iterator<PackageMetadata> iterator =
@@ -312,6 +320,7 @@ class PackageManagerTest {
             throws Exception {
 
         // GIVEN
+        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenThrow(new ServiceLoadException("no service"));
 
         // local versions available: 1.0.0, 1.1.0.
@@ -325,8 +334,8 @@ class PackageManagerTest {
                 new PackageMetadata(new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
                         getExpectedDependencies(new Semver("1.1.0")));
 
-        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement))
-                .thenReturn(Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
+        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement)).thenReturn(
+                Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
 
         // WHEN
         Iterator<PackageMetadata> iterator =
@@ -352,10 +361,11 @@ class PackageManagerTest {
             throws Exception {
 
         // GIVEN
-        Topics serviceConfigTopics = Mockito.mock(Topics.class);
-        Topic versionTopic = Mockito.mock(Topic.class);
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
 
+        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
@@ -372,8 +382,8 @@ class PackageManagerTest {
                 new PackageMetadata(new PackageIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
                         getExpectedDependencies(new Semver("1.1.0")));
 
-        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement))
-                .thenReturn(Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
+        when(packageStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement)).thenReturn(
+                Arrays.asList(packageMetadata_1_0_0, packageMetadata_1_1_0));
 
 
         // WHEN
@@ -396,8 +406,8 @@ class PackageManagerTest {
 
     @Test
     void GIVEN_service_has_version_WHEN_getPackageVersionFromService_THEN_returnIt() {
-        Topics serviceConfigTopics = Mockito.mock(Topics.class);
-        Topic versionTopic = Mockito.mock(Topic.class);
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);

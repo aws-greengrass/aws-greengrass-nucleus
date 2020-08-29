@@ -104,7 +104,6 @@ jobs:
         if: matrix.os == 'Linux'
   e2e-test:
     runs-on: [self-hosted, Linux, greengrass]
-    needs: build
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -143,4 +142,6 @@ jobs:
         run: mvn -ntp -U --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
       - run: sudo apt-get install -y awscli
       - name: Upload to S3
-        run: aws s3 cp target/Evergreen.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
+        run: |
+          aws s3 cp target/Evergreen.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
+          aws s3 cp target/GreengrassCore-2.0.0.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip
