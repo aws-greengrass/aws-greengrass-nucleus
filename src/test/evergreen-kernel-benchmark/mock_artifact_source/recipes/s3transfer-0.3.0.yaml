@@ -4,7 +4,8 @@ ComponentName: s3transfer
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '0.3.0'
-Dependencies:
-  botocore:
-    VersionRequirement: '<2.0.0 >=1.12.36'
+Manifests:
+  - Dependencies:
+      botocore:
+        VersionRequirement: '<2.0.0 >=1.12.36'
 

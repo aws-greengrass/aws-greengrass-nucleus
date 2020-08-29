@@ -4,3 +4,5 @@ ComponentName: PyYAML
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '3.10.0'
+manifests:
+  - lifecycle: {}

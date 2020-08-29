@@ -4,17 +4,18 @@
 package com.aws.iot.evergreen.packagemanager;
 
 import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CrashableFunction;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.Utils;
@@ -342,29 +343,27 @@ public class KernelConfigResolver {
      * Get parameter values for a package stored in config that were set by customer in previous deployment.
      */
     private Set<PackageParameter> getParametersStoredInConfig(PackageRecipe packageRecipe) {
-        try {
-            EvergreenService service = kernel.locate(packageRecipe.getComponentName());
-            Set<PackageParameter> parametersStoredInConfig = new HashSet<>();
+        Set<PackageParameter> parametersStoredInConfig = new HashSet<>();
 
-            // Get only those parameters which are still valid for the current version of the package
-            packageRecipe.getPackageParameters().forEach(parameterFromRecipe -> {
-                Optional<String> parameterValueStoredInConfig =
-                        getParameterValueFromServiceConfig(service, parameterFromRecipe.getName());
-                parameterValueStoredInConfig.ifPresent(s -> parametersStoredInConfig
-                        .add(new PackageParameter(parameterFromRecipe.getName(), s, parameterFromRecipe.getType())));
-            });
-            return parametersStoredInConfig;
-        } catch (ServiceLoadException e) {
-            // Service does not exist in config i.e. is new
-            return Collections.emptySet();
-        }
+        // Get only those parameters which are still valid for the current version of the package
+        packageRecipe.getPackageParameters().forEach(parameterFromRecipe -> {
+            Optional<String> parameterValueStoredInConfig =
+                    getParameterValueFromServiceConfig(packageRecipe.getComponentName(), parameterFromRecipe.getName());
+            parameterValueStoredInConfig.ifPresent(s -> parametersStoredInConfig
+                    .add(new PackageParameter(parameterFromRecipe.getName(), s, parameterFromRecipe.getType())));
+        });
+        return parametersStoredInConfig;
     }
 
     /*
      * Lookup parameter value from service config by parameter name
      */
-    private Optional<String> getParameterValueFromServiceConfig(EvergreenService service, String parameterName) {
-        Topic parameterConfig = service.getServiceConfig().find(PARAMETERS_CONFIG_KEY, parameterName);
-        return parameterConfig == null ? Optional.empty() : Optional.of(parameterConfig.getOnce().toString());
+    private Optional<String> getParameterValueFromServiceConfig(String service, String parameterName) {
+        Topics serviceTopics = kernel.findServiceTopic(service);
+        if (serviceTopics == null) {
+            return Optional.empty();
+        }
+        Topic parameterConfig = serviceTopics.find(PARAMETERS_CONFIG_KEY, parameterName);
+        return parameterConfig == null ? Optional.empty() : Optional.of(Coerce.toString(parameterConfig));
     }
 }

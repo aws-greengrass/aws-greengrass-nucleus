@@ -4,3 +4,5 @@ ComponentName: docutils
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '0.14.0'
+manifests:
+  - lifecycle: {}
