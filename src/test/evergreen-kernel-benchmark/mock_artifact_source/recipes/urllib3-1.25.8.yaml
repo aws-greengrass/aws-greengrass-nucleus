@@ -4,3 +4,5 @@ ComponentName: urllib3
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '1.25.8'
+manifests:
+  - lifecycle: {}
