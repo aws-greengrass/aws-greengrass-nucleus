@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
@@ -127,7 +126,6 @@ class KernelConfigResolverTest {
         when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
-        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(
                 Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
@@ -181,7 +179,6 @@ class KernelConfigResolverTest {
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
-        when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(
                 Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
@@ -230,7 +227,6 @@ class KernelConfigResolverTest {
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
-        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
@@ -308,7 +304,6 @@ class KernelConfigResolverTest {
         when(packageStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
-        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
@@ -359,12 +354,11 @@ class KernelConfigResolverTest {
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
-        when(kernel.locate(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningService);
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(
                 Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
-        when(alreadyRunningService.getServiceConfig()).thenReturn(alreadyRunningServiceConfig);
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY,
                 "PackageA_Param_1")).thenReturn(alreadyRunningServiceParameterConfig);
         when(alreadyRunningServiceParameterConfig.getOnce()).thenReturn("PackageA_Param_1_value");
@@ -423,7 +417,6 @@ class KernelConfigResolverTest {
         when(packageStore.resolveArtifactDirectoryPath(rootPackageIdentifier)).thenReturn(
                 Paths.get("/packages/artifacts"));
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.locate(any())).thenThrow(new ServiceLoadException("Service not found"));
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
