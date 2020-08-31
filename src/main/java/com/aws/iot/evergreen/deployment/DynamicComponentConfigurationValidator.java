@@ -138,7 +138,8 @@ public class DynamicComponentConfigurationValidator {
 
     private boolean willNodeChange(Object proposedConfig, Node currentConfig, long proposedTimestamp) {
         return Objects.isNull(currentConfig) ? Objects.isNull(proposedConfig)
-                : proposedTimestamp > currentConfig.getModtime() && !Objects.deepEquals(proposedConfig, currentConfig);
+                : proposedTimestamp > currentConfig.getModtime() && !Objects.deepEquals(proposedConfig,
+                        currentConfig.toPOJO());
     }
 
     private boolean validateOverIpc(Set<ComponentToValidate> componentsToValidate,

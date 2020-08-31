@@ -19,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,10 +29,10 @@ import java.util.concurrent.CompletableFuture;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -86,8 +87,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertTrue(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
-        verify(configStoreIPCAgent.validateConfiguration(any(), any(), any()));
+        assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
     }
 
     @Test
@@ -108,8 +108,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertFalse(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
-        verify(configStoreIPCAgent.validateConfiguration(any(), any(), any()));
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
     }
 
     @Test
@@ -124,7 +123,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, "2.0.0");
             }});
         }};
-        assertTrue(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
+        assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
     }
 
@@ -140,7 +139,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertTrue(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
+        assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
     }
 
@@ -155,13 +154,13 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertFalse(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
-        verify(configStoreIPCAgent.validateConfiguration(any(), any(), any()));
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
     }
 
     @Test
-    public void GIVEN_validation_requested_WHEN_error_while_waiting_for_validation_report_THEN_fail_deployment()
-            throws Exception {
+    public void GIVEN_validation_requested_WHEN_error_while_waiting_for_validation_report_THEN_fail_deployment(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseWithMessage(context, "Some unexpected error");
         lenient().when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture.completeExceptionally(new InterruptedException("Some unexpected error"));
@@ -176,8 +175,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertFalse(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
-        verify(configStoreIPCAgent.validateConfiguration(any(), any(), any()));
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
     }
 
     @Test
@@ -194,7 +192,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertFalse(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
     }
 
     @Test
@@ -222,7 +220,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 }});
             }});
         }};
-        assertTrue(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
+        assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
     }
 
@@ -243,7 +241,7 @@ public class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertTrue(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
+        assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
     }
 
@@ -253,15 +251,15 @@ public class DynamicComponentConfigurationValidatorTest {
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", "Faulty Proposed Service Config");
         }};
-        assertFalse(validator.validate(servicesConfig, createMockDeployment(), deploymentResultFuture));
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
     }
 
-    private Deployment createMockDeployment() {
+    private Deployment createTestDeployment() {
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("test_deployment_id");
         doc.setTimestamp(DEFAULT_DEPLOYMENT_TIMESTAMP);
-        Deployment deployment = mock(Deployment.class);
-        doReturn(doc).when(deployment).getDeploymentDocumentObj();
+        Deployment deployment = new Deployment();
+        deployment.setDeploymentDocumentObj(doc);
         return deployment;
     }
 
@@ -274,7 +272,7 @@ public class DynamicComponentConfigurationValidatorTest {
         lenient().when(componentConfig.getModtime()).thenReturn(DEFAULT_EXISTING_NODE_MOD_TIME);
         Topics serviceConfig = mock(Topics.class);
         lenient().when(serviceConfig.findNode(VERSION_CONFIG_KEY)).thenReturn(versionConfig);
-        lenient().when(serviceConfig.findNode(PARAMETERS_CONFIG_KEY)).thenReturn(componentConfig);
+        lenient().when(serviceConfig.findTopics(PARAMETERS_CONFIG_KEY)).thenReturn(componentConfig);
         GenericExternalService service = mock(GenericExternalService.class);
         lenient().when(service.getName()).thenReturn(name);
         lenient().when(service.getServiceConfig()).thenReturn(serviceConfig);
