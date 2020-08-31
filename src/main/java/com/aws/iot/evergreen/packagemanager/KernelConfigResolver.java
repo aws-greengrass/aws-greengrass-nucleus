@@ -298,10 +298,10 @@ public class KernelConfigResolver {
                                                                                             String packageVersion) {
         return document.getDeploymentPackageConfigurationList().stream()
                        .filter(packageConfig ->
-                               packageName.equals(packageConfig.getPackageName()) &&
-                               // TODO packageConfig.getResolvedVersion() should be strongly typed when it's created
-                               Requirement.buildNPM(packageConfig.getResolvedVersion())
-                                          .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM)))
+                               packageName.equals(packageConfig.getPackageName())
+                                       // TODO packageConfig.getResolvedVersion() should be strongly typed when created
+                                       && Requirement.buildNPM(packageConfig.getResolvedVersion())
+                                                     .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM)))
                        .findAny();
     }
 
