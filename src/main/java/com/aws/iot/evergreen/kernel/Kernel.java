@@ -78,7 +78,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.KernelCommandLine.MAIN_SERVICE_NAME;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.createSampleConfiguration;
+import static com.aws.iot.evergreen.telemetry.MetricsAgent.telemetryDataConfigMap;
 
 /**
  * Evergreen-kernel.
@@ -95,7 +95,7 @@ public class Kernel {
 
     // Kernel metrics
     private static final long KERNEL_COMPONENTS_STATE_PERIOD =
-            createSampleConfiguration().get(TelemetryNamespace.KernelComponents.toString()).getEmitFrequency();
+            telemetryDataConfigMap.get(TelemetryNamespace.KernelComponents.toString()).getEmitFrequency();
     private static final String KERNEL_COMPONENT_METRIC_STORE = TelemetryNamespace.KernelComponents.toString();
     private static Map<TelemetryMetricName, MetricDataBuilder> kernelMetrics = new HashMap<>();
     private static Map<TelemetryMetricName, Integer> kernelMetricsData = new HashMap<>();
@@ -588,7 +588,7 @@ public class Kernel {
         }
 
         ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
-        executor.scheduleAtFixedRate(emitMetrics(), 0, KERNEL_COMPONENTS_STATE_PERIOD, TimeUnit.SECONDS);
+        executor.scheduleAtFixedRate(emitMetrics(), 0, KERNEL_COMPONENTS_STATE_PERIOD, TimeUnit.MILLISECONDS);
     }
 
     private Runnable emitMetrics() {

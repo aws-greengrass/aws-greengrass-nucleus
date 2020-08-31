@@ -18,16 +18,19 @@ public class TelemetryDataConfig {
       "KernelComponents": {
         "emitFrequency": 10,
         "aggregateFrequency": 30,
+        "uploadFrequency": 30,
         "aggregationType" : "Average"
       },
       "SystemMetrics": {
         "emitFrequency": 10,
         "aggregateFrequency": 30,
+        "uploadFrequency": 30,
         "aggregationType" : "Average"
       },
       "Mqtt": {
         "emitFrequency": 10,
         "aggregateFrequency": 30,
+        "uploadFrequency": 30,
         "aggregationType" : "Average"
       }
     }
@@ -36,6 +39,7 @@ public class TelemetryDataConfig {
     private String metricNamespace;
     private long emitFrequency;
     private long aggregateFrequency;
+    private long uploadFrequency;
     private String aggregationType;
     // Do we also want the upload frequency for each metric to be configurable?
 }
