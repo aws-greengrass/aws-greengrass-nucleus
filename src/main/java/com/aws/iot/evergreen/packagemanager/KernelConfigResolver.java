@@ -19,6 +19,8 @@ import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CrashableFunction;
 import com.aws.iot.evergreen.util.Pair;
 import com.aws.iot.evergreen.util.Utils;
+import com.vdurmont.semver4j.Requirement;
+import com.vdurmont.semver4j.Semver;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -295,8 +297,12 @@ public class KernelConfigResolver {
                                                                                             String packageName,
                                                                                             String packageVersion) {
         return document.getDeploymentPackageConfigurationList().stream()
-                .filter(packageConfig -> packageName.equals(packageConfig.getPackageName()) && packageVersion
-                        .equals(packageConfig.getResolvedVersion())).findAny();
+                       .filter(packageConfig ->
+                               packageName.equals(packageConfig.getPackageName()) &&
+                               // TODO packageConfig.getResolvedVersion() should be strongly typed when it's created
+                               Requirement.buildNPM(packageConfig.getResolvedVersion())
+                                          .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM)))
+                       .findAny();
     }
 
     private Set<PackageParameter> resolveParameterValuesToUseWithCache(

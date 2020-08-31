@@ -213,7 +213,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", new HashMap<String, Object>() {{
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, ">=1.2", new HashMap<String, Object>() {{
                     put("PackageA_Param_1", "PackageA_Param_1_value");
                 }});
         DeploymentDocument document = DeploymentDocument.builder()
