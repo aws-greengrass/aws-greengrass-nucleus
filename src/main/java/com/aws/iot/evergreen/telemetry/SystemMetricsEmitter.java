@@ -15,13 +15,13 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.telemetryDataConfigMap;
+import static com.aws.iot.evergreen.telemetry.MetricsAgent.createSampleConfiguration;
 
 public class SystemMetricsEmitter {
     private static final int MB_CONVERTER = 1024 * 1024;
     private static final int PERCENTAGE_CONVERTER = 100;
-    private static long SYSTEM_METRICS_PERIOD =
-            telemetryDataConfigMap.get(TelemetryNamespace.SystemMetrics.toString()).getEmitFrequency();
+    private static long SYSTEM_METRICS_PERIOD = createSampleConfiguration()
+            .get(TelemetryNamespace.SystemMetrics.toString()).getEmitFrequency();
     private static String SYSTEM_METRICS_STORE = TelemetryNamespace.SystemMetrics.toString();
     private static CentralProcessor cpu = new SystemInfo().getHardware().getProcessor();
     private static SystemInfo systemInfo = new SystemInfo();

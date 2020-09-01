@@ -26,10 +26,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.telemetryDataConfigMap;
+import static com.aws.iot.evergreen.telemetry.MetricsAgent.createSampleConfiguration;
 
 public class MetricsAggregator {
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
+    public static final String LOG_FILES_PATH = System.getProperty("user.dir") + "/Telemetry/";
 
     /**
      * Aggregate metrics based on the telemetry config.
@@ -37,7 +38,7 @@ public class MetricsAggregator {
      */
     public void aggregateMetrics(Context context) {
         // TODO read from a telemetry config file.
-        for (Map.Entry<String, TelemetryDataConfig> config: telemetryDataConfigMap.entrySet()) {
+        for (Map.Entry<String, TelemetryDataConfig> config: createSampleConfiguration().entrySet()) {
             TelemetryDataConfig metricConfig = config.getValue();
             ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
             executor.scheduleAtFixedRate(readLogsAndAggregate(metricConfig), 0, metricConfig.getAggregateFrequency(),
@@ -50,10 +51,9 @@ public class MetricsAggregator {
             long currentTimestamp = Instant.now().toEpochMilli();
             AggregatedMetric aggMetrics = new AggregatedMetric();
             HashMap<TelemetryMetricName, List<MetricDataPoint>> metrics = new HashMap<>();
-
             try {
                 Stream<Path> paths = Files
-                        .walk(Paths.get(System.getProperty("user.dir") + "/Telemetry/"))
+                        .walk(Paths.get(LOG_FILES_PATH))
                         .filter(Files::isRegularFile);
                 paths.forEach((path) -> {
                     /*
@@ -67,9 +67,7 @@ public class MetricsAggregator {
                     if (fileName == null) {
                         fileName = "";
                     }
-                    if (path != null
-                            && path.getFileName() != null
-                            && path.getFileName().toString().matches(config.getMetricNamespace() + "(.*)")
+                    if (fileName.toString().matches(config.getMetricNamespace() + "(.*)")
                             && currentTimestamp - new File(path.toString()).lastModified()
                             <= config.getAggregateFrequency()) {
                         try {
@@ -91,7 +89,7 @@ public class MetricsAggregator {
                                 }
                             }
                         } catch (IOException e) {
-                            logger.atError().log(e);
+                            logger.atError().log("Failed to read the telemetry logs for aggregation." + e);
                         }
                     }
 
@@ -104,7 +102,7 @@ public class MetricsAggregator {
                  */
                 logger.atInfo().log(new ObjectMapper().writeValueAsString(aggMetrics));
             } catch (IOException e) {
-                logger.atError().log(e);
+                logger.atError().log("Failed to aggregate metrics." + e);
             }
         };
     }
@@ -116,30 +114,39 @@ public class MetricsAggregator {
             TelemetryMetricName metricName = metric.getKey();
             List<MetricDataPoint> mdp = metric.getValue();
             Object aggregation = null;
-            if (telemetryAggregation.equals(TelemetryAggregation.Average)) {
-                aggregation = mdp
-                        .stream()
-                        .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
-                        .sum();
-                if (!mdp.isEmpty()) {
-                    aggregation = (double) aggregation / mdp.size();
-                }
-            } else if (telemetryAggregation.equals(TelemetryAggregation.Sum)) {
-                aggregation = mdp
-                        .stream()
-                        .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
-                        .sum();
-            } else if (telemetryAggregation.equals(TelemetryAggregation.Maximum)) {
-                aggregation = mdp
-                        .stream()
-                        .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
-                        .max();
-            } else if (telemetryAggregation.equals(TelemetryAggregation.Minimum)) {
-                aggregation = mdp
-                        .stream()
-                        .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
-                        .min();
+            switch (telemetryAggregation) {
+                case Average:
+                    aggregation = mdp
+                            .stream()
+                            .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
+                            .sum();
+                    if (!mdp.isEmpty()) {
+                        aggregation = (double) aggregation / mdp.size();
+                    }
+                    break;
+                case Sum:
+                    aggregation = mdp
+                            .stream()
+                            .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
+                            .sum();
+                    break;
+                case Maximum:
+                    aggregation = mdp
+                            .stream()
+                            .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
+                            .max();
+                    break;
+                case Minimum:
+                    aggregation = mdp
+                            .stream()
+                            .mapToDouble(a -> Double.parseDouble(a.getValue().toString()))
+                            .min();
+                    break;
+                default:
+                    logger.atError().log("Unknown aggregation type: " + telemetryAggregation);
+                    break;
             }
+
             AggregatedMetric.Metric m = AggregatedMetric.Metric.builder()
                     .metricName(metricName)
                     .metricUnit(mdp.get(0).getMetric().getMetricUnit())

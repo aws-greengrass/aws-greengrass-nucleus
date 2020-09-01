@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.telemetryDataConfigMap;
 
 public class MetricsUploader {
     public static final Logger logger = LogManager.getLogger(MetricsUploader.class);
@@ -20,7 +19,7 @@ public class MetricsUploader {
      */
     public void uploadMetrics(Context context) {
         // TODO read from a telemetry config file.
-        for (Map.Entry<String, TelemetryDataConfig> config : telemetryDataConfigMap.entrySet()) {
+        for (Map.Entry<String, TelemetryDataConfig> config : MetricsAgent.createSampleConfiguration().entrySet()) {
             TelemetryDataConfig metricConfig = config.getValue();
             ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
             executor.scheduleAtFixedRate(readLogsAndUpload(metricConfig),0, metricConfig.getUploadFrequency(),

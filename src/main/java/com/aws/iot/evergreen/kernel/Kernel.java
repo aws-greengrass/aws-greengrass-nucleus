@@ -26,12 +26,6 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.telemetry.api.MetricDataBuilder;
-import com.aws.iot.evergreen.telemetry.impl.Metric;
-import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
-import com.aws.iot.evergreen.telemetry.models.TelemetryMetricName;
-import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
-import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.DependencyOrder;
@@ -54,7 +48,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -64,7 +57,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
@@ -78,7 +70,6 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.KernelCommandLine.MAIN_SERVICE_NAME;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.telemetryDataConfigMap;
 
 /**
  * Evergreen-kernel.
@@ -92,14 +83,7 @@ public class Kernel {
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
-
-    // Kernel metrics
-    private static final long KERNEL_COMPONENTS_STATE_PERIOD =
-            telemetryDataConfigMap.get(TelemetryNamespace.KernelComponents.toString()).getEmitFrequency();
-    private static final String KERNEL_COMPONENT_METRIC_STORE = TelemetryNamespace.KernelComponents.toString();
-    private static Map<TelemetryMetricName, MetricDataBuilder> kernelMetrics = new HashMap<>();
-    private static Map<TelemetryMetricName, Integer> kernelMetricsData = new HashMap<>();
-
+    private static final KernelMetricsEmitter kernelMetricsEmitter = new KernelMetricsEmitter();
     @Getter
     private final Context context;
     @Getter
@@ -189,7 +173,7 @@ public class Kernel {
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-        collectKernelComponentState();
+        kernelMetricsEmitter.collectKernelComponentState(getContext(),this);
         switch (stage) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
@@ -566,46 +550,5 @@ public class Kernel {
      */
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
-    }
-
-    /**
-     * Collect kernel metrics - Number of components running in each state.
-     */
-    private void collectKernelComponentState() {
-        List<TelemetryMetricName> telemetryMetricNames =
-                TelemetryMetricName.getMetricNamesOf(TelemetryNamespace.KernelComponents);
-        for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
-            Metric metric = Metric.builder()
-                    .metricNamespace(TelemetryNamespace.KernelComponents)
-                    .metricName(telemetryMetricName)
-                    .metricUnit(TelemetryUnit.Count)
-                    .build();
-            MetricDataBuilder metricDataBuilder = new MetricFactory(KERNEL_COMPONENT_METRIC_STORE).addMetric(metric);
-            kernelMetrics.put(telemetryMetricName, metricDataBuilder);
-        }
-        for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
-            kernelMetricsData.put(telemetryMetricName, 0);
-        }
-
-        ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
-        executor.scheduleAtFixedRate(emitMetrics(), 0, KERNEL_COMPONENTS_STATE_PERIOD, TimeUnit.MILLISECONDS);
-    }
-
-    private Runnable emitMetrics() {
-        return () -> {
-            Collection<EvergreenService> evergreenServices = orderedDependencies();
-            for (EvergreenService evergreenService : evergreenServices) {
-                String serviceState = evergreenService.getState().toString();
-                serviceState = serviceState.charAt(0) + serviceState.substring(1).toLowerCase();
-                TelemetryMetricName telemetryMetricName =
-                        TelemetryMetricName.valueOf("NumberOfComponents" + serviceState);
-                kernelMetricsData.put(telemetryMetricName, kernelMetricsData.get(telemetryMetricName) + 1);
-            }
-            for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> kernelMetric : kernelMetrics.entrySet()) {
-                MetricDataBuilder metricDataBuilder = kernelMetric.getValue();
-                metricDataBuilder.putMetricData(kernelMetricsData.get(kernelMetric.getKey())).emit();
-                kernelMetricsData.put(kernelMetric.getKey(),0);
-            }
-        };
     }
 }
