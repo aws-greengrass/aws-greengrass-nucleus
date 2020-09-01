@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
@@ -93,7 +92,7 @@ class KernelConfigResolverTest {
         lenient().when(packageStore.resolveArtifactDirectoryPath(any())).thenReturn(path.toAbsolutePath());
     }
 
-//    @Test
+    @Test
     void GIVEN_deployment_for_package_WHEN_config_resolution_requested_THEN_add_service_and_dependency_service()
             throws Exception {
         // GIVEN
@@ -111,9 +110,9 @@ class KernelConfigResolverTest {
                         TEST_INPUT_PACKAGE_B);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "2.3", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "=2.3", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -149,13 +148,12 @@ class KernelConfigResolverTest {
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
                 dependencyListContains("main", "IpcService" + ":" + DependencyType.HARD, servicesConfig));
-        System.out.println(servicesConfig);
         assertThat("New service must depend on dependency service",
                 dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
     }
 
-//    @Test
+    @Test
     void GIVEN_deployment_for_existing_package_WHEN_config_resolution_requested_THEN_update_service() throws Exception {
         // GIVEN
         PackageIdentifier rootPackageIdentifier =
@@ -167,7 +165,7 @@ class KernelConfigResolverTest {
                         TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -201,7 +199,7 @@ class KernelConfigResolverTest {
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
     }
 
-//    @Test
+    @Test
     void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_parameters_should_be_interpolated()
             throws Exception {
         // GIVEN
@@ -332,7 +330,7 @@ class KernelConfigResolverTest {
                 equalTo("Package PackageC with param {{PackageA:params:PackageA_Param_1.value}} {{PackageA:artifacts:path}}"));
     }
 
-//    @Test
+    @Test
     void GIVEN_deployment_with_params_not_set_WHEN_previous_deployment_had_params_THEN_use_params_from_previous_deployment()
             throws Exception {
         // GIVEN
@@ -344,7 +342,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -394,7 +392,7 @@ class KernelConfigResolverTest {
                 equalTo("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
     }
 
-//    @Test
+    @Test
     void GIVEN_deployment_with_artifact_WHEN_config_resolution_requested_THEN_artifact_path_should_be_interpolated()
             throws Exception {
         // GIVEN
@@ -408,7 +406,7 @@ class KernelConfigResolverTest {
         }}, Collections.emptyList(), Collections.emptyMap(), null);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -439,8 +437,7 @@ class KernelConfigResolverTest {
     // utilities for mocking input
     private PackageRecipe getPackage(String packageName, String packageVersion,
                                      Map<String, RecipeDependencyProperties> dependencies,
-                                     Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName)
-            throws PackageLoadingException {
+                                     Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName) {
 
         Set<PackageParameter> parameters = packageParamsWithDefaultsRaw.entrySet()
                                                                        .stream()
