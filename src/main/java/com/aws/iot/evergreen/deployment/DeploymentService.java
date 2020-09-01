@@ -188,16 +188,15 @@ public class DeploymentService extends EvergreenService {
                     // Assuming cancel will either cancel the current deployment or wait till it finishes
                     cancelCurrentDeployment();
                 }
-                if (currentDeploymentTaskMetadata != null && !deployment.getDeploymentType()
-                        .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                    // deployment from another source, wait till the current deployment finishes
-                    continue;
-                }
                 if (currentDeploymentTaskMetadata != null && deployment.getId()
                         .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
                         .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                    //Duplicate message and already processing this deployment so nothing is needed
+                    // Duplicate message and already processing this deployment so nothing is needed
                     deploymentsQueue.remove();
+                    continue;
+                }
+                if (currentDeploymentTaskMetadata != null) {
+                    // wait till the current deployment finishes
                     continue;
                 }
                 deploymentsQueue.remove();
@@ -407,15 +406,14 @@ public class DeploymentService extends EvergreenService {
                             OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
-                    config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS).lookupTopics(
+                    config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
                             localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
                                     : localOverrideRequest.getGroupName())
-                            .deepForEachTopic(t -> rootComponentsInRequestedGroup.add(t.getName()));
-
-                    //TODO: pulling the versions from kernel. Can pull it form the config itself.
+                            .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
+                    //TODO: pulling the versions from kernel. Can pull it from the config itself.
                     // Confirm if pulling from config should not break any use case for local
                     if (!CollectionUtils.isNullOrEmpty(rootComponentsInRequestedGroup)) {
-                        rootComponentsInRequestedGroup.stream().forEach(c -> {
+                        rootComponentsInRequestedGroup.forEach(c -> {
                             Topics serviceTopic = kernel.findServiceTopic(c);
                             if (serviceTopic != null) {
                                 String version = Coerce.toString(serviceTopic.find(VERSION_CONFIG_KEY));
