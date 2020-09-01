@@ -26,9 +26,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class DynamicComponentConfigurationValidatorTest {
@@ -72,7 +75,7 @@ public class DynamicComponentConfigurationValidatorTest {
 
     @Test
     public void GIVEN_deployment_changes_service_config_WHEN_service_validates_config_THEN_succeed() throws Exception {
-        lenient().when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
+        when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture
                     .complete(ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build());
@@ -88,12 +91,13 @@ public class DynamicComponentConfigurationValidatorTest {
             }});
         }};
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
     }
 
     @Test
     public void GIVEN_deployment_changes_service_config_WHEN_service_invalidates_config_THEN_fail_deployment()
             throws Exception {
-        lenient().when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
+        when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture.complete(
                     ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.INVALID).build());
@@ -109,6 +113,7 @@ public class DynamicComponentConfigurationValidatorTest {
             }});
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
     }
 
     @Test
@@ -144,7 +149,10 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_validation_requested_WHEN_validation_request_times_out_THEN_fail_deployment() throws Exception {
+    public void GIVEN_validation_requested_WHEN_validation_request_times_out_THEN_fail_deployment(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, TimeoutException.class);
+        when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenReturn(true);
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<Object, Object>() {{
@@ -155,13 +163,14 @@ public class DynamicComponentConfigurationValidatorTest {
             }});
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
     }
 
     @Test
     public void GIVEN_validation_requested_WHEN_error_while_waiting_for_validation_report_THEN_fail_deployment(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseWithMessage(context, "Some unexpected error");
-        lenient().when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
+        when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture.completeExceptionally(new InterruptedException("Some unexpected error"));
             return true;
@@ -176,12 +185,13 @@ public class DynamicComponentConfigurationValidatorTest {
             }});
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
     }
 
     @Test
     public void GIVEN_config_validation_needed_WHEN_error_requesting_validation_THEN_fail_deployment()
             throws Exception {
-        lenient().when(configStoreIPCAgent.validateConfiguration(any(), any(), any()))
+        when(configStoreIPCAgent.validateConfiguration(any(), any(), any()))
                 .thenThrow(ValidateEventRegistrationException.class);
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
@@ -193,12 +203,13 @@ public class DynamicComponentConfigurationValidatorTest {
             }});
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
     }
 
     @Test
     public void GIVEN_deployment_has_internal_service_WHEN_validating_config_THEN_no_validation_attempted_for_internal_service()
             throws Exception {
-        lenient().when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
+        when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture
                     .complete(ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build());
@@ -252,6 +263,7 @@ public class DynamicComponentConfigurationValidatorTest {
             put("OldService", "Faulty Proposed Service Config");
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
     }
 
     private Deployment createTestDeployment() {

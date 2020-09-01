@@ -27,7 +27,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,8 +46,9 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @NoArgsConstructor
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
-    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(60).toMillis();
-    private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
+    // TODO : Add configurable timeout and change this to a more appropriate(probably longer) default value
+    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(10).toMillis();
+    private static final Logger logger = LogManager.getLogger(DynamicComponentConfigurationValidator.class);
 
     @Inject
     private Kernel kernel;
@@ -124,10 +127,10 @@ public class DynamicComponentConfigurationValidator {
     private boolean willChildTopicsChange(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
                                           String key, long proposedTimestamp) throws InvalidConfigFormatException {
         Object proposed = proposedServiceConfig.get(key);
-        Topics current = currentServiceConfig.findTopics(key);
         if (!(proposed instanceof Map)) {
             throw new InvalidConfigFormatException("Config for " + key + " must be a map");
         }
+        Topics current = currentServiceConfig.findTopics(key);
         return willNodeChange(proposed, current, proposedTimestamp);
     }
 
@@ -171,7 +174,7 @@ public class DynamicComponentConfigurationValidator {
                             .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
-                        ConfigurationValidityReport report = componentToValidate.response.join();
+                        ConfigurationValidityReport report = componentToValidate.response.getNow(null);
                         if (ConfigurationValidityStatus.INVALID.equals(report.getStatus())) {
                             failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
                                     componentToValidate.componentName, report.getMessage());
@@ -181,7 +184,8 @@ public class DynamicComponentConfigurationValidator {
                             valid = false;
                         }
                     }
-                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                } catch (InterruptedException | ExecutionException | TimeoutException | CancellationException
+                        | CompletionException e) {
                     failureMsg =
                             "Error while waiting for validation report for one or more components:" + e.getMessage();
                     logger.atError().setCause(e).log(failureMsg);
@@ -196,7 +200,10 @@ public class DynamicComponentConfigurationValidator {
             return valid;
         } finally {
             componentsToValidate
-                    .forEach(c -> configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.response));
+                    .forEach(c -> {
+                        configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.response);
+                        c.response.cancel(true);
+                    });
         }
     }
 
