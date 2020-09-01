@@ -92,7 +92,7 @@ public class DynamicComponentConfigurationValidationTest {
         assertTrue(mainRestarted.get());
         assertTrue(serviceStarted.get());
 
-        // Subscribe to config validation on behalf of the running service
+        // Establish an IPC connection on behalf of the running service
         KernelIPCClientConfig config = getIPCConfigForService("OldService", kernel);
         client = new IPCClientImpl(config);
         configStore = new ConfigStoreImpl(client);
@@ -111,6 +111,7 @@ public class DynamicComponentConfigurationValidationTest {
     @Test
     void GIVEN_deployment_changes_component_config_WHEN_component_validates_config_THEN_deployment_is_successful()
             throws Throwable {
+        // Subscribe to config validation on behalf of the running service
         CountDownLatch eventReceivedByClient = new CountDownLatch(1);
         configStore.subscribeToValidateConfiguration((configMap) -> {
             assertThat(configMap, IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
@@ -144,12 +145,14 @@ public class DynamicComponentConfigurationValidationTest {
     @Test
     void GIVEN_deployment_changes_component_config_WHEN_component_invalidates_config_THEN_deployment_fails()
             throws Throwable {
+        // Subscribe to config validation on behalf of the running service
         CountDownLatch eventReceivedByClient = new CountDownLatch(1);
         configStore.subscribeToValidateConfiguration((configMap) -> {
             assertThat(configMap, IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
             eventReceivedByClient.countDown();
             try {
-                configStore.sendConfigurationValidityReport(ConfigurationValidityStatus.INVALID, null);
+                configStore.sendConfigurationValidityReport(ConfigurationValidityStatus.INVALID,
+                        "I don't like this " + "configuration");
             } catch (ConfigStoreIPCException e) {
             }
         });
@@ -172,8 +175,9 @@ public class DynamicComponentConfigurationValidationTest {
                 deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig).get(60, TimeUnit.SECONDS);
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
         assertTrue(result.getFailureCause() instanceof DynamicConfigurationValidationException);
-        assertTrue(result.getFailureCause().getMessage() != null && result.getFailureCause().getMessage()
-                .contains("Components reported that their to-be-deployed configuration is invalid"));
+        assertTrue(result.getFailureCause().getMessage() != null && result.getFailureCause().getMessage().contains(
+                "Components reported that their to-be-deployed configuration is invalid { name = "
+                        + "OldService, message = I don't like this configuration }"));
         assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
     }
 

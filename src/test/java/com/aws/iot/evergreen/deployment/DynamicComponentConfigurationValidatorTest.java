@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.builtin.services.configstore.exceptions.ValidateEve
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
+import com.aws.iot.evergreen.deployment.exceptions.DynamicConfigurationValidationException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
@@ -57,7 +58,6 @@ public class DynamicComponentConfigurationValidatorTest {
     @Mock
     private Context context;
 
-    @Mock
     private CompletableFuture<DeploymentResult> deploymentResultFuture;
 
     private DynamicComponentConfigurationValidator validator;
@@ -66,6 +66,7 @@ public class DynamicComponentConfigurationValidatorTest {
     public void beforeEach() throws Exception {
         lenient().when(kernel.getContext()).thenReturn(context);
         validator = new DynamicComponentConfigurationValidator(kernel, configStoreIPCAgent);
+        deploymentResultFuture = new CompletableFuture<>();
     }
 
     @AfterEach
@@ -92,6 +93,7 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
+        assertFalse(deploymentResultFuture.isDone());
     }
 
     @Test
@@ -100,7 +102,8 @@ public class DynamicComponentConfigurationValidatorTest {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture.complete(
-                    ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.INVALID).build());
+                    ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.INVALID)
+                            .message("Proposed configuration is invalid").build());
             return true;
         });
         createMockGenericExternalService("OldService");
@@ -114,6 +117,13 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
+        DeploymentResult deploymentResult = deploymentResultFuture.get();
+        assertTrue(deploymentResult.getDeploymentStatus()
+                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
+                .getMessage().contains(
+                        "Components reported that their to-be-deployed configuration is invalid { name = OldService, message = Proposed configuration is invalid }"));
     }
 
     @Test
@@ -130,6 +140,7 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
+        assertFalse(deploymentResultFuture.isDone());
     }
 
     @Test
@@ -146,6 +157,7 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
+        assertFalse(deploymentResultFuture.isDone());
     }
 
     @Test
@@ -164,6 +176,12 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
+        DeploymentResult deploymentResult = deploymentResultFuture.get();
+        assertTrue(deploymentResult.getDeploymentStatus()
+                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
+                .getMessage().contains("Error while waiting for validation report for one or more components"));
     }
 
     @Test
@@ -186,6 +204,12 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
+        DeploymentResult deploymentResult = deploymentResultFuture.get();
+        assertTrue(deploymentResult.getDeploymentStatus()
+                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
+                .getMessage().contains("Error while waiting for validation report for one or more components"));
     }
 
     @Test
@@ -204,6 +228,12 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
+        DeploymentResult deploymentResult = deploymentResultFuture.get();
+        assertTrue(deploymentResult.getDeploymentStatus()
+                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
+                .getMessage().contains("Error requesting validation from component OldService"));
     }
 
     @Test
@@ -233,6 +263,7 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
+        assertFalse(deploymentResultFuture.isDone());
     }
 
     @Test
@@ -254,6 +285,7 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
+        assertFalse(deploymentResultFuture.isDone());
     }
 
     @Test
@@ -264,6 +296,12 @@ public class DynamicComponentConfigurationValidatorTest {
         }};
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
+        DeploymentResult deploymentResult = deploymentResultFuture.get();
+        assertTrue(deploymentResult.getDeploymentStatus()
+                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
+                .getMessage().contains("Services config must be a map"));
     }
 
     private Deployment createTestDeployment() {

@@ -91,7 +91,9 @@ public class DynamicComponentConfigurationValidator {
             throws InvalidConfigFormatException {
         Set<ComponentToValidate> componentsToValidate = new HashSet<>();
 
-        for (String serviceName : servicesConfig.keySet()) {
+        for (Map.Entry<String, Object> serviceConfigEntry : servicesConfig.entrySet()) {
+            String serviceName = serviceConfigEntry.getKey();
+            Object serviceConfig = serviceConfigEntry.getValue();
             Topics currentServiceConfig;
             try {
                 EvergreenService service = kernel.locate(serviceName);
@@ -107,10 +109,10 @@ public class DynamicComponentConfigurationValidator {
                 // service not found, service is new
                 continue;
             }
-            if (!(servicesConfig.get(serviceName) instanceof Map)) {
+            if (!(serviceConfig instanceof Map)) {
                 throw new InvalidConfigFormatException("Services config must be a map");
             }
-            Map<String, Object> proposedServiceConfig = (Map) servicesConfig.get(serviceName);
+            Map<String, Object> proposedServiceConfig = (Map) serviceConfig;
 
             // TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be restarted
             //  since it's likely if services can't handle dynamic config they are not IPC aware at all
@@ -141,8 +143,8 @@ public class DynamicComponentConfigurationValidator {
 
     private boolean willNodeChange(Object proposedConfig, Node currentConfig, long proposedTimestamp) {
         return Objects.isNull(currentConfig) ? Objects.isNull(proposedConfig)
-                : proposedTimestamp > currentConfig.getModtime() && !Objects.deepEquals(proposedConfig,
-                        currentConfig.toPOJO());
+                : proposedTimestamp > currentConfig.getModtime() && !Objects
+                        .deepEquals(proposedConfig, currentConfig.toPOJO());
     }
 
     private boolean validateOverIpc(Set<ComponentToValidate> componentsToValidate,
@@ -161,7 +163,7 @@ public class DynamicComponentConfigurationValidator {
                     // Do nothing if service has not subscribed for validation
                 } catch (ValidateEventRegistrationException e) {
                     validationRequested = false;
-                    failureMsg = "Error requesting validation from component" + componentToValidate.componentName;
+                    failureMsg = "Error requesting validation from component " + componentToValidate.componentName;
                     valid = false;
                     break;
                 }
@@ -172,9 +174,15 @@ public class DynamicComponentConfigurationValidator {
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
                             .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
-                        ConfigurationValidityReport report = componentToValidate.response.getNow(null);
+
+                        // The aggregate future above has a timeout so at this point we will always have a report
+                        // already received from all components otherwise the aggregate future would have failed,
+                        // so we will no longer be blocked on any of the response futures
+                        ConfigurationValidityReport report = componentToValidate.response.join();
+
                         if (ConfigurationValidityStatus.INVALID.equals(report.getStatus())) {
                             failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
                                     componentToValidate.componentName, report.getMessage());
@@ -199,11 +207,10 @@ public class DynamicComponentConfigurationValidator {
             }
             return valid;
         } finally {
-            componentsToValidate
-                    .forEach(c -> {
-                        configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.response);
-                        c.response.cancel(true);
-                    });
+            componentsToValidate.forEach(c -> {
+                configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.response);
+                c.response.cancel(true);
+            });
         }
     }
 
