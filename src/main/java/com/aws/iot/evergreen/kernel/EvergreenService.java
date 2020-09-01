@@ -104,7 +104,6 @@ public class EvergreenService implements InjectionActions {
 
         this.externalDependenciesTopic =
                 topics.createLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).dflt(new ArrayList<String>());
-        this.externalDependenciesTopic.withParentNeedsToKnow(false);
         this.lifecycle = new Lifecycle(this, logger, privateConfig);
 
         initDependenciesTopic();
