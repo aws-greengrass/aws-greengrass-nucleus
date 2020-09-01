@@ -47,11 +47,11 @@ public class GreengrassPackageServiceHelper {
 
     List<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
             throws PackageDownloadException {
-        FindComponentVersionsByPlatformRequest findComponentRequest =
-                new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
-                                                            .withVersionConstraint(versionRequirement.toString())
-                                                            .withOs(PlatformResolver.CURRENT_PLATFORM.getOs()
-                                                                                                     .getName());
+        FindComponentVersionsByPlatformRequest findComponentRequest = new FindComponentVersionsByPlatformRequest()
+                .withComponentName(packageName)
+                .withVersionConstraint(versionRequirement.toString())
+                .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
+                .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
         List<PackageMetadata> ret = new ArrayList<>();
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
