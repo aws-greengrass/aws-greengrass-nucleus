@@ -364,6 +364,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
         assertThat(kernel.orderedDependencies().stream().map(EvergreenService::getName).collect(Collectors.toList()),
                 containsInRelativeOrder("new_service2", "new_service", "main"));
+        // Wait for main to finish before continuing, otherwise the state change listner may cause a failure
+        assertThat(main::getState, eventuallyEval(is(State.FINISHED)));
 
         // WHEN
         AtomicBoolean stateChanged = new AtomicBoolean(false);
