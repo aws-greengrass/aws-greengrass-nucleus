@@ -32,7 +32,7 @@ import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class KernelAlternatives {
-    private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
+    private static final Logger logger = LogManager.getLogger(KernelAlternatives.class);
 
     private static final String CURRENT_DIR = "current";
     private static final String OLD_DIR = "old";

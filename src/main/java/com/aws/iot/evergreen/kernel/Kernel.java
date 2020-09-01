@@ -529,7 +529,6 @@ public class Kernel {
      */
     public Kernel parseArgs(String... args) {
         kernelCommandLine.parseArgs(args);
-
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
         return this;
