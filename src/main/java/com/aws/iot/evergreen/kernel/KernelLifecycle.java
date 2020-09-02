@@ -160,7 +160,8 @@ public class KernelLifecycle {
      * Make all services startup in order.
      */
     public void startupAllServices() {
-        kernel.orderedDependencies().forEach(EvergreenService::requestStart);
+        kernel.orderedDependencies().stream().filter(EvergreenService::shouldAutoStart)
+                .forEach(EvergreenService::requestStart);
     }
 
     /**

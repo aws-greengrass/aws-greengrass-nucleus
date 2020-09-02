@@ -238,7 +238,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     protected int executeOneBootstrapTask(BootstrapTaskStatus next) throws ServiceUpdateException {
         Objects.requireNonNull(next);
         try {
-            return kernel.locate(next.getComponentName()).bootstrap();
+            int exitCode = kernel.locate(next.getComponentName()).bootstrap();
+            next.setStatus(DONE);
+            return exitCode;
         } catch (InterruptedException | TimeoutException | ServiceLoadException e) {
             throw new ServiceUpdateException(e);
         }

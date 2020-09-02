@@ -131,7 +131,8 @@ public class DeploymentConfigMerger {
                     allServicesRunning = false;
                     continue;
                 }
-                if (State.RUNNING.equals(state) || State.FINISHED.equals(state)) {
+                if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
+                        && service.reachedDesiredState()) {
                     continue;
                 }
                 allServicesRunning = false;
@@ -274,6 +275,7 @@ public class DeploymentConfigMerger {
                 EvergreenService eg = kernel.locate(serviceName);
                 servicesToTrack.add(eg);
             }
+            servicesToTrack.remove(kernel.getMain());
             return servicesToTrack;
         }
 

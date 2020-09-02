@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.DependencyResolver;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
-import com.aws.iot.evergreen.config.Topics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

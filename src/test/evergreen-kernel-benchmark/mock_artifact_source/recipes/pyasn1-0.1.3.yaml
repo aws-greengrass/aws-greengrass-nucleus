@@ -4,3 +4,5 @@ ComponentName: pyasn1
 Description: Test recipe for Evergreen packages
 Publisher: EvergreenBenchmarkTest
 Version: '0.1.3'
+manifests:
+  - lifecycle: {}
