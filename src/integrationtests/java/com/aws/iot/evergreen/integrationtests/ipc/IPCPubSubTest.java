@@ -3,7 +3,6 @@
 
 package com.aws.iot.evergreen.integrationtests.ipc;
 
-import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -37,7 +36,6 @@ import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConf
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
@@ -79,17 +77,13 @@ class IPCPubSubTest {
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
-        IPCClientImpl client2 = new IPCClientImpl(config);
-        try {
-            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-                assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-            });
-            c.subscribeToTopic("a", cb.getRight());
-            c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-            cb.getLeft().get(2, TimeUnit.SECONDS);
-        } finally {
-            client2.disconnect();
-        }
+
+        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+        });
+        c.subscribeToTopic("a", cb.getRight());
+        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
+        cb.getLeft().get(2, TimeUnit.SECONDS);
     }
 
     @Test
@@ -106,12 +100,12 @@ class IPCPubSubTest {
         });
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
 
-        ignoreExceptionOfType(context, AuthorizationException.class);
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
 
         //Reload the kernel with the correct authorization policy
         kernel.getConfig().read(new URL(IPCPubSubTest.class.getResource("pubsub_authorized.yaml").toString()), false);
-        Thread.sleep(100);
+        //Block until events are completed
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
         cb.getLeft().get(2, TimeUnit.SECONDS);
@@ -140,11 +134,10 @@ class IPCPubSubTest {
         if (acl != null) {
             acl.remove();
         }
-        Thread.sleep(100);
+        //Block until events are completed
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
         //Now the authorization policies should have been removed and these should fail
-        ignoreExceptionOfType(context, AuthorizationException.class);
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-
         assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
     }
 
@@ -169,11 +162,10 @@ class IPCPubSubTest {
         if (parameters != null) {
             parameters.remove();
         }
-        Thread.sleep(100);
+        //Block until events are completed
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
         //Now the authorization policies should have been removed and these should fail
-        ignoreExceptionOfType(context, AuthorizationException.class);
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-
         assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
     }
 
@@ -190,7 +182,6 @@ class IPCPubSubTest {
             assertEquals("some message", new String(m, StandardCharsets.UTF_8));
         });
 
-        ignoreExceptionOfType(context, AuthorizationException.class);
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
 
     }
@@ -204,7 +195,6 @@ class IPCPubSubTest {
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
 
-        ignoreExceptionOfType(context, AuthorizationException.class);
         assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
     }
 

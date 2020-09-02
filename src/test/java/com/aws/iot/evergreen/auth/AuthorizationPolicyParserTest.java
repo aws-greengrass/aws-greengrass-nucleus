@@ -1,7 +1,6 @@
 package com.aws.iot.evergreen.auth;
 
 import com.aws.iot.evergreen.config.Configuration;
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -13,7 +12,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -23,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -31,13 +28,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
@@ -47,12 +42,6 @@ public class AuthorizationPolicyParserTest {
 
     @Mock
     private Kernel kernel;
-
-    @Mock
-    private Configuration mockConfig;
-
-    @Mock
-    Iterator it;
 
     private Configuration realConfig;
 
@@ -64,25 +53,11 @@ public class AuthorizationPolicyParserTest {
 
     private void readConfig(String filename) throws IOException {
         realConfig = new Configuration(new Context());
-        InputStream inputStream = null;
-        try{
-            inputStream = getClass().getResourceAsStream(filename);
+        try (InputStream inputStream = getClass().getResourceAsStream(filename)) {
             assertNotNull(inputStream);
             realConfig.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
-        } finally {
-            inputStream.close();
         }
-
-
-    }
-
-    @BeforeEach()
-    void beforeEach() {
-        when(kernel.getConfig()).thenReturn(mockConfig);
-        Topics allServices = mock(Topics.class);
-        it = mock(Iterator.class);
-        when(mockConfig.findTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(allServices);
-        when(allServices.iterator()).thenReturn(it);
+        when(kernel.getConfig()).thenReturn(realConfig);
     }
 
     @AfterEach
@@ -94,13 +69,6 @@ public class AuthorizationPolicyParserTest {
     public void GIVEN_valid_pubsub_ACL_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
 
         readConfig("pubsub_valid.yaml");
-        when(it.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(it.next())
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "ServiceName"))
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "mqtt"));
-
         Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = policyParser
                 .parseAllAuthorizationPolicies(kernel);
         assertThat(authorizationPolicyMap.size(), equalTo(1));
@@ -127,12 +95,6 @@ public class AuthorizationPolicyParserTest {
     public void GIVEN_valid_pubsub_ACL_without_description_or_resources_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
 
         readConfig("pubsub_valid_optional.yaml");
-        when(it.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(it.next())
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "ServiceName"))
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "mqtt"));
 
         Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = policyParser
                 .parseAllAuthorizationPolicies(kernel);
@@ -160,13 +122,6 @@ public class AuthorizationPolicyParserTest {
     public void GIVEN_invalid_pubsub_yaml_file_without_operations_WHEN_auth_parsing_THEN_fail(ExtensionContext context) throws Throwable {
 
         readConfig("pubsub_invalid_no_operations.yaml");
-        when(it.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(it.next())
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "ServiceName"))
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "mqtt"));
-
         try {
             logReceived = new CountDownLatch(1);
             logListener = m -> {
@@ -185,13 +140,6 @@ public class AuthorizationPolicyParserTest {
     @Test
     public void GIVEN_invalid_pubsub_yaml_file_with_invalid_fields_WHEN_auth_parsing_THEN_fail() throws Throwable {
         readConfig("pubsub_invalid_fields.yaml");
-        when(it.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(it.next())
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "ServiceName"))
-                .thenReturn(realConfig.lookupTopics(
-                        SERVICES_NAMESPACE_TOPIC, "mqtt"));
-
         try {
             logReceived = new CountDownLatch(1);
             logListener = m -> {

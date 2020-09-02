@@ -128,7 +128,7 @@ public class PubSubIPCService extends EvergreenService {
                     .payload(CBOR_MAPPER.writeValueAsBytes(pubSubGenericResponse)).build();
             fut.complete(new Message(responseMessage.toByteArray()));
         } catch (AuthorizationException e) {
-            logger.atWarn().setEventType("pubsub-authorization-error").setCause(e).log("Unauthorized request");
+            logger.atWarn().setEventType("pubsub-authorization-error").log(e.getMessage());
             try {
                 PubSubGenericResponse response = new PubSubGenericResponse(PubSubResponseStatus.Unauthorized,
                         e.getMessage());

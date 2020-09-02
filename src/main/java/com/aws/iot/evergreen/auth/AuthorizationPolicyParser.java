@@ -57,27 +57,17 @@ public final class AuthorizationPolicyParser {
         for (Node service : allServices) {
 
             if (service == null) {
-                logger.atInfo("load-authorization-component-config-retrieval-error")
-                        .log("No config found for service {}.");
                 continue;
             }
 
             if (!(service instanceof Topics)) {
-                logger.atError("load-authorization-component-config-retrieval-error")
-                        .log("Incorrect formatting while retrieving the config for service{}.", service.getName());
                 continue;
             }
 
             Topics serviceConfig = (Topics) service;
-            String componentName = serviceConfig.getName();
+            String componentName = Kernel.findServiceForNode(serviceConfig);
 
-            //Get the parameters for this component, if they exist
-            Topics parameters = serviceConfig.findInteriorChild(PARAMETERS_CONFIG_KEY);
-            if (parameters == null) {
-                continue;
-            }
-            //Get the Access Control List for this component, if it exists
-            Topic accessControlMapTopic = parameters.findLeafChild(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Topic accessControlMapTopic = serviceConfig.find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             if (accessControlMapTopic == null) {
                 continue;
             }
@@ -135,9 +125,9 @@ public final class AuthorizationPolicyParser {
         }
 
         //For each policy type
-        for (Map.Entry accessControlType : accessControlMap.entrySet()) {
+        for (Map.Entry<String, Object> accessControlType : accessControlMap.entrySet()) {
 
-            String policyType = Coerce.toString(accessControlType.getKey());
+            String policyType = accessControlType.getKey();
             Object accessControlTopicObject = accessControlType.getValue();
 
             if (!(accessControlTopicObject instanceof List)
