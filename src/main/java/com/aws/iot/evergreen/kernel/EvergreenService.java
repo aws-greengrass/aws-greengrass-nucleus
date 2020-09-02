@@ -263,6 +263,17 @@ public class EvergreenService implements InjectionActions {
     }
 
     /**
+     * Check if bootstrap step needs to run during service update. Called during deployments to determine deployment
+     * workflow.
+     *
+     * @param newServiceConfig new service config for the update
+     * @return true if bootstrap step needs to run, false otherwise
+     */
+    public boolean isBootstrapRequired(Map<String, Object> newServiceConfig) {
+        return false;
+    }
+
+    /**
      * Called when this service is known to be needed to make sure that required additional software is installed.
      *
      * @throws InterruptedException if the install task was interrupted while running

@@ -73,7 +73,7 @@ public class PluginComponentTest extends BaseITCase {
         kernel.launch();
 
         EvergreenService eg = kernel.locate("plugin");
-        assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginService", eg.getClass().getName());
+        assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.APluginService", eg.getClass().getName());
         assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
         kernel.getContext().get(EZPlugins.class)
@@ -107,7 +107,7 @@ public class PluginComponentTest extends BaseITCase {
                 kernel).get(30, TimeUnit.SECONDS);
 
         EvergreenService eg = kernel.locate("plugin");
-        assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginService", eg.getClass().getName());
+        assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.APluginService", eg.getClass().getName());
         assertEquals(componentId.getVersion().toString(),
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
         kernel.getContext().get(EZPlugins.class)
