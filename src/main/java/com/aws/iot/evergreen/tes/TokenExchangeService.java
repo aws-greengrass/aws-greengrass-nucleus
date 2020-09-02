@@ -23,7 +23,7 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
 @SuppressWarnings("PMD.DataClass")
-@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
+@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, version = "1.0.0")
 public class TokenExchangeService extends EvergreenService implements AwsCredentialsProvider {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String PORT_TOPIC = "port";

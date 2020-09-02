@@ -465,7 +465,7 @@ public class EvergreenService implements InjectionActions {
         return getServiceName();
     }
 
-    private String getServiceName() {
+    public String getServiceName() {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 
