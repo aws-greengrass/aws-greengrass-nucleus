@@ -6,6 +6,22 @@ Publisher: Me
 Version: '1.0.0'
 Manifests:
   - Platform:
+      os: windows
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run:
+        powershell -command echo "Hello evergreen. {{params:sampleText.value}}"
+    Dependencies:
+      Mosquitto:
+        VersionRequirement: 1.0.0
+      ClassService:
+        VersionRequirement: 1.0.0
+    Artifacts:
+      - Uri: greengrass:customerApp
+  - Platform:
       os: all
     Parameters:
       - name: sampleText
