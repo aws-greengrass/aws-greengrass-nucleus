@@ -152,7 +152,7 @@ public class DynamicComponentConfigurationValidationTest {
             eventReceivedByClient.countDown();
             try {
                 configStore.sendConfigurationValidityReport(ConfigurationValidityStatus.INVALID,
-                        "I don't like this " + "configuration");
+                        "I don't like this configuration");
             } catch (ConfigStoreIPCException e) {
             }
         });

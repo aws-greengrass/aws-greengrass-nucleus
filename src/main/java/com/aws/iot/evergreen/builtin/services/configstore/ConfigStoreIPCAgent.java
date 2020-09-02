@@ -357,21 +357,23 @@ public class ConfigStoreIPCAgent {
      * @param configuration new component configuration to validate
      * @param reportFuture  future to track validation report in response to the event
      * @return true if the service has registered a validator, false if not
-     * @throws ValidateEventRegistrationException throws when triggering requested validation event is not allowed
+     * @throws ValidateEventRegistrationException throws when triggering requested validation event failed
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
                                          CompletableFuture<ConfigurationValidityReport> reportFuture)
             throws ValidateEventRegistrationException {
-        if (configValidationReportFutures.containsKey(componentName)) {
-            throw new ValidateEventRegistrationException(
-                    "A validation request to this component is already waiting for response");
-        }
-
         for (Map.Entry<ConnectionContext, Consumer<Map<String, Object>>> e : configValidationListeners.entrySet()) {
             if (e.getKey().getServiceName().equals(componentName)) {
-                configValidationReportFutures.put(componentName, reportFuture);
-                e.getValue().accept(configuration);
-                return true;
+                try {
+                    e.getValue().accept(configuration);
+                    configValidationReportFutures.put(componentName, reportFuture);
+                    return true;
+                } catch (Exception ex) {
+                    // TODO : Catch specific exceptions in sending service event when an equivalent utility of
+                    //  ServiceEventHelper.sendServiceEvent() is available as part of the event stream based server
+                    throw new ValidateEventRegistrationException(ex);
+                }
             }
         }
         return false;

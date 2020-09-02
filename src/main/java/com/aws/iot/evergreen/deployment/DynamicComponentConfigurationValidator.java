@@ -142,7 +142,7 @@ public class DynamicComponentConfigurationValidator {
     }
 
     private boolean willNodeChange(Object proposedConfig, Node currentConfig, long proposedTimestamp) {
-        return Objects.isNull(currentConfig) ? Objects.isNull(proposedConfig)
+        return Objects.isNull(currentConfig) ? Objects.nonNull(proposedConfig)
                 : proposedTimestamp > currentConfig.getModtime() && !Objects
                         .deepEquals(proposedConfig, currentConfig.toPOJO());
     }
