@@ -23,8 +23,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.Kernel.findServiceForNode;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 
@@ -63,7 +62,7 @@ public class AuthorizationHandler  {
         this.authModule = authModule;
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
-                kernel, logger);
+                kernel);
         for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
         }
@@ -79,25 +78,36 @@ public class AuthorizationHandler  {
                     if (newv == null) {
                         return;
                     }
-                    if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
-                        if (newv.childOf(SERVICES_NAMESPACE_TOPIC) && WhatHappened.childRemoved.equals(why)) {
-                            authModule.clearPermissions(newv.getName());
-                        }
-                        return;
-                    }
-                    if (!(newv instanceof Topic)) {
-                        logger.atError("update-authorization-formatting-error")
-                                .addKeyValue("InvalidNodeName", newv.getFullName())
-                                .log("Incorrect formatting while updating the authorization ACL.");
-                        return;
-                    }
-                    Topic updatedTopic = (Topic) newv;
-                    String componentName = findServiceForNode(updatedTopic);
-                    //If there is a change in a node, reload that one component's ACL
-                    List<AuthorizationPolicy> updatedComponentPolicies = policyParser
-                            .parseAuthorizationPolicyList(componentName, updatedTopic, logger);
-                    this.loadAuthorizationPolicies(updatedTopic.getName(), updatedComponentPolicies, true);
 
+                     //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
+                     //If there is a childRemoved event, it could be either the 'accessControl' Topic or the
+                     //'parameters' Topics that has bubbled up, so we need to handle and filter out all other
+                     // WhatHappeneds
+                     if (why.equals(WhatHappened.childChanged)) {
+                        if (!newv.childOf(PARAMETERS_CONFIG_KEY)
+                                || !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                            return;
+                        }
+                        if (!(newv instanceof Topic)) {
+                            logger.atError("update-authorization-formatting-error")
+                                    .addKeyValue("InvalidNodeName", newv.getFullName())
+                                    .log("Incorrect formatting while updating the authorization ACL.");
+                            return;
+                        }
+                    } else if (why.equals(WhatHappened.childRemoved) && !newv.getName().equals(PARAMETERS_CONFIG_KEY)
+                             && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        return;
+                    }
+
+                    //Reload all policies
+                    //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
+                    // instead of reloading everything on every update.
+                    // https://issues-iad.amazon.com/issues/V243584397
+                    Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
+                            .parseAllAuthorizationPolicies(kernel);
+                    for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
+                        this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
+                    }
                 });
     }
 
@@ -182,14 +192,14 @@ public class AuthorizationHandler  {
      * If the isUpdate flag is specified, this method will clear the existing policies for a component before
      * refreshing with the updated list.
      *
-     * @param componentName Destination component which intents to supply auth policies
-     * @param policies      policies which has list of policies. All policies are treated as separate
+     * @param componentName Destination component which intends to supply auth policies
+     * @param policies      List of policies. All policies are treated as separate
      *                      and no merging or joins happen. Duplicated policies would result in duplicated
      *                      permissions but would not impact functionality.
      * @param isUpdate      If this load request is to update existing policies for a component.
      */
     public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies, boolean isUpdate) {
-        if (Utils.isEmpty(policies)) {
+        if (policies == null) {
             return;
         }
 
@@ -230,7 +240,7 @@ public class AuthorizationHandler  {
             }
         }
         if (isUpdate) {
-            authModule.deletePermissionsWithDestination(componentName);
+            authModule.clearComponentPermissions(componentName);
         }
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy : policies) {
