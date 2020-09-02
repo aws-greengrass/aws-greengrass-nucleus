@@ -1,18 +1,21 @@
 package com.aws.iot.evergreen.auth;
 
 import com.aws.iot.evergreen.auth.AuthorizationPolicy.PolicyComponentTypes;
-import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,35 +23,153 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.util.Coerce.toEnum;
 
 public final class AuthorizationPolicyParser {
+    private static final Logger logger = LogManager.getLogger(AuthorizationPolicyParser.class);
+    private static final ObjectMapper OBJECT_MAPPER =
+            JsonMapper.builder().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true).build();
+
+    /**
+     * Given a kernel object, construct and return a map of AuthorizationPolicy objects that may exist,
+     * grouped into lists of the same policy type.
+     * This is used only upon kernel startup, to initialize all policies.
+     * Never returns null.
+     *
+     * @param kernel Kernel
+     * @return {@Map} of {@String} keys and {@List} of {@AuthorizationPolicy}'s as  values"
+     */
+    public Map<String, List<AuthorizationPolicy>> parseAllAuthorizationPolicies(Kernel kernel) {
+
+        Map<String, List<AuthorizationPolicy>> masterAuthorizationPolicyMap = new HashMap<>();
+
+        Topics allServices = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC);
+
+        if (allServices == null) {
+            logger.atInfo("load-authorization-all-services-component-config-retrieval-error")
+                    .log("Unable to retrieve services config");
+            return masterAuthorizationPolicyMap;
+        }
+
+        //For each component
+        for (Node service : allServices) {
+
+            if (service == null) {
+                logger.atInfo("load-authorization-component-config-retrieval-error")
+                        .log("No config found for service {}.");
+                continue;
+            }
+
+            if (!(service instanceof Topics)) {
+                logger.atError("load-authorization-component-config-retrieval-error")
+                        .log("Incorrect formatting while retrieving the config for service{}.", service.getName());
+                continue;
+            }
+
+            Topics serviceConfig = (Topics) service;
+            String componentName = serviceConfig.getName();
+
+            //Get the parameters for this component, if they exist
+            Topics parameters = serviceConfig.findInteriorChild(PARAMETERS_CONFIG_KEY);
+            if (parameters == null) {
+                continue;
+            }
+            //Get the Access Control List for this component, if it exists
+            Topic accessControlMapTopic = parameters.findLeafChild(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            if (accessControlMapTopic == null) {
+                continue;
+            }
+
+            //Retrieve all policies, mapped to each policy type
+            Map<String, List<AuthorizationPolicy>> componentAuthorizationPolicyMap = parseAllPoliciesForComponent(
+                    accessControlMapTopic, componentName);
+
+            if (componentAuthorizationPolicyMap != null) {
+                //For each policy type (e.g. aws.greengrass.ipc.pubsub)
+                for (Map.Entry<String, List<AuthorizationPolicy>> policyTypeList :
+                        componentAuthorizationPolicyMap.entrySet()) {
+
+                    String policyType = policyTypeList.getKey();
+                    List<AuthorizationPolicy> policyList = policyTypeList.getValue();
+
+                    //If multiple components have policies for the same policy type
+                    masterAuthorizationPolicyMap.computeIfAbsent(policyType, k -> new ArrayList<>()).addAll(policyList);
+                }
+            }
+        }
+        return masterAuthorizationPolicyMap;
+    }
+
+    /**
+     * Given a accessControlMapTopic Topic, construct and return a map of AuthorizationPolicy objects that may exist
+     * only for that component config, grouped into lists of the same policy type.
+     * Never returns null.
+     *
+     * @param accessControlMapTopic Topic
+     * @param componentName String
+     * @return {@Map} of {@String} keys and {@List} of {@AuthorizationPolicy}'s as  values"
+     */
+    private Map<String, List<AuthorizationPolicy>> parseAllPoliciesForComponent(Topic accessControlMapTopic,
+                                                                                String componentName) {
+        Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = new HashMap<>();
+
+        String accessControlMapValueJson = Coerce.toString(accessControlMapTopic);
+        if (Utils.isEmpty(accessControlMapValueJson)) {
+            return authorizationPolicyMap;
+        }
+
+        Map<String, Object> accessControlMap;
+        try {
+            accessControlMap = OBJECT_MAPPER.readValue(accessControlMapValueJson,
+                    new TypeReference<Map<String, Object>>(){});
+        } catch (JsonProcessingException e) {
+            logger.atError("load-authorization-config-deserialization-error", e)
+                    .log("Unable to deserialize access control map");
+            return authorizationPolicyMap;
+        }
+
+        if (accessControlMap == null) {
+            return authorizationPolicyMap;
+        }
+
+        //For each policy type
+        for (Map.Entry accessControlType : accessControlMap.entrySet()) {
+
+            String policyType = Coerce.toString(accessControlType.getKey());
+            Object accessControlTopicObject = accessControlType.getValue();
+
+            if (!(accessControlTopicObject instanceof List)
+                    || Utils.isEmpty((List) accessControlTopicObject)
+                    || !(((List) accessControlTopicObject).get(0) instanceof Map)) {
+                logger.atInfo("load-authorization-access-control-list-retrieval")
+                        .log("Access Control List is missing or invalid for type {} of component {}",
+                                policyType, componentName);
+                continue;
+            }
+
+            List<Map<String, Object>> accessControlList = (List<Map<String, Object>>) accessControlTopicObject;
+
+            List<AuthorizationPolicy> newAuthorizationPolicyList = parseAuthorizationPolicyList(
+                    componentName, accessControlList);
+
+            authorizationPolicyMap.put(policyType, newAuthorizationPolicyList);
+        }
+        return authorizationPolicyMap;
+    }
 
     /**
      * Given a Topics ACL object, construct and return a List of AuthorizationPolicy objects that may exist.
      * Never returns null.
      *
      * @param componentName      String
-     * @param accessControlTopic Topic
-     * @param logger             Logger
+     * @param accessControlList  List of Map of String keys and Object values
      * @return {@List} of {@AuthorizationPolicy}'s
-     * @throws AuthorizationException if there is a problem loading the policies.
      */
-    public List<AuthorizationPolicy> parseAuthorizationPolicyList(String componentName, Topic accessControlTopic,
-                                                                  Logger logger) {
+    private List<AuthorizationPolicy> parseAuthorizationPolicyList(String componentName,
+                                                                   List<Map<String, Object>> accessControlList) {
         List<AuthorizationPolicy> newAuthorizationPolicyList = new ArrayList<>();
-
-        Object accessControlTopicObject = accessControlTopic.getOnce();
-
-        if (!(accessControlTopicObject instanceof List)
-                || Utils.isEmpty((List) accessControlTopicObject)
-                || !(((List) accessControlTopicObject).get(0) instanceof Map)) {
-            logger.atWarn("load-authorization-access-control-list-retrieval-error")
-                    .log("Access Control List is missing or invalid for component {}", componentName);
-            return newAuthorizationPolicyList;
-        }
-
-        List<Map<String, Object>> accessControlList = (List<Map<String, Object>>) accessControlTopicObject;
 
         //Iterate through each policy
         for (Map<String, Object> allPoliciesMap : accessControlList) {
@@ -64,7 +185,7 @@ public final class AuthorizationPolicyParser {
                 //Retrieve the actual policy specifications
                 if (!(policyEntry.getValue() instanceof Map)) {
                     logger.atWarn("load-authorization-access-control-list-policy-retrieval-error")
-                        .log("Error while retrieving an Access Control List policy");
+                            .log("Error while retrieving an Access Control List policy");
                     continue;
                 }
                 policyMap = (Map<String, Object>) policyEntry.getValue();
@@ -87,7 +208,7 @@ public final class AuthorizationPolicyParser {
                             resources = new HashSet<>(Coerce.toStringList(policyComponent.getValue()));
                             break;
                         default:
-                            logger.atError("load-authorization-config-unknown policy key")
+                            logger.atError("load-authorization-config-unknown-policy-key")
                                     .log("Component {} has an invalid policy key {} in policy {}",
                                             componentName,
                                             policyComponent.getKey(),
@@ -116,62 +237,5 @@ public final class AuthorizationPolicyParser {
         }
 
         return newAuthorizationPolicyList;
-    }
-
-    /**
-     * Given a kernel object, construct and return a map of AuthorizationPolicy objects that may exist,
-     * grouped into lists of the same policyType.
-     * Never returns null.
-     *
-     * @param kernel Kernel
-     * @param logger Logger
-     * @return {@Map} of {@String} keys and {@List} of {@AuthorizationPolicy}'s as  values"
-     * @throws AuthorizationException if there is a problem loading the policies.
-     */
-    public Map<String, List<AuthorizationPolicy>> parseAllAuthorizationPolicies(Kernel kernel, Logger logger) {
-
-        Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = new HashMap<>();
-
-        Collection<EvergreenService> allServices = kernel.orderedDependencies();
-        for (EvergreenService service : allServices) {
-            Topics serviceConfig = service.getConfig();
-
-            if (serviceConfig == null) {
-                logger.atWarn("load-authorization-component-config-retrieval-error")
-                        .log("No config found for service {}.", service.getName());
-                continue;
-            }
-
-            String componentName = serviceConfig.getName();
-            if (Utils.isEmpty(componentName)) {
-                logger.atWarn("load-authorization-component-name-null")
-                        .log("Service config name is missing");
-                continue;
-            }
-            //Get the Access Control List for this component
-            Topics accessControlTopics = serviceConfig.findTopics(ACCESS_CONTROL_NAMESPACE_TOPIC);
-            if (accessControlTopics == null) {
-                logger.atWarn("load-authorization-component-no-access-control-list-found")
-                        .log("Component {} has no valid accessControl component field.", componentName);
-                continue;
-            }
-
-            //Iterate through each ACL type
-            for (Node accessControlListNode : accessControlTopics) {
-                Topic accessControlTopic = (Topic) accessControlListNode;
-                String policyType = accessControlTopic.getName();
-                List<AuthorizationPolicy> newAuthorizationPolicyList = parseAuthorizationPolicyList(
-                        componentName, accessControlTopic, logger);
-
-                //If the policyType already exists in the map
-                if (authorizationPolicyMap.containsKey(policyType)) {
-                    authorizationPolicyMap.get(policyType).addAll(newAuthorizationPolicyList);
-                } else {
-                    authorizationPolicyMap.put(policyType, newAuthorizationPolicyList);
-                }
-            }
-        }
-
-        return authorizationPolicyMap;
     }
 }

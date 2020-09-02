@@ -11,7 +11,9 @@ services:
     resources:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
-    lifecycle:
+    parameters:
+      accessControl:
+        '{"aws.greengrass.ipc.pubsub":[{"policyId2":{"policyDescription":"access to pubsub topics for mqtt","operations":["publish"],"resources":["/topic/1/#","/longer/topic/example/","*"]}}]}'
 
   ServiceName:
     dependencies:
@@ -25,15 +27,7 @@ services:
           powershell -command sleep 100
         posix:
           sleep 100
-    accessControl:
-      aws.greengrass.ipc.pubsub:
-        - policyId1:
-            policyDescription: "access to pubsub topics"
-            operations:
-              - "publish"
-              - "subscribe"
-              - "unsubscribe"
-            resources:
-              - "/topic/1/#"
-              - "/longer/topic/example/"
-              - "*"
+    parameters:
+      accessControl:
+        '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"policyDescription":"access to pubsub topics for ServiceName","operations":["*"],"resources":["*"]}}]}'
+

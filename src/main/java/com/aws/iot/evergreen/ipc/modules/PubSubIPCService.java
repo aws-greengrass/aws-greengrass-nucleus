@@ -59,6 +59,7 @@ public class PubSubIPCService extends EvergreenService {
         super.postInject();
 
         List<String> opCodes = Stream.of(PubSubClientOpCodes.values())
+                .filter(c -> !c.equals(PubSubClientOpCodes.UNSUBSCRIBE))
                 .map(PubSubClientOpCodes::name)
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
@@ -126,21 +127,30 @@ public class PubSubIPCService extends EvergreenService {
             ApplicationMessage responseMessage = ApplicationMessage.builder().version(applicationMessage.getVersion())
                     .payload(CBOR_MAPPER.writeValueAsBytes(pubSubGenericResponse)).build();
             fut.complete(new Message(responseMessage.toByteArray()));
-        } catch (Throwable e) {
-            logger.atError().setEventType("pubsub-error").setCause(e).log("Failed to handle message");
+        } catch (AuthorizationException e) {
+            logger.atWarn().setEventType("pubsub-authorization-error").setCause(e).log("Unauthorized request");
             try {
-                PubSubGenericResponse response = null;
-                if (e instanceof AuthorizationException) {
-                    response = new PubSubGenericResponse(PubSubResponseStatus.Unauthorized, e.getMessage());
-                } else {
-                    response = new PubSubGenericResponse(PubSubResponseStatus.InternalError, e.getMessage());
-                }
+                PubSubGenericResponse response = new PubSubGenericResponse(PubSubResponseStatus.Unauthorized,
+                        e.getMessage());
                 ApplicationMessage responseMessage =
                         ApplicationMessage.builder().version(applicationMessage.getVersion())
                                 .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();
                 fut.complete(new Message(responseMessage.toByteArray()));
             } catch (IOException ex) {
-                logger.atError("pubsub-error", ex).log("Failed to send error response");
+                logger.atError("pubsub-authorization-error-response", ex)
+                        .log("Failed to send authorization error response");
+            }
+        } catch (Throwable e) {
+            logger.atError().setEventType("pubsub-error").setCause(e).log("Failed to handle message");
+            try {
+                PubSubGenericResponse response = new PubSubGenericResponse(PubSubResponseStatus.InternalError,
+                        e.getMessage());
+                ApplicationMessage responseMessage =
+                        ApplicationMessage.builder().version(applicationMessage.getVersion())
+                                .payload(CBOR_MAPPER.writeValueAsBytes(response)).build();
+                fut.complete(new Message(responseMessage.toByteArray()));
+            } catch (IOException ex) {
+                logger.atError("pubsub-error-response", ex).log("Failed to send error response");
             }
         }
         if (!fut.isDone()) {
@@ -158,5 +168,4 @@ public class PubSubIPCService extends EvergreenService {
                         .resource(topic)
                         .build());
     }
-
 }
