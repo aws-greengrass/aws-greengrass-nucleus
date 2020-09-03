@@ -1,44 +1,59 @@
 # Component Recipe Reference
 ## Reference and guidelines
-This reference describes version 1 of component recipe file format.
+This reference describes version 2020-xx-xx of component recipe file format.
 
 Component recipe is a single yaml/json file for the component author to define component deployment and runtime
  characteristics in the AWS Greengrass ecosystem.
 ## Recipe file structure and examples
 Here is a sample recipe file in yaml format which defines a simple HelloWorld application can run on AWS Greengrass
- managed devices.
+ managed devices. It defines a specific manifest for x86_64 windows as well as default manifest for the other platforms.
 ```yaml
 ---
-RecipeTemplateVersion: '2020-01-25'
-ComponentName: HelloWorld
-Version: '1.0.0'
-Description: Hello World App for Evergreen
-Publisher: Amazon
-Platforms:
-  - debian
-Parameters:
-  - name: Message
-    value: 'World'
-    type: STRING
-Lifecycle:
-  run:
-    debian:
-      python3 {{artifacts:path}}/hello_world.py '{{params:Message.value}}'
-Artifacts:
-  debian:
-    - "greengrass:hello_world.py"
-Dependencies:
-  debian:
-    shared.python:
-      VersionRequirement: ~3.6
-      DependencyType: HARD
+templateVersion: 2020-01-25
+componentName: com.aws.greengrass.HelloWorld
+description: hello world from greengrass!
+publisher: Amazon
+version: 1.0.0
+componentType: raw
+manifests:
+  - platform:
+      os: windows
+      architecture: x86_64
+    configuration:
+      schema: s3://some-bucket/my-hello-world-schema.json
+      defaultValue: s3://some-bucket/my-hello-world-configurations.json
+    lifecycle:
+      run:
+        python3 {{artifacts:path}}/hello_windows_server.py '{{message.greeting}}'
+    artifacts:
+      - uri: s3://some-bucket/hello_windows.zip
+        digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
+        algorithm: SHA-256
+        unarchive: ZIP
+    dependencies:
+      python3:
+        versionRequirement: ^3.5
+        dependencyType: soft
+  - configuration:
+      schema: s3://some-bucket/my-hello-world-schema.json
+      defaultValue: s3://some-bucket/my-hello-world-configurations.json
+    lifecycle:
+      run:
+        python3 {{artifacts:path}}/hello_world.py '{{message.greeting}}'
+    artifacts:
+      - uri: s3://some-bucket/hello_world.py
+        digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
+        algorithm: SHA-256
+    dependencies:
+      python3:
+        versionRequirement: ^3.5
 ```
 The topics on this reference are organized by top-level keys grouped by functions, such as providing metadata, or
  defining deployment and/or runtime behaviors. Top-level keys can have options that support them as sub-topics. This
   maps to the `<key>: <options>: <value>` indent structure of recipe file.
 ## Component metadata
-Keys in this group provide component metadata, which are usually used for processing components in the AWS Greengrass
- environment. The metadata is often used for indexing and filtering as well.
+Keys in this group provide component metadata, which are usually used for managing components in the AWS Greengrass
+ ecosystem. The metadata is often used for indexing and filtering as well.
 ### RECIPE TEMPLATE VERSION
 Define the version of recipe itself
 ```yaml
@@ -49,35 +64,55 @@ Component name identifier, reverse DNS notation is recommended. Component name i
  registry. A private component which has same name occludes public available component.
 > note: component name is also used as service name, since component to service is 1:1 mapping.
 ```yaml
-ComponentName: com.aws.greengrass.HelloWorld
+componentName: com.aws.greengrass.HelloWorld
 ```
 ### VERSION
 Component verison, use [semantic versioning](https://semver.org/) standard
 ```yaml
-Version: 1.6.1
+version: 1.6.1
 ```
 ### DESCRIPTION
 Text description of component
 ```yaml
-Description: Hello World App for Evergreen
+description: Hello World App for Evergreen
 ```
 ### PUBLISHER
 Publisher of component
 ```yaml
-Publisher: Amazon
+publisher: Amazon
 ```
-### PLATFORMS
-A list of platforms component declaring support. Greengrass will apply the constrains before provisioning component
- on device.
- > note: the platform constraints only support OS with text match now, no CPU architecture constraints support yet.
+### COMPONENT TYPE
+Describe component runtime mode, support values: `plugin`, `lambda`, `raw`
 ```yaml
-Platforms:
-  - debian
-  - android
+componentType: Amazon
 ```
-## Service configuration
-Keys in this group are mostly used for defining component runtime characteristics.
-### LIFECYCLE
+### MANIFESTS
+Define a list of manifests, a manifest can be specific to one platform or default to every other platform.
+#### MANIFEST.PLATFROM
+Define the platform the manifest is specifically for.
+```yaml
+platform:
+  os: windows
+  architecture: x86_64
+```
+##### OS
+supported operating system [list](to be added).
+##### Architecture
+supported architecture [list](to be added).
+
+#### MANIFEST.CONFIGURATION
+Component author specifies configuration parameters used in lifecycle management scripts, and/or are accessible by
+ service runtime, which can both read and write configuration values.
+```yaml
+configuration:
+  schema: s3://some-bucket/my-hello-world-schema.json
+  defaultValue: s3://some-bucket/my-hello-world-configurations.json
+```
+##### Schema
+define configuration schema
+##### Default Value
+provide configuration default values
+#### MANIFEST.LIFECYCLE
 Specify lifecycle management scripts for component represented service
 ```yaml
 Lifecycle:
@@ -128,51 +163,36 @@ Lifecycle:
   updatesCompleted:
     script:
 ```
-### PARAMETERS
-Component author specifies configuration parameters used in lifecycle management scripts, and/or are accessible by
- service runtime, which can both read and write configuration values.
-```yaml
-Parameters:
-  - name: Message
-    value: 'World'
-    type: STRING
-```
-#### name
-name of parameter
-#### value
-default value of parameter
-#### type
-type of parameter. Current supported types include:
-* String
-* Number
-* Boolean
-## Dependency Configuration
-Keys in the group are used for describing component deployment dependencies. The dependencies could be
- component necessary artifacts or the other components.
-### ARTIFACTS
-A list of artifacts component relies on as resources, such as binary, scripts, images etc. The section supports platform
- hierarchy.
+#### MANIFEST.ARTIFACTS
+A list of artifacts that component uses as resources, such as binary, scripts, images etc.
 ```yaml
 Artifacts:
-  debian
-    - greengrass:hello_world.py
-    - s3://example-bucket/path/to/object
+    - uri: s3://some-bucket/hello_windows.zip
+      digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
+      algorithm: SHA-256
+      unarchive: ZIP
 ```
+##### URI
 Artifacts are referenced by artifact URIs. Currently Greengrass supports Greengrass repository and s3 as artifact
  storage location.
-### DEPENDENCIES
+##### Digest
+Calculated cryptographic hash for integrity check
+##### Algorithm
+Algorithm used for calculating cryptographic hash
+##### Unarchive
+Indicate whether automatically unarchive artifact
+#### MANIFEST.DEPENDENCIES
 Describe component dependencies, the versions of dependencies will be resolved during deployment.
 > note: Services represented by components will be started/stopped with respect to dependency order.
 ```yaml
 Dependencies:
-  debian:
     shared.python:
       VersionRequirement: ~3.6
-      DependencyType: HARD
+      DependencyType: SOFT
 ```
-#### Version Requirement
-Specify dependency version requirements, the requirements support NPM-style syntax.
-#### Dependency Type
+##### Version Requirement
+Specify dependency version requirements, the requirements use NPM-style syntax.
+##### Dependency Type
 Specify if dependency is `HARD` or `SOFT` dependency. `HARD` means dependent service will be restarted if the dependency
  service changes state. In the opposite, `SOFT` means the service will wait the dependency to start when first
   starting, but will not be restarted if the dependency changes state.
