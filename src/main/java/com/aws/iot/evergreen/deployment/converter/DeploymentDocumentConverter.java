@@ -25,7 +25,7 @@ public final class DeploymentDocumentConverter {
 
     public static final String DEFAULT_GROUP_NAME = "DEFAULT";
 
-    private static final String ANY_VERSION = "*";
+    public static final String ANY_VERSION = "*";
 
     private DeploymentDocumentConverter() {
         // So that this can't be initialized

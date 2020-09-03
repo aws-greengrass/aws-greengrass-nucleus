@@ -43,8 +43,6 @@ import static com.aws.iot.evergreen.tes.CredentialRequestHandler.UNKNOWN_ERROR_C
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -351,8 +349,7 @@ public class CredentialRequestHandlerTest {
         handler.handle(mockExchange);
         byte[] expectedResponse = "Failed to get credentials from TES".getBytes();
         int expectedStatus = 500;
-        // expire immediately
-        assertFalse(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
@@ -371,11 +368,11 @@ public class CredentialRequestHandlerTest {
         int expectedStatus = 400;
         byte[] expectedResponse = String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 2 minutes
-        assertTrue(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         Instant expirationTime = Instant.now().plus(Duration.ofMinutes(CLOUD_4XX_ERROR_CACHE_IN_MIN));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
-        assertFalse(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
@@ -394,11 +391,11 @@ public class CredentialRequestHandlerTest {
         int expectedStatus = 500;
         byte[] expectedResponse = String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 1 minute
-        assertTrue(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         Instant expirationTime = Instant.now().plus(Duration.ofMinutes(CLOUD_5XX_ERROR_CACHE_IN_MIN));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
-        assertFalse(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
@@ -418,11 +415,11 @@ public class CredentialRequestHandlerTest {
         byte[] expectedResponse =
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 5 minutes
-        assertTrue(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         Instant expirationTime = Instant.now().plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
-        assertFalse(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
@@ -440,7 +437,7 @@ public class CredentialRequestHandlerTest {
         byte[] expectedResponse = "Failed to get connection".getBytes();
         int expectedStatus = 500;
         // expire immediately
-        assertFalse(handler.areCredentialsValid());
+        handler.getAwsCredentials();
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
         verify(mockStream, times(1)).write(expectedResponse);
         mockStream.close();
