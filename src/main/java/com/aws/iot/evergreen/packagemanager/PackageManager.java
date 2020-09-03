@@ -33,12 +33,18 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
+
+import static com.aws.iot.evergreen.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
+import static com.aws.iot.evergreen.packagemanager.models.PackageIdentifier.PUBLIC_SCOPE;
 
 public class PackageManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(PackageManager.class);
@@ -268,15 +274,14 @@ public class PackageManager implements InjectionActions {
             return Optional.empty();
         }
 
-        EvergreenService service;
         try {
-            service = kernel.locate(packageName);
+            EvergreenService service = kernel.locate(packageName);
+            return Optional.ofNullable(getPackageVersionFromService(service));
         } catch (ServiceLoadException e) {
             logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                     .log("Didn't find a active service for this package running in the kernel.");
             return Optional.empty();
         }
-        return Optional.ofNullable(getPackageVersionFromService(service));
     }
 
     /**
@@ -318,7 +323,34 @@ public class PackageManager implements InjectionActions {
             return Optional.empty();
         }
 
-        return Optional.of(packageStore.getPackageMetadata(new PackageIdentifier(packageName, activeVersion)));
+        // If the component is builtin, then we won't be able to get the metadata from the filesystem,
+        // so in that case we will try getting it from builtin. If that fails too, then we just rethrow.
+        try {
+            return Optional.of(packageStore.getPackageMetadata(new PackageIdentifier(packageName, activeVersion)));
+        } catch (PackagingException e) {
+            PackageMetadata md = getBuiltinComponentMetadata(packageName, activeVersion);
+            if (md != null) {
+                return Optional.of(md);
+            }
+            throw e;
+        }
+    }
+
+    @Nullable
+    private PackageMetadata getBuiltinComponentMetadata(String packageName, Semver activeVersion) {
+        try {
+            EvergreenService service = kernel.locate(packageName);
+            if (!service.isBuiltin()) {
+                return null;
+            }
+
+            Map<String, String> deps = new HashMap<>();
+            service.forAllDependencies(d -> deps.put(d.getServiceName(), ANY_VERSION));
+
+            return new PackageMetadata(new PackageIdentifier(packageName, activeVersion, PUBLIC_SCOPE), deps);
+        } catch (ServiceLoadException e) {
+            return null;
+        }
     }
 
     private String getFileName(File f) {

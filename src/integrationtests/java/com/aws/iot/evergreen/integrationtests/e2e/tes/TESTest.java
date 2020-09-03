@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.integrationtests.e2e.util.NetworkUtils;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.tes.CredentialRequestHandler;
@@ -205,10 +206,10 @@ class TESTest extends BaseITCase {
 
     @Test
     void GIVEN_iot_role_alias_WHEN_tes_is_queried_within_kernel_bypassing_http_server_THEN_valid_credentials_are_returned(
-            ExtensionContext context) {
+            ExtensionContext context) throws ServiceLoadException {
         ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
         ignoreExceptionUltimateCauseOfType(context, BindException.class);
-        TokenExchangeService tes = kernel.getContext().get(TokenExchangeService.class);
+        TokenExchangeService tes = (TokenExchangeService) kernel.locate(TOKEN_EXCHANGE_SERVICE_TOPICS);
         AwsCredentials credentials = tes.resolveCredentials();
 
         assertNotNull(credentials.accessKeyId());
