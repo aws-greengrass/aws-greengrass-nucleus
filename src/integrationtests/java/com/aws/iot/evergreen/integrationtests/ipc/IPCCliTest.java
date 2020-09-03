@@ -41,6 +41,8 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -180,8 +182,9 @@ class IPCCliTest {
         Cli cli = new CliImpl(client);
 
         // Deployment with updated recipes
+        Path recipesPath = Paths.get(this.getClass().getResource("recipes").toURI());
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
-                .recipeDirectoryPath(this.getClass().getResource("recipes").toURI().getPath())
+                .recipeDirectoryPath(recipesPath.toString())
                 .build();
         cli.updateRecipesAndArtifacts(request);
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
@@ -227,9 +230,11 @@ class IPCCliTest {
         Cli cli = new CliImpl(client);
 
         // Deployment with updated recipes
+        Path recipesPath = Paths.get(this.getClass().getResource("recipes").toURI());
+        Path artifactsPath = Paths.get(this.getClass().getResource("artifacts").toURI());
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
-                .recipeDirectoryPath(this.getClass().getResource("recipes").toURI().getPath())
-                .artifactDirectoryPath(this.getClass().getResource("artifacts").toURI().getPath())
+                .recipeDirectoryPath(recipesPath.toString())
+                .artifactDirectoryPath(artifactsPath.toString())
                 .build();
         cli.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernel.getPackageStorePath().resolve(PackageStore.ARTIFACT_DIRECTORY)
@@ -254,9 +259,11 @@ class IPCCliTest {
         Cli cli = new CliImpl(client);
 
         // Deployment with updated recipes
+        Path recipesPath = Paths.get(this.getClass().getResource("recipes").toURI());
+        Path artifactsPath = Paths.get(this.getClass().getResource("artifacts").toURI());
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
-                .recipeDirectoryPath(this.getClass().getResource("recipes").toURI().getPath())
-                .artifactDirectoryPath(this.getClass().getResource("artifacts").toURI().getPath())
+                .recipeDirectoryPath(recipesPath.toString())
+                .artifactDirectoryPath(artifactsPath.toString())
                 .build();
         cli.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernel.getPackageStorePath().resolve(PackageStore.ARTIFACT_DIRECTORY)

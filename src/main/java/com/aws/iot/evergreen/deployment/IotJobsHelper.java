@@ -526,8 +526,11 @@ public class IotJobsHelper implements InjectionActions {
 
     @Data
     public static class DeploymentDetailsIotJobs {
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID)
         private String jobId;
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)
         private JobStatus jobStatus;
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS)
         private Map<String, String> statusDetails;
         @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)
         private DeploymentType deploymentType;

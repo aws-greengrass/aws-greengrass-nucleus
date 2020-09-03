@@ -73,6 +73,8 @@ public class DeploymentStatusKeeper {
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (deploymentType) {
             logger.atDebug().kv(JOB_ID_LOG_KEY_NAME, deploymentId).kv("JobStatus", status).log("Storing job status");
+            // TODO: Consider making DeploymentDetailsIotJobs and LocalDeploymentDetails inherit from the same base
+            //  class with deployment type as common parameter and store those objects directly instead of Map
             Map<String, Object> deploymentDetails = null;
             if (deploymentType == DeploymentType.IOT_JOBS) {
                 IotJobsHelper.DeploymentDetailsIotJobs deploymentDetailsIotJobs =
