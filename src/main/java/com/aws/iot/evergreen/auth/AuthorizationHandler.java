@@ -85,7 +85,7 @@ public class AuthorizationHandler  {
                     //If there is a childRemoved event, it could be the component is removed, or either the
                     //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
                     //filter out all other WhatHappeneds
-                    if (why.equals(WhatHappened.childChanged)) {
+                    if (WhatHappened.childChanged.equals(why)) {
                         if (!newv.childOf(PARAMETERS_CONFIG_KEY) || !newv.getName()
                                 .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                             return;

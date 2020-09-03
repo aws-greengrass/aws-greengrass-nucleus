@@ -179,6 +179,9 @@ class IPCPubSubTest {
         Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
             assertEquals("some message", new String(m, StandardCharsets.UTF_8));
         });
+        c.subscribeToTopic("a", cb.getRight());
+        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
+        cb.getLeft().get(2, TimeUnit.SECONDS);
 
         // Remove the service topic
         Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
