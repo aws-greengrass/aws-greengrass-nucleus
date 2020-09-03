@@ -32,6 +32,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.packagemanager.models.PackageIdentifier.PRIVATE_SCOPE;
+import static com.aws.iot.evergreen.packagemanager.models.PackageIdentifier.PUBLIC_SCOPE;
+
 public class GreengrassPackageServiceHelper {
 
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
@@ -47,41 +50,38 @@ public class GreengrassPackageServiceHelper {
 
     List<PackageMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
             throws PackageDownloadException {
-        FindComponentVersionsByPlatformRequest findComponentRequest = new FindComponentVersionsByPlatformRequest()
-                .withComponentName(packageName)
-                .withVersionConstraint(versionRequirement.toString())
-                .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
-                .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
         List<PackageMetadata> ret = new ArrayList<>();
+
+        FindComponentVersionsByPlatformRequest findComponentRequest =
+                new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
+                        .withVersionConstraint(versionRequirement.toString())
+                        .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
+                        .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
             //  not go through all the pagination
             String pagination = null;
             do {
-                FindComponentVersionsByPlatformResult findComponentResult =
-                        evgCmsClient.findComponentVersionsByPlatform(
-                                findComponentRequest.withLastPaginationToken(pagination));
+                FindComponentVersionsByPlatformResult findComponentResult = evgCmsClient
+                        .findComponentVersionsByPlatform(findComponentRequest.withLastPaginationToken(pagination));
                 pagination = findComponentResult.getLastPaginationToken();
                 List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
 
                 ret.addAll(componentSelectedMetadataList.stream().map(componentMetadata -> {
                     PackageIdentifier packageIdentifier = new PackageIdentifier(componentMetadata.getComponentName(),
                             new Semver(componentMetadata.getComponentVersion()), componentMetadata.getScope());
-                    return new PackageMetadata(packageIdentifier,
-                            componentMetadata.getDependencies()
-                                             .stream()
-                                             .collect(Collectors.toMap(ComponentNameVersion::getComponentName,
-                                                     ComponentNameVersion::getComponentVersionConstraint)));
+                    return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
+                            Collectors.toMap(ComponentNameVersion::getComponentName,
+                                    ComponentNameVersion::getComponentVersionConstraint)));
                 }).collect(Collectors.toList()));
             } while (pagination != null);
-
-            ret.sort(null);
-            return ret;
         } catch (AmazonClientException e) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
             throw new PackageDownloadException(
                     "No valid versions were found for this package based on provided requirement", e);
         }
+        ret.sort(null);
+        return ret;
     }
 
     /**
@@ -94,20 +94,39 @@ public class GreengrassPackageServiceHelper {
     public String downloadPackageRecipeAsString(PackageIdentifier packageIdentifier) throws PackageDownloadException {
         GetComponentRequest getComponentRequest =
                 new GetComponentRequest().withComponentName(packageIdentifier.getName())
-                                         .withComponentVersion(packageIdentifier.getVersion().toString())
-                                         .withType(RecipeFormatType.YAML)
-                                         .withScope(packageIdentifier.getScope());
+                        .withComponentVersion(packageIdentifier.getVersion().toString()).withType(RecipeFormatType.YAML)
+                        .withScope(packageIdentifier.getScope());
+
+        // If the scope is listed as PUBLIC, then always try to download the private version first and then PUBLIC
+        boolean privateFirst = false;
+        if (getComponentRequest.getScope().equalsIgnoreCase(PUBLIC_SCOPE)) {
+            privateFirst = true;
+            getComponentRequest.withScope(PRIVATE_SCOPE);
+        }
 
         GetComponentResult getPackageResult;
         try {
-            getPackageResult = evgCmsClient.getComponent(getComponentRequest);
-        } catch (AmazonClientException e) {
-            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
-            String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, packageIdentifier);
-            throw new PackageDownloadException(errorMsg, e);
+            getPackageResult = download(getComponentRequest, packageIdentifier);
+        } catch (PackageDownloadException e) {
+            if (privateFirst) {
+                // We tried private and that failed, so try public now
+                getPackageResult = download(getComponentRequest.withScope(PUBLIC_SCOPE), packageIdentifier);
+            } else {
+                throw e;
+            }
         }
 
         return StandardCharsets.UTF_8.decode(getPackageResult.getRecipe()).toString();
+    }
+
+    private GetComponentResult download(GetComponentRequest r, PackageIdentifier id) throws PackageDownloadException {
+        try {
+            return evgCmsClient.getComponent(r);
+        } catch (AmazonClientException e) {
+            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
+            String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);
+            throw new PackageDownloadException(errorMsg, e);
+        }
     }
 
     /**
