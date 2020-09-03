@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.config.Topics;
 
 import java.util.Map;
 
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 public class PluginService extends EvergreenService {
@@ -32,5 +33,10 @@ public class PluginService extends EvergreenService {
         }
         logger.atTrace().log("Bootstrap is not required: service version unchanged");
         return false;
+    }
+
+    @Override
+    public int bootstrap() {
+        return REQUEST_RESTART;
     }
 }

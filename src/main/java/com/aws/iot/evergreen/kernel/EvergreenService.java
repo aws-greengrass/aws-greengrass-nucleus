@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions {
@@ -259,7 +260,7 @@ public class EvergreenService implements InjectionActions {
      * @throws TimeoutException     when the command execution times out.
      */
     public int bootstrap() throws InterruptedException, TimeoutException {
-        return 0;
+        return NO_OP;
     }
 
     /**

@@ -1,0 +1,12 @@
+---
+TemplateVersion: '2020-01-25'
+ComponentName: plugin
+Description: Just a plugin
+Publisher: Me
+Version: '1.1.0'
+ComponentType: PLUGIN
+Manifests:
+  - Platform:
+      os: all
+    Artifacts:
+      - Uri: greengrass:plugin.jar

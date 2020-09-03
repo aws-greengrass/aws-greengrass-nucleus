@@ -165,26 +165,26 @@ public class GenericExternalService extends EvergreenService {
     @Override
     public boolean isBootstrapRequired(Map<String, Object> newServiceConfig) {
         if (newServiceConfig == null || !newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
-            logger.atTrace().log("Bootstrap is not required: service lifecycle config not found");
+            logger.atDebug().log("Bootstrap is not required: service lifecycle config not found");
             return false;
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
                 || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
-            logger.atTrace().log("Bootstrap is not required: service lifecycle bootstrap not found");
+            logger.atDebug().log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
         }
 
         if (!getConfig().find(VERSION_CONFIG_KEY).getOnce().equals(newServiceConfig.get(VERSION_CONFIG_KEY))) {
-            logger.atTrace().log("Bootstrap is required: service version changed");
+            logger.atDebug().log("Bootstrap is required: service version changed");
             return true;
         }
         Node serviceOldBootstrap = getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
         boolean bootstrapStepChanged =  serviceOldBootstrap == null
                 || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
-        logger.atTrace().log(String.format("Bootstrap is %srequired: bootstrap step %schanged",
+        logger.atDebug().log(String.format("Bootstrap is %srequired: bootstrap step %schanged",
                 bootstrapStepChanged ? "" : "not ", bootstrapStepChanged ? "" : "un"));
         return bootstrapStepChanged;
     }

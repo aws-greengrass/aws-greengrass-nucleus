@@ -161,7 +161,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
         // For newly added components, check if bootstrap is specified in config map
         if (!newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
-            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+            logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle config not found");
             return false;
         }
@@ -169,11 +169,11 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
                 || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
-            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+            logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
         }
-        logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+        logger.atInfo().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                 .log("Bootstrap is required: new service with bootstrap defined");
         return true;
     }
