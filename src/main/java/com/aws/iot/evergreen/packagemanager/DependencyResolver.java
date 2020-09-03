@@ -148,12 +148,10 @@ public class DependencyResolver {
      * @return Optional containing an error message of dependency resolution conflicts, empty if dependency
      *         resolution completes successfully.
      * @throws PackagingException for all package errors
-     * @throws IOException        when a package cannot be retrieved from the package store
      */
     private Optional<String> resolveDependencyTree(Map<String, PackageIdentifier> resolvedPackageNameToVersion,
                                                    Map<String, Map<String, String>> packageNameToVersionConstraints,
-                                                   Set<String> packagesToResolve)
-            throws PackagingException, IOException, PackageVersionConflictException {
+                                                   Set<String> packagesToResolve) throws PackagingException {
         if (packagesToResolve.isEmpty()) {
             return Optional.empty();
         }

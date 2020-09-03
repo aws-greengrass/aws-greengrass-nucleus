@@ -11,6 +11,8 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @Value
 @AllArgsConstructor
 public class PackageIdentifier implements Comparable<PackageIdentifier> {
+    public static final String PUBLIC_SCOPE = "PUBLIC";
+    public static final String PRIVATE_SCOPE = "PRIVATE";
     String name;
     Semver version;
     //TODO considering use enum if local name occluding is necessary.
@@ -27,7 +29,7 @@ public class PackageIdentifier implements Comparable<PackageIdentifier> {
         this.name = name;
         this.version = version;
         //hardcode to 'private' before refactoring caller of this constructor
-        this.scope = "private";
+        this.scope = PRIVATE_SCOPE;
     }
 
     @Override

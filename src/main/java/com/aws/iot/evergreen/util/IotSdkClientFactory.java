@@ -30,7 +30,7 @@ public final class IotSdkClientFactory {
             .create(RetryCondition.defaultRetryCondition(), RetryOnExceptionsCondition.create(retryableIoTExceptions));
 
     private static final RetryPolicy retryPolicy =
-            RetryPolicy.builder().numRetries(5).backoffStrategy(BackoffStrategy.defaultStrategy())
+            RetryPolicy.builder().numRetries(10).backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
                     .retryCondition(retryCondition).build();
 
     private IotSdkClientFactory() {
