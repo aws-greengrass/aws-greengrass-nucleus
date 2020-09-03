@@ -48,14 +48,12 @@ manifests:
       python3:
         versionRequirement: ^3.5
 ```
-The topics on this reference are organized by top-level keys grouped by functions, such as providing metadata, or
- defining deployment and/or runtime behaviors. Top-level keys can have options that support them as sub-topics. This
+The topics on this reference are organized by top-level keys in terms of providing component metadata or
+ defining platform specific manifest. Top-level keys can have options that support them as sub-topics. This
   maps to the `<key>: <options>: <value>` indent structure of recipe file.
-## Component metadata
-Keys in this group provide component metadata, which are usually used for managing components in the AWS Greengrass
- ecosystem. The metadata is often used for indexing and filtering as well.
-### RECIPE TEMPLATE VERSION
-Define the version of recipe itself
+
+### TEMPLATE VERSION
+Define the version of recipe template
 ```yaml
 RecipeTemplateVersion: '2020-01-25'
 ```
