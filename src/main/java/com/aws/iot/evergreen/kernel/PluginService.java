@@ -39,4 +39,9 @@ public class PluginService extends EvergreenService {
     public int bootstrap() {
         return REQUEST_RESTART;
     }
+
+    @Override
+    public boolean isBuiltin() {
+        return false;
+    }
 }

@@ -56,7 +56,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -165,7 +165,7 @@ public class PluginComponentTest extends BaseITCase {
         doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
 
-        doNothing().when(kernelSpy).shutdown(any(), eq(REQUEST_RESTART));
+        doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
         // Second deployment to add plugin-1.1.0 to kernel which should enter kernel restart workflow
         assertThrows(TimeoutException.class, () -> submitSampleJobDocument(getPluginDeploymentDocument(
                 System.currentTimeMillis(), "1.1.0", deploymentId2), kernelSpy)
