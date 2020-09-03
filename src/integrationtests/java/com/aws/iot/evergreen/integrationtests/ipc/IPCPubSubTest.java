@@ -170,6 +170,35 @@ class IPCPubSubTest {
     }
 
     @Test
+    void GIVEN_pubsubclient_WHEN_service_removed_and_added_THEN_fail_and_succeed() throws Exception {
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
+                TEST_SERVICE_NAME, this.getClass());
+        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
+        client = new IPCClientImpl(config);
+        PubSub c = new PubSubImpl(client);
+        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+        });
+
+        // Remove the service topic
+        Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
+        if (serviceTopic != null) {
+            serviceTopic.remove();
+        }
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
+        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
+
+        // Reload the kernel with the service and correct authorization policy
+        kernel.getConfig().read(new URL(IPCPubSubTest.class.getResource("pubsub_authorized.yaml").toString()), false);
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        });
+        c.subscribeToTopic("a", cb.getRight()); //now this should succeed
+        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
+        cb.getLeft().get(2, TimeUnit.SECONDS);
+    }
+
+    @Test
     void GIVEN_pubsubclient_WHEN_subscribe_is_not_authorized_THEN_Fail(ExtensionContext context) throws Exception {
 
         kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml",

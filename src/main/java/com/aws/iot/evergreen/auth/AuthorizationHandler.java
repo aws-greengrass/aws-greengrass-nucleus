@@ -23,6 +23,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.Kernel.findServiceForNode;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -47,7 +49,7 @@ public class AuthorizationHandler  {
     private final Kernel kernel;
 
     private final AuthorizationModule authModule;
-    
+
     /**
      * Constructor for AuthZ.
      *
@@ -79,13 +81,13 @@ public class AuthorizationHandler  {
                         return;
                     }
 
-                     //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
-                     //If there is a childRemoved event, it could be either the 'accessControl' Topic or the
-                     //'parameters' Topics that has bubbled up, so we need to handle and filter out all other
-                     // WhatHappeneds
-                     if (why.equals(WhatHappened.childChanged)) {
-                        if (!newv.childOf(PARAMETERS_CONFIG_KEY)
-                                || !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                    //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
+                    //If there is a childRemoved event, it could be the component is removed, or either the
+                    //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
+                    //filter out all other WhatHappeneds
+                    if (why.equals(WhatHappened.childChanged)) {
+                        if (!newv.childOf(PARAMETERS_CONFIG_KEY) || !newv.getName()
+                                .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                             return;
                         }
                         if (!(newv instanceof Topic)) {
@@ -94,9 +96,15 @@ public class AuthorizationHandler  {
                                     .log("Incorrect formatting while updating the authorization ACL.");
                             return;
                         }
-                    } else if (why.equals(WhatHappened.childRemoved) && !newv.getName().equals(PARAMETERS_CONFIG_KEY)
-                             && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
-                        return;
+                    } else if (WhatHappened.childRemoved.equals(why)) {
+                        if (newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)) {
+                            authModule.clearPermissions(findServiceForNode(newv));
+                            return;
+                        }
+                        if (!newv.getName().equals(PARAMETERS_CONFIG_KEY) && !newv.getName()
+                                .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                            return;
+                        }
                     }
 
                     //Reload all policies
@@ -240,7 +248,7 @@ public class AuthorizationHandler  {
             }
         }
         if (isUpdate) {
-            authModule.clearComponentPermissions(componentName);
+            authModule.deletePermissionsWithDestination(componentName);
         }
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy : policies) {
