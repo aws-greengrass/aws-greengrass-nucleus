@@ -129,10 +129,17 @@ public class DynamicComponentConfigurationValidator {
     private boolean willChildTopicsChange(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
                                           String key, long proposedTimestamp) throws InvalidConfigFormatException {
         Object proposed = proposedServiceConfig.get(key);
-        if (!(proposed instanceof Map)) {
+        Topics current = currentServiceConfig.findTopics(key);
+        // If both are null then there is no change
+        if (Objects.isNull(current) && Objects.isNull(proposed)) {
+            return false;
+        }
+        // If proposed is non null it has to be a map
+        if (Objects.nonNull(proposed) && !(proposed instanceof Map)) {
             throw new InvalidConfigFormatException("Config for " + key + " must be a map");
         }
-        Topics current = currentServiceConfig.findTopics(key);
+
+        // By now we know at least one is non empty, so timestamps and values should be compared next
         return willNodeChange(proposed, current, proposedTimestamp);
     }
 

@@ -8,6 +8,7 @@ import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
+import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
@@ -15,21 +16,27 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStore;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.iot.evergreen.ipc.services.configstore.exceptions.ConfigStoreIPCException;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -38,7 +45,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class DynamicComponentConfigurationValidationTest {
+@ExtendWith(EGExtension.class)
+public class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
 
     private IPCClient client;
@@ -56,11 +64,12 @@ public class DynamicComponentConfigurationValidationTest {
         // launch kernel
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
                 mainRunning.countDown();
             }
         });
         kernel.launch();
+        assertTrue(mainRunning.await(10, TimeUnit.SECONDS));
 
         // Start a new service
         AtomicBoolean mainRestarted = new AtomicBoolean(false);
@@ -74,8 +83,18 @@ public class DynamicComponentConfigurationValidationTest {
                 serviceStarted.set(true);
             }
         });
+
+        List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(EvergreenService::getName)
+                .collect(Collectors.toList());
+        serviceList.add("OldService");
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("main", new HashMap<Object, Object>() {{
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            kernel.getMain().getServiceConfig().lookupTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)
+                                    .toPOJO());
+                }});
                 put("OldService", new HashMap<Object, Object>() {{
                     put(PARAMETERS_CONFIG_KEY, new HashMap<Object, Object>() {{
                         put("ConfigKey1", "ConfigValue1");
@@ -100,11 +119,11 @@ public class DynamicComponentConfigurationValidationTest {
 
     @AfterEach
     void after() throws IOException {
-        if (kernel != null) {
-            kernel.shutdown();
-        }
         if (client != null) {
             client.disconnect();
+        }
+        if (kernel != null) {
+            kernel.shutdown();
         }
     }
 
@@ -125,6 +144,7 @@ public class DynamicComponentConfigurationValidationTest {
         // Attempt changing the configuration for the running service
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("main", kernel.getMain().getServiceConfig().toPOJO());
                 put("OldService", new HashMap<Object, Object>() {{
                     put(PARAMETERS_CONFIG_KEY, new HashMap<Object, Object>() {{
                         put("ConfigKey1", "ConfigValue2");
@@ -160,6 +180,7 @@ public class DynamicComponentConfigurationValidationTest {
         // Attempt changing the configuration for the running service
         HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("main", kernel.getMain().getServiceConfig().toPOJO());
                 put("OldService", new HashMap<Object, Object>() {{
                     put(PARAMETERS_CONFIG_KEY, new HashMap<Object, Object>() {{
                         put("ConfigKey1", "ConfigValue2");
