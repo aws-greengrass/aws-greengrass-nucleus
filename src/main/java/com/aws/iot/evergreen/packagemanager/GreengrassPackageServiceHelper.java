@@ -16,7 +16,6 @@ import com.amazonaws.services.evergreen.model.ResolvedComponent;
 import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.packagemanager.common.Platform;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
@@ -53,40 +52,33 @@ public class GreengrassPackageServiceHelper {
             throws PackageDownloadException {
         List<PackageMetadata> ret = new ArrayList<>();
 
-        // Cloud isn't handling hierarchy yet, so implement it ourselves by just calling the API many times until we
-        // have some results.
-        Platform.OS os = PlatformResolver.CURRENT_PLATFORM.getOs();
-        while (os != null && ret.isEmpty()) {
-            FindComponentVersionsByPlatformRequest findComponentRequest =
-                    new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
-                            .withVersionConstraint(versionRequirement.toString()).withOs(os.getName());
-            os = os.getParent();
+        FindComponentVersionsByPlatformRequest findComponentRequest =
+                new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
+                        .withVersionConstraint(versionRequirement.toString())
+                        .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName());
 
-            try {
-                // TODO: If cloud properly sorts the response, then we can optimize this and possibly
-                //  not go through all the pagination
-                String pagination = null;
-                do {
-                    FindComponentVersionsByPlatformResult findComponentResult = evgCmsClient
-                            .findComponentVersionsByPlatform(findComponentRequest.withLastPaginationToken(pagination));
-                    pagination = findComponentResult.getLastPaginationToken();
-                    List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
+        try {
+            // TODO: If cloud properly sorts the response, then we can optimize this and possibly
+            //  not go through all the pagination
+            String pagination = null;
+            do {
+                FindComponentVersionsByPlatformResult findComponentResult = evgCmsClient
+                        .findComponentVersionsByPlatform(findComponentRequest.withLastPaginationToken(pagination));
+                pagination = findComponentResult.getLastPaginationToken();
+                List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
 
-                    ret.addAll(componentSelectedMetadataList.stream().map(componentMetadata -> {
-                        PackageIdentifier packageIdentifier =
-                                new PackageIdentifier(componentMetadata.getComponentName(),
-                                        new Semver(componentMetadata.getComponentVersion()),
-                                        componentMetadata.getScope());
-                        return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream()
-                                .collect(Collectors.toMap(ComponentNameVersion::getComponentName,
-                                        ComponentNameVersion::getComponentVersionConstraint)));
-                    }).collect(Collectors.toList()));
-                } while (pagination != null);
-            } catch (AmazonClientException e) {
-                // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
-                throw new PackageDownloadException(
-                        "No valid versions were found for this package based on provided requirement", e);
-            }
+                ret.addAll(componentSelectedMetadataList.stream().map(componentMetadata -> {
+                    PackageIdentifier packageIdentifier = new PackageIdentifier(componentMetadata.getComponentName(),
+                            new Semver(componentMetadata.getComponentVersion()), componentMetadata.getScope());
+                    return new PackageMetadata(packageIdentifier, componentMetadata.getDependencies().stream().collect(
+                            Collectors.toMap(ComponentNameVersion::getComponentName,
+                                    ComponentNameVersion::getComponentVersionConstraint)));
+                }).collect(Collectors.toList()));
+            } while (pagination != null);
+        } catch (AmazonClientException e) {
+            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
+            throw new PackageDownloadException(
+                    "No valid versions were found for this package based on provided requirement", e);
         }
         ret.sort(null);
         return ret;
