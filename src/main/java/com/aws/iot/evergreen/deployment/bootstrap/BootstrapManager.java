@@ -5,7 +5,6 @@
 
 package com.aws.iot.evergreen.deployment.bootstrap;
 
-import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -46,7 +45,6 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_T
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
@@ -151,13 +149,19 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * Check if Kernel needs to run bootstrap task of the given component.
      *
      * @param componentName the name of the component
-     * @return true if component has a bootstrap step under one of the following conditions:
-     *      1. component is newly added, 2. component version changes, 3. component bootstrap step changes.
+     * @return true if a new component has bootstrap step defined, or existing component update requires bootstrap,
      *      false otherwise
      */
     boolean serviceBootstrapRequired(String componentName, Map<String, Object> newServiceConfig) {
+        // For existing components, call service to decide
+        try {
+            EvergreenService service = kernel.locate(componentName);
+            return service.isBootstrapRequired(newServiceConfig);
+        } catch (ServiceLoadException ignore) {
+        }
+        // For newly added components, check if bootstrap is specified in config map
         if (!newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
-            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+            logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle config not found");
             return false;
         }
@@ -165,31 +169,13 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
                 || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
-            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+            logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
         }
-        EvergreenService service;
-        try {
-            service = kernel.locate(componentName);
-        } catch (ServiceLoadException e) {
-            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName).log("Bootstrap is required: new service");
-            return true;
-        }
-        if (!service.getConfig().find(VERSION_CONFIG_KEY).getOnce()
-                .equals(newServiceConfig.get(VERSION_CONFIG_KEY))) {
-            logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
-                    .log("Bootstrap is required: service version changed");
-            return true;
-        }
-        Node serviceOldBootstrap = service.getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
-        boolean bootstrapStepChanged =  serviceOldBootstrap == null
-                || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
-        logger.atTrace().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName).log(String.format(
-                "Bootstrap is %srequired: bootstrap step %schanged", bootstrapStepChanged ? "" : "not ",
-                        bootstrapStepChanged ? "" : "un"));
-        return bootstrapStepChanged;
+        logger.atInfo().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+                .log("Bootstrap is required: new service with bootstrap defined");
+        return true;
     }
 
     /**
