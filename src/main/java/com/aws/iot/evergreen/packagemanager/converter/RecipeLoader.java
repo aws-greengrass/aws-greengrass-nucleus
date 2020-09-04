@@ -10,7 +10,6 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
-import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
@@ -18,6 +17,7 @@ import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
+import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -134,11 +134,9 @@ public final class RecipeLoader {
     private static ComponentArtifact convertArtifactFromFile(
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
         // null check on Unnarchive. Shouldn't happen if cloud recipe is parsed correctly.
-        String unArchive;
-        if (componentArtifact.getUnarchive() == null) {
-            unArchive = Unarchive.NONE.name();
-        } else {
-            unArchive = componentArtifact.getUnarchive().name();
+        Unarchive unArchive = Unarchive.NONE;
+        if (componentArtifact.getUnarchive() != null) {
+            unArchive = Unarchive.valueOf(componentArtifact.getUnarchive().name());
         }
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())
