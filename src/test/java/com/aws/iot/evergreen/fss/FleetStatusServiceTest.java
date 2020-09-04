@@ -52,9 +52,11 @@ import java.util.function.Function;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.iot.evergreen.fss.FleetStatusService.DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC;
 import static com.aws.iot.evergreen.fss.FleetStatusService.FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC;
@@ -171,6 +173,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -248,6 +251,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -430,6 +434,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -739,6 +744,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.

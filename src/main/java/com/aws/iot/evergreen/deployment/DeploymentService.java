@@ -250,7 +250,7 @@ public class DeploymentService extends EvergreenService {
                     setComponentsToGroupsMapping(deploymentGroupTopics);
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
+                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED.toString(),
                                     statusDetails);
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
@@ -262,7 +262,8 @@ public class DeploymentService extends EvergreenService {
                     // deployment
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
+                                    statusDetails);
                     deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
@@ -276,7 +277,8 @@ public class DeploymentService extends EvergreenService {
                     || currentDeploymentTaskMetadata.getDeploymentAttemptCount().get() >= DEPLOYMENT_MAX_ATTEMPTS) {
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
+                                statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
@@ -354,7 +356,7 @@ public class DeploymentService extends EvergreenService {
             return;
         }
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                JobStatus.IN_PROGRESS, new HashMap<>());
+                JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
             deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
@@ -386,7 +388,7 @@ public class DeploymentService extends EvergreenService {
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                    JobStatus.FAILED, statusDetails);
+                    JobStatus.FAILED.toString(), statusDetails);
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
