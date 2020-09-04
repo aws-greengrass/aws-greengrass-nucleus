@@ -1,6 +1,7 @@
 package com.aws.iot.evergreen.auth;
 
 import com.aws.iot.evergreen.config.Configuration;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -43,6 +44,9 @@ public class AuthorizationPolicyParserTest {
     @Mock
     private Kernel kernel;
 
+    @Mock
+    private Topics mockPubSub;
+
     private Configuration realConfig;
 
     private CountDownLatch logReceived;
@@ -58,6 +62,7 @@ public class AuthorizationPolicyParserTest {
             realConfig.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
         }
         when(kernel.getConfig()).thenReturn(realConfig);
+        when(kernel.findServiceTopic(PUB_SUB_SERVICE_NAME)).thenReturn(mockPubSub);
     }
 
     @AfterEach
