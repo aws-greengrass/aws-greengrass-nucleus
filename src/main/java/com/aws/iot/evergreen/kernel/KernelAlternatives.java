@@ -71,7 +71,7 @@ public class KernelAlternatives {
         try {
             setupInitLaunchDirIfAbsent();
         } catch (IOException e) {
-            logger.atError().log("Unable to setup Kernel launch directory", e);
+            logger.atWarn().log(e.getMessage());
         }
     }
 
@@ -116,7 +116,7 @@ public class KernelAlternatives {
         try {
             unpackDir = locateCurrentKernelUnpackDir();
         } catch (IOException | URISyntaxException e) {
-            logger.atError().log("Unable to setup Kernel launch directory", e);
+            logger.atWarn().log(e.getMessage());
             return;
         }
         Path initialLaunchDir = altsDir.resolve(INITIAL_SETUP_DIR);
