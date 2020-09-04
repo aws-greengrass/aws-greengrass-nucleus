@@ -41,6 +41,7 @@ public class KernelAlternatives {
     private static final String INITIAL_SETUP_DIR = "init";
     private static final String KERNEL_DISTRIBUTION_DIR = "distro";
     private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
+    private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
     private static final String KERNEL_BIN_DIR = "bin";
     private static final String KERNEL_LIB_DIR = "lib";
     private static final String LOADER_PID_FILE = "loader.pid";
@@ -94,6 +95,10 @@ public class KernelAlternatives {
     }
 
     public Path getServiceTemplatePath() {
+        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(SYSTEMD_SERVICE_TEMPLATE);
+    }
+
+    public Path getServiceConfigPath() {
         return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(SYSTEMD_SERVICE_FILE);
     }
 
@@ -129,7 +134,7 @@ public class KernelAlternatives {
     /**
      * Locate launch directory of Kernel, assuming unpack directory tree as below.
      * ├── bin
-     * │   ├── greengrass.service
+     * │   ├── greengrass.service.template
      * │   └── loader
      * └── lib
      *     └── Evergreen.jar
