@@ -76,10 +76,9 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
-        // null check on componentType. Shouldn't happen if cloud recipe is parsed correctly.
         String componentType = null;
         if (componentRecipe.getComponentType() != null) {
-            componentType = componentRecipe.getComponentType().toString();
+            componentType = componentRecipe.getComponentType().name();
         }
 
         PackageRecipe packageRecipe = PackageRecipe.builder()
@@ -134,11 +133,12 @@ public final class RecipeLoader {
 
     private static ComponentArtifact convertArtifactFromFile(
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
+        // null check on Unnarchive. Shouldn't happen if cloud recipe is parsed correctly.
         String unArchive;
         if (componentArtifact.getUnarchive() == null) {
-            unArchive = Unarchive.NONE.toString();
+            unArchive = Unarchive.NONE.name();
         } else {
-            unArchive = componentArtifact.getUnarchive().toString();
+            unArchive = componentArtifact.getUnarchive().name();
         }
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())

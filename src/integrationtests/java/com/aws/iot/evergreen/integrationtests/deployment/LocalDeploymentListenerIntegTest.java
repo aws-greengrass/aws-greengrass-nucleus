@@ -2,7 +2,7 @@ package com.aws.iot.evergreen.integrationtests.deployment;
 
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.LocalDeploymentListener;
-import com.aws.iot.evergreen.kernel.GenericExternalService;
+import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -72,7 +72,7 @@ class LocalDeploymentListenerIntegTest {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         // set class for PLUGIN
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GenericExternalService.class.getName());
+                EvergreenService.class.getName());
 
         String localOverrideRequestStr = new String(Files.readAllBytes(
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("Local_override_request.json").toURI())));
