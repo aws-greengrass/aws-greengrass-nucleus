@@ -46,6 +46,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -54,16 +55,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
@@ -119,7 +125,7 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         serviceFullName = "DeploymentService";
         initializeMockedConfig();
 
-        when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
+        lenient().when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
 
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, packageManager,
@@ -201,15 +207,15 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_set_components_to_groups()
                 throws Exception {
-            Topics allGroupTopics = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
             Topics groupTopics = allGroupTopics.createInteriorChild(EXPECTED_GROUP_NAME);
             Topics componentTopics = groupTopics.createInteriorChild(EXPECTED_ROOT_PACKAGE_NAME);
             componentTopics.createLeafChild(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY).withValue("1.0.0");
-            componentTopics.createLeafChild(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID)
+            componentTopics.createLeafChild(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN)
                     .withValue(TEST_CONFIGURATION_ARN);
-            when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(groupTopics);
+            when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(groupTopics);
             Topics componentToGroupsTopics =  mock(Topics.class);
-            when(config.lookupTopics(DeploymentService.COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(componentToGroupsTopics);
+            when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(componentToGroupsTopics);
             when(mockKernel.locate(EXPECTED_ROOT_PACKAGE_NAME)).thenReturn(mockEvergreenService);
             when(mockEvergreenService.getDependencies()).thenReturn(new HashMap<>());
             when(mockEvergreenService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
@@ -240,22 +246,46 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
         }
 
         @Test
+        public void GIVEN_components_to_groups_mapping_WHEN_get_groups_for_component_THEN_gets_correct_groups() {
+            String group1 = "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12";
+            String group2 = "arn:aws:greengrass:testRegion:67890:configuration:testGroup:800";
+            Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            Topics componentTopics1 = Topics.of(context, "MockService", allComponentToGroupsTopics);
+            Topics componentTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+            Topic groupTopic1 = Topic.of(context, group1, true);
+            Topic groupTopic2 = Topic.of(context, group2, true);
+            componentTopics1.children.put("MockService", groupTopic1);
+            componentTopics2.children.put("MockService2", groupTopic2);
+            allComponentToGroupsTopics.children.put("MockService", componentTopics1);
+            allComponentToGroupsTopics.children.put("MockService2", componentTopics2);
+            when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
+
+            Set<String> allGroupConfigs = deploymentService.getAllGroupConfigs();
+            assertEquals(2, allGroupConfigs.size());
+            assertThat(allGroupConfigs, containsInAnyOrder(group1, group2));
+
+            Set<String> allComponentGroupConfigs = deploymentService.getGroupConfigsForUserComponent("MockService");
+            assertEquals(1, allComponentGroupConfigs.size());
+            assertThat(allComponentGroupConfigs, containsInAnyOrder(group1));
+        }
+
+        @Test
         public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_correctly_map_components_to_groups()
                 throws Exception {
-            Topics allGroupTopics = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
             Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
             Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
-            Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+            Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                     "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
             Map<String, Node> pkgDetails = new HashMap<>();
             pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
-            pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID, groupTopic1);
+            pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, groupTopic1);
             Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
             pkgTopics.children.putAll(pkgDetails);
             deploymentGroupTopics.children.put(EXPECTED_ROOT_PACKAGE_NAME, pkgTopics);
 
-            when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
-            when(config.lookupTopics(DeploymentService.COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+            when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+            when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
             when(mockKernel.locate(any())).thenReturn(mockEvergreenService);
             when(mockEvergreenService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
@@ -493,6 +523,6 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
     private void mockGroupToRootPackageMappingStubs() {
         doNothing().when(mockGroupPackages).replaceAndWait(any());
         when(mockGroupPackages.iterator()).thenReturn(mock(Iterator.class));
-        when(config.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(mockGroupPackages);
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(mockGroupPackages);
     }
 }
