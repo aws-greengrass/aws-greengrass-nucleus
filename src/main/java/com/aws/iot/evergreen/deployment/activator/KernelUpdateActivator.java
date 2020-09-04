@@ -33,8 +33,14 @@ public class KernelUpdateActivator extends DeploymentActivator {
     private final BootstrapManager bootstrapManager;
     private final KernelAlternatives kernelAlternatives;
 
+    /**
+     * Constructor of KernelUpdateActivator.
+     *
+     * @param kernel Kernel instance
+     * @param bootstrapManager BootstrapManager instance
+     */
     @Inject
-    protected KernelUpdateActivator(Kernel kernel, BootstrapManager bootstrapManager) {
+    public KernelUpdateActivator(Kernel kernel, BootstrapManager bootstrapManager) {
         super(kernel);
         this.bootstrapManager = bootstrapManager;
         this.kernelAlternatives = kernel.getContext().get(KernelAlternatives.class);

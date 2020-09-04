@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -150,6 +151,42 @@ public class GenericExternalService extends EvergreenService {
         }
 
         return atomicExitCode.get();
+    }
+
+    /**
+     * Check if bootstrap step needs to run during service update. Called during deployments to determine deployment
+     * workflow.
+     *
+     * @param newServiceConfig new service config for the update
+     * @return true if the service
+     *      1. has a bootstrap step defined, 2. component version changes, or bootstrap step changes.
+     *      false otherwise
+     */
+    @Override
+    public boolean isBootstrapRequired(Map<String, Object> newServiceConfig) {
+        if (newServiceConfig == null || !newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
+            logger.atDebug().log("Bootstrap is not required: service lifecycle config not found");
+            return false;
+        }
+        Map<String, Object> newServiceLifecycle =
+                (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+        if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
+                || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
+            logger.atDebug().log("Bootstrap is not required: service lifecycle bootstrap not found");
+            return false;
+        }
+
+        if (!getConfig().find(VERSION_CONFIG_KEY).getOnce().equals(newServiceConfig.get(VERSION_CONFIG_KEY))) {
+            logger.atDebug().log("Bootstrap is required: service version changed");
+            return true;
+        }
+        Node serviceOldBootstrap = getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
+        boolean bootstrapStepChanged =  serviceOldBootstrap == null
+                || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+        logger.atDebug().log(String.format("Bootstrap is %srequired: bootstrap step %schanged",
+                bootstrapStepChanged ? "" : "not ", bootstrapStepChanged ? "" : "un"));
+        return bootstrapStepChanged;
     }
 
     @Override
