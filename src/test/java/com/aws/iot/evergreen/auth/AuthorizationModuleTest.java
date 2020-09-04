@@ -14,7 +14,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -98,9 +97,8 @@ public class AuthorizationModuleTest {
             }
         });
         String componentToRemove = "ComponentB";
-        module.clearPermissions(componentToRemove);
-        assertEquals(module.permissions.get("ComponentA").size(), 1);
-        assertNull(module.permissions.get(componentToRemove));
+        module.deletePermissionsWithDestination(componentToRemove);
+        assertEquals(module.permissions.get("ComponentB").size(), 0);
     }
 
     @Test
