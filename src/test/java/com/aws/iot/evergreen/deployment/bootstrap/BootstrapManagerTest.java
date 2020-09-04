@@ -5,11 +5,10 @@
 
 package com.aws.iot.evergreen.deployment.bootstrap;
 
-import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -32,7 +31,6 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.stringContainsInOrder;
@@ -42,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -100,19 +99,13 @@ public class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_false() throws Exception {
+    void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_service_decision() throws Exception {
+        GenericExternalService serviceA = mock(GenericExternalService.class);
+        doReturn(true).when(serviceA).isBootstrapRequired(anyMap());
+        doReturn(serviceA).when(kernel).locate(eq(componentA));
+
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, Collections.emptyMap()));
-        assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(LIFECYCLE_INSTALL_NAMESPACE_TOPIC, "echo done");
-            }});
-        }}));
-        assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
-            }});
-        }}));
+        assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, Collections.emptyMap()));
     }
 
     @Test
@@ -128,42 +121,19 @@ public class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_component_version_changes_with_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_true() throws Exception {
-        Topic serviceAVersion = Topic.of(context, VERSION_CONFIG_KEY, "1.0.0");
-        Topics serviceAConfig = mock(Topics.class);
-        when(serviceAConfig.find(VERSION_CONFIG_KEY)).thenReturn(serviceAVersion);
-        EvergreenService serviceA = mock(EvergreenService.class);
-        when(serviceA.getConfig()).thenReturn(serviceAConfig);
-        when(kernel.locate(componentA)).thenReturn(serviceA);
+    void GIVEN_new_component_without_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_false() throws Exception {
+        when(kernel.locate(componentA)).thenThrow(new ServiceLoadException("mock error"));
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
-        assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.1");
+        assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
+                put(LIFECYCLE_INSTALL_NAMESPACE_TOPIC, "echo done");
             }});
         }}));
-    }
 
-    @Test
-    void GIVEN_component_bootstrap_step_changes_WHEN_check_serviceBootstrapRequired_THEN_return_true() throws Exception {
-        Topic serviceAVersion = Topic.of(context, VERSION_CONFIG_KEY, "1.0.0");
-        Topic serviceABootstrap = Topic.of(context, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo complete");
-
-        Topics serviceAConfig = mock(Topics.class);
-        when(serviceAConfig.find(VERSION_CONFIG_KEY)).thenReturn(serviceAVersion);
-        when(serviceAConfig.findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC))
-                .thenReturn(serviceABootstrap);
-
-        EvergreenService serviceA = mock(EvergreenService.class);
-        when(serviceA.getConfig()).thenReturn(serviceAConfig);
-        when(kernel.locate(componentA)).thenReturn(serviceA);
-        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-
-        assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
+        assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
+                put(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
             }});
         }}));
     }
