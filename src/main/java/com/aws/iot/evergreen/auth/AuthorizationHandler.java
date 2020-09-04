@@ -24,7 +24,6 @@ import javax.inject.Singleton;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.kernel.Kernel.findServiceForNode;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.iot.evergreen.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -96,15 +95,10 @@ public class AuthorizationHandler  {
                                     .log("Incorrect formatting while updating the authorization ACL.");
                             return;
                         }
-                    } else if (WhatHappened.childRemoved.equals(why)) {
-                        if (newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)) {
-                            authModule.clearPermissions(findServiceForNode(newv));
-                            return;
-                        }
-                        if (!newv.getName().equals(PARAMETERS_CONFIG_KEY) && !newv.getName()
-                                .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
-                            return;
-                        }
+                    } else if (WhatHappened.childRemoved.equals(why) && !newv.parent.getName()
+                            .equals(SERVICES_NAMESPACE_TOPIC) && !newv.getName().equals(PARAMETERS_CONFIG_KEY) && !newv
+                            .getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        return;
                     }
 
                     //Reload all policies
