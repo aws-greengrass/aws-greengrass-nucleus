@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.iot.evergreen.util.Utils.getUltimateCause;
 
 public class EvergreenService implements InjectionActions {
@@ -104,7 +105,6 @@ public class EvergreenService implements InjectionActions {
 
         this.externalDependenciesTopic =
                 topics.createLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).dflt(new ArrayList<String>());
-        this.externalDependenciesTopic.withParentNeedsToKnow(false);
         this.lifecycle = new Lifecycle(this, logger, privateConfig);
 
         initDependenciesTopic();
@@ -260,7 +260,18 @@ public class EvergreenService implements InjectionActions {
      * @throws TimeoutException     when the command execution times out.
      */
     public int bootstrap() throws InterruptedException, TimeoutException {
-        return 0;
+        return NO_OP;
+    }
+
+    /**
+     * Check if bootstrap step needs to run during service update. Called during deployments to determine deployment
+     * workflow.
+     *
+     * @param newServiceConfig new service config for the update
+     * @return true if bootstrap step needs to run, false otherwise
+     */
+    public boolean isBootstrapRequired(Map<String, Object> newServiceConfig) {
+        return false;
     }
 
     /**
@@ -466,7 +477,7 @@ public class EvergreenService implements InjectionActions {
         return getServiceName();
     }
 
-    private String getServiceName() {
+    public String getServiceName() {
         return config == null ? getClass().getSimpleName() : config.getName();
     }
 

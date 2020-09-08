@@ -185,6 +185,10 @@ class KernelLifecycleTest {
         EvergreenService service2 = mock(EvergreenService.class);
         EvergreenService service3 = mock(EvergreenService.class);
         EvergreenService service4 = mock(EvergreenService.class);
+        when(service1.shouldAutoStart()).thenReturn(true);
+        when(service2.shouldAutoStart()).thenReturn(true);
+        when(service3.shouldAutoStart()).thenReturn(true);
+        when(service4.shouldAutoStart()).thenReturn(true);
         doNothing().when(service1).requestStart();
         doNothing().when(service2).requestStart();
         doNothing().when(service3).requestStart();

@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
@@ -111,9 +110,9 @@ class KernelConfigResolverTest {
                         TEST_INPUT_PACKAGE_B);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "2.3", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "=2.3", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -149,7 +148,6 @@ class KernelConfigResolverTest {
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
         assertThat("Main service must depend on existing service",
                 dependencyListContains("main", "IpcService" + ":" + DependencyType.HARD, servicesConfig));
-        System.out.println(servicesConfig);
         assertThat("New service must depend on dependency service",
                 dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
 
@@ -167,7 +165,7 @@ class KernelConfigResolverTest {
                         TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -213,7 +211,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", new HashMap<String, Object>() {{
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, ">=1.2", new HashMap<String, Object>() {{
                     put("PackageA_Param_1", "PackageA_Param_1_value");
                 }});
         DeploymentDocument document = DeploymentDocument.builder()
@@ -273,6 +271,8 @@ class KernelConfigResolverTest {
 
         PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2", Collections.emptyMap(),
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
+
+        // B-1.5 -> A-1.2
         PackageRecipe package2Recipe = getPackage(TEST_INPUT_PACKAGE_B, "1.5", Utils.immutableMap(TEST_INPUT_PACKAGE_A,
                 new RecipeDependencyProperties("=1.2", DependencyType.HARD.toString())),
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_B), TEST_INPUT_PACKAGE_A);
@@ -280,15 +280,15 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_C), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", new HashMap<String, Object>() {{
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", new HashMap<String, Object>() {{
                     put("PackageA_Param_1", "PackageA_Param_1_value");
                 }});
         DeploymentPackageConfiguration package2DeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, true, "1.2", new HashMap<String, Object>() {{
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, true, "=1.5", new HashMap<String, Object>() {{
                     put("PackageB_Param_1", "PackageB_Param_1_value");
                 }});
         DeploymentPackageConfiguration package3DeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_C, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_C, true, "=1.5", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A,
                                                                 TEST_INPUT_PACKAGE_B, TEST_INPUT_PACKAGE_C))
@@ -342,7 +342,7 @@ class KernelConfigResolverTest {
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -406,7 +406,7 @@ class KernelConfigResolverTest {
         }}, Collections.emptyList(), Collections.emptyMap(), null);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "1.2", Collections.emptyMap());
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
@@ -437,8 +437,7 @@ class KernelConfigResolverTest {
     // utilities for mocking input
     private PackageRecipe getPackage(String packageName, String packageVersion,
                                      Map<String, RecipeDependencyProperties> dependencies,
-                                     Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName)
-            throws PackageLoadingException {
+                                     Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName) {
 
         Set<PackageParameter> parameters = packageParamsWithDefaultsRaw.entrySet()
                                                                        .stream()

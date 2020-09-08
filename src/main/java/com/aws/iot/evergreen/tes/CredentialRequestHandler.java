@@ -237,8 +237,9 @@ public class CredentialRequestHandler implements HttpHandler {
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
-        if (areCredentialsValid()) {
-            return tesCache.get(iotCredentialsPath).credentials;
+        TESCache cacheEntry = tesCache.get(iotCredentialsPath);
+        if (areCredentialsValid(cacheEntry)) {
+            return cacheEntry.credentials;
         }
 
         // Get new credentials from cloud
@@ -273,6 +274,7 @@ public class CredentialRequestHandler implements HttpHandler {
                             credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
         } catch (IOException e) {
             LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                    .kv("credentialData", new String(data, StandardCharsets.UTF_8))
                     .log("Error in retrieving AwsCredentials from TES");
             return null;
         }
@@ -331,9 +333,9 @@ public class CredentialRequestHandler implements HttpHandler {
      *
      * @return if the cached credentials are valid.
      */
-    public boolean areCredentialsValid() {
+    private boolean areCredentialsValid(TESCache cacheEntry) {
         Instant now = Instant.now(clock);
-        return now.isBefore(tesCache.get(iotCredentialsPath).expiry);
+        return now.isBefore(cacheEntry.expiry);
     }
 
     /**

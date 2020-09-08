@@ -209,7 +209,8 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.add(thingGroupName);
     }
 
-    protected void initKernel() throws IOException, DeviceConfigurationException, InterruptedException {
+    protected void initKernel()
+            throws IOException, DeviceConfigurationException, InterruptedException, ServiceLoadException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
         setupTesRoleAndAlias();
@@ -397,7 +398,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected void setupTesRoleAndAlias() throws InterruptedException {
+    protected void setupTesRoleAndAlias() throws InterruptedException, ServiceLoadException {
         try {
             deviceProvisioningHelper
                     .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());

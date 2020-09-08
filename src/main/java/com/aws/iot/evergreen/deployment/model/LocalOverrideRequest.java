@@ -23,8 +23,6 @@ public class LocalOverrideRequest {
 
     Map<String, String> componentsToMerge;  // name to version
     List<String> componentsToRemove; // remove just need name
-    String recipeDir;
-    String artifactDir;
     String groupName;
 
     Map<String, Map<String, Object>> componentNameToConfig;

@@ -3,7 +3,7 @@ package com.aws.iot.evergreen.deployment;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
-
+import com.aws.iot.evergreen.ipc.services.cli.models.DeploymentStatus;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,9 +21,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
-import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType.LOCAL;
@@ -87,20 +89,34 @@ public class DeploymentStatusKeeperTest {
             return true;
         }, DUMMY_SERVICE_NAME);
 
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", LOCAL, JobStatus.SUCCEEDED, new HashMap<>());
-        assertEquals(updateOfTypeJobs.size(), 4);
-        assertEquals(updateOfTypeLocal.size(), 0);
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED.toString(), new HashMap<>());
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", LOCAL, DeploymentStatus.SUCCEEDED.toString(),
+                new HashMap<>());
+        assertEquals(4, updateOfTypeJobs.size());
+        assertEquals(3, updateOfTypeLocal.size());
         assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID), "iot_deployment");
         assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS), JobStatus.SUCCEEDED);
         assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS), new HashMap<>());
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_TYPE), IOT_JOBS);
+        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE), IOT_JOBS);
+        assertEquals("local_deployment", updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID));
+        assertEquals(LOCAL, updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
+        assertEquals(DeploymentStatus.SUCCEEDED,
+                updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
     }
 
     @Test
     public void GIVEN_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> true, DUMMY_SERVICE_NAME);
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED.toString(), new HashMap<>());
+        context.runOnPublishQueueAndWait(() -> {});
+        assertEquals(0, processedDeployments.children.size());
+    }
+
+    @Test
+    public void GIVEN_local_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, (details) -> true, DUMMY_SERVICE_NAME);
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", LOCAL,
+                DeploymentStatus.SUCCEEDED.toString(), new HashMap<>());
         context.runOnPublishQueueAndWait(() -> {});
         assertEquals(0, processedDeployments.children.size());
     }
@@ -108,7 +124,7 @@ public class DeploymentStatusKeeperTest {
     @Test
     public void GIVEN_deployment_status_update_WHEN_consumer_return_false_THEN_update_is_not_removed() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> false, DUMMY_SERVICE_NAME);
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED.toString(), new HashMap<>());
         assertEquals(1, processedDeployments.children.size());
     }
 
@@ -122,7 +138,7 @@ public class DeploymentStatusKeeperTest {
             return consumerReturnValue.get();
         }, DUMMY_SERVICE_NAME);
         // DeploymentStatusKeeper will retain update as consumer returns false
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED, new HashMap<>());
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED.toString(), new HashMap<>());
         assertEquals(1, consumerInvokeCount.get());
 
         // updating the consumer return value to true

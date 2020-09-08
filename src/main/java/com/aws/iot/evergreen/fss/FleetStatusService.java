@@ -41,8 +41,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
@@ -137,7 +139,7 @@ public class FleetStatusService extends EvergreenService {
 
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
 
-        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.IOT_JOBS,
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
@@ -222,15 +224,20 @@ public class FleetStatusService extends EvergreenService {
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
-        if (JobStatus.IN_PROGRESS.toString().equals(status)) {
-            isDeploymentInProgress.set(true);
-            return true;
+        Deployment.DeploymentType type = (Deployment.DeploymentType) deploymentDetails
+                .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
+        if (type == IOT_JOBS) {
+            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
+            if (JobStatus.IN_PROGRESS.toString().equals(status)) {
+                isDeploymentInProgress.set(true);
+                return true;
+            }
+            logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
+                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
+            isDeploymentInProgress.set(false);
+            updateEventTriggeredFleetStatusData();
         }
-        logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
-        isDeploymentInProgress.set(false);
-        updateEventTriggeredFleetStatusData();
+        // TODO: Handle local deployment update for FSS
         return true;
     }
 

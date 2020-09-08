@@ -7,7 +7,7 @@ version: '1.0.0'
 componentType: raw
 manifests:
   - platform:
-      os: fedora # not supported
+      os: raspbian # we don't run unit test on raspbian for now
       architecture: all
     lifecycle:
       install: echo install

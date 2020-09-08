@@ -67,7 +67,7 @@ public class DeploymentService extends EvergreenService {
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
-    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID = "groupDeploymentId";
+    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
 
     public static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -188,16 +188,15 @@ public class DeploymentService extends EvergreenService {
                     // Assuming cancel will either cancel the current deployment or wait till it finishes
                     cancelCurrentDeployment();
                 }
-                if (currentDeploymentTaskMetadata != null && !deployment.getDeploymentType()
-                        .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                    // deployment from another source, wait till the current deployment finishes
-                    continue;
-                }
                 if (currentDeploymentTaskMetadata != null && deployment.getId()
                         .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
                         .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                    //Duplicate message and already processing this deployment so nothing is needed
+                    // Duplicate message and already processing this deployment so nothing is needed
                     deploymentsQueue.remove();
+                    continue;
+                }
+                if (currentDeploymentTaskMetadata != null) {
+                    // wait till the current deployment finishes
                     continue;
                 }
                 deploymentsQueue.remove();
@@ -242,7 +241,7 @@ public class DeploymentService extends EvergreenService {
                         if (pkgConfig.isRootComponent()) {
                             Map<Object, Object> pkgDetails = new HashMap<>();
                             pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID,
+                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                                     deploymentDocument.getDeploymentId());
                             deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
                         }
@@ -251,7 +250,7 @@ public class DeploymentService extends EvergreenService {
                     setComponentsToGroupsMapping(deploymentGroupTopics);
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED,
+                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED.toString(),
                                     statusDetails);
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
@@ -263,7 +262,8 @@ public class DeploymentService extends EvergreenService {
                     // deployment
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
+                                    statusDetails);
                     deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
@@ -277,7 +277,8 @@ public class DeploymentService extends EvergreenService {
                     || currentDeploymentTaskMetadata.getDeploymentAttemptCount().get() >= DEPLOYMENT_MAX_ATTEMPTS) {
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED, statusDetails);
+                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
+                                statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
@@ -355,7 +356,7 @@ public class DeploymentService extends EvergreenService {
             return;
         }
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                JobStatus.IN_PROGRESS, new HashMap<>());
+                JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
             deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
@@ -387,7 +388,7 @@ public class DeploymentService extends EvergreenService {
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                    JobStatus.FAILED, statusDetails);
+                    JobStatus.FAILED.toString(), statusDetails);
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, packageManager, kernelConfigResolver,
@@ -407,15 +408,14 @@ public class DeploymentService extends EvergreenService {
                             OBJECT_MAPPER.readValue(jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
-                    config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS).lookupTopics(
+                    config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
                             localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
                                     : localOverrideRequest.getGroupName())
-                            .deepForEachTopic(t -> rootComponentsInRequestedGroup.add(t.getName()));
-
-                    //TODO: pulling the versions from kernel. Can pull it form the config itself.
+                            .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
+                    //TODO: pulling the versions from kernel. Can pull it from the config itself.
                     // Confirm if pulling from config should not break any use case for local
                     if (!CollectionUtils.isNullOrEmpty(rootComponentsInRequestedGroup)) {
-                        rootComponentsInRequestedGroup.stream().forEach(c -> {
+                        rootComponentsInRequestedGroup.forEach(c -> {
                             Topics serviceTopic = kernel.findServiceTopic(c);
                             if (serviceTopic != null) {
                                 String version = Coerce.toString(serviceTopic.find(VERSION_CONFIG_KEY));
@@ -457,12 +457,12 @@ public class DeploymentService extends EvergreenService {
         groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
             Topics componentTopics = (Topics) groupNode;
 
-            Topic groupDeploymentIdTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_DEPLOYMENT_ID);
-            String groupDeploymentId = Coerce.toString(groupDeploymentIdTopic);
+            Topic groupConfigTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN);
+            String groupConfig = Coerce.toString(groupConfigTopic);
 
             Map<Object, Object> groupDeploymentIdSet = (Map<Object, Object>) componentsToGroupsMappingCache
                     .getOrDefault(componentTopics.getName(), new HashMap<>());
-            groupDeploymentIdSet.putIfAbsent(groupDeploymentId, true);
+            groupDeploymentIdSet.putIfAbsent(groupConfig, true);
             componentsToGroupsMappingCache.put(componentTopics.getName(), groupDeploymentIdSet);
             pendingComponentsList.add(componentTopics.getName());
         });
@@ -494,5 +494,42 @@ public class DeploymentService extends EvergreenService {
             componentsToGroupsTopics.replaceAndWait(componentsToGroupsMappingCache);
         }
 
+    }
+
+    /**
+     * Gets the list of all the groups that the component is a part of.
+     *
+     * @param componentName The name of the component.
+     * @return The list of groups the component is a part of.
+     */
+    public Set<String> getGroupConfigsForUserComponent(String componentName) {
+        Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+
+        Set<String> componentGroups = new HashSet<>();
+        if (componentsToGroupsTopics != null) {
+            Topics groupsTopics = componentsToGroupsTopics.lookupTopics(componentName);
+            groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                    .forEach(componentGroups::add);
+        }
+        return componentGroups;
+    }
+
+    /**
+     * Gets the list of all the groups that the thing is a part of.
+     * @return All the group configs.
+     */
+    public Set<String> getAllGroupConfigs() {
+        Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+
+        Set<String> componentGroups = new HashSet<>();
+        if (componentsToGroupsTopics != null) {
+            componentsToGroupsTopics.iterator().forEachRemaining(node -> {
+                Topics groupsTopics = (Topics) node;
+                groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                        .forEach(componentGroups::add);
+
+            });
+        }
+        return componentGroups;
     }
 }

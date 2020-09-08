@@ -12,6 +12,7 @@ services:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
     lifecycle:
+    version: 1.0.0
 
   ServiceName:
     dependencies:

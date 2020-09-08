@@ -26,10 +26,6 @@ services:
           powershell -command sleep 100
         posix:
           sleep 100
-    accessControl:
-      aws.greengrass.ipc.pubsub:
-        - policyId1:
-            resources:
-              - "/topic/1/#"
-              - "/longer/topic/example/"
-              - "*"
+    parameters:
+      accessControl:
+        '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"resources":["/topic/1/#","/longer/topic/example/","*"]}}]}}'
