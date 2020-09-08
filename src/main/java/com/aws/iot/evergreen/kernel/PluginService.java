@@ -13,6 +13,10 @@ public class PluginService extends EvergreenService {
         super(topics);
     }
 
+    public PluginService(Topics topics, Topics privateConfig) {
+        super(topics, privateConfig);
+    }
+
     /**
      * Check if bootstrap step needs to run during service update. Called during deployments to determine deployment
      * workflow.
