@@ -20,7 +20,7 @@ Manifests:
         VersionRequirement: 1.0.0
 
   - Platform:
-      os: ubuntu
+      os: linux
     Parameters:
       - name: sampleText
         value: This is a test

@@ -16,7 +16,7 @@ Manifests:
         VersionRequirement: "=1.0.0"
 
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       startup: echo "Hello this is mosquitto getting started"
       install: echo "Hello This is mosquitto being installed"
