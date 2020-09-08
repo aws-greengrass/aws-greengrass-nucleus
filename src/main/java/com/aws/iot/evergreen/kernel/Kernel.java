@@ -83,7 +83,7 @@ public class Kernel {
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
-    private static final KernelMetricsEmitter kernelMetricsEmitter = new KernelMetricsEmitter();
+
     @Getter
     private final Context context;
     @Getter
@@ -118,6 +118,7 @@ public class Kernel {
     private KernelLifecycle kernelLifecycle;
 
     private Collection<EvergreenService> cachedOD = null;
+    private final KernelMetricsEmitter kernelMetricsEmitter;
 
     /**
      * Construct the Kernel and global Context.
@@ -146,6 +147,7 @@ public class Kernel {
         typeToClassMap.put("generic", GenericExternalService.class.getName());
         typeToClassMap.put("lambda", "com.aws.iot.evergreen.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
+        kernelMetricsEmitter = new KernelMetricsEmitter(this);
     }
 
     /**
@@ -173,7 +175,7 @@ public class Kernel {
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-        kernelMetricsEmitter.collectKernelComponentState(getContext(),this);
+        kernelMetricsEmitter.collectKernelComponentState();
         switch (stage) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
@@ -550,4 +552,5 @@ public class Kernel {
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
     }
+
 }

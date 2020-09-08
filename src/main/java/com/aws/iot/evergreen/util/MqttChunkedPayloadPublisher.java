@@ -23,7 +23,7 @@ public class MqttChunkedPayloadPublisher<T> {
     private final MqttClient mqttClient;
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     @Setter
-    private String updateFssDataTopic;
+    private String updateTopic;
     @Setter
     private int maxPayloadLengthBytes;
 
@@ -52,11 +52,11 @@ public class MqttChunkedPayloadPublisher<T> {
                         start + chunkingInformation.getNumberOfComponentsPerPublish()));
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
-                        .topic(this.updateFssDataTopic)
+                        .topic(this.updateTopic)
                         .payload(SERIALIZER.writeValueAsBytes(chunkablePayload)).build());
             }
         } catch (JsonProcessingException e) {
-            logger.atError().cause(e).log("Unable to publish fleet status service.");
+            logger.atError().cause(e).log("Unable to publish data via topic." + updateTopic);
         }
     }
 
