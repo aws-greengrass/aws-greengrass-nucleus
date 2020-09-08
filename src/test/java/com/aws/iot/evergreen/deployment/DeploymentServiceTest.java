@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.aws.iot.evergreen.config.CaseInsensitiveString;
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
@@ -254,10 +255,10 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             Topics componentTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
             Topic groupTopic1 = Topic.of(context, group1, true);
             Topic groupTopic2 = Topic.of(context, group2, true);
-            componentTopics1.children.put("MockService", groupTopic1);
-            componentTopics2.children.put("MockService2", groupTopic2);
-            allComponentToGroupsTopics.children.put("MockService", componentTopics1);
-            allComponentToGroupsTopics.children.put("MockService2", componentTopics2);
+            componentTopics1.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+            componentTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic2);
+            allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), componentTopics1);
+            allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), componentTopics2);
             when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
             Set<String> allGroupConfigs = deploymentService.getAllGroupConfigs();
@@ -277,12 +278,14 @@ public class DeploymentServiceTest extends EGServiceTestUtil {
             Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
             Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                     "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-            Map<String, Node> pkgDetails = new HashMap<>();
-            pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgTopic1);
-            pkgDetails.put(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, groupTopic1);
+            Map<CaseInsensitiveString, Node> pkgDetails = new HashMap<>();
+            pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
+                    pkgTopic1);
+            pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                    groupTopic1);
             Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
             pkgTopics.children.putAll(pkgDetails);
-            deploymentGroupTopics.children.put(EXPECTED_ROOT_PACKAGE_NAME, pkgTopics);
+            deploymentGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics);
 
             when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
             when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);

@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.util.S3SdkClientFactory;
 import com.aws.iot.evergreen.util.Utils;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
@@ -110,7 +111,7 @@ public class S3Downloader implements ArtifactDownloader {
                     s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
             GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key).build();
             return regionClient.getObjectAsBytes(getObjectRequest).asByteArray();
-        } catch (S3Exception e) {
+        } catch (SdkClientException | S3Exception e) {
             throw new PackageDownloadException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifact.getArtifactUri(),
                             packageIdentifier.getName(), packageIdentifier.getVersion().toString(),

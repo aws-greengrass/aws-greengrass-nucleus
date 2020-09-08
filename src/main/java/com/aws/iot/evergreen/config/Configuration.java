@@ -28,13 +28,7 @@ import javax.inject.Inject;
 import static com.aws.iot.evergreen.util.Utils.extension;
 
 public class Configuration {
-    public static final Object removed = new Object() {
-        @Override
-        public String toString() {
-            return "removed";
-        }
-    };
-    private static final java.util.regex.Pattern seperator = java.util.regex.Pattern.compile("[./] *");
+    private static final java.util.regex.Pattern SEPARATOR = java.util.regex.Pattern.compile("[./] *");
     public final Context context;
     final Topics root;
     private static final Logger logger = LogManager.getLogger(Configuration.class);
@@ -47,7 +41,7 @@ public class Configuration {
     }
 
     public static String[] splitPath(String path) {
-        return seperator.split(path);
+        return SEPARATOR.split(path);
     }
 
     /**
