@@ -1,9 +1,9 @@
 package com.aws.iot.evergreen.telemetry;
 
-import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.telemetry.api.MetricDataBuilder;
 import com.aws.iot.evergreen.telemetry.impl.Metric;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
+import com.aws.iot.evergreen.telemetry.models.TelemetryAggregation;
 import com.aws.iot.evergreen.telemetry.models.TelemetryMetricName;
 import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
 import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
@@ -12,16 +12,10 @@ import oshi.hardware.CentralProcessor;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.createSampleConfiguration;
 
 public class SystemMetricsEmitter {
     private static final int MB_CONVERTER = 1024 * 1024;
     private static final int PERCENTAGE_CONVERTER = 100;
-    private static long SYSTEM_METRICS_PERIOD = createSampleConfiguration()
-            .get(TelemetryNamespace.SystemMetrics.toString()).getEmitFrequency();
     private static String SYSTEM_METRICS_STORE = TelemetryNamespace.SystemMetrics.toString();
     private static CentralProcessor cpu = new SystemInfo().getHardware().getProcessor();
     private static SystemInfo systemInfo = new SystemInfo();
@@ -30,14 +24,14 @@ public class SystemMetricsEmitter {
     private static Map<TelemetryMetricName, MetricDataBuilder> systemMetrics = new HashMap<>();
 
     /**
-     * Create system metrics, collect and emit periodically.
-     *
+     * Create system metrics.
      */
-    protected void collectSystemMetrics(Context context) {
+    protected void collectSystemMetrics() {
         Metric systemMetric = Metric.builder()
                 .metricNamespace(TelemetryNamespace.SystemMetrics)
                 .metricName(TelemetryMetricName.CpuUsage)
                 .metricUnit(TelemetryUnit.Percent)
+                .metricAggregation(TelemetryAggregation.Average)
                 .build();
         MetricDataBuilder mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.CpuUsage, mdb);
@@ -46,6 +40,7 @@ public class SystemMetricsEmitter {
                 .metricNamespace(TelemetryNamespace.SystemMetrics)
                 .metricName(TelemetryMetricName.TotalNumberOfFDs)
                 .metricUnit(TelemetryUnit.Count)
+                .metricAggregation(TelemetryAggregation.Average)
                 .build();
         mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.TotalNumberOfFDs, mdb);
@@ -54,6 +49,7 @@ public class SystemMetricsEmitter {
                 .metricNamespace(TelemetryNamespace.SystemMetrics)
                 .metricName(TelemetryMetricName.SystemMemUsage)
                 .metricUnit(TelemetryUnit.Megabytes)
+                .metricAggregation(TelemetryAggregation.Average)
                 .build();
         mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.SystemMemUsage, mdb);
@@ -62,12 +58,10 @@ public class SystemMetricsEmitter {
             systemMetricsData.put(telemetryMetricName, 0);
         }
 
-        ScheduledExecutorService executor = context.get(ScheduledExecutorService.class);
-        executor.scheduleAtFixedRate(emitMetrics(), 0, SYSTEM_METRICS_PERIOD, TimeUnit.MILLISECONDS);
     }
 
-    private Runnable emitMetrics() {
-        return () -> {
+    protected static void emitMetrics() {
+
             systemMetricsData.put(TelemetryMetricName.CpuUsage,
                     cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
             previousTicks = cpu.getSystemCpuLoadTicks();
@@ -83,6 +77,5 @@ public class SystemMetricsEmitter {
                 metricDataBuilder.putMetricData(systemMetricsData.get(systemMetric.getKey())).emit();
                 systemMetricsData.put(systemMetric.getKey(),0);
             }
-        };
-    }
+        }
 }

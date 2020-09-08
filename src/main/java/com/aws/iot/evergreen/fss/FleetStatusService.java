@@ -61,7 +61,7 @@ public class FleetStatusService extends EvergreenService {
     private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
 
-    private String updateFssDataTopic;
+    private String updateTopic;
     private String thingName;
     private final MqttClient mqttClient;
     private final Kernel kernel;
@@ -151,8 +151,8 @@ public class FleetStatusService extends EvergreenService {
     private void updateThingNameAndPublishTopic(String newThingName) {
         if (newThingName != null) {
             thingName = newThingName;
-            updateFssDataTopic = fleetStatusServicePublishTopic.replace("{thingName}", thingName);
-            this.publisher.setUpdateFssDataTopic(updateFssDataTopic);
+            updateTopic = fleetStatusServicePublishTopic.replace("{thingName}", thingName);
+            this.publisher.setUpdateTopic(updateTopic);
         }
     }
 
