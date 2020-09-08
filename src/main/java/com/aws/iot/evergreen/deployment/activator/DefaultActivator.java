@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.deployment.activator;
 
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.DynamicComponentConfigurationValidator;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
@@ -33,28 +34,38 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_T
  * Activation and rollback of default deployments.
  */
 public class DefaultActivator extends DeploymentActivator {
+    private final DynamicComponentConfigurationValidator validator;
+
     @Inject
-    public DefaultActivator(Kernel kernel) {
+    public DefaultActivator(Kernel kernel, DynamicComponentConfigurationValidator validator) {
         super(kernel);
+        this.validator = validator;
     }
 
     @Override
     public void activate(Map<Object, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+        Map<String, Object> serviceConfig;
+        if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
+            serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
+        } else {
+            serviceConfig = new HashMap<>();
+        }
+
+        // Ask all customer components who have signed up for dynamic component configuration changes
+        // without restarting the component to validate their own proposed component configuration.
+        if (!validator.validate(serviceConfig, deployment, totallyCompleteFuture)) {
+            return;
+        }
+
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         if (isAutoRollbackRequested(deploymentDocument) && !takeConfigSnapshot(totallyCompleteFuture)) {
             return;
         }
 
         String deploymentId = deploymentDocument.getDeploymentId();
-
-        DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager;
-        if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-            servicesChangeManager = new DeploymentConfigMerger.AggregateServicesChangeManager(kernel, serviceConfig);
-        } else {
-            servicesChangeManager = new DeploymentConfigMerger.AggregateServicesChangeManager(kernel, new HashMap<>());
-        }
+        DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager =
+                new DeploymentConfigMerger.AggregateServicesChangeManager(kernel, serviceConfig);
 
         // Get the timestamp before mergeMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();

@@ -1,0 +1,14 @@
+TemplateVersion: '2020-01-25'
+ComponentName: ServiceName
+Description: Test Service
+Publisher: Me
+Version: '1.0.1'
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run:
+        windows:
+          powershell -command echo recipe 1.0.1; sleep 100
+        posix:
+          echo "recipe 1.0.1"; sleep 100

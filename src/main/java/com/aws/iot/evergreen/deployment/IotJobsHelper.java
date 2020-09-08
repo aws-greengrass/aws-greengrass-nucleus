@@ -18,8 +18,10 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.WrapperMqttClientConnection;
 import com.aws.iot.evergreen.util.Coerce;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -63,6 +65,7 @@ import javax.inject.Named;
 
 import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.iot.evergreen.deployment.DeploymentService.OBJECT_MAPPER;
+import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
@@ -279,15 +282,15 @@ public class IotJobsHelper implements InjectionActions {
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
-        String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
+        DeploymentDetailsIotJobs deploymentDetailsIotJobs = OBJECT_MAPPER.convertValue(deploymentDetails,
+                DeploymentDetailsIotJobs.class);
+        String jobId = deploymentDetailsIotJobs.getJobId();
+        String status = deploymentDetailsIotJobs.getJobStatus().toString();
+        Map<String, String> statusDetails = deploymentDetailsIotJobs.getStatusDetails();
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status).kv("StatusDetails",
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS).toString())
-                .log("Updating status of persisted deployment");
+                statusDetails).log("Updating status of persisted deployment");
         try {
-            updateJobStatus(jobId, JobStatus.valueOf(status),
-                    (HashMap<String, String>) deploymentDetails
-                            .get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS));
+            updateJobStatus(jobId, JobStatus.valueOf(status), new HashMap<>(statusDetails));
             return true;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {
@@ -518,6 +521,31 @@ public class IotJobsHelper implements InjectionActions {
             }
             jobIds.add(jobId);
             return true;
+        }
+    }
+
+    @Data
+    public static class DeploymentDetailsIotJobs {
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID)
+        private String jobId;
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)
+        private JobStatus jobStatus;
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS)
+        private Map<String, String> statusDetails;
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)
+        private DeploymentType deploymentType;
+
+        /**
+         * Returns a map of string to object representing the deployment details.
+         * @return Map of string to object
+         */
+        public Map<String, Object> convertToMapOfObjects() {
+            Map<String, Object> deploymentDetails = new HashMap<>();
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, jobId);
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, jobStatus);
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS, statusDetails);
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, deploymentType);
+            return deploymentDetails;
         }
     }
 }
