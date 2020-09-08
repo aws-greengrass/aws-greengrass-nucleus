@@ -6,182 +6,160 @@ Component recipe is a single yaml/json file for the component author to define c
  characteristics in the AWS Greengrass ecosystem.
 ## Recipe file structure and examples
 Here is a sample recipe file in yaml format which defines a simple HelloWorld application can run on AWS Greengrass
- managed devices. It defines a specific manifest for x86_64 windows as well as default manifest for the other platforms.
+ managed devices. It defines a manifest for x86_64 windows as well as a manifest for arm32 linux.
+ 
+ > recipe key name use [PascalCase](https://wiki.c2.com/?PascalCase), and is case-sensitive
+ 
 ```yaml
 ---
-templateVersion: 2020-01-25
-componentName: com.aws.greengrass.HelloWorld
-description: hello world from greengrass!
-publisher: Amazon
-version: 1.0.0
-componentType: raw
-manifests:
-  - platform:
+RecipeFormatVersion: 2020-01-25
+ComponentName: com.aws.greengrass.HelloWorld
+ComponentVersion: 1.0.0
+ComponentDescription: hello world from greengrass!
+ComponentPublisher: Amazon
+ComponentType: aws.greengrass.generic
+Manifests:
+  - Platform:
       os: windows
       architecture: x86_64
-    configuration:
-      schema: s3://some-bucket/my-hello-world-schema.json
-      defaultValue: s3://some-bucket/my-hello-world-configurations.json
-    lifecycle:
-      run:
-        python3 {{artifacts:path}}/hello_windows_server.py '{{message.greeting}}'
-    artifacts:
-      - uri: s3://some-bucket/hello_windows.zip
-        digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
-        algorithm: SHA-256
-        unarchive: ZIP
-    dependencies:
-      python3:
-        versionRequirement: ^3.5
-        dependencyType: soft
-  - configuration:
-      schema: s3://some-bucket/my-hello-world-schema.json
-      defaultValue: s3://some-bucket/my-hello-world-configurations.json
-    lifecycle:
-      run:
-        python3 {{artifacts:path}}/hello_world.py '{{message.greeting}}'
-    artifacts:
-      - uri: s3://some-bucket/hello_world.py
-        digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
-        algorithm: SHA-256
-    dependencies:
-      python3:
-        versionRequirement: ^3.5
+    Lifecycle:
+      Run:
+        python3 {{artifacts:path}}/hello_windows_server.py
+    Artifacts:
+      - URI: s3://some-bucket/hello_windows.zip
+        Unarchive: ZIP
+    Dependencies:
+      variant.Python3:
+        VersionRequirement: ^3.5
+        DependencyType: SOFT
+  - Platform:
+      os: linux
+      architecture: arm
+    Lifecycle:
+      Run:
+        python3 {{artifacts:path}}/hello_world.py
+    Artifacts:
+      - URI: s3://some-bucket/hello_world.py
+    Dependencies:
+      variant.Python3:
+        VersionRequirement: ^3.5
 ```
 The topics on this reference are organized by top-level keys in terms of providing component metadata or
  defining platform specific manifest. Top-level keys can have options that support them as sub-topics. This
   maps to the `<key>: <options>: <value>` indent structure of recipe file.
 
-### TEMPLATE VERSION
-Define the version of recipe template
+### Recipe Format Version
+Define the version of recipe format
 ```yaml
-RecipeTemplateVersion: '2020-01-25'
+RecipeFormatVersion: 2020-01-25
 ```
-### COMPONENT NAME
+### Component Name
 Component name identifier, reverse DNS notation is recommended. Component name is unique within a private component
  registry. A private component which has same name occludes public available component.
 > note: component name is also used as service name, since component to service is 1:1 mapping.
+
 ```yaml
-componentName: com.aws.greengrass.HelloWorld
+ComponentName: com.aws.greengrass.HelloWorld
 ```
-### VERSION
+### Component Version
 Component verison, use [semantic versioning](https://semver.org/) standard
 ```yaml
-version: 1.6.1
+ComponentVersion: 1.0.0
 ```
-### DESCRIPTION
+### Component Description
 Text description of component
 ```yaml
-description: Hello World App for Evergreen
+ComponentDescription: Hello World App for Evergreen
 ```
-### PUBLISHER
+### Component Publisher
 Publisher of component
 ```yaml
-publisher: Amazon
+ComponentPublisher: Amazon
 ```
-### COMPONENT TYPE
-Describe component runtime mode, support values: `plugin`, `lambda`, `raw`
+### Component Type
+Describe component runtime mode, support values: `aws.greengrass.plugin`, `aws.greengrass.lambda`, `aws.greengrass.generic`, default is `aws.greengrass.generic`
 ```yaml
-componentType: Amazon
+ComponentType: aws.greengrass.generic
 ```
-### MANIFESTS
-Define a list of manifests, a manifest can be specific to one platform or default to every other platform.
-#### MANIFEST.PLATFROM
+### Manifests
+Define a list of manifests, a manifest is specific to one platform or default to every other platform.
+#### Manifest.Platform
 Define the platform the manifest is specifically for.
 ```yaml
-platform:
+Platform:
   os: windows
   architecture: x86_64
 ```
-##### OS
-supported operating system [list](to be added).
-##### Architecture
-supported architecture [list](to be added).
+* supported operating system [list](to be added).
+* supported architecture [list](to be added).
 
-#### MANIFEST.CONFIGURATION
-Component author specifies configuration parameters used in lifecycle management scripts, and/or are accessible by
- service runtime, which can both read and write configuration values.
-```yaml
-configuration:
-  schema: s3://some-bucket/my-hello-world-schema.json
-  defaultValue: s3://some-bucket/my-hello-world-configurations.json
-```
-##### Schema
-define configuration schema
-##### Default Value
-provide configuration default values
-#### MANIFEST.LIFECYCLE
+#### Manifest.Lifecycle
 Specify lifecycle management scripts for component represented service
 ```yaml
 Lifecycle:
-  setenv: # apply to all commands to the service.
+  Setenv: # apply to all commands to the service.
     <key>: <defaultValue>
         
-  install:
-    skipif: onpath <executable>|exists <file>
-    script:
-    timeout: # default to be 120 seconds.
-    environment: # optional
+  Install:
+    Skipif: onpath <executable>|exists <file>
+    Script:
+    Timeout: # default to be 120 seconds.
+    Environment: # optional
       <key>: <overrideValue>
     
-  startup: # mutually exclusive from 'run'
-    script: # eg: brew services start influxdb
-    timeout: # optional
-    environment:  # optional, override
+  Startup: # mutually exclusive from 'run'
+    Script: # eg: brew services start influxdb
+    Timeout: # optional
+    Environment:  # optional, override
       
-  run: # mutually exclusive from 'startup'
-    script:
-    environment: # optional, override
-    timeout: # optional
-    periodicity: # perodically run the command
+  Run: # mutually exclusive from 'startup'
+    Script:
+    Environment: # optional, override
+    Timeout: # optional
+    Periodicity: # perodically run the command
     
-  shutdown: # can co-exist with both startup/run
-    script:
-    environment: # optional, override
-    timeout: # optional
+  Shutdown: # can co-exist with both startup/run
+    Script:
+    Environment: # optional, override
+    Timeout: # optional
   
-  healthcheck: # do health check when service is in Running
-    script: # non-zero exit trigger error
-    recheckPeriod: # optional, default to be 0
-    environment: # override
+  Healthcheck: # do health check when service is in Running
+    Script: # non-zero exit trigger error
+    RecheckPeriod: # optional, default to be 0
+    Environment: # override
     
-  recover:
-    script: # will be run every time service enters error.
-    environment: # optional, override
+  Recover:
+    Script: # will be run every time service enters error.
+    Environment: # optional, override
     # referring to https://docs.docker.com/v17.12/compose/compose-file/#restart_policy
-    retryPolicy:
-      delay: # default to be 0. Time to wait between retry.
-      maxAttempts: # default to be infinite. After N times of error, service enter Broken state.
-      window: # how long to wait before deciding if a restart has succeeded
+    RetryPolicy:
+      Delay: # default to be 0. Time to wait between retry.
+      MaxAttempts: # default to be infinite. After N times of error, service enter Broken state.
+      Window: # how long to wait before deciding if a restart has succeeded
   
-  checkIfSafeToUpdate:
-    recheckPeriod: 5
-    script: 
+  CheckIfSafeToUpdate:
+    RecheckPeriod: 5
+    Script: 
     
-  updatesCompleted:
-    script:
+  UpdatesCompleted:
+    Script:
 ```
-#### MANIFEST.ARTIFACTS
+#### Manifest.Artifacts
 A list of artifacts that component uses as resources, such as binary, scripts, images etc.
 ```yaml
 Artifacts:
-    - uri: s3://some-bucket/hello_windows.zip
-      digest: d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
-      algorithm: SHA-256
-      unarchive: ZIP
+    - URI: s3://some-bucket/hello_windows.zip
+      Unarchive: ZIP
 ```
 ##### URI
 Artifacts are referenced by artifact URIs. Currently Greengrass supports Greengrass repository and s3 as artifact
  storage location.
-##### Digest
-Calculated cryptographic hash for integrity check
-##### Algorithm
-Algorithm used for calculating cryptographic hash
 ##### Unarchive
 Indicate whether automatically unarchive artifact
-#### MANIFEST.DEPENDENCIES
+#### Manifest.Dependencies
 Describe component dependencies, the versions of dependencies will be resolved during deployment.
 > note: Services represented by components will be started/stopped with respect to dependency order.
+
 ```yaml
 Dependencies:
     shared.python:
@@ -194,4 +172,3 @@ Specify dependency version requirements, the requirements use NPM-style syntax.
 Specify if dependency is `HARD` or `SOFT` dependency. `HARD` means dependent service will be restarted if the dependency
  service changes state. In the opposite, `SOFT` means the service will wait the dependency to start when first
   starting, but will not be restarted if the dependency changes state.
-
