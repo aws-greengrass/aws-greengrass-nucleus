@@ -24,7 +24,7 @@ Manifests:
       {{Mosquitto}}:
         VersionRequirement: 1.0.0
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       startup: |-
         sleep 2
