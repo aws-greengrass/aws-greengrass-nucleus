@@ -45,9 +45,6 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iam.IamClient;
-import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
-import software.amazon.awssdk.services.iam.model.CreatePolicyRequest;
-import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
 import software.amazon.awssdk.services.iam.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.DetachRolePolicyRequest;
@@ -402,16 +399,9 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             deviceProvisioningHelper
                     .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+            tesRolePolicyArn = deviceProvisioningHelper
+                    .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
-
-            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
-                    CreatePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME)
-                            .policyDocument(TES_ROLE_POLICY_DOCUMENT)
-                            .description("Defines permissions to access AWS services for E2E test device TES role")
-                            .build());
-            tesRolePolicyArn = createPolicyResponse.policy().arn();
-            iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME)
-                    .policyArn(tesRolePolicyArn).build());
         } catch (EntityAlreadyExistsException e) {
             // No-op if resources already exist
         }
@@ -419,7 +409,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
 
-        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
+        while (kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);

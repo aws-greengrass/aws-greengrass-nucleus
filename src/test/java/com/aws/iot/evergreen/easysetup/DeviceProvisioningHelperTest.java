@@ -1,7 +1,6 @@
 package com.aws.iot.evergreen.easysetup;
 
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.IamSdkClientFactory;
@@ -76,8 +75,6 @@ public class DeviceProvisioningHelperTest {
     @Mock
     private IamClient iamClient;
     @Mock
-    private AWSEvergreen cmsClient;
-    @Mock
     private GetPolicyResponse getPolicyResponse;
     @Mock
     private CreateThingResponse createThingResponse;
@@ -106,7 +103,7 @@ public class DeviceProvisioningHelperTest {
 
     @BeforeEach
     public void setup() {
-        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, cmsClient);
+        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient);
     }
 
     @AfterEach

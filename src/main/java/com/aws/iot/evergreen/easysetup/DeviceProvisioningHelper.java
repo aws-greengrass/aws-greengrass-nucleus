@@ -1,8 +1,5 @@
 package com.aws.iot.evergreen.easysetup;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
@@ -13,7 +10,10 @@ import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
+import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
+import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -79,7 +79,6 @@ public class DeviceProvisioningHelper {
 
     private IotClient iotClient;
     private IamClient iamClient;
-    private AWSEvergreen cmsClient;
 
     /**
      * Constructor for a desired region.
@@ -90,8 +89,6 @@ public class DeviceProvisioningHelper {
     public DeviceProvisioningHelper(String awsRegion, PrintStream outStream) {
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion);
         this.iamClient = IamSdkClientFactory.getIamClient();
-        this.cmsClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration(GCS_ENDPOINT, awsRegion)).build();
         this.outStream = outStream;
     }
 
@@ -101,13 +98,11 @@ public class DeviceProvisioningHelper {
      * @param outStream stream to provide customer feedback
      * @param iotClient iot client
      * @param iamClient iam client
-     * @param cmsClient cms client
      */
-    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient, AWSEvergreen cmsClient) {
+    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
-        this.cmsClient = cmsClient;
     }
 
     /**
@@ -272,7 +267,6 @@ public class DeviceProvisioningHelper {
                                 + "      \"Principal\": {\n        \"Service\": \"credentials.iot.amazonaws.com\"\n"
                                 + "      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
-                //TODO: Attach role policy that is passed in by customer
             }
 
             CreateRoleAliasRequest createRoleAliasRequest =
@@ -298,6 +292,33 @@ public class DeviceProvisioningHelper {
         AttachPolicyRequest attachPolicyRequest =
                 AttachPolicyRequest.builder().policyName(iotRolePolicyName).target(certificateArn).build();
         iotClient.attachPolicy(attachPolicyRequest);
+    }
+
+    /**
+     * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
+     *
+     * @param roleName           name of target role
+     * @param rolePolicyName     name of policy to create and attach
+     * @param rolePolicyDocument document of policy to create and attach
+     * @return ARN of created policy
+     */
+    public String createAndAttachRolePolicy(String roleName, String rolePolicyName, String rolePolicyDocument) {
+        String tesRolePolicyArn;
+        try {
+            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
+                    software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
+                            .policyDocument(rolePolicyDocument).build());
+            tesRolePolicyArn = createPolicyResponse.policy().arn();
+            outStream.printf("IAM role policy for TES \"%s\" created%n", rolePolicyName);
+        } catch (EntityAlreadyExistsException e) {
+            // TODO get and reuse the policy. non trivial because we can only get IAM policy by ARN
+            throw new RuntimeException(String.format("TES role policy named %s already exists", rolePolicyName), e);
+        }
+
+        outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
+        iamClient.attachRolePolicy(
+                AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
+        return tesRolePolicyArn;
     }
 
     /**
