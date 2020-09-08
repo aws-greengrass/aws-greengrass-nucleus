@@ -69,8 +69,8 @@ public class ConfigurationTest {
         config.lookup("v").withNewerValue(10, 43);
         config.lookup("v").withNewerValue(3, -1);
         config.lookup("v").withNewerValue(20, 44);
-        assertEquals(44, config.lookup("v").getOnce());
-        assertEquals("v:44", config.lookup("v").toString());
+        assertEquals(44, config.lookup("V").getOnce());
+        assertEquals("v:44", config.lookup("V").toString());
     }
 
     @Test
@@ -85,8 +85,8 @@ public class ConfigurationTest {
         config.lookup("x", "y").withNewerValue(10, 43);
         config.lookup("x", "y").withNewerValue(3, -1);
         config.lookup("x", "y").withNewerValue(20, 44);
-        assertEquals(44, toInt(config.lookup("x", "y")));
-        assertEquals("x.y:44", config.lookup("x", "y").toString());
+        assertEquals(44, toInt(config.lookup("x", "Y")));
+        assertEquals("x.y:44", config.lookup("x", "Y").toString());
     }
 
     @Test

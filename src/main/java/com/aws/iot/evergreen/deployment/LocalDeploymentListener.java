@@ -34,7 +34,7 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @NoArgsConstructor
 public class LocalDeploymentListener {
 
-    private static Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
+    private static final Logger logger = LogManager.getLogger(LocalDeploymentListener.class);
 
     @Inject
     @Named(DEPLOYMENTS_QUEUE)
@@ -98,7 +98,6 @@ public class LocalDeploymentListener {
                         if (parameters != null) {
                             componentInfoBuilder.runtimeParameters(parameters.children.entrySet().stream()
                                     .collect(Collectors.toMap(Map.Entry::getKey, e -> Coerce.toString(e.getValue()))));
-
                         }
                         return componentInfoBuilder.build();
                     }).collect(Collectors.toList());
@@ -141,7 +140,7 @@ public class LocalDeploymentListener {
         private String version;
 
         @JsonProperty("RuntimeParameters")
-        private Map<String, String> runtimeParameters;
+        private Map<CharSequence, String> runtimeParameters;
 
     }
 
