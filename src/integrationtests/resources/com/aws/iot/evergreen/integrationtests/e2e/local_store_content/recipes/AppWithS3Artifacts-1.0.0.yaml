@@ -15,7 +15,7 @@ Manifests:
       - Uri: s3://{{eg-e2e-test-artifacts}}/AppWithS3Artifacts-1.0.0/artifact.txt
 
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       run: |-
         sleep 2

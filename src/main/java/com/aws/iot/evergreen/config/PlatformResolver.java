@@ -142,6 +142,11 @@ public final class PlatformResolver {
         if (Files.exists(Paths.get("/proc"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.LINUX);
         }
+
+        /*
+        TODO: since B1 release only support Linux platform.
+        Temporarily stop platform detection after Linux.
+
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.FEDORA);
         }
@@ -154,6 +159,8 @@ public final class PlatformResolver {
         if (sysver.contains("ubuntu")) {
             currentOS = findMoreSpecificOS(currentOS, OS.UBUNTU);
         }
+
+        */
 
         return currentOS;
     }
