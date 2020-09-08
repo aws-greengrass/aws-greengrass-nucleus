@@ -21,7 +21,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class EGServiceTestUtil {
@@ -57,15 +56,14 @@ public class EGServiceTestUtil {
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC))).thenReturn(runtimeStoreTopic);
         lenient().when(config.lookupTopics(eq(PRIVATE_STORE_NAMESPACE_TOPIC))).thenReturn(privateStoreTopic);
         lenient().when(privateStoreTopic.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
-        when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(dependenciesTopic);
-        when(config.getName()).thenReturn(serviceFullName);
-        when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);
-        when(dependenciesTopic.getOnce()).thenReturn(new ArrayList<>());
-        when(config.getContext()).thenReturn(context);
+        lenient().when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(dependenciesTopic);
+        lenient().when(config.getName()).thenReturn(serviceFullName);
+        lenient().when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);
+        lenient().when(dependenciesTopic.getOnce()).thenReturn(new ArrayList<>());
+        lenient().when(config.getContext()).thenReturn(context);
         lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
         lenient().when(context.get(Kernel.class)).thenReturn(mock(Kernel.class));
         lenient().when(context.get(eq(UpdateSystemSafelyService.class))).thenReturn(mockSafeUpdateService);
-
         return config;
     }
 }
