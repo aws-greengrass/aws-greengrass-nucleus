@@ -2,7 +2,7 @@ package com.aws.iot.evergreen.telemetry;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
+import com.aws.iot.evergreen.telemetry.impl.config.TelemetryConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 
@@ -23,22 +23,23 @@ import static com.aws.iot.evergreen.telemetry.MetricsAggregator.AGGREGATE_METRIC
 public class MetricsUploader {
     public static final Logger logger = LogManager.getLogger(MetricsUploader.class);
     private static final int MILLI_SECONDS = 1000;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * This function returns the set of all the aggregated metric data points that are to be published to the cloud
      * since the last upload.
      *
      * @param uploadIntervalSec periodic interval in seconds for the publishing the metrics
-     * @param currentTimestamp timestamp at which the publish is initiated
+     * @param currTimestamp timestamp at which the publish is initiated
      */
     public Map<Long,List<MetricsAggregator.AggregatedMetric>>
-    getAggregatedMetrics(int uploadIntervalSec, long currentTimestamp) {
+    getAggregatedMetrics(int uploadIntervalSec, long currTimestamp) {
         int uploadIntervalMilliSec = uploadIntervalSec * MILLI_SECONDS;
         Map<Long,List<MetricsAggregator.AggregatedMetric>> aggUploadMetrics = new HashMap<>();
         MetricsAggregator.AggregatedMetric am;
         try {
             List<Path> paths = Files
-                    .walk(MetricFactory.getTelemetryDirectory())
+                    .walk(TelemetryConfig.getTelemetryDirectory())
                     .filter(Files::isRegularFile)
                     .filter((path) -> {
                         Object fileName = null;
@@ -55,36 +56,38 @@ public class MetricsUploader {
                  Read AggregatedMetrics file from the file at Telemetry.
                  Read only modified files and publish only new values based on the timestamp.
                  */
-                if (currentTimestamp - new File(path.toString()).lastModified() <= uploadIntervalMilliSec) {
+                if (currTimestamp - new File(path.toString()).lastModified() <= uploadIntervalMilliSec) {
                     List<String> logs = Files.lines(Paths.get(path.toString())).collect(Collectors.toList());
                     for (String log : logs) {
                         try {
                             /*
-                            [0]  [1] [2]        [3]          [4]         [5]             [6]
-                            2020 Aug 28 12:08:21,520-0700 [TRACE] (pool-3-thread-4) Metrics-KernelComponents:
 
-                            [7]
-                            {"TS":1599256194930,"NS":"SystemMetrics","M":[{
-                            "N":"TotalNumberOfFDs","V":5000.0,"U":"Count"},
-                            {"N":"CpuUsage","V":20.0,"U":"Percent"},
-                            {"N":"SystemMemUsage","V":3000.0,"U":"Megabytes"}]}. {}
+                            {"thread":"main","level":"TRACE","eventType":null,
+
+                            "message":"{\"TS\":1599617227533,\"NS\":\"SystemMetrics\",\"M\":[{\"N\":\"CpuUsage\",
+
+                            \"V\":60.0,\"U\":\"Percent\"},{\"N\":\"TotalNumberOfFDs\",\"V\":6000.0,\"U\":\"Count\"},
+
+                            {\"N\":\"SystemMemUsage\",\"V\":3000.0,\"U\":\"Megabytes\"}]}","contexts":{},"loggerName":
+
+                            "Metrics-AggregateMetrics","timestamp":1599617227595,"cause":null}
 
                              */
-                            am = new ObjectMapper()
-                                    .readValue(log.split(" ")[7], MetricsAggregator.AggregatedMetric.class);
-                            if (am != null && currentTimestamp - am.getTimestamp() <= uploadIntervalMilliSec) {
-                                aggUploadMetrics.computeIfAbsent(currentTimestamp, k -> new ArrayList<>()).add(am);
+                            am = objectMapper.readValue(objectMapper.readTree(log).get("message").asText(),
+                                    MetricsAggregator.AggregatedMetric.class);
+                            if (am != null && currTimestamp - am.getTimestamp() <= uploadIntervalMilliSec) {
+                                aggUploadMetrics.computeIfAbsent(currTimestamp, k -> new ArrayList<>()).add(am);
                             }
-                        } catch (MismatchedInputException mis) {
-                            logger.atError().log("Unable to parse the aggregated metric log: " + mis);
+                        } catch (MismatchedInputException e) {
+                            logger.atError().log("Unable to parse the aggregated metric log: ", e);
                         }
                     }
                 }
             }
         } catch (IOException e) {
-            logger.atError().log(e);
+            logger.atError().log("Unable to parse the aggregated metric log file: ", e);
         }
-        aggUploadMetrics.putIfAbsent(currentTimestamp, Collections.EMPTY_LIST);
+        aggUploadMetrics.putIfAbsent(currTimestamp, Collections.EMPTY_LIST);
         return aggUploadMetrics;
     }
 }

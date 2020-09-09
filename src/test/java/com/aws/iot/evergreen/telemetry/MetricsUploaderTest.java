@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @ExtendWith(MockitoExtension.class)
 public class MetricsUploaderTest {
-
     @TempDir
     protected Path tempRootDir;
 

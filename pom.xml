@@ -172,11 +172,6 @@
         with recent Windows/VC redist. The behavior is changed in recent jna release. By declaring direct dependency of
         jna, we avoid the problem of loading msvcr100.dll.
         -->
-		<dependency>
-			<groupId>com.github.oshi</groupId>
-			<artifactId>oshi-core</artifactId>
-			<version>5.2.3</version>
-		</dependency>
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
@@ -188,6 +183,11 @@
             <version>0.0.3</version>
             <scope>test</scope>
         </dependency>
+	 <dependency>
+	     <groupId>com.github.oshi</groupId>
+	     <artifactId>oshi-core</artifactId>
+	     <version>5.2.3</version>
+	 </dependency>
     </dependencies>
     <pluginRepositories>
         <pluginRepository>

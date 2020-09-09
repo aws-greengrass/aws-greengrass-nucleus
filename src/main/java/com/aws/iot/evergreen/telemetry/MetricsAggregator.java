@@ -5,6 +5,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.telemetry.impl.MetricDataPoint;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
 import com.aws.iot.evergreen.telemetry.impl.TelemetryLoggerMessage;
+import com.aws.iot.evergreen.telemetry.impl.config.TelemetryConfig;
 import com.aws.iot.evergreen.telemetry.models.TelemetryAggregation;
 import com.aws.iot.evergreen.telemetry.models.TelemetryMetricName;
 import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
@@ -29,28 +30,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class MetricsAggregator {
     protected static final String AGGREGATE_METRICS_FILE = "AggregateMetrics";
     private static final int MILLI_SECONDS = 1000;
     MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * This method stores the aggregated data points of the metrics emitted over the interval.
      *
      * @param aggregationIntervalSec periodic interval in seconds for the aggregating the metrics
-     * @param currentTimestamp timestamp at which the aggregate is initiated
+     * @param currTimestamp timestamp at which the aggregate is initiated
      */
-    public void aggregateMetrics(int aggregationIntervalSec, long currentTimestamp) {
-        int aggregationIntervalMilliSec = aggregationIntervalSec * MILLI_SECONDS;
+    public void aggregateMetrics(int aggregationIntervalSec, long currTimestamp) {
+        int aggIntervalMilliSec = aggregationIntervalSec * MILLI_SECONDS;
         for (TelemetryNamespace namespace : TelemetryNamespace.values()) {
             AggregatedMetric aggMetrics = new AggregatedMetric();
             HashMap<TelemetryMetricName, List<MetricDataPoint>> metrics = new HashMap<>();
+            MetricDataPoint mdp;
             try {
-                Stream<Path> paths = Files
-                        .walk(MetricFactory.getTelemetryDirectory())
+                List<Path> paths = Files
+                        .walk(TelemetryConfig.getTelemetryDirectory())
                         .filter(Files::isRegularFile)
                         .filter(path -> {
                             Object fileName = null;
@@ -61,43 +63,46 @@ public class MetricsAggregator {
                                 fileName = "";
                             }
                             return fileName.toString().startsWith(namespace.toString());
-                        });
-                paths.forEach((path) -> {
+                        }).collect(Collectors.toList());
+                for (Path path :paths) {
                     /*
                      Read from the file at Telemetry/namespace*.log
                      Read only modified files and aggregate only new values based on the last aggregated time.
                      */
-                    if (currentTimestamp - new File(path.toString()).lastModified() <= aggregationIntervalMilliSec) {
-                        try {
-                            for (String log :
-                                    Files.lines(Paths.get(path.toString())).collect(Collectors.toList())) {
-                                /*
-                                [0]  [1] [2]        [3]          [4]         [5]             [6]
-                                2020 Aug 28 12:08:21,520-0700 [TRACE] (pool-3-thread-4) Metrics-KernelComponents:
+                    if (currTimestamp - new File(path.toString()).lastModified() <= aggIntervalMilliSec) {
+                        List<String> logs = Files.lines(Paths.get(path.toString())).collect(Collectors.toList());
+                        for (String log : logs) {
+                            try {
+                            /*
 
-                                [7]
-                                {"M":{"NS": "KernelComponents","N":"NumberOfComponentsStopping","U":"Count"},
-                                "V":0,"TS":1598598501520}. {}
-                                 */
-                                MetricDataPoint mdp = new ObjectMapper()
-                                        .readValue(log.split(" ")[7], MetricDataPoint.class);
-                                if (mdp.getMetric() != null
-                                        && currentTimestamp - mdp.getTimestamp() <= aggregationIntervalMilliSec) {
-                                        metrics.computeIfAbsent(mdp.getMetric().getMetricName(),
-                                                k -> new ArrayList<>()).add(mdp);
-                                }
+                            {"thread":"main","level":"TRACE","eventType":null,
+
+                            "message":"{\"M\":{\"NS\":\"SystemMetrics\",\"N\":\"CpuUsage\",\"U\":\"Percent\",
+
+                            \"A\":\"Average\"},\"V\":123,\"TS\":1599613654270}","contexts":{},
+
+                            "loggerName":"Metrics-french fries","timestamp":1599613654270,"cause":null}
+
+                             */
+
+                            mdp = objectMapper.readValue(objectMapper.readTree(log).get("message").asText(),
+                                    MetricDataPoint.class);
+                            if (mdp.getMetric() != null && currTimestamp - mdp.getTimestamp() <= aggIntervalMilliSec) {
+                                metrics.computeIfAbsent(mdp.getMetric().getMetricName(),
+                                        k -> new ArrayList<>()).add(mdp);
                             }
                         } catch (IOException e) {
-                            logger.atError().log(e);
+                                logger.atError().log("Unable to parse the metric log: ", e);
+                            }
                         }
                     }
-                });
+                }
                 aggMetrics.setMetricNamespace(namespace);
-                aggMetrics.setTimestamp(currentTimestamp);
+                aggMetrics.setTimestamp(currTimestamp);
                 aggMetrics.setMetrics(doAggregation(metrics));
                 metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
             } catch (IOException e) {
-                logger.atError().log(e);
+                logger.atError().log("Unable to parse the emitted metric log file: ", e);
             }
         }
     }
