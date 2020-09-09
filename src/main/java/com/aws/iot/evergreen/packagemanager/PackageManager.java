@@ -227,8 +227,10 @@ public class PackageManager implements InjectionActions {
                         String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
             }
 
-            Unarchive unarchive = artifact.getUnarchive() == null ? Unarchive.NONE
-                    : Coerce.toEnum(Unarchive.class, artifact.getUnarchive().toUpperCase(), Unarchive.NONE);
+            Unarchive unarchive = artifact.getUnarchive();
+            if (unarchive == null) {
+                unarchive = Unarchive.NONE;
+            }
 
             if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {

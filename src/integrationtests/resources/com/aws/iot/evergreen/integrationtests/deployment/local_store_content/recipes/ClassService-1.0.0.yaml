@@ -4,7 +4,7 @@ ComponentName: ClassService
 Description: Directly creates a raw EvergreenService instead of a GenericExternalService
 Publisher: Me
 Version: '1.0.0'
-ComponentType: Raw
+ComponentType: PLUGIN
 Manifests:
   - Platform:
       os: all
