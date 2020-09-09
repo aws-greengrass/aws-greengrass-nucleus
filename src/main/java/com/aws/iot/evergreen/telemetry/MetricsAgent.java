@@ -11,6 +11,8 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.MqttChunkedPayloadPublisher;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
@@ -30,24 +32,20 @@ public class MetricsAgent extends EvergreenService {
     public static final String METRICS_AGENT_SERVICE_TOPICS = "MetricsAgent";
     public static final String DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC =
             "$aws/things/{thingName}/evergreen/health/json";
+    public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
+    public static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 60;
     static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
     static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
     static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
-    public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
     static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 180;
-    public static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 60;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    ScheduledFuture<?> periodicPublishMetricsFuture = null;
-    ScheduledFuture<?> periodicAggregateMetricsFuture = null;
-    ScheduledFuture<?> periodicSystemMetricsFuture = null;
-    private final MqttClient mqttClient;
-    private final Topics topics;
-    private String updateTopic;
-    private String thingName;
     private static int periodicPublishMetricsIntervalSec = 0;
     private static int periodicAggregateMetricsIntervalSec = 0;
-    private String telemetryMetricsPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
+    @Getter
+    private static long lastPeriodicAggregationMetricsTime = Instant.now().toEpochMilli();
+    private final MqttClient mqttClient;
+    private final Topics topics;
     private final SystemMetricsEmitter systemMetricsEmitter = new SystemMetricsEmitter();
     private final MetricsAggregator metricsAggregator = new MetricsAggregator();
     private final MetricsUploader metricsUploader = new MetricsUploader();
@@ -56,10 +54,7 @@ public class MetricsAgent extends EvergreenService {
     private final Object periodicAggregateMetricsInProgressLock = new Object();
     private final MqttChunkedPayloadPublisher<MetricsAggregator.AggregatedMetric> publisher;
     private final ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
-    @Getter
-    private static long lastPeriodicAggregationMetricsTime = Instant.now().toEpochMilli();
-
-
+    ScheduledFuture<?> periodicPublishMetricsFuture = null;
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -73,11 +68,17 @@ public class MetricsAgent extends EvergreenService {
             schedulePeriodicPublishMetrics(true);
         }
     };
+    ScheduledFuture<?> periodicAggregateMetricsFuture = null;
+    ScheduledFuture<?> periodicSystemMetricsFuture = null;
+    private String updateTopic;
+    private String thingName;
+    private String telemetryMetricsPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
 
     /**
-     *  Constructor for metrics agent.
-     * @param topics root configuration topic for this service
-     * @param mqttClient {@link MqttClient}
+     * Constructor for metrics agent.
+     *
+     * @param topics              root configuration topic for this service
+     * @param mqttClient          {@link MqttClient}
      * @param deviceConfiguration {@link DeviceConfiguration}
      */
     @Inject
@@ -118,7 +119,7 @@ public class MetricsAgent extends EvergreenService {
     }
 
     /**
-     *  Schedules the publishing of metrics based on the configured publish interval or the mqtt connection status.
+     * Schedules the publishing of metrics based on the configured publish interval or the mqtt connection status.
      */
     private void schedulePeriodicPublishMetrics(boolean isReconfiguredOrConnectionResumed) {
         // If we missed to publish the metrics due to connection lost or if the publish interval is reconfigured,
@@ -144,7 +145,7 @@ public class MetricsAgent extends EvergreenService {
      */
     public void aggregatePeriodicMetrics() {
         long timeStamp = Instant.now().toEpochMilli();
-        this.metricsAggregator.aggregateMetrics(periodicAggregateMetricsIntervalSec,timeStamp);
+        this.metricsAggregator.aggregateMetrics(periodicAggregateMetricsIntervalSec, timeStamp);
         getPeriodicAggregateTimeTopic().withValue(timeStamp);
     }
 
@@ -163,6 +164,11 @@ public class MetricsAgent extends EvergreenService {
         MetricsPayload aggregatedMetricsChunk = MetricsPayload.builder()
                 .schema("schema")
                 .build();
+        try {
+            logger.atTrace().log(new ObjectMapper().writeValueAsString(metricsToPublishMap.get(timeStamp)));
+        } catch (JsonProcessingException e) {
+            logger.atTrace().log("Invalid message format", e);
+        }
         this.publisher.publish(aggregatedMetricsChunk, metricsToPublishMap.get(timeStamp));
     }
 

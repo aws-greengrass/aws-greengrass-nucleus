@@ -48,6 +48,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class MetricsAgentTest extends EGServiceTestUtil {
+    @TempDir
+    protected Path tempRootDir;
     @Mock
     private MqttClient mockMqttClient;
     @Mock
@@ -56,8 +58,6 @@ public class MetricsAgentTest extends EGServiceTestUtil {
     private ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor;
     @Captor
     private ArgumentCaptor<MqttClientConnectionEvents> mqttClientConnectionEventsArgumentCaptor;
-    @TempDir
-    protected Path tempRootDir;
     private ScheduledThreadPoolExecutor ses;
     private MetricsAgent metricsAgent;
 
@@ -135,7 +135,7 @@ public class MetricsAgentTest extends EGServiceTestUtil {
     @Test
     public void GIVEN_Metrics_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops()
             throws InterruptedException {
-        EvergreenLogConfig.getInstance().setLevel(Level.DEBUG);
+        EvergreenLogConfig.getInstance().setLevel(Level.TRACE);
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "2");
         lenient().when(config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC))
                 .thenReturn(periodicPublishMetricsIntervalSec);

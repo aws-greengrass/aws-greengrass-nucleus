@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.telemetry.MetricsAgent;
@@ -25,8 +26,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.telemetry.MetricsAgent.DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
+import static com.aws.iot.evergreen.telemetry.MetricsAgent.METRICS_AGENT_SERVICE_TOPICS;
 import static com.aws.iot.evergreen.telemetry.MetricsAgent.TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC;
 
 public class KernelMetricsEmitter {
@@ -35,23 +38,26 @@ public class KernelMetricsEmitter {
     private static final String KERNEL_COMPONENT_METRIC_STORE = TelemetryNamespace.KernelComponents.toString();
     private static Map<TelemetryMetricName, MetricDataBuilder> kernelMetrics = new HashMap<>();
     private static Map<TelemetryMetricName, Integer> kernelMetricsData = new HashMap<>();
-    private ScheduledFuture<?> periodicKernelMetricsFuture = null;
     private final Object periodicKernelMetricsInProgressLock = new Object();
-    private int periodicKernelMetricsIntervalSec = 0;
-
+    private final ScheduledExecutorService ses;
     @NonNull
     private final Kernel kernel;
+    private ScheduledFuture<?> periodicKernelMetricsFuture = null;
+    private int periodicKernelMetricsIntervalSec = 0;
 
     /**
-     *  Constructor for kernel metrics emitter.
-     * @param kernel  {@link Kernel}
+     * Constructor for kernel metrics emitter.
+     *
+     * @param kernel {@link Kernel}
      */
     public KernelMetricsEmitter(Kernel kernel) {
         this.kernel = kernel;
+        this.ses = this.kernel.getContext().get(ScheduledExecutorService.class);
     }
 
     /**
      * Schedules the periodic kernel metrics based on the configured aggregation interval.
+     *
      * @param isReconfigured true if the interval is reconfigured
      */
     public void schedulePeriodicKernelMetrics(boolean isReconfigured) {
@@ -68,7 +74,6 @@ public class KernelMetricsEmitter {
                 }
             }
         }
-        ScheduledExecutorService ses = this.kernel.getContext().get(ScheduledExecutorService.class);
         periodicKernelMetricsFuture = ses.scheduleWithFixedDelay(
                 this::emitKernelMetrics, 0, periodicKernelMetricsIntervalSec, TimeUnit.SECONDS);
     }
@@ -92,7 +97,12 @@ public class KernelMetricsEmitter {
         for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
             kernelMetricsData.put(telemetryMetricName, 0);
         }
-        kernel.getConfig().lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        /*
+            Using lookup to create the MetricAgent service topics as this is called during the kernel launch
+            before the service is created.
+         */
+        Topics metricTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, METRICS_AGENT_SERVICE_TOPICS);
+        metricTopics.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicKernelMetricsIntervalSec = Coerce.toInt(newv);
@@ -113,7 +123,7 @@ public class KernelMetricsEmitter {
                         TelemetryMetricName.valueOf("NumberOfComponents" + serviceState);
                 kernelMetricsData.put(telemetryMetricName, kernelMetricsData.get(telemetryMetricName) + 1);
             } catch (IllegalArgumentException e) {
-                logger.atError().log("Unable to find the metric name." + e);
+                logger.atError().log("Unable to find the metric name:", e);
             }
         }
         for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> kernelMetric : kernelMetrics.entrySet()) {

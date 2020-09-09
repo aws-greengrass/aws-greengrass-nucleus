@@ -56,7 +56,7 @@ public class MqttChunkedPayloadPublisher<T> {
                         .payload(SERIALIZER.writeValueAsBytes(chunkablePayload)).build());
             }
         } catch (JsonProcessingException e) {
-            logger.atError().cause(e).log("Unable to publish data via topic." + updateTopic);
+            logger.atError().cause(e).kv("topic", updateTopic).log("Unable to publish data via topic.");
         }
     }
 
