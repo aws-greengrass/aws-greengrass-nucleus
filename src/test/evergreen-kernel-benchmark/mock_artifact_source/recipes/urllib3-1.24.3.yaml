@@ -1,8 +1,8 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: urllib3
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
 Version: '1.24.3'
 manifests:
   - lifecycle: {}

@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -18,7 +19,6 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;

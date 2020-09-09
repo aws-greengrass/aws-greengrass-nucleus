@@ -3,13 +3,13 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
 import com.aws.iot.evergreen.config.Node;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;

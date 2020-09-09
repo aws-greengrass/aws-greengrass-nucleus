@@ -1,7 +1,7 @@
 ---
 services:
   jdk11:
-    lifecycle:
+    Lifecycle:
       install:
         debian:
           script: |-
@@ -11,11 +11,11 @@ services:
           script: |-
             brew tap homebrew/cask-versions
             brew cask install corretto
-    dependencies:
+    Dependencies:
       macos:
         - homebrew
   git:
-    lifecycle:
+    Lifecycle:
       install:
         debian:
           skipif: onpath git
@@ -23,11 +23,11 @@ services:
         macos:
           skipif: onpath git
           script: brew install git
-    dependencies:
+    Dependencies:
       macos:
         - homebrew
   homebrew:
-    lifecycle:
+    Lifecycle:
       install:
         macos:
           skipif: onpath brew
@@ -35,7 +35,7 @@ services:
 
   docker:
     bashtimeout: 300
-    lifecycle:
+    Lifecycle:
       startup:
         macos: open /Applications/Docker.app
       install:
@@ -48,11 +48,11 @@ services:
           script: |-
             find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
             brew cask install docker
-    dependencies:
+    Dependencies:
       macos:
         - homebrew
   plain:
-    lifecycle:
+    Lifecycle:
       run:
         all: "{platform.invoke} {args}"
 
@@ -61,31 +61,31 @@ services:
     class: com.aws.iot.httpservice.SimpleHttpServer
 
   greenlake:
-    lifecycle:
+    Lifecycle:
       install:
         debian: |-
           sudo add-apt-repository https://aws.amazon.com/iot/apt
           sudo apt-get install greenlake
     throttleBandwidth: 100 kb/s
   hello-docker:
-    dependencies:
+    Dependencies:
       - docker
-    lifecycle:
+    Lifecycle:
       run: docker run --rm hello-world
       shutdown: (docker stop hello-world; docker rm hello-world; exit 0)2>&1
   hello-docker-nginx:
-    dependencies:
+    Dependencies:
       - docker
-    lifecycle:
+    Lifecycle:
       run:  (docker run -d nginx; docker logs -f nginx; exit 0)2>&1
       shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
-    lifecycle:
+    Lifecycle:
       install:
         debian: |-
           sudo add-apt-repository https://aws.amazon.com/iot/apt
           sudo apt-get install monitoring
-    dependencies:
+    Dependencies:
       - greenlake
 
   fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
@@ -98,7 +98,7 @@ services:
   setenv:
     ANSWER: 42
   main:
-    lifecycle:
+    Lifecycle:
       install:
         all: echo All installed
       run: |-
@@ -110,7 +110,7 @@ services:
         done
       download:
         hw.jar: http://foo/hw.jar
-    dependencies:
+    Dependencies:
       macos:
         - jdk11
         - git

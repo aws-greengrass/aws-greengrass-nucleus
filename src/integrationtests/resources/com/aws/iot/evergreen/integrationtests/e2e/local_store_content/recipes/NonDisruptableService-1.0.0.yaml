@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{NonDisruptableService}}
-Description: A service that can be performing important task so should not be restarted if not safe
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: A service that can be performing important task so should not be restarted if not safe
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: macos

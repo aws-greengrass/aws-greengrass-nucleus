@@ -144,7 +144,8 @@ public class PackageStore {
     PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
         Map<String, String> dependencyMetadata = new HashMap<>();
         getPackageRecipe(pkgId).getDependencies()
-                               .forEach((name, prop) -> dependencyMetadata.put(name, prop.getVersionRequirements()));
+                               .forEach((name, prop) -> dependencyMetadata.put(name,
+                                       prop.getVersionRequirement().toString()));
         return new PackageMetadata(pkgId, dependencyMetadata);
     }
 

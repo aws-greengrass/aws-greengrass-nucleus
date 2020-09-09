@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: BreakingService
-Description: A service that just can't run
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: A service that just can't run
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: unix

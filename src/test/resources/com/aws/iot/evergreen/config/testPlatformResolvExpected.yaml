@@ -13,5 +13,4 @@ services:
         script: brew install influxdb
 
       startup: brew services start influxdb
-      shutdown: brew services stop influxdb
-
+      shutdown: brew services stop influx

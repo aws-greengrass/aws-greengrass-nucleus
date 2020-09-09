@@ -1,8 +1,8 @@
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: Component1
-Description: Test Component
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: Test Component
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: all
@@ -18,4 +18,4 @@ Manifests:
           sh {{artifacts:path}}/run.sh; echo {{params:Message.value}}; sleep 100
 
     Artifacts:
-      - Uri: greengrass:run.sh
+      - URI: greengrass:run.sh

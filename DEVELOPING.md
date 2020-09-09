@@ -38,10 +38,14 @@ root dir/plugins/trusted. The plugin will be injected immediately when the kerne
 
 
 ## Testing
-JUnit 5 is used for both unit and integration testing.
+JUnit 5 is used for both unit and integration testing. 
+Both can be run locally without network access nor AWS credentials.
 
-`mvn test` will only run the unit tests.
-Use `mvn verify` to run both, or use `mvn surefire:test@integration-tests` to run only the integration tests.
+Run only unit tests: `mvn test`
+
+Run only integration tests: `mvn surefire:test@integration-tests -Dsurefire.argLine=""`
+
+Run both: `mvn verify`
 
 ### End-To-End Tests
 End-To-End (E2E) tests differ from our integration tests in that they require AWS credentials and network

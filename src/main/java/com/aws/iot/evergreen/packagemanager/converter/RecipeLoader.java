@@ -7,7 +7,6 @@ package com.aws.iot.evergreen.packagemanager.converter;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentParameter;
 import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
-import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.iot.evergreen.config.PlatformResolver;
@@ -15,16 +14,12 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
-import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
-import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -64,7 +59,7 @@ public final class RecipeLoader {
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
-                            componentRecipe.getVersion().toString()));
+                            componentRecipe.getComponentVersion().toString()));
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =
@@ -76,20 +71,14 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
-        String componentType = null;
-        if (componentRecipe.getComponentType() != null) {
-            componentType = componentRecipe.getComponentType().name();
-        }
 
         PackageRecipe packageRecipe = PackageRecipe.builder()
                                                    .componentName(componentRecipe.getComponentName())
-                                                   .version(componentRecipe.getVersion())
-                                                   .publisher(componentRecipe.getPublisher())
-                                                   .recipeTemplateVersion(RecipeTemplateVersion.valueOf(
-                                                           componentRecipe.getTemplateVersion().name()))
-                                                   .componentType(componentType)
-                                                   .dependencies(convertDependencyFromFile(
-                                                           platformSpecificManifest.getDependencies()))
+                                                   .version(componentRecipe.getComponentVersion())
+                                                   .publisher(componentRecipe.getComponentPublisher())
+                                                   .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
+                                                   .componentType(componentRecipe.getComponentType())
+                                                   .dependencies(platformSpecificManifest.getDependencies())
                                                    .lifecycle(platformSpecificManifest.getLifecycle())
                                                    .artifacts(convertArtifactsFromFile(
                                                            platformSpecificManifest.getArtifacts()))
@@ -133,30 +122,11 @@ public final class RecipeLoader {
 
     private static ComponentArtifact convertArtifactFromFile(
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
-        // null check on Unnarchive. Shouldn't happen if cloud recipe is parsed correctly.
-        Unarchive unArchive = Unarchive.NONE;
-        if (componentArtifact.getUnarchive() != null) {
-            unArchive = Unarchive.valueOf(componentArtifact.getUnarchive().name());
-        }
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())
                                 .algorithm(componentArtifact.getAlgorithm())
                                 .checksum(componentArtifact.getDigest())
-                                .unarchive(unArchive)
+                                .unarchive(componentArtifact.getUnarchive())
                                 .build();
-    }
-
-    private static Map<String, RecipeDependencyProperties> convertDependencyFromFile(
-            Map<String, DependencyProperties> dependencies) {
-        if (dependencies == null || dependencies.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return dependencies.entrySet()
-                           .stream()
-                           .filter(Objects::nonNull)
-                           .collect(Collectors.toMap(Map.Entry::getKey,
-                                   entry -> new RecipeDependencyProperties(entry.getValue().getVersionRequirement(),
-                                           entry.getValue().getDependencyType() == null ? "HARD" :
-                                                   entry.getValue().getDependencyType())));
     }
 }
