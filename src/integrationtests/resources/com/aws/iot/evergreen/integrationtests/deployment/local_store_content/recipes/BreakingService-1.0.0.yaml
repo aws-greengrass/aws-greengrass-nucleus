@@ -6,7 +6,7 @@ ComponentPublisher: Me
 ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
-      os: unix
+      os: linux
     Lifecycle:
       startup: |-
         echo "Breaking service broke."

@@ -6,7 +6,7 @@ ComponentPublisher: Me
 ComponentVersion: '1.0.1'
 Manifests:
   - Platform:
-      os: unix
+      os: linux
     Lifecycle:
       run: |-
         while true; do
