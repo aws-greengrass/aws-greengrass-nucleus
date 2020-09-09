@@ -19,7 +19,7 @@
             <outputDirectory>/bin</outputDirectory>
             <includes>
                 <include>loader</include>
-                <include>greengrass.service</include>
+                <include>greengrass.service.template</include>
             </includes>
         </fileSet>
     </fileSets>
