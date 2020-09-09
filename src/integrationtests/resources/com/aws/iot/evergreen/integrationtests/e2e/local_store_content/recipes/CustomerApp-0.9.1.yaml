@@ -6,11 +6,19 @@ Publisher: Me
 Version: '0.9.1'
 Manifests:
   - Platform:
+      os: windows
+    Lifecycle:
+      startup: |-
+        powershell -command "& sleep 2; echo \"CustomerApp succeeds on windows\"; exit 0"
+    Dependencies:
+      {{Mosquitto}}:
+        VersionRequirement: 1.0.0
+  - Platform:
       os: macos
     Lifecycle:
       startup: |-
         sleep 2
-        echo "CustomerApp succeeds."
+        echo "CustomerApp succeeds on MacOS."
         exit 0
     Dependencies:
       {{Mosquitto}}:

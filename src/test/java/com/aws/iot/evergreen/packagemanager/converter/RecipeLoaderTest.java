@@ -45,7 +45,7 @@ class RecipeLoaderTest {
 
         assertThat(recipe.getComponentName(), is("FooService"));
         assertThat(recipe.getVersion().getValue(), is("1.0.0"));
-        assertThat(recipe.getComponentType(), is("raw"));
+        assertThat(recipe.getComponentType().toLowerCase(), is("plugin"));
 
         // TODO enrich testing fields after making lifecycle section strongly typed
         assertThat(recipe.getLifecycle(), aMapWithSize(2));
