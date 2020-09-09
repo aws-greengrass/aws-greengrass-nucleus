@@ -13,7 +13,7 @@ Manifests:
         type: STRING
     Lifecycle:
       run:
-        powershell -command echo "Hello evergreen. {{params:sampleText.value}}"
+        powershell -command "& { echo \"Hello evergreen. {{params:sampleText.value}}\" }"
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0
