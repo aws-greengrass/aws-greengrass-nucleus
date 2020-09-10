@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
+
 /**
  * Class for providing device configuration information.
  */
@@ -112,6 +114,10 @@ public class DeviceConfiguration {
                 logger.atWarn().log("No AWS region found, falling back to default: {}", FALLBACK_DEFAULT_REGION);
                 newV = FALLBACK_DEFAULT_REGION;
             }
+
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(newV);
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_REGION").withValue(newV);
+
             return newV;
         };
     }
