@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.aws.iot.evergreen.kernel.Kernel.CONTEXT_SERVICE_IMPLEMENTERS;
+import static com.aws.iot.evergreen.kernel.Kernel.DEFAULT_CONFIG_TLOG_FILE;
+import static com.aws.iot.evergreen.kernel.Kernel.DEFAULT_CONFIG_YAML_FILE;
 import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
@@ -90,8 +92,8 @@ public class KernelLifecycle {
     }
 
     void initConfigAndTlog() {
-        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
-        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
+        Path transactionLogPath = kernel.getConfigPath().resolve(DEFAULT_CONFIG_TLOG_FILE);
+        Path configurationFile = kernel.getConfigPath().resolve(DEFAULT_CONFIG_YAML_FILE);
 
 
         try {

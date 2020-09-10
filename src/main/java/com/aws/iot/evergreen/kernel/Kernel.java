@@ -46,7 +46,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -83,6 +82,8 @@ public class Kernel {
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
+    static final String DEFAULT_CONFIG_YAML_FILE = "config.yaml";
+    static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
 
     @Getter
     private final Context context;
@@ -286,7 +287,7 @@ public class Kernel {
 
     public void writeEffectiveConfig() {
         // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
-        writeEffectiveConfig(configPath.resolve("effectiveConfig.evg"));
+        writeEffectiveConfig(configPath.resolve(DEFAULT_CONFIG_YAML_FILE));
     }
 
     /**
@@ -321,15 +322,8 @@ public class Kernel {
      * @param w Writer to write config into
      */
     public void writeConfig(Writer w) {
-        Map<String, Object> serviceMap = new LinkedHashMap<>();
-        orderedDependencies().forEach(l -> {
-            if (l != null) {
-                serviceMap.put(l.getName(), l.getServiceConfig().toPOJO());
-            }
-        });
-
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put(SERVICES_NAMESPACE_TOPIC, serviceMap);
+        configMap.put(SERVICES_NAMESPACE_TOPIC, config.findTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
         configMap.put(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
                 config.findTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
         try {
