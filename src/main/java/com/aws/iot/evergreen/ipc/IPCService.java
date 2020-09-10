@@ -1,11 +1,11 @@
 package com.aws.iot.evergreen.ipc;
 
+import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameDecoder;
 import com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -17,13 +17,14 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
-import java.net.InetAddress;
+import java.io.Closeable;
 import java.net.InetSocketAddress;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.LENGTH_FIELD_LENGTH;
 import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.LENGTH_FIELD_OFFSET;
 import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.MAX_PAYLOAD_SIZE;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 
 
 /**
@@ -42,8 +43,8 @@ import static com.aws.iot.evergreen.ipc.codec.MessageFrameEncoder.MAX_PAYLOAD_SI
  * the service will receive a pointer to the channel that they will then be able to use to push messages
  * to the client at any time in the future.
  */
-@ImplementsService(name = "IPCService", autostart = true)
-public class IPCService extends EvergreenService {
+public class IPCService implements Closeable, Startable {
+    private static final Logger logger = LogManager.getLogger(IPCService.class);
     public static final String KERNEL_URI_ENV_VARIABLE_NAME = "AWS_GG_KERNEL_URI";
     private static final int MAX_SO_BACKLOG = 128;
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
@@ -55,17 +56,15 @@ public class IPCService extends EvergreenService {
 
     @Inject
     private IPCChannelHandler ipcChannelHandler;
-
-    public IPCService(Topics c) {
-        super(c);
-    }
+    @Inject
+    private Configuration config;
 
     /**
      * server.startup() binds the server socket to localhost:port. That information is
      * pushed to the IPCService config store
      */
     @Override
-    protected void startup() {
+    public void startup() {
         logger.atInfo().setEventType("ipc-starting").log();
         try {
             port = listen();
@@ -76,10 +75,10 @@ public class IPCService extends EvergreenService {
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
             kernelUri.withValue(serverUri);
 
-            super.startup();
             logger.atInfo().setEventType("ipc-started").addKeyValue("uri", serverUri).log();
         } catch (InterruptedException e) {
             logger.atError().setCause(e).setEventType("ipc-start-error").log();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -101,7 +100,7 @@ public class IPCService extends EvergreenService {
                 }).option(ChannelOption.SO_BACKLOG, MAX_SO_BACKLOG).childOption(ChannelOption.SO_KEEPALIVE, true);
 
         // Bind and start to accept incoming connections.
-        ChannelFuture f = b.bind(InetAddress.getLoopbackAddress(), 0).sync();
+        ChannelFuture f = b.bind(new InetSocketAddress("localhost", 0)).sync();
         int port = ((InetSocketAddress) f.channel().localAddress()).getPort();
 
         logger.atDebug().addKeyValue("port", port).log("IPC ready to accept connections");
@@ -112,19 +111,20 @@ public class IPCService extends EvergreenService {
      * Shutdown the IPC server.
      */
     @Override
-    protected void shutdown() throws InterruptedException {
+    public void close() {
         logger.atInfo().setEventType("ipc-shutdown").log();
         workerGroup.shutdownGracefully();
         bossGroup.shutdownGracefully();
-        workerGroup.terminationFuture().sync();
-        bossGroup.terminationFuture().sync();
-    }
-
-    /**
-     * IPCService will only transition to errored state if the server socket is not able to bind or accept connections.
-     */
-    @Override
-    protected void handleError() {
-
+        try {
+            workerGroup.terminationFuture().sync();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            try {
+                bossGroup.terminationFuture().sync();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }
