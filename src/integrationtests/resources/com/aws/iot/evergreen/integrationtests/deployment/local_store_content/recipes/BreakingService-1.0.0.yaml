@@ -6,20 +6,19 @@ ComponentPublisher: Me
 ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
-      os: linux
-    Lifecycle:
-      startup: |-
-        echo "Breaking service broke."
-        exit 1
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
-
-  - Platform:
       os: windows
     Lifecycle:
       startup: |-
         powershell -command "& { echo \"Breaking service broke.\"; exit 1 }"
+    Dependencies:
+      Mosquitto:
+        VersionRequirement: 1.0.0
+  - Platform:
+      os: all # code path for linux (Github CI) and macos (local test)
+    Lifecycle:
+      startup: |-
+        echo "Breaking service broke."
+        exit 1
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0
