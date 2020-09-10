@@ -48,8 +48,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -70,11 +69,6 @@ public class DeviceProvisioningHelper {
     public static final String GCS_ENDPOINT =
                 "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
 
-    private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
-            .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"TemplateVersion\": \"2020-01-25\",\n"
-                    + "\t\"ComponentName\": \"TokenExchangeService\",\n"
-                    + "\t\"Description\": \"Enable Evergreen devices to interact with AWS services using certs\",\n"
-                    + "\t\"Publisher\": \"Evergreen\",\n\t\"Version\": \"1.0.0\"\n}");
     private final PrintStream outStream;
 
     private IotClient iotClient;
@@ -302,23 +296,25 @@ public class DeviceProvisioningHelper {
      * @param rolePolicyDocument document of policy to create and attach
      * @return ARN of created policy
      */
-    public String createAndAttachRolePolicy(String roleName, String rolePolicyName, String rolePolicyDocument) {
-        String tesRolePolicyArn;
+    public Optional<String> createAndAttachRolePolicy(String roleName, String rolePolicyName,
+                                                      String rolePolicyDocument) {
         try {
+            String tesRolePolicyArn;
             CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
                     software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
                             .policyDocument(rolePolicyDocument).build());
             tesRolePolicyArn = createPolicyResponse.policy().arn();
             outStream.printf("IAM role policy for TES \"%s\" created%n", rolePolicyName);
+            outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
+            iamClient.attachRolePolicy(
+                    AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
+            return Optional.of(tesRolePolicyArn);
         } catch (EntityAlreadyExistsException e) {
             // TODO get and reuse the policy. non trivial because we can only get IAM policy by ARN
-            throw new RuntimeException(String.format("TES role policy named %s already exists", rolePolicyName), e);
+            outStream.printf("IAM policy named \"%s\" already exists. Please attach it to the IAM role if not "
+                    + "already%n", rolePolicyName);
+            return Optional.empty();
         }
-
-        outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
-        iamClient.attachRolePolicy(
-                AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
-        return tesRolePolicyArn;
     }
 
     /**

@@ -48,7 +48,6 @@ import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.DetachRolePolicyRequest;
-import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
@@ -82,6 +81,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -122,7 +122,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final Logger logger = LogManager.getLogger(BaseE2ETestCase.class);
 
     private static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
-    protected static String tesRolePolicyArn;
+    protected static Optional<String> tesRolePolicyArn;
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
@@ -396,15 +396,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void setupTesRoleAndAlias() throws InterruptedException, ServiceLoadException {
-        try {
-            deviceProvisioningHelper
-                    .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
-            tesRolePolicyArn = deviceProvisioningHelper
-                    .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
-            deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
-        } catch (EntityAlreadyExistsException e) {
-            // No-op if resources already exist
-        }
+        deviceProvisioningHelper
+                .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+        tesRolePolicyArn = deviceProvisioningHelper
+                .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
+        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
 
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
@@ -419,9 +415,12 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static void cleanUpTesRoleAndAlias() {
         try {
             iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
-            iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn).build());
             iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
-            iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn).build());
+
+            if (tesRolePolicyArn.isPresent()) {
+                iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn.get()).build());
+                iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn.get()).build());
+            }
         } catch (ResourceNotFoundException | NoSuchEntityException e) {
             logger.atInfo().addKeyValue("error-message", e.getMessage()).log("Could not clean up TES resources");
         }
