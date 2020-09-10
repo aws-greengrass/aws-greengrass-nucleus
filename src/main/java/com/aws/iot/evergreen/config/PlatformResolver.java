@@ -198,7 +198,8 @@ public final class PlatformResolver {
                 .orElse("all");
     }
 
-    @Deprecated
+    @Deprecated // Still used in source code for existing tests that use multi-platform config.yaml when kernel starts.
+    // TODO Remove from source code and put into test utils
     public static Object resolvePlatform(Map<Object, Object> input) {
         return resolvePlatform(RANKS.get(), input);
     }
