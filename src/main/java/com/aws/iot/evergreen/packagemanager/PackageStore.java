@@ -129,8 +129,8 @@ public class PackageStore {
         if (!optionalPackage.isPresent()) {
             // TODO refine exception and logs
             throw new PackageLoadingException(
-                    String.format("Failed to find usable recipe for current platform: %s, for package: '%s' in the local"
-                            + " package store.", PlatformResolver.CURRENT_PLATFORM, pkgId));
+                    String.format("Failed to find usable recipe for current platform: %s, for package: '%s' in the "
+                            + "local package store.", PlatformResolver.CURRENT_PLATFORM, pkgId));
         }
 
         return optionalPackage.get();
