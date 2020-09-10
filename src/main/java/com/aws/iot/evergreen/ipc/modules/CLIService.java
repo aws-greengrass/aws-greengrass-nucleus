@@ -46,16 +46,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.iot.evergreen.ipc.IPCService.IPC_SERVICE;
 import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 
 @ImplementsService(name = CLIService.CLI_SERVICE, autostart = true)
@@ -71,7 +68,6 @@ public class CLIService extends EvergreenService {
     protected static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private static final int MAX_ATTEMPTS = 5;
 
     @Inject
     CLIServiceAgent agent;
@@ -116,8 +112,6 @@ public class CLIService extends EvergreenService {
     @Override
     public void postInject() {
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.CLI;
-        List<String> dependencies = Arrays.asList(IPC_SERVICE);
-        getServiceConfig().lookup(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC).withValue(dependencies);
         super.postInject();
         // Does not happen for built-in/plugin services so doing explicitly
         AuthenticationHandler.registerAuthenticationToken(this);
@@ -138,9 +132,9 @@ public class CLIService extends EvergreenService {
     @Override
     protected void startup() {
         try {
-            generateCliIpcInfo();
             reportState(State.RUNNING);
-        } catch (IOException | UnauthenticatedException | InterruptedException e) {
+            generateCliIpcInfo();
+        } catch (IOException | UnauthenticatedException e) {
             logger.atError().setEventType("cli-ipc-info-generation-error").setCause(e)
                     .log("Failed to create cli_ipc_info file");
         }
@@ -149,8 +143,7 @@ public class CLIService extends EvergreenService {
     @SuppressFBWarnings(value = {"RV_RETURN_VALUE_IGNORED_BAD_PRACTICE", "RV_RETURN_VALUE_IGNORED"},
             justification = "File is created in the same method")
     @SuppressWarnings("PMD.PrematureDeclaration")
-    private void generateCliIpcInfo() throws IOException, UnauthenticatedException, InterruptedException {
-
+    private void generateCliIpcInfo() throws UnauthenticatedException, IOException {
         String cliAuthToken = authenticationHandler.registerAuthenticationTokenForExternalClient(
                 Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce()),
                 GREENGRASS_CLI);
@@ -158,28 +151,19 @@ public class CLIService extends EvergreenService {
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
 
-        // IPC Service can take some time to start up and by the time this code runs it may not have set the
-        // socket url.
-        int numAttempts = 0;
-        while (true) {
-            numAttempts++;
-            if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME) == null) {
-                if (numAttempts >= MAX_ATTEMPTS) {
-                    throw new InterruptedException("Reached max attempts to look for ipc socket information");
-                }
-                Thread.sleep(1000);
-            } else {
-                //TODO: Change the URL as per the new IPC
-                ipcInfo.put(SOCKET_URL, Coerce.toString(
-                        config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)
-                                .getOnce()));
-                break;
-            }
+        if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME) == null) {
+            logger.atWarn().log("Did not find IPC socket URL in the config. Not creating the cli ipc info file");
+            return;
+        } else {
+            //TODO: Change the URL as per the new IPC
+            ipcInfo.put(SOCKET_URL, Coerce.toString(
+                    config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)
+                            .getOnce()));
         }
 
         Path filePath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
-        Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)
+                .getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         // TODO: Add the users in configuration to a group and add group permissions for file on linux, windows and
         //  other platforms.
         File ipcInfoFile = new File(filePath.toString());
