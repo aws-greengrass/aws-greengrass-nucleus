@@ -26,7 +26,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import javax.inject.Inject;
 
-public class GreengrassRepositoryDownloader implements ArtifactDownloader {
+public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
     private static final String CONTENT_DISPOSITION = "Content-Disposition";
     private static final String HTTP_HEADER_LOCATION = "Location";
@@ -37,6 +37,7 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
 
     @Inject
     public GreengrassRepositoryDownloader(GreengrassPackageServiceClientFactory clientFactory) {
+        super();
         this.evgCmsClient = clientFactory.getCmsClient();
     }
 
@@ -61,7 +62,23 @@ public class GreengrassRepositoryDownloader implements ArtifactDownloader {
                     String filename = extractFilename(url, disposition);
 
                     try (InputStream inputStream = httpConn.getInputStream()) {
+
+                        // TODO : Remove this and uncomment the code below once cloud implementation for public
+                        //  component publish workflow is ready
                         Files.copy(inputStream, saveToPath.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
+
+                        /*
+                        // Skip download if not needed
+                        if (needsDownload(artifact, saveToPath.resolve(filename))) {
+                            // Perform integrity check and save file to store
+                            checkIntegrityAndSaveToStore(inputStream, artifact, packageIdentifier,
+                                    saveToPath.resolve(filename));
+                        } else {
+                            logger.atDebug().addKeyValue("artifact", artifact.getArtifactUri())
+                                    .log("Artifact already exists, skipping download");
+                        }
+                        */
+
                     }
                     return saveToPath.resolve(filename).toFile();
                 }
