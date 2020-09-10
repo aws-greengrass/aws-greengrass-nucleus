@@ -245,6 +245,7 @@
                 <artifactId>maven-pmd-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
+                    <analysisCache>true</analysisCache>
                     <!-- Current violations should not be exceeded. Try to decrease these over time -->
                     <maxAllowedViolations>0</maxAllowedViolations>
                     <printFailingErrors>true</printFailingErrors>
@@ -594,6 +595,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- Oddly, setting this to false actually makes it compile incrementally, making dev builds faster -->
+        <maven.compiler.useIncrementalCompilation>false</maven.compiler.useIncrementalCompilation>
         <skipTests>false</skipTests>
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
