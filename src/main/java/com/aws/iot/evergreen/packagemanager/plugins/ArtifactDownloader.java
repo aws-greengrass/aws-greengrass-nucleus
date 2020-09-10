@@ -23,7 +23,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
 public abstract class ArtifactDownloader {
-    static final Logger logger = LogManager.getLogger(ArtifactDownloader.class);
+    private static final int DOWNLOAD_BUFFER_SIZE = 1024;
+    private static final Logger logger = LogManager.getLogger(ArtifactDownloader.class);
     static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
             "Failed to download artifact %s for component %s-%s, reason: %s";
 
@@ -32,7 +33,7 @@ public abstract class ArtifactDownloader {
             throws PackageDownloadException, IOException {
         try (OutputStream artifactFile = Files.newOutputStream(saveToPath)) {
             MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = artifactObject.read(buffer);
             while (readBytes > -1) {
                 // Compute digest as well as write to the file path
@@ -40,7 +41,7 @@ public abstract class ArtifactDownloader {
                 artifactFile.write(buffer, 0, readBytes);
                 readBytes = artifactObject.read(buffer);
             }
-            artifactObject.close();
+
             String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
             if (!digest.equals(artifact.getChecksum())) {
                 // Handle failure in integrity check, delete bad file then throw
@@ -77,11 +78,9 @@ public abstract class ArtifactDownloader {
         }
 
         // If the file already exists and has the right content, skip download
-        InputStream existingArtifact = null;
-        try {
-            existingArtifact = Files.newInputStream(saveToPath);
+        try (InputStream existingArtifact = Files.newInputStream(saveToPath)) {
             MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
-            byte[] buffer = new byte[4096];
+            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = existingArtifact.read(buffer);
             while (readBytes > -1) {
                 messageDigest.update(buffer, 0, readBytes);
@@ -92,11 +91,7 @@ public abstract class ArtifactDownloader {
 
         } catch (IOException | NoSuchAlgorithmException e) {
             // If error in checking the existing content, attempt fresh download
-            return false;
-        } finally {
-            if (existingArtifact != null) {
-                existingArtifact.close();
-            }
+            return true;
         }
     }
 

@@ -49,7 +49,7 @@ public class S3Downloader extends ArtifactDownloader {
         this.s3ClientFactory = clientFactory;
     }
 
-    @SuppressWarnings({"PMD.AvoidInstanceofChecksInCatchClause", "PMD.CloseResource"})
+    @SuppressWarnings({"PMD.AvoidInstanceofChecksInCatchClause"})
     @Override
     public File downloadToPath(PackageIdentifier packageIdentifier, ComponentArtifact artifact, Path saveToPath)
             throws IOException, PackageDownloadException, InvalidArtifactUriException {
@@ -62,15 +62,17 @@ public class S3Downloader extends ArtifactDownloader {
         String bucket = s3PathMatcher.group(1);
         String key = s3PathMatcher.group(2);
 
+        InputStream artifactObject = null;
         try {
             Path filePath = saveToPath.resolve(extractFileName(key));
             // Skip download if not needed
             if (needsDownload(artifact, filePath)) {
                 // Get artifact from S3
-                InputStream artifactObject = getObject(bucket, key, artifact, packageIdentifier);
+                artifactObject = getObject(bucket, key, artifact, packageIdentifier);
 
                 // Perform integrity check and save file to store
                 checkIntegrityAndSaveToStore(artifactObject, artifact, packageIdentifier, filePath);
+
             } else {
                 logger.atDebug().addKeyValue("artifact", artifact.getArtifactUri())
                         .log("Artifact already exists, skipping download");
@@ -86,6 +88,10 @@ public class S3Downloader extends ArtifactDownloader {
                     .addKeyValue("artifactUri", artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
             return saveToPath.resolve(extractFileName(key)).toFile();
+        } finally {
+            if (artifactObject != null) {
+                artifactObject.close();
+            }
         }
     }
 
