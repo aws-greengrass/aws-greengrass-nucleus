@@ -262,12 +262,12 @@ public class KernelLifecycle {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             stopAllServices(timeoutSeconds);
 
-            // Wait for tasks in the executor to end.
+            // Do not wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);
             ExecutorService executorService = kernel.getContext().get(ExecutorService.class);
             kernel.getContext().runOnPublishQueueAndWait(() -> {
-                executorService.shutdown();
-                scheduledExecutorService.shutdown();
+                executorService.shutdownNow();
+                scheduledExecutorService.shutdownNow();
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
             // TODO: Timeouts should not be additive (ie. our timeout should be for this entire method, not
