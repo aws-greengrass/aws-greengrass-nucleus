@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -21,7 +22,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
 public class Topics extends Node implements Iterable<Node> {
-    public final ConcurrentHashMap<String, Node> children = new ConcurrentHashMap<>();
+    public final Map<CaseInsensitiveString, Node> children = new ConcurrentHashMap<>();
 
     private static final Logger logger = LogManager.getLogger(Topics.class);
 
@@ -77,7 +78,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     public Node getChild(String name) {
-        return children.get(name);
+        return children.get(new CaseInsensitiveString(name));
     }
 
     /**
@@ -88,7 +89,12 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topic createLeafChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topic(context, nm, this));
+        return createLeafChild(new CaseInsensitiveString(name));
+    }
+
+    private Topic createLeafChild(CaseInsensitiveString name) {
+        Node n = children.computeIfAbsent(name,
+                (nm) -> new Topic(context, nm.toString(), this));
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
@@ -104,7 +110,12 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topics createInteriorChild(String name) {
-        Node n = children.computeIfAbsent(name, (nm) -> new Topics(context, nm, this));
+       return createInteriorChild(new CaseInsensitiveString(name));
+    }
+
+    private Topics createInteriorChild(CaseInsensitiveString name) {
+        Node n = children.computeIfAbsent(name,
+                (nm) -> new Topics(context, nm.toString(), this));
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
@@ -224,16 +235,16 @@ public class Topics extends Node implements Iterable<Node> {
             logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
             return;
         }
-        Set<String> childrenToRemove = new HashSet<>(children.keySet());
+        Set<CaseInsensitiveString> childrenToRemove = new HashSet<>(children.keySet());
 
         map.forEach((okey, value) -> {
-            String key = okey.toString();
+            CaseInsensitiveString key = new CaseInsensitiveString(okey.toString());
             childrenToRemove.remove(key);
             updateChild(lastModified, key, value, mergeBehavior);
         });
 
         childrenToRemove.forEach(childName -> {
-            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName);
+            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName.toString());
             if (childMergeBehavior == null) {
                 childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
             }
@@ -253,8 +264,9 @@ public class Topics extends Node implements Iterable<Node> {
         });
     }
 
-    private void updateChild(long lastModified, String key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
-        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key);
+    private void updateChild(long lastModified, CaseInsensitiveString key, Object value,
+                             @NonNull UpdateBehaviorTree mergeBehavior) {
+        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key.toString());
         if (childMergeBehavior == null) {
             childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
         }
@@ -274,7 +286,8 @@ public class Topics extends Node implements Iterable<Node> {
         }
     }
 
-    private void mergeChild(long lastModified, String key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
+    private void mergeChild(long lastModified, CaseInsensitiveString key, Object value,
+                            @NonNull UpdateBehaviorTree mergeBehavior) {
         if (value instanceof Map) {
             createInteriorChild(key).updateFromMap(lastModified, (Map) value, mergeBehavior);
         } else {
@@ -282,7 +295,7 @@ public class Topics extends Node implements Iterable<Node> {
         }
     }
 
-    private void replaceChild(long lastModified, String key, Object value,
+    private void replaceChild(long lastModified, CaseInsensitiveString key, Object value,
                               @Nonnull UpdateBehaviorTree childMergeBehavior) {
         Node existingChild = children.get(key);
         // if new node is a container node
@@ -308,11 +321,9 @@ public class Topics extends Node implements Iterable<Node> {
         if (o instanceof Topics) {
             Topics t = (Topics) o;
             if (children.size() == t.children.size()) {
-                for (Map.Entry<String, Node> me : children.entrySet()) {
+                for (Map.Entry<CaseInsensitiveString, Node> me : children.entrySet()) {
                     Object mov = t.children.get(me.getKey());
                     if (!Objects.equals(me.getValue(), mov)) {
-                        //                            System.out.println(me.getKey() + "\t" + me.getValue() +
-                        //                                    "\n\t" + t.children.get(me.getKey()));
                         return false;
                     }
                 }
@@ -344,7 +355,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @param n node to remove
      */
     public void remove(Node n) {
-        if (!children.remove(n.getName(), n)) {
+        if (!children.remove(new CaseInsensitiveString(n.getName()), n)) {
             logger.atError("config-node-child-remove-error").kv("thisNode", toString()).kv("childNode", n.getName())
                     .log();
             return;
@@ -364,6 +375,7 @@ public class Topics extends Node implements Iterable<Node> {
                 updateFromMap(System.currentTimeMillis(), newValue,
                         new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))
         );
+        context.runOnPublishQueueAndWait(() -> {});
     }
 
     protected void childChanged(WhatHappened what, Node child) {
@@ -385,15 +397,7 @@ public class Topics extends Node implements Iterable<Node> {
         if (child.modtime > this.modtime || children.isEmpty()) {
             this.modtime = child.modtime;
         } else {
-            this.modtime = children.values().stream().max((node, other) -> {
-                if (node.modtime == other.modtime) {
-                    return 0;
-                }
-                if (node.modtime < other.modtime) {
-                    return -1;
-                }
-                return 1;
-            }).get().modtime;
+            this.modtime = children.values().stream().max(Comparator.comparingLong(node -> node.modtime)).get().modtime;
         }
         if (parentNeedsToKnow()) {
             parent.childChanged(what, child);
@@ -420,7 +424,7 @@ public class Topics extends Node implements Iterable<Node> {
 
     @Override
     public Map<String, Object> toPOJO() {
-        Map<String, Object> map = new TreeMap(String.CASE_INSENSITIVE_ORDER);
+        Map<String, Object> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         children.values().forEach((n) -> {
             if (!n.getName().startsWith("_")) {
                 // Don't save entries whose name starts in '_'

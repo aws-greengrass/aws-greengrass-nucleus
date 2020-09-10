@@ -14,7 +14,7 @@ Manifests:
         done
 
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       run: |-
         while true; do

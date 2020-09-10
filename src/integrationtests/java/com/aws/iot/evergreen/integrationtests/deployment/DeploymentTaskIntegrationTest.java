@@ -168,7 +168,7 @@ class DeploymentTaskIntegrationTest {
     @Order(1)
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
             throws Exception {
-        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("raw",
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 EvergreenService.class.getName());
         outputMessagesToTimestamp.clear();
         final List<String> listOfExpectedMessages =

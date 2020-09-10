@@ -211,13 +211,10 @@ public class PackageManager implements InjectionActions {
             }
         }
 
-        List<ComponentArtifact> artifactsToDownload =
-                determineArtifactsNeedToDownload(packageArtifactDirectory, artifacts);
         logger.atDebug().setEventType("downloading-package-artifacts")
-                .addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier)
-                .addKeyValue("artifactsNeedToDownload", artifactsToDownload).log();
+                .addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier).log();
 
-        for (ComponentArtifact artifact : artifactsToDownload) {
+        for (ComponentArtifact artifact : artifacts) {
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
             File downloadedFile;
             try {
@@ -227,8 +224,10 @@ public class PackageManager implements InjectionActions {
                         String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
             }
 
-            Unarchive unarchive = artifact.getUnarchive() == null ? Unarchive.NONE
-                    : Coerce.toEnum(Unarchive.class, artifact.getUnarchive().toUpperCase(), Unarchive.NONE);
+            Unarchive unarchive = artifact.getUnarchive();
+            if (unarchive == null) {
+                unarchive = Unarchive.NONE;
+            }
 
             if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
@@ -243,13 +242,6 @@ public class PackageManager implements InjectionActions {
                 }
             }
         }
-    }
-
-    @SuppressWarnings("PMD.UnusedFormalParameter")
-    private List<ComponentArtifact> determineArtifactsNeedToDownload(Path packageArtifactDirectory,
-                                                      List<ComponentArtifact> artifacts) {
-        //TODO implement proper idempotency logic to determine what artifacts need to download
-        return artifacts;
     }
 
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {

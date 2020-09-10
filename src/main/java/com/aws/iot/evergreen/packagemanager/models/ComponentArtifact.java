@@ -21,5 +21,6 @@ public class ComponentArtifact {
 
     String algorithm;
 
-    String unarchive; //TODO make it enum
+    @Builder.Default
+    Unarchive unarchive = Unarchive.NONE;
 }

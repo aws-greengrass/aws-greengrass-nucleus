@@ -10,7 +10,10 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Exec;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class SystemdUtils implements SystemServiceUtils {
@@ -18,20 +21,20 @@ public class SystemdUtils implements SystemServiceUtils {
     private static final String PID_FILE_PARAM = "REPLACE_WITH_GG_LOADER_PID_FILE";
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
     private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";
-    private static final String SED_CMD = "sed -i -e \"s#%s#%s#g\" %s";
 
     @Override
     public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
-            Path serviceConfig = kernelAlternatives.getServiceTemplatePath();
-            runCommand(String.format(SED_CMD, PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath(), serviceConfig));
-            runCommand(String.format(SED_CMD, LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath(), serviceConfig));
-            runCommand(String.format("cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
-            runCommand("systemctl daemon-reload");
-            runCommand("systemctl unmask greengrass.service");
-            runCommand("systemctl start greengrass.service");
-            runCommand("systemctl enable greengrass.service");
+            Path serviceConfig = kernelAlternatives.getServiceConfigPath();
+            interpolateServiceTemplate(kernelAlternatives.getServiceTemplatePath(), serviceConfig, kernelAlternatives);
+
+            runCommand(String.format("sudo cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
+            runCommand("sudo systemctl daemon-reload");
+            runCommand("sudo systemctl unmask greengrass.service");
+            runCommand("sudo systemctl start greengrass.service");
+            runCommand("sudo systemctl enable greengrass.service");
+
             logger.atInfo().log("Successfully set up systemd service");
             return true;
         } catch (IOException ioe) {
@@ -42,11 +45,26 @@ public class SystemdUtils implements SystemServiceUtils {
         return false;
     }
 
+    private void interpolateServiceTemplate(Path src, Path dst, KernelAlternatives kernelAlternatives)
+            throws IOException {
+        try (BufferedReader r = Files.newBufferedReader(src);
+             BufferedWriter w = Files.newBufferedWriter(dst)) {
+            String line = r.readLine();
+            while (line != null) {
+                w.write(line.replaceAll(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())
+                        .replaceAll(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString()));
+                w.newLine();
+                line = r.readLine();
+            }
+            w.flush();
+        }
+    }
+
     private void runCommand(String command) throws IOException, InterruptedException {
         boolean success = new Exec().withShell(command)
-                .withOut(s -> logger.atInfo().kv("command", command).kv("stdout", s.toString().trim()).log())
-                .withErr(s -> logger.atWarn().kv("command", command).kv("stderr", s.toString().trim()).log())
-                .successful(false);
+                .withOut(s -> logger.atWarn().kv("command", command).kv("stdout", s.toString().trim()).log())
+                .withErr(s -> logger.atError().kv("command", command).kv("stderr", s.toString().trim()).log())
+                .successful(true);
         if (!success) {
             throw new IOException(String.format("Command %s failed", command));
         }

@@ -5,18 +5,19 @@
 
 package com.aws.iot.evergreen.packagemanager.converter;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentParameter;
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.iot.evergreen.config.PlatformResolver;
-import com.aws.iot.evergreen.packagemanager.common.ComponentParameter;
-import com.aws.iot.evergreen.packagemanager.common.ComponentRecipe;
-import com.aws.iot.evergreen.packagemanager.common.DependencyProperties;
-import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
-import com.aws.iot.evergreen.packagemanager.common.SerializerFactory;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
+import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -75,13 +76,18 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
+        String componentType = null;
+        if (componentRecipe.getComponentType() != null) {
+            componentType = componentRecipe.getComponentType().name();
+        }
+
         PackageRecipe packageRecipe = PackageRecipe.builder()
                                                    .componentName(componentRecipe.getComponentName())
                                                    .version(componentRecipe.getVersion())
                                                    .publisher(componentRecipe.getPublisher())
                                                    .recipeTemplateVersion(RecipeTemplateVersion.valueOf(
                                                            componentRecipe.getTemplateVersion().name()))
-                                                   .componentType(componentRecipe.getComponentType())
+                                                   .componentType(componentType)
                                                    .dependencies(convertDependencyFromFile(
                                                            platformSpecificManifest.getDependencies()))
                                                    .lifecycle(platformSpecificManifest.getLifecycle())
@@ -115,7 +121,7 @@ public final class RecipeLoader {
     }
 
     private static List<ComponentArtifact> convertArtifactsFromFile(
-            List<com.aws.iot.evergreen.packagemanager.common.ComponentArtifact> artifacts) {
+            List<com.amazon.aws.iot.greengrass.component.common.ComponentArtifact> artifacts) {
         if (artifacts == null || artifacts.isEmpty()) {
             return Collections.emptyList();
         }
@@ -126,12 +132,17 @@ public final class RecipeLoader {
     }
 
     private static ComponentArtifact convertArtifactFromFile(
-            @Nonnull com.aws.iot.evergreen.packagemanager.common.ComponentArtifact componentArtifact) {
+            @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
+        // null check on Unnarchive. Shouldn't happen if cloud recipe is parsed correctly.
+        Unarchive unArchive = Unarchive.NONE;
+        if (componentArtifact.getUnarchive() != null) {
+            unArchive = Unarchive.valueOf(componentArtifact.getUnarchive().name());
+        }
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())
                                 .algorithm(componentArtifact.getAlgorithm())
                                 .checksum(componentArtifact.getDigest())
-                                .unarchive(componentArtifact.getUnarchive())
+                                .unarchive(unArchive)
                                 .build();
     }
 

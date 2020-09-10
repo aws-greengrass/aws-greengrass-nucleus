@@ -148,8 +148,8 @@ class PackageManagerTest {
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
 
         packageManager.prepareArtifacts(pkgId,
-                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP.name()),
-                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, Unarchive.NONE.name())));
+                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP),
+                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, Unarchive.NONE)));
 
         ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
         verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());

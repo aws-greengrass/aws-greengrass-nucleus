@@ -1,12 +1,12 @@
 package com.aws.iot.evergreen.config;
 
+import com.amazon.aws.iot.greengrass.component.common.Platform;
+import com.amazon.aws.iot.greengrass.component.common.Platform.Architecture;
+import com.amazon.aws.iot.greengrass.component.common.Platform.OS;
+import com.amazon.aws.iot.greengrass.component.common.PlatformHelper;
+import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.packagemanager.common.Platform;
-import com.aws.iot.evergreen.packagemanager.common.Platform.Architecture;
-import com.aws.iot.evergreen.packagemanager.common.Platform.OS;
-import com.aws.iot.evergreen.packagemanager.common.PlatformHelper;
-import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
 import com.aws.iot.evergreen.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.aws.iot.evergreen.packagemanager.common.PlatformHelper.findMoreSpecificOS;
+import static com.amazon.aws.iot.greengrass.component.common.PlatformHelper.findMoreSpecificOS;
 
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public final class PlatformResolver {
@@ -142,6 +142,11 @@ public final class PlatformResolver {
         if (Files.exists(Paths.get("/proc"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.LINUX);
         }
+
+        /*
+        TODO: since B1 release only support Linux platform.
+        Temporarily stop platform detection after Linux.
+
         if (Files.exists(Paths.get("/usr/bin/yum"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.FEDORA);
         }
@@ -154,6 +159,8 @@ public final class PlatformResolver {
         if (sysver.contains("ubuntu")) {
             currentOS = findMoreSpecificOS(currentOS, OS.UBUNTU);
         }
+
+        */
 
         return currentOS;
     }
