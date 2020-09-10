@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -77,6 +78,27 @@ public class AuthorizationModuleTest {
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         module.addPermission(destination, permission);
         assertTrue(module.isPresent(destination, permission));
+    }
+
+    @Test
+    void Given_authZmodule_WHEN_given_component_and_clear_permissions_THEN_delete_permissions() {
+        AuthorizationModule module = new AuthorizationModule();
+        permissionEntries().forEach(entry -> {
+            String destination = (String)entry.get()[0];
+            String principal = (String)entry.get()[1];
+            String op = (String)entry.get()[2];
+            String resource = (String)entry.get()[3];
+            try {
+                Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+                module.addPermission(destination, permission);
+                assertTrue(module.isPresent(destination, permission));
+            } catch (AuthorizationException e) {
+                fail("Encountered exception ", e);
+            }
+        });
+        String componentToRemove = "ComponentB";
+        module.deletePermissionsWithDestination(componentToRemove);
+        assertEquals(module.permissions.get("ComponentB").size(), 0);
     }
 
     @Test

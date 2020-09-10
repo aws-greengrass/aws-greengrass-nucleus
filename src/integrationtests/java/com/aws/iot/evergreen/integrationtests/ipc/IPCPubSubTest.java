@@ -3,6 +3,8 @@
 
 package com.aws.iot.evergreen.integrationtests.ipc;
 
+import com.aws.iot.evergreen.auth.AuthorizationModule;
+import com.aws.iot.evergreen.auth.Permission;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -34,6 +36,7 @@ import java.util.function.Consumer;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.iot.evergreen.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.iot.evergreen.kernel.EvergreenService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -41,7 +44,9 @@ import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtec
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EGExtension.class)
 class IPCPubSubTest {
@@ -167,6 +172,57 @@ class IPCPubSubTest {
         //Now the authorization policies should have been removed and these should fail
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
         assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void GIVEN_pubsubclient_WHEN_service_removed_and_added_THEN_fail_and_succeed() throws Exception {
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
+                TEST_SERVICE_NAME, this.getClass());
+        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
+        client = new IPCClientImpl(config);
+        PubSub c = new PubSubImpl(client);
+        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+        });
+        Permission policyId1 =
+                Permission.builder().principal(TEST_SERVICE_NAME).operation("*").resource("*").build();
+        Permission policyId2 =
+                Permission.builder().principal("mqtt").operation("publish").resource("*").build();
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
+        c.subscribeToTopic("a", cb.getRight());
+        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
+        cb.getLeft().get(2, TimeUnit.SECONDS);
+
+        // Remove the service topic
+        Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
+        if (serviceTopic != null) {
+            serviceTopic.remove();
+        }
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+        assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
+        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
+        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
+
+        // Reload the kernel with the service and correct authorization policy
+        kernel.getConfig().read(new URL(IPCPubSubTest.class.getResource("pubsub_authorized.yaml").toString()), false);
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        });
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
+        c.subscribeToTopic("a", cb.getRight()); //now this should succeed
+        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
+        cb.getLeft().get(2, TimeUnit.SECONDS);
+
+        // Remove pubsub
+        Topics pubsubTopic = kernel.findServiceTopic(PUB_SUB_SERVICE_NAME);
+        if (pubsubTopic != null) {
+            pubsubTopic.remove();
+        }
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+        assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
+        assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
     }
 
     @Test
