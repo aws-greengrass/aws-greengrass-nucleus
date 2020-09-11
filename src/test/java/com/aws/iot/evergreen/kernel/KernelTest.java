@@ -90,8 +90,10 @@ class KernelTest {
     }
 
     @AfterEach
-    void afterEach() {
+    void afterEach() throws IOException {
         kernel.shutdown();
+        // Some tests use a faked kernel lifecycle, so the shutdown doesn't actually shut it down
+        kernel.getContext().close();
     }
 
     @Test

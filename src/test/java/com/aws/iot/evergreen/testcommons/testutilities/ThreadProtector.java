@@ -40,9 +40,6 @@ public class ThreadProtector implements AfterAllCallback {
             // Don't fail tests right now. Too many things would break.
             // fail("Threads are still running: " + liveThreads);
             System.err.println("Threads are still running: " + liveThreads);
-
-            // But instead, wait a little bit for the threads in this test to finish.
-            Thread.sleep(2000);
         }
     }
 }
