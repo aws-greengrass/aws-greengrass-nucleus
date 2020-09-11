@@ -3,6 +3,6 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: docutils
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-Version: '0.10.0'
+ComponentVersion: '0.10.0'
 manifests:
   - lifecycle: {}

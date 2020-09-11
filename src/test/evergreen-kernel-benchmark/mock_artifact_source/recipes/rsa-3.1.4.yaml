@@ -3,7 +3,7 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: rsa
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-Version: '3.1.4'
+ComponentVersion: '3.1.4'
 Manifests:
   - Dependencies:
       pyasn1:
