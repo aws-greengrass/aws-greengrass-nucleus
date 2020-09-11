@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -228,6 +229,8 @@ class KernelTest {
         // We need to launch the kernel here as this triggers EZPlugins to search the classpath for @ImplementsService
         // it complains that there's no main, but we don't care for this test
         ignoreExceptionUltimateCauseWithMessage(context, "No matching definition in system model for: main");
+        // CLI Service takes time to write ipc info to the file and this test finishes before that.
+        ignoreExceptionOfType(context, ClosedByInterruptException.class);
         try {
             kernel.parseArgs().launch();
         } catch (RuntimeException ignored) {
