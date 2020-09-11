@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: s3transfer
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
-Version: '0.3.0'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
+ComponentVersion: '0.3.0'
 Manifests:
   - Dependencies:
       botocore:

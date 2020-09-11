@@ -18,7 +18,6 @@ import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.CrashableFunction;
 import com.aws.iot.evergreen.util.Pair;
-import com.aws.iot.evergreen.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
@@ -141,9 +140,7 @@ public class KernelConfigResolver {
                 interpolate(packageRecipe.getLifecycle(), packageIdentifier, packagesToDeploy, document,
                         parameterAndDependencyCache));
 
-        if (!Utils.isEmpty(packageRecipe.getComponentType())) {
-            resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, packageRecipe.getComponentType());
-        }
+        resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, packageRecipe.getComponentType());
 
         // Generate dependencies
         List<String> dependencyConfig = new ArrayList<>();

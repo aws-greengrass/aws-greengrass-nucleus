@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.aws.iot.evergreen.config.PlatformResolver;
 import com.aws.iot.evergreen.constants.FileSuffix;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
@@ -128,7 +129,8 @@ public class PackageStore {
         if (!optionalPackage.isPresent()) {
             // TODO refine exception and logs
             throw new PackageLoadingException(
-                    String.format("The recipe for package: '%s' doesn't exist in the local package store.", pkgId));
+                    String.format("Failed to find usable recipe for current platform: %s, for package: '%s' in the "
+                            + "local package store.", PlatformResolver.CURRENT_PLATFORM, pkgId));
         }
 
         return optionalPackage.get();
@@ -144,7 +146,8 @@ public class PackageStore {
     PackageMetadata getPackageMetadata(@NonNull PackageIdentifier pkgId) throws PackagingException {
         Map<String, String> dependencyMetadata = new HashMap<>();
         getPackageRecipe(pkgId).getDependencies()
-                               .forEach((name, prop) -> dependencyMetadata.put(name, prop.getVersionRequirements()));
+                               .forEach((name, prop) -> dependencyMetadata.put(name,
+                                       prop.getVersionRequirement().toString()));
         return new PackageMetadata(pkgId, dependencyMetadata);
     }
 

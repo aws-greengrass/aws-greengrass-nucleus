@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: boto3
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
-Version: '1.9.128'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
+ComponentVersion: '1.9.128'
 Manifests:
   - Dependencies:
       botocore:

@@ -6,7 +6,6 @@ package com.aws.iot.evergreen.tes;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -18,13 +17,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.URL;
 import java.net.HttpURLConnection;
+import java.net.URL;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class HttpServerImplTest {

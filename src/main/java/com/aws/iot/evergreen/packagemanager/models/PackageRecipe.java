@@ -3,6 +3,9 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,7 +21,7 @@ import java.util.Set;
 @AllArgsConstructor
 public class PackageRecipe {
 
-    RecipeTemplateVersion recipeTemplateVersion;
+    RecipeFormatVersion recipeTemplateVersion;
 
     String componentName;
 
@@ -39,7 +42,7 @@ public class PackageRecipe {
     List<ComponentArtifact> artifacts = Collections.emptyList();
 
     @Builder.Default
-    Map<String, RecipeDependencyProperties> dependencies = Collections.emptyMap();
+    Map<String, DependencyProperties> dependencies = Collections.emptyMap();
 
-    String componentType;
+    ComponentType componentType;
 }

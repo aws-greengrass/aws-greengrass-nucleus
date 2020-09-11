@@ -1,9 +1,9 @@
 ---
-TemplateVersion: 'Invalid'
+RecipeFormatVersion: 'Invalid'
 ComponentName: InvalidRecipeVersion
-Description: Test recipe for Evergreen packages
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Config:
   Lifecycle:
     install:
@@ -18,7 +18,7 @@ Config:
         script: brew install git
   Artifacts:
   all:
-    - Uri: %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
+    - URI: %s/ConveyorBelt-1.0.0/conveyor_artifact.txt
   Dependencies:
     Log:
       VersionRequirement: '2.0'

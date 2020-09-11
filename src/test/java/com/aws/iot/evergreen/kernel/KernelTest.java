@@ -5,9 +5,9 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
@@ -90,8 +90,10 @@ class KernelTest {
     }
 
     @AfterEach
-    void afterEach() {
+    void afterEach() throws IOException {
         kernel.shutdown();
+        // Some tests use a faked kernel lifecycle, so the shutdown doesn't actually shut it down
+        kernel.getContext().close();
     }
 
     @Test
