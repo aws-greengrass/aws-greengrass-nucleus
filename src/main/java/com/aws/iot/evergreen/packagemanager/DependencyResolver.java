@@ -287,9 +287,9 @@ public class DependencyResolver {
                         .put(dependingPkg.toString(), versionRequirement);
             }
         });
-        return String
-                .format("Conflicts in resolving package: %s. Version constraints from upstream packages: %s", pkgName,
-                        pkgIdToVersionRequirements);
+        return String.format(
+                "No available version exists in either cloud or local for component: %s that satisfies requirements"
+                        + " from upstream components: %s.", pkgName, pkgIdToVersionRequirements);
     }
 
     private String buildErrorMessage(PackageIdentifier pkg, PackageIdentifier dependingPkg, String requirement) {

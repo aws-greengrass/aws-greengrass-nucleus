@@ -1,11 +1,11 @@
 package com.aws.iot.evergreen.kernel;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.dependency.Context;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
