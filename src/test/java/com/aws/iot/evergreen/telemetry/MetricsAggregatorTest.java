@@ -42,6 +42,7 @@ public class MetricsAggregatorTest {
             throws InterruptedException, IOException {
         //Create a sample file with system metrics so we can test the freshness of the file and logs
         //with respect to the current timestamp
+        long lastAgg = Instant.now().toEpochMilli();
         Metric m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.CpuUsage,
                 TelemetryUnit.Percent, TelemetryAggregation.Sum);
         MetricDataBuilder mdb1 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
@@ -61,13 +62,12 @@ public class MetricsAggregatorTest {
         mdb2.putMetricData(4000).emit();
         mdb3.putMetricData(6000).emit();
         MetricsAggregator ma = new MetricsAggregator();
-        // Aggregate values within 1 second interval at this timestamp with 1
-        ma.aggregateMetrics(1, Instant.now().toEpochMilli());
+        long currTimestamp = Instant.now().toEpochMilli();
+        ma.aggregateMetrics(lastAgg, currTimestamp);
         String path = TelemetryConfig.getTelemetryDirectory().toString() + "/AggregateMetrics.log";
         List<String> list = Files.lines(Paths.get(path)).collect(Collectors.toList());
         assertEquals(list.size(), TelemetryNamespace.values().length); // Metrics are aggregated based on the namespace.
         for (String s : list) {
-            System.out.println(s);
             MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
                     MetricsAggregator.AggregatedMetric.class);
             if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
@@ -83,10 +83,11 @@ public class MetricsAggregatorTest {
                 }
             }
         }
+        lastAgg = currTimestamp;
         Thread.sleep(1000);
         long currentTimestamp = Instant.now().toEpochMilli();
         // Aggregate values within 1 second interval at this timestamp with 1
-        ma.aggregateMetrics(1, currentTimestamp);
+        ma.aggregateMetrics(lastAgg, currentTimestamp);
         list = Files.lines(Paths.get(path)).collect(Collectors.toList());
         assertEquals(list.size(), 8); // AggregateMetrics.log is appended with the latest aggregations.
         for (String s : list) {
@@ -102,7 +103,7 @@ public class MetricsAggregatorTest {
     public void GIVEN_invalid_metrics_WHEN_aggregate_THEN_parse_them_properly() throws IOException {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
-
+        long lastAgg = Instant.now().toEpochMilli();
         Metric m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.CpuUsage,
                 TelemetryUnit.Percent, TelemetryAggregation.Sum);
         MetricDataBuilder mdb1 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
@@ -122,7 +123,7 @@ public class MetricsAggregatorTest {
 
         MetricsAggregator ma = new MetricsAggregator();
         // Aggregate values within 1 second interval at this timestamp with 1
-        ma.aggregateMetrics(1, Instant.now().toEpochMilli());
+        ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());
         String path = TelemetryConfig.getTelemetryDirectory().toString() + "/AggregateMetrics.log";
         List<String> list = Files.lines(Paths.get(path)).collect(Collectors.toList());
         assertEquals(list.size(), TelemetryNamespace.values().length); // Metrics are aggregated based on the namespace.

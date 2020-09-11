@@ -19,8 +19,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MetricsPayload implements Chunkable<MetricsAggregator.AggregatedMetric> {
+    @JsonProperty("Schema")
     private String schema;
-    @JsonProperty("metrics")
+    @JsonProperty("ADP")
     private List<MetricsAggregator.AggregatedMetric> aggregatedMetricList;
 
     @Override

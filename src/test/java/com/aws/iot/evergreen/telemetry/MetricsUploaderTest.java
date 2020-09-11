@@ -33,9 +33,9 @@ public class MetricsUploaderTest {
 
     @Test
     public void GIVEN_aggregated_metrics_WHEN_publish_THEN_collect_only_the_lates_values() throws InterruptedException {
-
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
+        long lastPublish = Instant.now().toEpochMilli();
         MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
         List<MetricsAggregator.Metric> metricList = new ArrayList<>();
@@ -49,9 +49,18 @@ public class MetricsUploaderTest {
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         // Create an instance of the metrics uploader to get the aggregated metrics
         MetricsUploader mu = new MetricsUploader();
-        Map<Long, List<MetricsAggregator.AggregatedMetric>> list = mu.getAggregatedMetrics(2, currentTimestamp);
-        assertEquals(list.size(), 1); // we only have one list of the metrics collected
-        assertEquals(list.get(currentTimestamp).size(), 3); //we have 3 entries of the aggregated metrics
+        Map<Long, List<MetricsAggregator.AggregatedMetric>> list = mu.getAggregatedMetrics(lastPublish, currentTimestamp);
+
+        //we don't want to collect those metrics that are emitted at the same time of collection
+        assertEquals(list.get(currentTimestamp).size(), 0);
+        currentTimestamp = Instant.now().toEpochMilli();
+        list = mu.getAggregatedMetrics(lastPublish, currentTimestamp);
+        lastPublish = currentTimestamp;
+        // we only have one list of the metrics collected
+        assertEquals(list.size(), 1);
+
+        //we have 3 entries of the aggregated metrics before this latest TS
+        assertEquals(list.get(currentTimestamp).size(), 3);
 
         Thread.sleep(1000);
         currentTimestamp = Instant.now().toEpochMilli();
@@ -59,16 +68,21 @@ public class MetricsUploaderTest {
                 (currentTimestamp, TelemetryNamespace.SystemMetrics, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
-        list = mu.getAggregatedMetrics(1, currentTimestamp);
+        currentTimestamp = Instant.now().toEpochMilli();
+        list = mu.getAggregatedMetrics(lastPublish, currentTimestamp);
+
+        // we only have one list of the metrics collected
         assertEquals(list.size(), 1);
-        assertEquals(list.get(currentTimestamp).size(), 2); // does not calculate the first 3 entries as they are stale
+
+        // Will not collect the first 3 entries as they are stale
+        assertEquals(list.get(currentTimestamp).size(), 2);
     }
 
     @Test
     public void GIVEN_invalid_aggregated_metrics_WHEN_publish_THEN_parse_them_properly() {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
-
+        long lastPublish = Instant.now().toEpochMilli();
         MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
         List<MetricsAggregator.Metric> metricList = new ArrayList<>();
@@ -85,9 +99,14 @@ public class MetricsUploaderTest {
         metricFactory.logMetrics(new TelemetryLoggerMessage(null)); // will be ignored
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         MetricsUploader mu = new MetricsUploader();
-        Map<Long, List<MetricsAggregator.AggregatedMetric>> list = mu.getAggregatedMetrics(2, currentTimestamp);
-        assertEquals(list.size(), 1); // current timestamp entry
+        currentTimestamp = Instant.now().toEpochMilli();
+        Map<Long, List<MetricsAggregator.AggregatedMetric>> list = mu.getAggregatedMetrics(lastPublish, currentTimestamp);
+
+        // The published metrics will not contain the null aggregated metric
+        assertFalse(list.get(currentTimestamp).contains(null));
+
+        // Out of 6 aggregated metrics, only 4 are published
         assertEquals(list.get(currentTimestamp).size(), 4);
-        assertFalse(list.get(currentTimestamp).contains(null)); // for the invalid entry
+
     }
 }
