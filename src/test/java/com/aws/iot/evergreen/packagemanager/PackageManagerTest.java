@@ -21,6 +21,7 @@ import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -102,13 +104,18 @@ class PackageManagerTest {
     private EvergreenService mockService;
     @Mock
     private Unarchiver mockUnarchiver;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
     void beforeEach() {
         packageManager = new PackageManager(s3Downloader, artifactDownloader, packageServiceHelper,
-                Executors.newSingleThreadExecutor(), packageStore, kernel, mockUnarchiver);
+                executor, packageStore, kernel, mockUnarchiver);
     }
 
+    @AfterEach
+    void after() {
+        executor.shutdownNow();
+    }
 
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {

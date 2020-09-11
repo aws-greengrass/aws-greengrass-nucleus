@@ -19,7 +19,6 @@ import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -63,11 +62,6 @@ class DependencyResolverTest {
     private Topics groupToRootPackagesTopics;
     private Context context;
 
-    @BeforeAll
-    static void setup() {
-        System.setProperty("log.level", "TRACE");
-    }
-
     @BeforeEach
     void setupTopics() {
         context = new Context();
@@ -75,8 +69,8 @@ class DependencyResolverTest {
     }
 
     @AfterEach
-    void cleanupTopics() {
-        groupToRootPackagesTopics.deepForEachTopic(t -> t.remove());
+    void cleanupTopics() throws IOException {
+        context.close();
     }
 
     @Nested

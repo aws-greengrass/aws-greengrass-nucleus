@@ -27,19 +27,29 @@ public class ThreadProtector implements AfterAllCallback {
 
     @Override
     public void afterAll(ExtensionContext context) throws Exception {
-        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-        List<String> liveThreads =
-                threadSet.stream()
-                        .filter(Thread::isAlive)
-                        .filter(t -> t.getThreadGroup() != null && "main".equals(t.getThreadGroup().getName()))
-                        .map(Thread::getName)
-                        .filter(Objects::nonNull)
-                        .filter(name -> !ALLOWED_THREAD_NAMES.contains(name))
-                        .collect(Collectors.toList());
+        List<Thread> liveThreads = getThreads();
         if (!liveThreads.isEmpty()) {
-            // Don't fail tests right now. Too many things would break.
-            // fail("Threads are still running: " + liveThreads);
             System.err.println("Threads are still running: " + liveThreads);
+
+            /*
+            // Wait, then try again and see if they're still running
+            Thread.sleep(2000);
+            liveThreads = getThreads();
+            if (!liveThreads.isEmpty()) {
+                fail("Threads are still running: " + liveThreads);
+            }
+             */
         }
+    }
+
+    private List<Thread> getThreads() {
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        return threadSet.stream()
+                .filter(Thread::isAlive)
+                .filter(t -> t.getThreadGroup() != null && "main".equals(t.getThreadGroup().getName()))
+                .filter(t -> Objects.nonNull(t.getName()))
+                .filter(t -> !ALLOWED_THREAD_NAMES.contains(t.getName()))
+                .filter(t -> !t.getName().contains("globalEventExecutor"))
+                .collect(Collectors.toList());
     }
 }
