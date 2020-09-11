@@ -3,6 +3,6 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: jmespath
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-version: '0.7.1'
+ComponentVersion: '0.7.1'
 manifests:
   - lifecycle: {}

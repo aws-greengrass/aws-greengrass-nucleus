@@ -3,7 +3,7 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: python-dateutil
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-Version: '2.3.0'
+ComponentVersion: '2.3.0'
 Manifests:
   - Dependencies:
       six:
