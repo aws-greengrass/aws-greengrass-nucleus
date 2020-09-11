@@ -3,7 +3,7 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: botocore
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-Version: '1.12.128'
+ComponentVersion: '1.12.128'
 Manifests:
   - Dependencies:
       docutils:

@@ -3,6 +3,6 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: six
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-Version: '1.14.0'
+ComponentVersion: '1.14.0'
 manifests:
   - lifecycle: {}

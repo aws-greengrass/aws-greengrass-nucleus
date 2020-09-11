@@ -3,6 +3,6 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: PyYAML
 ComponentDescription: Test recipe for Evergreen packages
 ComponentPublisher: EvergreenBenchmarkTest
-Version: '3.10.0'
+ComponentVersion: '3.10.0'
 manifests:
   - lifecycle: {}
