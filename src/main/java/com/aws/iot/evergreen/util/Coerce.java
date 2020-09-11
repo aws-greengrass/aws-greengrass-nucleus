@@ -4,32 +4,23 @@
 package com.aws.iot.evergreen.util;
 
 import com.aws.iot.evergreen.config.Topic;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
 public final class Coerce {
-    public static final Object removed = new Object() {
-        @Override
-        public String toString() {
-            return "removed";
-        }
-    };
-    private static final Map<String, Object> specials =
-            Utils.immutableMap("true", true, "false", false, "removed", removed, "Inf", Double.POSITIVE_INFINITY,
-                    "+Inf", Double.POSITIVE_INFINITY, "-Inf", Double.NEGATIVE_INFINITY, "Nan", Double.NaN, "NaN",
-                    Double.NaN, "inf", Double.POSITIVE_INFINITY, "+inf", Double.POSITIVE_INFINITY, "-inf",
-                    Double.NEGATIVE_INFINITY, "nan", Double.NaN);
-    private static final char[] hex = "0123456789ABCDEF".toCharArray();
-    private static final Pattern seperators = Pattern.compile(" *, *");
+    private static final Pattern SEPARATORS = Pattern.compile(" *, *");
     private static final Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private Coerce() {
     }
@@ -190,7 +181,7 @@ public final class Coerce {
         if (isEmpty(body)) {
             return new String[0];
         }
-        return seperators.split(body);
+        return SEPARATORS.split(body);
     }
 
     /**
@@ -240,65 +231,6 @@ public final class Coerce {
     }
 
     /**
-     * Convert object into a JSON encoded string.
-     *
-     * @param o object to convert.
-     * @return resulting string.
-     */
-    public static String toQuotedString(Object o) {
-        if (o instanceof Topic) {
-            o = ((Topic) o).getOnce();
-        }
-        StringBuilder sb = new StringBuilder();
-        try {
-            appendQuotedString(o, sb);
-        } catch (IOException ignore) {
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Convert object to a JSON encoded string, writing output to the appendable.
-     *
-     * @param o object to convert.
-     * @param out appendable to append to.
-     * @throws IOException if the append fails.
-     */
-    public static void appendQuotedString(Object o, Appendable out) throws IOException {
-        if (o instanceof Topic) {
-            o = ((Topic) o).getOnce();
-        }
-        out.append('"');
-        if (o != null) {
-            String s = o.toString();
-            int limit = s.length();
-            for (int i = 0; i < limit; i++) {
-                char c = s.charAt(i);
-                if (c < ' ' || c == '\\' || c >= 255 || c == 127 || c == '"') {
-                    switch (c) {
-                        case '\n':
-                            out.append("\\n");
-                            break;
-                        case '\r':
-                            out.append("\\r");
-                            break;
-                        case '\t':
-                            out.append("\\t");
-                            break;
-                        default:
-                            out.append("\\u");
-                            appendHexString(c, out, 4);
-                            break;
-                    }
-                } else {
-                    out.append(c);
-                }
-            }
-        }
-        out.append('"');
-    }
-
-    /**
      * Convert object to JSON encoded string and write output to the appendable.
      *
      * @param o object to convert.
@@ -309,23 +241,10 @@ public final class Coerce {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
         }
-        if (o == null) {
-            out.append("null");
-        } else if (o instanceof Boolean || o instanceof Number || o instanceof List) {
-            out.append(o.toString());
-        } else if (o.getClass().isArray()) {
-            out.append('[');
-            Object[] objects = (Object[]) o;
-            for (int j = 0; j < objects.length; j++) {
-                Object i = objects[j];
-                out.append(toString(i));
-                if (j != objects.length - 1) {
-                    out.append(',');
-                }
-            }
-            out.append(']');
-        } else {
-            appendQuotedString(o, out);
+        try {
+            out.append(MAPPER.writeValueAsString(o) + '\n');
+        } catch (JsonProcessingException e) {
+            throw new IOException(e);
         }
     }
 
@@ -334,54 +253,25 @@ public final class Coerce {
      *
      * @param s string to convert
      * @return resulting object or empty string if the input was null.
+     * @throws JsonProcessingException if it failed to read the JSON.
      */
-    public static Object toObject(String s) {
-        if (s == null || s.length() == 0) {
+    public static Object toObject(String s) throws JsonProcessingException {
+        if (isEmpty(s)) {
             return "";
         }
-        if (s.charAt(0) == '"') {
-            return Utils.dequote(s);
-        }
-        if (Character.isDigit(s.charAt(0)) && s.indexOf('.') < 0) {
-            long l = Utils.parseLong(s);
-            int li = (int) l;
-            // these returns can't be combined because it would mess with the implicit boxing
-            if (l == li) {
-                return li;
-            } else {
-                return l;
-            }
-        }
-        try {
-            double d = Double.parseDouble(s);
-            int di = (int) d;
-            if (di == d) {
-                return di;
-            }
-            long li = (long) d;
-            if (li == d) {
-                return li;
-            }
-            return d;
-        } catch (NumberFormatException ignore) {
-        }
-        if ("null".equals(s)) {
-            return null;
-        }
-        if (unwrap.matcher(s).matches()) {
-            return toStringList(s);
-        }
-        Object v = specials.get(s);
-        if (v != null) {
-            return v;
-        }
-        return s;
+        return toObject(s, new TypeReference<Object>() {});
     }
 
-    private static void appendHexString(long n, Appendable out, int ndig) throws IOException {
-        if (ndig > 1) {
-            appendHexString(n >> 4, out, ndig - 1);
-        }
-        out.append(hex[((int) n) & 0xF]);
+    /**
+     * Convert a string to the appropriate Java object.
+     *
+     * @param s string to convert
+     * @param t type to convert to
+     * @param <T> type
+     * @return resulting object or empty string if the input was null.
+     * @throws JsonProcessingException if it failed to read the JSON.
+     */
+    public static <T> T toObject(String s, TypeReference<T> t) throws JsonProcessingException {
+        return MAPPER.readValue(s, t);
     }
 }
