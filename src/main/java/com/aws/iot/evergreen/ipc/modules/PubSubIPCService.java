@@ -59,7 +59,7 @@ public class PubSubIPCService implements Startable, InjectionActions {
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
         try {
-            authorizationHandler.registerComponent(PUB_SUB_SERVICE_NAME, new HashSet<String>(opCodes));
+            authorizationHandler.registerComponent(PUB_SUB_SERVICE_NAME, new HashSet<>(opCodes));
         } catch (AuthorizationException e) {
             logger.atError("initialize-pubsub-authorization-error", e)
                     .kv(DESTINATION_STRING, destination.name())

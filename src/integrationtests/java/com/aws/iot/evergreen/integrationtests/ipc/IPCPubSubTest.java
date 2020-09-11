@@ -63,7 +63,7 @@ class IPCPubSubTest {
     }
 
     @BeforeAll
-    static void startKernel() throws Exception {
+    static void startKernel() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
     }
 
@@ -75,7 +75,6 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_and_publish_is_authorized_THEN_succeeds() throws Exception {
-
         kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml", TEST_SERVICE_NAME, this.getClass());
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
@@ -90,8 +89,7 @@ class IPCPubSubTest {
     }
 
     @Test
-    void GIVEN_pubsubclient_WHEN_subscribe_authorization_changes_to_authorized_THEN_succeeds(ExtensionContext context) throws Exception {
-
+    void GIVEN_pubsubclient_WHEN_subscribe_authorization_changes_to_authorized_THEN_succeeds() throws Exception {
         kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml",
                 TEST_SERVICE_NAME, this.getClass());
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
@@ -116,8 +114,7 @@ class IPCPubSubTest {
 
 
     @Test
-    void GIVEN_pubsubclient_WHEN_authorized_THEN_ACL_child_removed_THEN_updates(ExtensionContext context) throws Exception {
-
+    void GIVEN_pubsubclient_WHEN_authorized_THEN_ACL_child_removed_THEN_updates() throws Exception {
         kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
                 TEST_SERVICE_NAME, this.getClass());
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
@@ -212,20 +209,10 @@ class IPCPubSubTest {
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
         cb.getLeft().get(2, TimeUnit.SECONDS);
-
-        // Remove pubsub
-        Topics pubsubTopic = kernel.findServiceTopic(PUB_SUB_SERVICE_NAME);
-        if (pubsubTopic != null) {
-            pubsubTopic.remove();
-        }
-        kernel.getContext().runOnPublishQueueAndWait(() -> {});
-        assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
-        assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
     }
 
     @Test
-    void GIVEN_pubsubclient_WHEN_subscribe_is_not_authorized_THEN_Fail(ExtensionContext context) throws Exception {
-
+    void GIVEN_pubsubclient_WHEN_subscribe_is_not_authorized_THEN_Fail() throws Exception {
         kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml",
                 TEST_SERVICE_NAME, this.getClass());
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
@@ -237,12 +224,10 @@ class IPCPubSubTest {
         });
 
         assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-
     }
 
     @Test
-    void GIVEN_pubsubclient_WHEN_publish_is_not_authorized_THEN_Fail(ExtensionContext context) throws Exception {
-
+    void GIVEN_pubsubclient_WHEN_publish_is_not_authorized_THEN_Fail() throws Exception {
         kernel = prepareKernelFromConfigFile("pubsub_unauthorized_publish.yaml",
                 TEST_SERVICE_NAME, this.getClass());
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
