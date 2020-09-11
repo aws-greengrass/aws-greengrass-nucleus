@@ -71,10 +71,11 @@ public class DeviceProvisioningHelper {
     // "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
 
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
-            .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"TemplateVersion\": \"2020-01-25\",\n"
+            .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"RecipeFormatVersion\": \"2020-01-25\",\n"
                     + "\t\"ComponentName\": \"TokenExchangeService\",\n"
-                    + "\t\"Description\": \"Enable Evergreen devices to interact with AWS services using certs\",\n"
-                    + "\t\"Publisher\": \"Evergreen\",\n\t\"Version\": \"1.0.0\"\n}");
+                    + "\t\"ComponentDescription\": "
+                    + "\"Enable Evergreen devices to interact with AWS services using certs\",\n"
+                    + "\t\"ComponentPublisher\": \"Evergreen\",\n\t\"ComponentVersion\": \"1.0.0\"\n}");
     private final PrintStream outStream;
 
     private IotClient iotClient;
