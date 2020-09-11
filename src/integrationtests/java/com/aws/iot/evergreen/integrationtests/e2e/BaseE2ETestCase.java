@@ -415,12 +415,13 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static void cleanUpTesRoleAndAlias() {
         try {
             iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
-            iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
 
             if (tesRolePolicyArn.isPresent()) {
                 iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn.get()).build());
                 iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn.get()).build());
             }
+
+            iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
         } catch (ResourceNotFoundException | NoSuchEntityException e) {
             logger.atInfo().addKeyValue("error-message", e.getMessage()).log("Could not clean up TES resources");
         }
