@@ -135,7 +135,7 @@ public class Kernel {
         context.put(Executor.class, executorService);
         context.put(ExecutorService.class, executorService);
         context.put(ThreadPoolExecutor.class, ses);
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> this.shutdown(-1)));
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine);
         context.put(KernelCommandLine.class, kernelCommandLine);
