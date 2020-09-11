@@ -12,8 +12,7 @@ import com.aws.iot.evergreen.kernel.KernelMetricsEmitter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.MqttChunkedPayloadPublisher;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AccessLevel;
 import lombok.Getter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
@@ -27,23 +26,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
-
 @ImplementsService(name = MetricsAgent.METRICS_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
 public class MetricsAgent extends EvergreenService {
     public static final String METRICS_AGENT_SERVICE_TOPICS = "MetricsAgent";
     public static final String DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC =
-            "$aws/things/{thingName}/evergreen/health/json";
-    @Getter
+            "$aws/things/{thingName}/greengrassv2/health/json";
+    @Getter // Used in e2e
     private static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 30;
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
-    @Getter
-    private  static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
-    @Getter
+    @Getter // Used in e2e
+    private static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
+    @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 120;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
@@ -53,13 +51,22 @@ public class MetricsAgent extends EvergreenService {
     private final Topics topics;
     private final SystemMetricsEmitter systemMetricsEmitter = new SystemMetricsEmitter();
     private final MetricsAggregator metricsAggregator = new MetricsAggregator();
-    private final MetricsUploader metricsUploader = new MetricsUploader();
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final Object periodicPublishMetricsInProgressLock = new Object();
     private final Object periodicAggregateMetricsInProgressLock = new Object();
     private final MqttChunkedPayloadPublisher<MetricsAggregator.AggregatedMetric> publisher;
     private final ScheduledExecutorService ses;
-    private MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+    private final KernelMetricsEmitter kernelMetricsEmitter;
+    private final MetricsPayload aggregatedMetricsChunk = MetricsPayload.builder().schema("2020-07-30").build();
+    @Getter(AccessLevel.PACKAGE)
+    private ScheduledFuture<?> periodicAggregateMetricsFuture = null;
+    @Getter(AccessLevel.PACKAGE)
+    private ScheduledFuture<?> periodicEmitSystemMetricsFuture = null;
+    @Getter(AccessLevel.PACKAGE)
+    private ScheduledFuture<?> periodicEmitKernelMetricsFuture = null;
+    @Getter(AccessLevel.PACKAGE)
+    private ScheduledFuture<?> periodicPublishMetricsFuture = null;
+    private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             isConnected.set(false);
@@ -71,27 +78,17 @@ public class MetricsAgent extends EvergreenService {
             schedulePeriodicPublishMetrics(true);
         }
     };
-    @Getter
-    private ScheduledFuture<?> periodicAggregateMetricsFuture = null;
-    @Getter
-    private ScheduledFuture<?> periodicEmitSystemMetricsFuture = null;
-    @Getter
-    private ScheduledFuture<?> periodicEmitKernelMetricsFuture = null;
-    @Getter
-    private ScheduledFuture<?> periodicPublishMetricsFuture = null;
     private String updateTopic;
     private String thingName;
     private String telemetryMetricsPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
-    private final KernelMetricsEmitter kernelMetricsEmitter;
-    private final MetricsPayload aggregatedMetricsChunk = MetricsPayload.builder().schema("2020-07-30").build();
 
     /**
      * Constructor for metrics agent.
      *
-     * @param topics              root configuration topic for this service
-     * @param mqttClient          {@link MqttClient}
-     * @param deviceConfiguration {@link DeviceConfiguration}
-     * @param ses {@link ScheduledExecutorService}
+     * @param topics               root configuration topic for this service
+     * @param mqttClient           {@link MqttClient}
+     * @param deviceConfiguration  {@link DeviceConfiguration}
+     * @param ses                  {@link ScheduledExecutorService}
      * @param kernelMetricsEmitter {@link KernelMetricsEmitter}
      */
     @Inject
@@ -107,27 +104,15 @@ public class MetricsAgent extends EvergreenService {
         getPeriodicAggregateTimeTopic();
         getPeriodicPublishTimeTopic();
         updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
-
     }
 
     /**
      * Schedules the aggregation of metrics based on the configured aggregation interval.
      */
     private void schedulePeriodicAggregateMetrics(boolean isReconfigured) {
-        synchronized (periodicAggregateMetricsInProgressLock) {
-            // If the aggregation interval is reconfigured, cancel the previously scheduled job.
-            if (periodicAggregateMetricsFuture != null) {
-            periodicAggregateMetricsFuture.cancel(false);
-            }
-            // These are emitted based on the aggregation interval.
-            if (periodicEmitSystemMetricsFuture != null) {
-                periodicEmitSystemMetricsFuture.cancel(false);
-            }
-            // These are emitted based on the aggregation interval.
-            if (periodicEmitKernelMetricsFuture != null) {
-                periodicEmitKernelMetricsFuture.cancel(false);
-            }
-        }
+        cancel(periodicEmitSystemMetricsFuture,periodicAggregateMetricsInProgressLock,false);
+        cancel(periodicEmitKernelMetricsFuture,periodicAggregateMetricsInProgressLock,false);
+        cancel(periodicAggregateMetricsFuture,periodicAggregateMetricsInProgressLock,false);
         if (isReconfigured) {
             synchronized (periodicAggregateMetricsInProgressLock) {
                 Instant lastPeriodicAggTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicAggregateTimeTopic()));
@@ -138,16 +123,22 @@ public class MetricsAgent extends EvergreenService {
                 }
             }
         }
-        // Start emitting metrics with no delay. This is device specific where metrics are stored in files.
-        periodicEmitSystemMetricsFuture = ses.scheduleWithFixedDelay(this::emitPeriodicSystemMetrics, 0,
+
+        synchronized (periodicAggregateMetricsInProgressLock) {
+            // Start emitting metrics with no delay. This is device specific where metrics are stored in files.
+            periodicEmitSystemMetricsFuture = ses.scheduleWithFixedDelay(this::emitPeriodicSystemMetrics, 0,
                     periodicAggregateMetricsIntervalSec, TimeUnit.SECONDS);
-        periodicEmitKernelMetricsFuture = ses.scheduleWithFixedDelay(this::emitPeriodicKernelMetrics, 0,
-                periodicAggregateMetricsIntervalSec, TimeUnit.SECONDS);
-        // As the time based metrics (eg. System metrics) are emitted with the same interval as aggregation, start
-        // aggregating the metrics after at least one data point is emitted. So, the initial delay to aggregate the
-        // metrics can be made equal to the interval. This is device specific where the metrics are stored in files.
-        periodicAggregateMetricsFuture = ses.scheduleWithFixedDelay(this::aggregatePeriodicMetrics,
-                periodicAggregateMetricsIntervalSec, periodicAggregateMetricsIntervalSec, TimeUnit.SECONDS);
+
+            periodicEmitKernelMetricsFuture = ses.scheduleWithFixedDelay(this::emitPeriodicKernelMetrics, 0,
+                    periodicAggregateMetricsIntervalSec, TimeUnit.SECONDS);
+
+            // As the time based metrics (eg. System metrics) are emitted with the same interval as aggregation, start
+            // aggregating the metrics after at least one data point is emitted. So, the initial delay to aggregate the
+            // metrics can be made equal to the interval. This is device specific where the metrics are stored in files.
+
+            periodicAggregateMetricsFuture = ses.scheduleWithFixedDelay(this::aggregatePeriodicMetrics,
+                    periodicAggregateMetricsIntervalSec, periodicAggregateMetricsIntervalSec, TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -156,11 +147,7 @@ public class MetricsAgent extends EvergreenService {
     private void schedulePeriodicPublishMetrics(boolean isReconfiguredOrConnectionResumed) {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
         // cancel the previously scheduled job.
-        synchronized (periodicPublishMetricsInProgressLock) {
-            if (periodicPublishMetricsFuture != null) {
-                periodicPublishMetricsFuture.cancel(false);
-            }
-        }
+        cancel(periodicPublishMetricsFuture,periodicPublishMetricsInProgressLock, false);
         if (isReconfiguredOrConnectionResumed) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
@@ -173,57 +160,53 @@ public class MetricsAgent extends EvergreenService {
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
         // all the devices to send the periodic publish of metrics at the same time.
         long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec);
-        periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
-                periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);
+        synchronized (periodicPublishMetricsInProgressLock) {
+            periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
+                    periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);
+        }
     }
 
     /**
      * Helper for metrics aggregator. Also used in tests.
      */
-
-     void aggregatePeriodicMetrics() {
-        long timeStamp = Instant.now().toEpochMilli();
+    void aggregatePeriodicMetrics() {
+        long timestamp = Instant.now().toEpochMilli();
         long lastAgg = Coerce.toLong(getPeriodicAggregateTimeTopic());
-        this.metricsAggregator.aggregateMetrics(lastAgg, timeStamp);
-        getPeriodicAggregateTimeTopic().withValue(timeStamp);
+        metricsAggregator.aggregateMetrics(lastAgg, timestamp);
+        getPeriodicAggregateTimeTopic().withValue(timestamp);
     }
 
     /**
      * Helper for metrics uploader. Also used in tests.
      */
-     void publishPeriodicMetrics() {
+    void publishPeriodicMetrics() {
         if (!isConnected.get()) {
-            logger.atInfo().log("Cannot publish the metrics: MQTT Connection interrupted.");
+            logger.atDebug().log("Cannot publish the metrics. MQTT connection interrupted.");
             return;
         }
-        long timeStamp = Instant.now().toEpochMilli();
+        long timestamp = Instant.now().toEpochMilli();
         long lastPublish = Coerce.toLong(getPeriodicPublishTimeTopic());
         Map<Long, List<MetricsAggregator.AggregatedMetric>> metricsToPublishMap =
-                this.metricsUploader.getAggregatedMetrics(lastPublish, timeStamp);
-        getPeriodicPublishTimeTopic().withValue(timeStamp);
-        try {
-            logger.atInfo().log(new ObjectMapper().writeValueAsString(metricsToPublishMap.get(timeStamp)));
-        } catch (JsonProcessingException e) {
-            logger.atTrace().log("Invalid message format", e);
-        }
+                metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
+        getPeriodicPublishTimeTopic().withValue(timestamp);
         // Publish only if the collected metrics are not empty.
-        if (!metricsToPublishMap.get(timeStamp).isEmpty()) {
-            this.publisher.publish(aggregatedMetricsChunk, metricsToPublishMap.get(timeStamp));
+        if (!metricsToPublishMap.get(timestamp).isEmpty()) {
+            publisher.publish(aggregatedMetricsChunk, metricsToPublishMap.get(timestamp));
         }
     }
 
     /**
      * Helper for system metrics emitter. Also used in tests.
      */
-     void emitPeriodicSystemMetrics() {
-        this.systemMetricsEmitter.emitMetrics();
+    void emitPeriodicSystemMetrics() {
+        systemMetricsEmitter.emitMetrics();
     }
 
     /**
      * Helper for kernel metrics emitter. Also used in tests.
      */
-     void emitPeriodicKernelMetrics() {
-        this.kernelMetricsEmitter.emitMetrics();
+    void emitPeriodicKernelMetrics() {
+        kernelMetricsEmitter.emitMetrics();
     }
 
     private Topic getPeriodicPublishTimeTopic() {
@@ -240,14 +223,22 @@ public class MetricsAgent extends EvergreenService {
         if (newThingName != null) {
             thingName = newThingName;
             updateTopic = telemetryMetricsPublishTopic.replace("{thingName}", thingName);
-            this.publisher.setUpdateTopic(updateTopic);
+            publisher.setUpdateTopic(updateTopic);
+        }
+    }
+
+    private void cancel(ScheduledFuture<?> future, Object lock, boolean immediately) {
+        synchronized (lock) {
+            if (future != null){
+                future.cancel(immediately);
+            }
         }
     }
 
     @Override
     public void startup() throws InterruptedException {
-        this.systemMetricsEmitter.collectSystemMetrics();
-        this.kernelMetricsEmitter.collectKernelComponentState();
+        systemMetricsEmitter.collectSystemMetrics();
+        kernelMetricsEmitter.collectKernelComponentState();
         topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
@@ -269,25 +260,17 @@ public class MetricsAgent extends EvergreenService {
                 .subscribe((why, newv) -> telemetryMetricsPublishTopic = Coerce.toString(newv));
         topics.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
-        this.schedulePeriodicAggregateMetrics(false);
-        this.schedulePeriodicPublishMetrics(false);
-        this.mqttClient.addToCallbackEvents(callbacks);
+        schedulePeriodicAggregateMetrics(false);
+        schedulePeriodicPublishMetrics(false);
+        mqttClient.addToCallbackEvents(callbacks);
         super.startup();
     }
 
     @Override
     public void shutdown() {
-        if (periodicEmitSystemMetricsFuture != null) {
-            periodicEmitSystemMetricsFuture.cancel(true);
-        }
-        if (periodicEmitKernelMetricsFuture != null) {
-            periodicEmitKernelMetricsFuture.cancel(true);
-        }
-        if (periodicPublishMetricsFuture != null) {
-            periodicPublishMetricsFuture.cancel(true);
-        }
-        if (periodicAggregateMetricsFuture != null) {
-            periodicAggregateMetricsFuture.cancel(true);
-        }
+        cancel(periodicEmitSystemMetricsFuture,periodicAggregateMetricsInProgressLock,true);
+        cancel(periodicEmitKernelMetricsFuture,periodicAggregateMetricsInProgressLock,true);
+        cancel(periodicAggregateMetricsFuture,periodicAggregateMetricsInProgressLock,true);
+        cancel(periodicPublishMetricsFuture,periodicPublishMetricsFuture,true);
     }
 }

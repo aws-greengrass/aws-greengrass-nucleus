@@ -3,7 +3,6 @@ package com.aws.iot.evergreen.telemetry;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.KernelMetricsEmitter;
-import com.aws.iot.evergreen.logging.impl.config.EvergreenLogConfig;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.PublishRequest;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -17,7 +16,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.event.Level;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
@@ -158,7 +156,7 @@ public class MetricsAgentTest extends EGServiceTestUtil {
         verify(mockMqttClient, timeout(milliSeconds).atLeast(1)).publish(publishRequestArgumentCaptor.capture());
         PublishRequest request = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", request.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", request.getTopic());
     }
 }
 
