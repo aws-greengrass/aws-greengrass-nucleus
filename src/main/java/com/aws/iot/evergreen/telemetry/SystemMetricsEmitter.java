@@ -28,28 +28,28 @@ public class SystemMetricsEmitter {
      */
     protected void collectSystemMetrics() {
         Metric systemMetric = Metric.builder()
-                .metricNamespace(TelemetryNamespace.SystemMetrics)
-                .metricName(TelemetryMetricName.CpuUsage)
-                .metricUnit(TelemetryUnit.Percent)
-                .metricAggregation(TelemetryAggregation.Average)
+                .namespace(TelemetryNamespace.SystemMetrics)
+                .name(TelemetryMetricName.CpuUsage)
+                .unit(TelemetryUnit.Percent)
+                .aggregation(TelemetryAggregation.Average)
                 .build();
         MetricDataBuilder mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.CpuUsage, mdb);
 
         systemMetric = Metric.builder()
-                .metricNamespace(TelemetryNamespace.SystemMetrics)
-                .metricName(TelemetryMetricName.TotalNumberOfFDs)
-                .metricUnit(TelemetryUnit.Count)
-                .metricAggregation(TelemetryAggregation.Average)
+                .namespace(TelemetryNamespace.SystemMetrics)
+                .name(TelemetryMetricName.TotalNumberOfFDs)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
                 .build();
         mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.TotalNumberOfFDs, mdb);
 
         systemMetric = Metric.builder()
-                .metricNamespace(TelemetryNamespace.SystemMetrics)
-                .metricName(TelemetryMetricName.SystemMemUsage)
-                .metricUnit(TelemetryUnit.Megabytes)
-                .metricAggregation(TelemetryAggregation.Average)
+                .namespace(TelemetryNamespace.SystemMetrics)
+                .name(TelemetryMetricName.SystemMemUsage)
+                .unit(TelemetryUnit.Megabytes)
+                .aggregation(TelemetryAggregation.Average)
                 .build();
         mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.SystemMemUsage, mdb);

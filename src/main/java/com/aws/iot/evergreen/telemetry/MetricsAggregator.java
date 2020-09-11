@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 
 public class MetricsAggregator {
     protected static final String AGGREGATE_METRICS_FILE = "AggregateMetrics";
-    private static final int MILLI_SECONDS = 1000;
     MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -41,11 +40,10 @@ public class MetricsAggregator {
     /**
      * This method stores the aggregated data points of the metrics emitted over the interval.
      *
-     * @param aggregationIntervalSec periodic interval in seconds for the aggregating the metrics
-     * @param currTimestamp timestamp at which the aggregate is initiated
+     * @param lastAgg timestamp at which the last aggregation was done.
+     * @param currTimestamp timestamp at which the current aggregation is initiated.
      */
-    public void aggregateMetrics(int aggregationIntervalSec, long currTimestamp) {
-        int aggIntervalMilliSec = aggregationIntervalSec * MILLI_SECONDS;
+    public void aggregateMetrics(long lastAgg, long currTimestamp) {
         for (TelemetryNamespace namespace : TelemetryNamespace.values()) {
             AggregatedMetric aggMetrics = new AggregatedMetric();
             HashMap<TelemetryMetricName, List<MetricDataPoint>> metrics = new HashMap<>();
@@ -65,35 +63,32 @@ public class MetricsAggregator {
                             return fileName.toString().startsWith(namespace.toString());
                         }).collect(Collectors.toList());
                 for (Path path :paths) {
-                    /*
-                     Read from the file at Telemetry/namespace*.log
-                     Read only modified files and aggregate only new values based on the last aggregated time.
-                     */
-                    if (currTimestamp - new File(path.toString()).lastModified() <= aggIntervalMilliSec) {
-                        List<String> logs = Files.lines(Paths.get(path.toString())).collect(Collectors.toList());
-                        for (String log : logs) {
-                            try {
-                            /*
+                    // Read from the Telemetry/namespace*.log file.
+                    // TODO : Read only those files that are modified after the last aggregation.
+                    // file.lastModified() behavior is platform dependent.
+                    List<String> logs = Files.lines(Paths.get(path.toString())).collect(Collectors.toList());
+                    for (String log : logs) {
+                        try {
+                        /*
 
-                            {"thread":"main","level":"TRACE","eventType":null,
+                        {"thread":"main","level":"TRACE","eventType":null,
 
-                            "message":"{\"M\":{\"NS\":\"SystemMetrics\",\"N\":\"CpuUsage\",\"U\":\"Percent\",
+                        "message":"{\"M\":{\"NS\":\"SystemMetrics\",\"N\":\"CpuUsage\",\"U\":\"Percent\",
 
-                            \"A\":\"Average\"},\"V\":123,\"TS\":1599613654270}","contexts":{},
+                        \"A\":\"Average\"},\"V\":123,\"TS\":1599613654270}","contexts":{},
 
-                            "loggerName":"Metrics-french fries","timestamp":1599613654270,"cause":null}
+                        "loggerName":"Metrics-french fries","timestamp":1599613654270,"cause":null}
 
-                             */
-
-                            mdp = objectMapper.readValue(objectMapper.readTree(log).get("message").asText(),
-                                    MetricDataPoint.class);
-                            if (mdp.getMetric() != null && currTimestamp - mdp.getTimestamp() <= aggIntervalMilliSec) {
-                                metrics.computeIfAbsent(mdp.getMetric().getMetricName(),
-                                        k -> new ArrayList<>()).add(mdp);
-                            }
-                        } catch (IOException e) {
-                                logger.atError().log("Unable to parse the metric log: ", e);
-                            }
+                         */
+                        mdp = objectMapper.readValue(objectMapper.readTree(log).get("message").asText(),
+                                MetricDataPoint.class);
+                        // Avoid the metrics that are emitted at/after the currTimestamp and before the
+                        // aggregation interval
+                        if (mdp != null && currTimestamp > mdp.getTimestamp() && mdp.getTimestamp() >= lastAgg) {
+                            metrics.computeIfAbsent(mdp.getMetric().getName(), k -> new ArrayList<>()).add(mdp);
+                        }
+                    } catch (IOException e) {
+                            logger.atError().log("Unable to parse the metric log.", e);
                         }
                     }
                 }
@@ -102,7 +97,7 @@ public class MetricsAggregator {
                 aggMetrics.setMetrics(doAggregation(metrics));
                 metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
             } catch (IOException e) {
-                logger.atError().log("Unable to parse the emitted metric log file: ", e);
+                logger.atError().log("Unable to parse the emitted metric log file.", e);
             }
         }
     }
@@ -112,7 +107,7 @@ public class MetricsAggregator {
         for (Map.Entry<TelemetryMetricName, List<MetricDataPoint>> metric : metrics.entrySet()) {
             TelemetryMetricName metricName = metric.getKey();
             List<MetricDataPoint> mdp = metric.getValue();
-            TelemetryAggregation telemetryAggregation = mdp.get(0).getMetric().getMetricAggregation();
+            TelemetryAggregation telemetryAggregation = mdp.get(0).getMetric().getAggregation();
             Object aggregation = 0;
             if (telemetryAggregation.equals(TelemetryAggregation.Average)) {
                 aggregation = mdp
@@ -144,10 +139,9 @@ public class MetricsAggregator {
                         .min()
                         .getAsDouble();
             }
-
             Metric m = Metric.builder()
                     .metricName(metricName)
-                    .metricUnit(mdp.get(0).getMetric().getMetricUnit())
+                    .metricUnit(mdp.get(0).getMetric().getUnit())
                     .value(aggregation)
                     .build();
             aggMetrics.add(m);

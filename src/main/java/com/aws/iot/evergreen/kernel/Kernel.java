@@ -118,7 +118,6 @@ public class Kernel {
     private KernelLifecycle kernelLifecycle;
 
     private Collection<EvergreenService> cachedOD = null;
-    private final KernelMetricsEmitter kernelMetricsEmitter;
 
     /**
      * Construct the Kernel and global Context.
@@ -147,7 +146,6 @@ public class Kernel {
         typeToClassMap.put("generic", GenericExternalService.class.getName());
         typeToClassMap.put("lambda", "com.aws.iot.evergreen.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
-        kernelMetricsEmitter = new KernelMetricsEmitter(this);
     }
 
     /**
@@ -175,7 +173,6 @@ public class Kernel {
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-        kernelMetricsEmitter.collectKernelComponentState();
         switch (stage) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
