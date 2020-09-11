@@ -85,7 +85,7 @@ class IPCPubSubTest {
         });
         c.subscribeToTopic("a", cb.getRight());
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        cb.getLeft().get(5, TimeUnit.SECONDS);
     }
 
     @Test
@@ -109,7 +109,7 @@ class IPCPubSubTest {
         kernel.getContext().runOnPublishQueueAndWait(() -> {});
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        cb.getLeft().get(5, TimeUnit.SECONDS);
     }
 
 
@@ -126,7 +126,7 @@ class IPCPubSubTest {
         });
         c.subscribeToTopic("a", cb.getRight()); //this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        cb.getLeft().get(5, TimeUnit.SECONDS);
 
         Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
         Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
@@ -155,7 +155,7 @@ class IPCPubSubTest {
         });
         c.subscribeToTopic("a", cb.getRight()); //this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        cb.getLeft().get(5, TimeUnit.SECONDS);
 
         Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
         Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
@@ -187,7 +187,7 @@ class IPCPubSubTest {
         assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
         c.subscribeToTopic("a", cb.getRight());
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        cb.getLeft().get(5, TimeUnit.SECONDS);
 
         // Remove the service topic
         Topics serviceTopic = kernel.findServiceTopic(TEST_SERVICE_NAME);
@@ -208,7 +208,7 @@ class IPCPubSubTest {
         assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        cb.getLeft().get(5, TimeUnit.SECONDS);
     }
 
     @Test
