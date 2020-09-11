@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{SomeOldService}}
-Description: A random service to run in Evergreen
-Publisher: Me
-Version: '0.9.0'
+ComponentDescription: A random service to run in Evergreen
+ComponentPublisher: Me
+ComponentVersion: '0.9.0'
 Manifests:
   - Platform:
       os: macos
@@ -14,7 +14,7 @@ Manifests:
         VersionRequirement: "=0.9.0"
 
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       run: echo "Hello evergreen. Don't mind me I'm going to be removed soon"
     Dependencies:

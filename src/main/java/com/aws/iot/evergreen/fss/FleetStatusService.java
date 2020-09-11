@@ -51,9 +51,8 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 @ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true, version = "1.0.0")
 public class FleetStatusService extends EvergreenService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
-    // TODO: update the topic name to remove the evergreen code name from it.
     public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
-            "$aws/things/{thingName}/evergreen/health/json";
+            "$aws/things/{thingName}/greengrassv2/health/json";
     static final String FLEET_STATUS_SERVICE_PUBLISH_TOPICS = "fleetStatusServicePublishTopic";
     static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";

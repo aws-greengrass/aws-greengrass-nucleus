@@ -34,10 +34,15 @@ public class LazyCredentialProvider implements AWSCredentialsProvider, AwsCreden
     @Override
     public AwsCredentials resolveCredentials() {
         try {
-            return ((TokenExchangeService) kernel.locate(TOKEN_EXCHANGE_SERVICE_TOPICS)).resolveCredentials();
+            AwsCredentials creds =
+                    ((TokenExchangeService) kernel.locate(TOKEN_EXCHANGE_SERVICE_TOPICS)).resolveCredentials();
+            if (creds != null) {
+                return creds;
+            }
         } catch (Throwable t) {
             throw SdkClientException.create("Failed to fetch credentials", t);
         }
+        throw SdkClientException.create("Failed to fetch credentials");
     }
 
     // AWSCredentials is for the V1 AWS SDK. Evergreen SDK is only built with V1 right now.

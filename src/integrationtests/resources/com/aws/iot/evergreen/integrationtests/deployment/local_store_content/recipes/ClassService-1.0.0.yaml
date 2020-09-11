@@ -1,10 +1,10 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: ClassService
-Description: Directly creates a raw EvergreenService instead of a GenericExternalService
-Publisher: Me
-Version: '1.0.0'
-ComponentType: Raw
+ComponentDescription: Directly creates a raw EvergreenService instead of a GenericExternalService
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+ComponentType: aws.greengrass.plugin
 Manifests:
   - Platform:
       os: all

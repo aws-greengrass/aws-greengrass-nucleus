@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -15,7 +16,6 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -148,8 +148,8 @@ class PackageManagerTest {
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
 
         packageManager.prepareArtifacts(pkgId,
-                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP.name()),
-                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, Unarchive.NONE.name())));
+                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP),
+                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, Unarchive.NONE)));
 
         ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
         verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());

@@ -5,25 +5,21 @@
 
 package com.aws.iot.evergreen.packagemanager.converter;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentParameter;
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
+import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.iot.evergreen.config.PlatformResolver;
-import com.aws.iot.evergreen.packagemanager.common.ComponentParameter;
-import com.aws.iot.evergreen.packagemanager.common.ComponentRecipe;
-import com.aws.iot.evergreen.packagemanager.common.DependencyProperties;
-import com.aws.iot.evergreen.packagemanager.common.PlatformSpecificManifest;
-import com.aws.iot.evergreen.packagemanager.common.SerializerFactory;
 import com.aws.iot.evergreen.packagemanager.exceptions.PackageLoadingException;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
-import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -63,7 +59,7 @@ public final class RecipeLoader {
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
-                            componentRecipe.getVersion().toString()));
+                            componentRecipe.getComponentVersion().toString()));
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =
@@ -75,15 +71,14 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
+
         PackageRecipe packageRecipe = PackageRecipe.builder()
                                                    .componentName(componentRecipe.getComponentName())
-                                                   .version(componentRecipe.getVersion())
-                                                   .publisher(componentRecipe.getPublisher())
-                                                   .recipeTemplateVersion(RecipeTemplateVersion.valueOf(
-                                                           componentRecipe.getTemplateVersion().name()))
+                                                   .version(componentRecipe.getComponentVersion())
+                                                   .publisher(componentRecipe.getComponentPublisher())
+                                                   .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
                                                    .componentType(componentRecipe.getComponentType())
-                                                   .dependencies(convertDependencyFromFile(
-                                                           platformSpecificManifest.getDependencies()))
+                                                   .dependencies(platformSpecificManifest.getDependencies())
                                                    .lifecycle(platformSpecificManifest.getLifecycle())
                                                    .artifacts(convertArtifactsFromFile(
                                                            platformSpecificManifest.getArtifacts()))
@@ -115,7 +110,7 @@ public final class RecipeLoader {
     }
 
     private static List<ComponentArtifact> convertArtifactsFromFile(
-            List<com.aws.iot.evergreen.packagemanager.common.ComponentArtifact> artifacts) {
+            List<com.amazon.aws.iot.greengrass.component.common.ComponentArtifact> artifacts) {
         if (artifacts == null || artifacts.isEmpty()) {
             return Collections.emptyList();
         }
@@ -126,26 +121,12 @@ public final class RecipeLoader {
     }
 
     private static ComponentArtifact convertArtifactFromFile(
-            @Nonnull com.aws.iot.evergreen.packagemanager.common.ComponentArtifact componentArtifact) {
+            @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
         return ComponentArtifact.builder()
                                 .artifactUri(componentArtifact.getUri())
                                 .algorithm(componentArtifact.getAlgorithm())
                                 .checksum(componentArtifact.getDigest())
                                 .unarchive(componentArtifact.getUnarchive())
                                 .build();
-    }
-
-    private static Map<String, RecipeDependencyProperties> convertDependencyFromFile(
-            Map<String, DependencyProperties> dependencies) {
-        if (dependencies == null || dependencies.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return dependencies.entrySet()
-                           .stream()
-                           .filter(Objects::nonNull)
-                           .collect(Collectors.toMap(Map.Entry::getKey,
-                                   entry -> new RecipeDependencyProperties(entry.getValue().getVersionRequirement(),
-                                           entry.getValue().getDependencyType() == null ? "HARD" :
-                                                   entry.getValue().getDependencyType())));
     }
 }

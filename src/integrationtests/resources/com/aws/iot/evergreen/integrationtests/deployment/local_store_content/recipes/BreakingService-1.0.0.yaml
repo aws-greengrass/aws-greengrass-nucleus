@@ -1,25 +1,24 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: BreakingService
-Description: A service that just can't run
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: A service that just can't run
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
-  - Platform:
-      os: unix
-    Lifecycle:
-      startup: |-
-        echo "Breaking service broke."
-        exit 1
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
-
   - Platform:
       os: windows
     Lifecycle:
       startup: |-
-        powershell -command echo "Breaking service broke."; exit 1
+        powershell -command "& { echo \"Breaking service broke.\"; exit 1 }"
+    Dependencies:
+      Mosquitto:
+        VersionRequirement: 1.0.0
+  - Platform:
+      os: all # code path for linux (Github CI) and macos (local test)
+    Lifecycle:
+      startup: |-
+        echo "Breaking service broke."
+        exit 1
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0

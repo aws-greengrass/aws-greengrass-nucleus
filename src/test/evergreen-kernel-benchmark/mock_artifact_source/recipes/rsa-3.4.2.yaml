@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: rsa
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
-Version: '3.4.2'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
+ComponentVersion: '3.4.2'
 Manifests:
   - Dependencies:
       pyasn1:

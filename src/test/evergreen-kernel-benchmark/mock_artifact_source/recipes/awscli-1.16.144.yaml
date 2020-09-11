@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: awscli
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
-Version: '1.16.144'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
+ComponentVersion: '1.16.144'
 Manifests:
   - Dependencies:
       botocore:

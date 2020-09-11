@@ -55,8 +55,8 @@ public class GreengrassPackageServiceHelper {
         FindComponentVersionsByPlatformRequest findComponentRequest =
                 new FindComponentVersionsByPlatformRequest().withComponentName(packageName)
                         .withVersionConstraint(versionRequirement.toString())
-                        .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName());
-
+                        .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
+                        .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
         try {
             // TODO: If cloud properly sorts the response, then we can optimize this and possibly
             //  not go through all the pagination

@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{Log}}
-Description: A test app
-Publisher: Me
-Version: '2.0.0'
+ComponentDescription: A test app
+ComponentPublisher: Me
+ComponentVersion: '2.0.0'
 Manifests:
   - Platform:
       os: macos
@@ -12,7 +12,7 @@ Manifests:
         sleep 2
         exit 0
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       startup: |-
         sleep 2

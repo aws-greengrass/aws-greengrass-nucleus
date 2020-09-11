@@ -5,9 +5,9 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
@@ -69,14 +69,15 @@ import static org.mockito.Mockito.when;
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "services:\n"
+            + "  main:\n"
+            + "    dependencies:\n"
+            + "    - \"service1\"\n"
+            + "    lifecycle: {}\n"
             + "  service1:\n"
             + "    dependencies: []\n"
             + "    lifecycle:\n"
             + "      run:\n"
-            + "        script: \"test script\"\n"
-            + "  main:\n"
-            + "    dependencies:\n"
-            + "    - \"service1\"\n";
+            + "        script: \"test script\"\n";
 
     @TempDir
     protected Path tempRootDir;
@@ -89,8 +90,10 @@ class KernelTest {
     }
 
     @AfterEach
-    void afterEach() {
+    void afterEach() throws IOException {
         kernel.shutdown();
+        // Some tests use a faked kernel lifecycle, so the shutdown doesn't actually shut it down
+        kernel.getContext().close();
     }
 
     @Test
@@ -202,7 +205,7 @@ class KernelTest {
         assertThat(writer.toString(), containsString(EXPECTED_CONFIG_OUTPUT));
 
         kernel.writeEffectiveConfig();
-        String readFile = new String(Files.readAllBytes(kernel.getConfigPath().resolve("effectiveConfig.evg")),
+        String readFile = new String(Files.readAllBytes(kernel.getConfigPath().resolve("config.yaml")),
                 StandardCharsets.UTF_8);
         assertThat(readFile, containsString(EXPECTED_CONFIG_OUTPUT));
     }

@@ -1,22 +1,30 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{CustomerApp}}
-Description: A customer app
-Publisher: Me
-Version: '0.9.1'
+ComponentDescription: A customer app
+ComponentPublisher: Me
+ComponentVersion: '0.9.1'
 Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      startup: |-
+        powershell -command "& sleep 2; echo \"CustomerApp succeeds on windows\"; exit 0"
+    Dependencies:
+      {{Mosquitto}}:
+        VersionRequirement: 1.0.0
   - Platform:
       os: macos
     Lifecycle:
       startup: |-
         sleep 2
-        echo "CustomerApp succeeds."
+        echo "CustomerApp succeeds on MacOS."
         exit 0
     Dependencies:
       {{Mosquitto}}:
         VersionRequirement: 1.0.0
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       startup: |-
         sleep 2

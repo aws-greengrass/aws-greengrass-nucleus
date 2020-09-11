@@ -5,19 +5,29 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.ipc.IPCService;
+import com.aws.iot.evergreen.ipc.Startable;
+import com.aws.iot.evergreen.ipc.modules.AuthorizationService;
+import com.aws.iot.evergreen.ipc.modules.ConfigStoreIPCService;
+import com.aws.iot.evergreen.ipc.modules.LifecycleIPCService;
+import com.aws.iot.evergreen.ipc.modules.PubSubIPCService;
+import com.aws.iot.evergreen.ipc.modules.ServiceDiscoveryService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AccessLevel;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -36,16 +46,24 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.aws.iot.evergreen.kernel.Kernel.CONTEXT_SERVICE_IMPLEMENTERS;
+import static com.aws.iot.evergreen.kernel.Kernel.DEFAULT_CONFIG_TLOG_FILE;
+import static com.aws.iot.evergreen.kernel.Kernel.DEFAULT_CONFIG_YAML_FILE;
 import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
 import static com.aws.iot.evergreen.util.Utils.close;
 import static com.aws.iot.evergreen.util.Utils.deepToString;
 
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
+    private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
+    // setter for unit testing
+    @Setter(AccessLevel.PACKAGE)
+    private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, AuthorizationService.class,
+            ConfigStoreIPCService.class, LifecycleIPCService.class, PubSubIPCService.class,
+            ServiceDiscoveryService.class);
     private ConfigurationWriter tlog;
     private EvergreenService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
@@ -61,6 +79,12 @@ public class KernelLifecycle {
     public void launch() {
         logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", kernel.getRootPath())
                 .kv("configPath", kernel.getConfigPath()).log("Launch Kernel");
+
+        // Startup builtin non-services. This is blocking, so it will wait for them to be running.
+        // This guarantees that IPC, for example, is running before any user code
+        for (Class<? extends Startable> c : startables) {
+            kernel.getContext().get(c).startup();
+        }
 
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
@@ -90,8 +114,8 @@ public class KernelLifecycle {
     }
 
     void initConfigAndTlog() {
-        Path transactionLogPath = kernel.getConfigPath().resolve("config.tlog");
-        Path configurationFile = kernel.getConfigPath().resolve("config.yaml");
+        Path transactionLogPath = kernel.getConfigPath().resolve(DEFAULT_CONFIG_TLOG_FILE);
+        Path configurationFile = kernel.getConfigPath().resolve(DEFAULT_CONFIG_YAML_FILE);
 
 
         try {
@@ -207,7 +231,7 @@ public class KernelLifecycle {
     }
 
     public void shutdown() {
-        shutdown(30);
+        shutdown(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
     }
 
     /**
@@ -239,19 +263,17 @@ public class KernelLifecycle {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             stopAllServices(timeoutSeconds);
 
-            // Wait for tasks in the executor to end.
+            // Do not wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);
             ExecutorService executorService = kernel.getContext().get(ExecutorService.class);
             kernel.getContext().runOnPublishQueueAndWait(() -> {
-                executorService.shutdown();
-                scheduledExecutorService.shutdown();
+                executorService.shutdownNow();
+                scheduledExecutorService.shutdownNow();
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
-            // TODO: Timeouts should not be additive (ie. our timeout should be for this entire method, not
-            //  each timeout-able part of the method.
             logger.atInfo().log("Waiting for executors to shutdown");
-            executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
-            scheduledExecutorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
+            executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            scheduledExecutorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete").log();
             logger.atInfo("context-shutdown-initiated").log();
             kernel.getContext().close();

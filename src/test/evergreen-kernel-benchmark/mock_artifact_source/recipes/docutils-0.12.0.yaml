@@ -1,8 +1,8 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: docutils
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
-Version: '0.12.0'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
+ComponentVersion: '0.12.0'
 manifests:
   - lifecycle: {}

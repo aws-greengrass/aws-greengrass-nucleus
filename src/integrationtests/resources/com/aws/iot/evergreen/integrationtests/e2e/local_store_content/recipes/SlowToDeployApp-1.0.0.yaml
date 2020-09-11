@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{SlowToDeployApp}}
-Description: An app that takes some time to install so as to slow down deployments
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: An app that takes some time to install so as to slow down deployments
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: macos
@@ -11,6 +11,6 @@ Manifests:
       install: sleep 5
 
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       install: sleep 5

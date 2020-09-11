@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -18,7 +19,6 @@ import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageMetadata;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.packagemanager.plugins.ArtifactDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.iot.evergreen.packagemanager.plugins.S3Downloader;
@@ -211,13 +211,10 @@ public class PackageManager implements InjectionActions {
             }
         }
 
-        List<ComponentArtifact> artifactsToDownload =
-                determineArtifactsNeedToDownload(packageArtifactDirectory, artifacts);
         logger.atDebug().setEventType("downloading-package-artifacts")
-                .addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier)
-                .addKeyValue("artifactsNeedToDownload", artifactsToDownload).log();
+                .addKeyValue(PACKAGE_IDENTIFIER, packageIdentifier).log();
 
-        for (ComponentArtifact artifact : artifactsToDownload) {
+        for (ComponentArtifact artifact : artifacts) {
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
             File downloadedFile;
             try {
@@ -227,8 +224,10 @@ public class PackageManager implements InjectionActions {
                         String.format("Failed to download package %s artifact %s", packageIdentifier, artifact), e);
             }
 
-            Unarchive unarchive = artifact.getUnarchive() == null ? Unarchive.NONE
-                    : Coerce.toEnum(Unarchive.class, artifact.getUnarchive().toUpperCase(), Unarchive.NONE);
+            Unarchive unarchive = artifact.getUnarchive();
+            if (unarchive == null) {
+                unarchive = Unarchive.NONE;
+            }
 
             if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
@@ -243,13 +242,6 @@ public class PackageManager implements InjectionActions {
                 }
             }
         }
-    }
-
-    @SuppressWarnings("PMD.UnusedFormalParameter")
-    private List<ComponentArtifact> determineArtifactsNeedToDownload(Path packageArtifactDirectory,
-                                                      List<ComponentArtifact> artifacts) {
-        //TODO implement proper idempotency logic to determine what artifacts need to download
-        return artifacts;
     }
 
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {

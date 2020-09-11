@@ -5,9 +5,10 @@
 
 package com.aws.iot.evergreen.packagemanager.converter;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.packagemanager.models.ComponentArtifact;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,7 +46,7 @@ class RecipeLoaderTest {
 
         assertThat(recipe.getComponentName(), is("FooService"));
         assertThat(recipe.getVersion().getValue(), is("1.0.0"));
-        assertThat(recipe.getComponentType(), is("raw"));
+        assertThat(recipe.getComponentType().name().toLowerCase(), is("plugin"));
 
         // TODO enrich testing fields after making lifecycle section strongly typed
         assertThat(recipe.getLifecycle(), aMapWithSize(2));
@@ -58,9 +59,11 @@ class RecipeLoaderTest {
         assertThat(artifact.getChecksum(), is("d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"));
         assertThat(artifact.getAlgorithm(), is("SHA-256"));
         assertThat(recipe.getDependencies().size(), is(2));
-        assertThat(recipe.getDependencies(), hasEntry("BarService", new RecipeDependencyProperties("^1.1", "soft")));
+        assertThat(recipe.getDependencies(),
+                hasEntry("BarService", new DependencyProperties("^1.1", DependencyType.SOFT)));
 
-        assertThat(recipe.getDependencies(), hasEntry("BazService", new RecipeDependencyProperties("^2.0", "HARD")));
+        assertThat(recipe.getDependencies(),
+                hasEntry("BazService", new DependencyProperties("^2.0", DependencyType.HARD)));
 
     }
 
@@ -71,9 +74,6 @@ class RecipeLoaderTest {
         // read file
         String filename = "sample_recipe_with_no_matching_platform.yaml";
         String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
-
-//         no matching platform
-//        Mockito.when(platformResolver.findBestMatch(Mockito.anyList())).thenReturn(Optional.empty());
 
         // WHEN
         Optional<PackageRecipe> optionalRecipe = RecipeLoader.loadFromFile(recipeFileContent);

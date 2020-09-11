@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{CustomerApp}}
-Description: A customer app
-Publisher: Me
-Version: '0.9.0'
+ComponentDescription: A customer app
+ComponentPublisher: Me
+ComponentVersion: '0.9.0'
 Manifests:
   - Platform:
       os: macos
@@ -17,7 +17,7 @@ Manifests:
         VersionRequirement: 1.0.0
 
   - Platform:
-      os: ubuntu
+      os: linux
     Lifecycle:
       startup: |-
         sleep 2

@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.fss;
 
+import com.aws.iot.evergreen.config.CaseInsensitiveString;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
@@ -143,10 +144,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
         Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
                 true);
-        groupsTopics.children.put("MockService", groupTopic1);
-        groupsTopics2.children.put("MockService2", groupTopic1);
-        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
-        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
@@ -191,7 +192,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         Set<String> serviceNamesToCheck = new HashSet<>();
         serviceNamesToCheck.add("MockService");
         serviceNamesToCheck.add("MockService2");
@@ -222,10 +223,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
         Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
                 true);
-        groupsTopics.children.put("MockService", groupTopic1);
-        groupsTopics2.children.put("MockService2", groupTopic1);
-        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
-        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
@@ -267,7 +268,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
@@ -360,10 +361,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
         Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
                 true);
-        groupsTopics.children.put("MockService", groupTopic1);
-        groupsTopics2.children.put("MockService2", groupTopic1);
-        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
-        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
@@ -391,7 +392,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
@@ -450,7 +451,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
@@ -475,10 +476,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
         Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
                 true);
-        groupsTopics.children.put("MockService", groupTopic1);
-        groupsTopics2.children.put("MockService2", groupTopic1);
-        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
-        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
@@ -507,7 +508,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
@@ -560,10 +561,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
         Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
                 true);
-        groupsTopics.children.put("MockService", groupTopic1);
-        groupsTopics2.children.put("MockService2", groupTopic1);
-        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
-        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
@@ -621,7 +622,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         ObjectMapper mapper = new ObjectMapper();
         for (PublishRequest publishRequest : publishRequests) {
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-            assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+            assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
             FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
             assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
@@ -649,10 +650,10 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
         Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
                 true);
-        groupsTopics.children.put("MockService", groupTopic1);
-        groupsTopics2.children.put("MockService2", groupTopic1);
-        allComponentToGroupsTopics.children.put("MockService", groupsTopics);
-        allComponentToGroupsTopics.children.put("MockService2", groupsTopics2);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
@@ -685,7 +686,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-        assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
@@ -713,8 +714,8 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         for (int i = 0; i < numServices; i++) {
             String serviceName = String.format("MockService-%s", i);
             Topics groupsTopics = Topics.of(context, serviceName, allComponentToGroupsTopics);
-            groupsTopics.children.put(serviceName, groupTopic1);
-            allComponentToGroupsTopics.children.put(serviceName, groupsTopics);
+            groupsTopics.children.put(new CaseInsensitiveString(serviceName), groupTopic1);
+            allComponentToGroupsTopics.children.put(new CaseInsensitiveString(serviceName), groupsTopics);
             EvergreenService evergreenService = mock(EvergreenService.class);
             when(evergreenService.getName()).thenReturn(serviceName);
             when(evergreenService.getState()).thenReturn(State.RUNNING);
@@ -763,7 +764,7 @@ public class FleetStatusServiceTest extends EGServiceTestUtil {
         ObjectMapper mapper = new ObjectMapper();
         for (PublishRequest publishRequest : publishRequests) {
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-            assertEquals("$aws/things/testThing/evergreen/health/json", publishRequest.getTopic());
+            assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
             FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
             assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());

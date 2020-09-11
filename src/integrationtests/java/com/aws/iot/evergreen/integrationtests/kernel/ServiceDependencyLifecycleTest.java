@@ -5,9 +5,9 @@
 
 package com.aws.iot.evergreen.integrationtests.kernel;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.Crashable;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.model.Deployment;
