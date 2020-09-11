@@ -1,8 +1,8 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: jmespath
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
 Version: '0.8.0'
 manifests:
   - lifecycle: {}
