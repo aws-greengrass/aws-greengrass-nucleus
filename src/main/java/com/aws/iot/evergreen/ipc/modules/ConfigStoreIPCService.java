@@ -6,10 +6,9 @@
 package com.aws.iot.evergreen.ipc.modules;
 
 import com.aws.iot.evergreen.builtin.services.configstore.ConfigStoreIPCAgent;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.Startable;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
@@ -21,7 +20,8 @@ import com.aws.iot.evergreen.ipc.services.configstore.GetConfigurationRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.SendConfigurationValidityReportRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToConfigurationUpdateRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.UpdateConfigurationRequest;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -30,47 +30,23 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
 
-//TODO: see if this needs to be a GGService
-@ImplementsService(name = "configstoreipc", autostart = true)
-public class ConfigStoreIPCService extends EvergreenService {
+public class ConfigStoreIPCService implements Startable {
+    private static final Logger logger = LogManager.getLogger(ConfigStoreIPCService.class);
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
 
-    @Inject
-    private IPCRouter router;
-
-    @Inject
-    private ConfigStoreIPCAgent agent;
-
-    public ConfigStoreIPCService(Topics c) {
-        super(c);
-    }
+    private final IPCRouter router;
+    private final ConfigStoreIPCAgent agent;
 
     /**
-     * Constrcutor for unit tests.
+     * Constructor.
      *
-     * @param c service topics
      * @param router ipc router
      * @param agent config store ipc agent
      */
-    ConfigStoreIPCService(Topics c, IPCRouter router, ConfigStoreIPCAgent agent) {
-        super(c);
+    @Inject
+    public ConfigStoreIPCService(IPCRouter router, ConfigStoreIPCAgent agent) {
         this.router = router;
         this.agent = agent;
-    }
-
-    @Override
-    public void postInject() {
-        BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.CONFIG_STORE;
-        super.postInject();
-        try {
-            router.registerServiceCallback(destination.getValue(), this::handleMessage);
-            logger.atInfo().setEventType("ipc-register-request-handler").addKeyValue("destination", destination.name())
-                    .log();
-        } catch (IPCException e) {
-            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e)
-                    .addKeyValue("destination", destination.name())
-                    .log("Failed to register service callback to destination");
-        }
     }
 
     /**
@@ -139,5 +115,19 @@ public class ConfigStoreIPCService extends EvergreenService {
             fut.completeExceptionally(new IPCException("Unable to serialize any responses"));
         }
         return fut;
+    }
+
+    @Override
+    public void startup() {
+        BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.CONFIG_STORE;
+        try {
+            router.registerServiceCallback(destination.getValue(), this::handleMessage);
+            logger.atInfo().setEventType("ipc-register-request-handler").addKeyValue("destination", destination.name())
+                    .log();
+        } catch (IPCException e) {
+            logger.atError().setEventType("ipc-register-request-handler-error").setCause(e)
+                    .addKeyValue("destination", destination.name())
+                    .log("Failed to register service callback to destination");
+        }
     }
 }

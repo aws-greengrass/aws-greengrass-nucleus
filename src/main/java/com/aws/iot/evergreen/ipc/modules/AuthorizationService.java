@@ -1,10 +1,10 @@
 package com.aws.iot.evergreen.ipc.modules;
 
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.Startable;
 import com.aws.iot.evergreen.ipc.authorization.AuthorizationRequest;
 import com.aws.iot.evergreen.ipc.authorization.AuthorizationResponse;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
@@ -13,7 +13,8 @@ import com.aws.iot.evergreen.ipc.exceptions.IPCException;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthorizedException;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -24,10 +25,9 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.IPCRouter.DESTINATION_STRING;
 
-@ImplementsService(name = AuthorizationService.AUTHORIZATION_SERVICE_NAME, autostart = true)
-public class AuthorizationService extends EvergreenService {
+public class AuthorizationService implements Startable, InjectionActions {
+    private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
-    public static final String AUTHORIZATION_SERVICE_NAME = "aws.greengrass.ipc.authorization";
 
     @Inject
     private IPCRouter router;
@@ -35,14 +35,9 @@ public class AuthorizationService extends EvergreenService {
     @Inject
     private AuthenticationHandler authenticationHandler;
 
-    public AuthorizationService(Topics topics) {
-        super(topics);
-    }
-
     @Override
     public void postInject() {
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.AUTHORIZATION;
-        super.postInject();
 
         try {
             router.registerServiceCallback(destination.getValue(), this::handleMessage);
@@ -110,5 +105,9 @@ public class AuthorizationService extends EvergreenService {
             throw new UnauthorizedException("Unable to authorize request", e);
         }
 
+    }
+
+    @Override
+    public void startup() {
     }
 }

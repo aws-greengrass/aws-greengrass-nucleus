@@ -55,6 +55,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
         super.channelUnregistered(ctx);
         ConnectionContext context = ctx.channel().attr(CONNECTION_CONTEXT_KEY).get();
         if (context != null) {
+            logger.atInfo().log("IPC client {} disconnected", context);
             context.clientDisconnected();
         }
     }

@@ -74,6 +74,7 @@ class IPCServicesTest {
 
     @BeforeEach
     void beforeEach(ExtensionContext context) throws InterruptedException {
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
@@ -154,7 +155,7 @@ class IPCServicesTest {
 
         assertThrows(ResourceNotOwnedException.class, () -> c.registerResource(req));
     }
-  
+
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
         KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
