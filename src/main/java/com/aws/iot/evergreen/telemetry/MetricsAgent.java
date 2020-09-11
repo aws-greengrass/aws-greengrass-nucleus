@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 
 @ImplementsService(name = MetricsAgent.METRICS_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
 public class MetricsAgent extends EvergreenService {
@@ -221,18 +220,20 @@ public class MetricsAgent extends EvergreenService {
     }
 
     /**
-     * Helper for system metrics emitter. Also used in tests.
+     * Helper for kernel metrics emitter. Also used in tests.
      */
      void emitPeriodicKernelMetrics() {
         this.kernelMetricsEmitter.emitMetrics();
     }
 
     private Topic getPeriodicPublishTimeTopic() {
-        return config.lookup(TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC).dflt(Instant.now().toEpochMilli());
+        return config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC)
+                .dflt(Instant.now().toEpochMilli());
     }
 
     private Topic getPeriodicAggregateTimeTopic() {
-        return config.lookup(TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC).dflt(Instant.now().toEpochMilli());
+        return config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)
+                .dflt(Instant.now().toEpochMilli());
     }
 
     private void updateThingNameAndPublishTopic(String newThingName) {
@@ -247,7 +248,7 @@ public class MetricsAgent extends EvergreenService {
     public void startup() throws InterruptedException {
         this.systemMetricsEmitter.collectSystemMetrics();
         this.kernelMetricsEmitter.collectKernelComponentState();
-        topics.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicAggregateMetricsIntervalSec = Coerce.toInt(newv);
@@ -255,7 +256,7 @@ public class MetricsAgent extends EvergreenService {
                         schedulePeriodicAggregateMetrics(true);
                     }
                 });
-        topics.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicPublishMetricsIntervalSec = Coerce.toInt(newv);
@@ -263,7 +264,7 @@ public class MetricsAgent extends EvergreenService {
                         schedulePeriodicPublishMetrics(true);
                     }
                 });
-        topics.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_METRICS_PUBLISH_TOPICS)
+        topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_METRICS_PUBLISH_TOPICS)
                 .dflt(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC)
                 .subscribe((why, newv) -> telemetryMetricsPublishTopic = Coerce.toString(newv));
         topics.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
