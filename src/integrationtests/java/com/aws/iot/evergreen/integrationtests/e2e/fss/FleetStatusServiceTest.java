@@ -23,6 +23,7 @@ import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -79,6 +80,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         TimeUnit.SECONDS.sleep(10);
     }
 
+    @Disabled("Broken due to IoT core not working with greengrassv2 topic name")
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_finishes_THEN_fss_data_is_uploaded() throws Exception {
