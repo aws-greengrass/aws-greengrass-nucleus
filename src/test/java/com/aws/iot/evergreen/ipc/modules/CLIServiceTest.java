@@ -69,6 +69,7 @@ import static com.aws.iot.evergreen.ipc.modules.CLIService.OBJECT_MAPPER;
 import static com.aws.iot.evergreen.ipc.modules.CLIService.SOCKET_URL;
 import static com.aws.iot.evergreen.ipc.services.cli.models.CliGenericResponse.MessageType.APPLICATION_ERROR;
 import static com.aws.iot.evergreen.kernel.EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -116,7 +117,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
     public void setup() throws UnauthenticatedException {
         serviceFullName = CLI_SERVICE;
         initializeMockedConfig();
-        serviceConfigSpy = spy(Topics.of(context, "Services", null));
+        serviceConfigSpy = spy(Topics.of(context, SERVICES_NAMESPACE_TOPIC, null));
         cliConfigSpy = spy(Topics.of(context, CLI_SERVICE, serviceConfigSpy));
         privateConfigSpy = spy(Topics.of(context, PRIVATE_STORE_NAMESPACE_TOPIC, cliConfigSpy));
 

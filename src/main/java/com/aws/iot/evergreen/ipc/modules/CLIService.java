@@ -132,8 +132,8 @@ public class CLIService extends EvergreenService {
     @Override
     protected void startup() {
         try {
-            reportState(State.RUNNING);
             generateCliIpcInfo();
+            reportState(State.RUNNING);
         } catch (IOException | UnauthenticatedException e) {
             logger.atError().setEventType("cli-ipc-info-generation-error").setCause(e)
                     .log("Failed to create cli_ipc_info file");
