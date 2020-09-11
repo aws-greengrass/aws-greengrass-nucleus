@@ -21,16 +21,18 @@ Manifests:
           script: |-
             set -eu
             KERNEL_ROOT="{{kernel:rootPath}}"
-            UNPACK_DIR="{{artifacts:decompressedPath}}"
+            UNPACK_DIR="{{artifacts:decompressedPath}}/GreengrassCore-2.0.0"
+            # TODO: Use builtin unpack functionality with permission preserved if available
+            chmod +x "$UNPACK_DIR/bin/loader"
 
-            rm -r "$KERNEL_ROOT/alts/current/*"
+            rm -r "$KERNEL_ROOT"/alts/current/*
 
             echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
             ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
             exit 100
 
   - Platform:
-      os: unbuntu
+      os: ubuntu
     Parameters:
       - name: jvmOptions
         # TODO: consider change to nested structure
@@ -45,9 +47,11 @@ Manifests:
         script: |-
           set -eu
           KERNEL_ROOT="{{kernel:rootPath}}"
-          UNPACK_DIR="{{artifacts:decompressedPath}}"
+          UNPACK_DIR="{{artifacts:decompressedPath}}/GreengrassCore-2.0.0"
+          # TODO: Use builtin unpack functionality with permission preserved if available
+          chmod +x "$UNPACK_DIR/bin/loader"
 
-          rm -r "$KERNEL_ROOT/alts/current/*"
+          rm -r "$KERNEL_ROOT"/alts/current/*
 
           echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
           ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
