@@ -1,8 +1,8 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: pyasn1
-Description: Test recipe for Evergreen packages
-Publisher: EvergreenBenchmarkTest
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: EvergreenBenchmarkTest
 Version: '0.1.3'
 manifests:
   - lifecycle: {}

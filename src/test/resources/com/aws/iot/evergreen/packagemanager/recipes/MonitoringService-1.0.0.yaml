@@ -1,8 +1,8 @@
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: MonitoringService
-Description: Test recipe for Evergreen packages
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: Test recipe for Evergreen packages
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: all

@@ -10,7 +10,6 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
-
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSub;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubException;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubImpl;
@@ -42,7 +41,6 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETE
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;

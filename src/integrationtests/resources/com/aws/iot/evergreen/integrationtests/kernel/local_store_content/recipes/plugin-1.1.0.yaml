@@ -1,12 +1,12 @@
 ---
-TemplateVersion: '2020-01-25'
-ComponentName: plugin
-Description: Just a plugin
-Publisher: Me
-Version: '1.1.0'
-ComponentType: PLUGIN
+RecipeFormatVersion: '2020-01-25'
+ComponentName: aws.greengrass.plugin
+ComponentDescription: Just a plugin
+ComponentPublisher: Me
+ComponentVersion: '1.1.0'
+ComponentType: aws.greengrass.plugin
 Manifests:
   - Platform:
       os: all
     Artifacts:
-      - Uri: greengrass:plugin.jar
+      - URI: greengrass:plugin.jar

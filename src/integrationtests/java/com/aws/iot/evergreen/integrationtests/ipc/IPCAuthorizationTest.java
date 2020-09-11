@@ -2,10 +2,10 @@ package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.ipc.authorization.AuthorizationException;
 import com.aws.iot.evergreen.ipc.IPCClient;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
 import com.aws.iot.evergreen.ipc.authorization.AuthorizationClient;
+import com.aws.iot.evergreen.ipc.authorization.AuthorizationException;
 import com.aws.iot.evergreen.ipc.authorization.AuthorizationResponse;
 import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthorizedException;
