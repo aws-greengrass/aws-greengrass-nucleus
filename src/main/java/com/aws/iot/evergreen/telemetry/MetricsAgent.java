@@ -181,7 +181,8 @@ public class MetricsAgent extends EvergreenService {
     /**
      * Helper for metrics aggregator. Also used in tests.
      */
-    public void aggregatePeriodicMetrics() {
+
+     void aggregatePeriodicMetrics() {
         long timeStamp = Instant.now().toEpochMilli();
         long lastAgg = Coerce.toLong(getPeriodicAggregateTimeTopic());
         this.metricsAggregator.aggregateMetrics(lastAgg, timeStamp);
@@ -191,7 +192,7 @@ public class MetricsAgent extends EvergreenService {
     /**
      * Helper for metrics uploader. Also used in tests.
      */
-    public void publishPeriodicMetrics() {
+     void publishPeriodicMetrics() {
         if (!isConnected.get()) {
             logger.atInfo().log("Cannot publish the metrics: MQTT Connection interrupted.");
             return;
@@ -215,14 +216,14 @@ public class MetricsAgent extends EvergreenService {
     /**
      * Helper for system metrics emitter. Also used in tests.
      */
-    public void emitPeriodicSystemMetrics() {
+     void emitPeriodicSystemMetrics() {
         this.systemMetricsEmitter.emitMetrics();
     }
 
     /**
      * Helper for system metrics emitter. Also used in tests.
      */
-    public void emitPeriodicKernelMetrics() {
+     void emitPeriodicKernelMetrics() {
         this.kernelMetricsEmitter.emitMetrics();
     }
 
