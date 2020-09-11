@@ -54,6 +54,7 @@ import static com.aws.iot.evergreen.util.Utils.deepToString;
 
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
+    private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
@@ -230,7 +231,7 @@ public class KernelLifecycle {
     }
 
     public void shutdown() {
-        shutdown(30);
+        shutdown(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
     }
 
     /**
@@ -270,11 +271,9 @@ public class KernelLifecycle {
                 scheduledExecutorService.shutdownNow();
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
-            // TODO: Timeouts should not be additive (ie. our timeout should be for this entire method, not
-            //  each timeout-able part of the method.
             logger.atInfo().log("Waiting for executors to shutdown");
-            executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
-            scheduledExecutorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
+            executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            scheduledExecutorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete").log();
             logger.atInfo("context-shutdown-initiated").log();
             kernel.getContext().close();
