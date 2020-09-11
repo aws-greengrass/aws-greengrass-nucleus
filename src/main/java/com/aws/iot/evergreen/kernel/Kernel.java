@@ -135,7 +135,10 @@ public class Kernel {
         context.put(Executor.class, executorService);
         context.put(ExecutorService.class, executorService);
         context.put(ThreadPoolExecutor.class, ses);
+
+        Thread.setDefaultUncaughtExceptionHandler(new KernelExceptionHandler());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> this.shutdown(-1)));
+
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine);
         context.put(KernelCommandLine.class, kernelCommandLine);
