@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.packagemanager.models;
 
+import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NonNull;

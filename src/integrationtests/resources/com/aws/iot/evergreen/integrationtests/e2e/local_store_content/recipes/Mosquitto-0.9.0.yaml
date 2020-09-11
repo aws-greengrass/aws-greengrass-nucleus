@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: {{Mosquitto}}
-Description: Mosquitto MQTT Server
-Publisher: Eclipse Foundation
-Version: '0.9.0'
+ComponentDescription: Mosquitto MQTT Server
+ComponentPublisher: Eclipse Foundation
+ComponentVersion: '0.9.0'
 Manifests:
   - Platform:
       os: macos

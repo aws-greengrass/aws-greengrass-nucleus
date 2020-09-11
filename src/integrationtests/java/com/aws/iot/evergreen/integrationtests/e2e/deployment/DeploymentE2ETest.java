@@ -26,6 +26,7 @@ import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
+import com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
@@ -45,8 +46,8 @@ import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
-import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -114,7 +115,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseWithMessageSubstring(context, "Conflicts in resolving package: Mosquitto");
+        ignoreExceptionUltimateCauseOfType(context, PackageVersionConflictException.class);
 
         // New deployment contains dependency conflicts
         SetConfigurationRequest setRequest = new SetConfigurationRequest()
@@ -132,8 +133,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId)
                 .thingName(thingInfo.getThingName()).build()).execution().statusDetails().detailsMap().get("error");
         assertThat(deploymentError, StringContains.containsString(
-                "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException: Conflicts in resolving package: " + getTestComponentNameInCloud("Mosquitto")));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "-v1.0.0=1.0.0"));
+                "com.aws.iot.evergreen.packagemanager.exceptions.PackageVersionConflictException"));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("Mosquitto")));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "-v1.0.0==1.0.0"));
         assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "-v0.9.0==0.9.0"));
     }
 

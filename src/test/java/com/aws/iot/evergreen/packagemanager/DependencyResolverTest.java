@@ -42,6 +42,7 @@ import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_C
 import static com.aws.iot.evergreen.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -352,8 +353,9 @@ class DependencyResolverTest {
                     () -> System.out.println("Waiting for queue to finish updating the config"));
             Exception thrown = assertThrows(PackageVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc, groupToRootPackagesTopics));
-            assertEquals("Conflicts in resolving package: C1. Version constraints from upstream packages: "
-                    + "{B2-v1.1.0=>1.1.0, B1-v1.0.0=<1.0.0}", thrown.getMessage());
+            assertThat(thrown.getMessage(), containsString("C1"));
+            assertThat(thrown.getMessage(), containsString("{B2-v1.1.0=>1.1.0, B1-v1.0.0=<1.0.0}"));
+
 
             // top-level package order: B2, A
             // refresh iterator for A B1 and B2
