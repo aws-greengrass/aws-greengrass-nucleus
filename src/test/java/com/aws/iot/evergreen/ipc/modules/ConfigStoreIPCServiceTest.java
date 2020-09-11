@@ -23,7 +23,6 @@ import com.aws.iot.evergreen.ipc.services.configstore.SubscribeToValidateConfigu
 import com.aws.iot.evergreen.ipc.services.configstore.UpdateConfigurationRequest;
 import com.aws.iot.evergreen.ipc.services.configstore.UpdateConfigurationResponse;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
@@ -43,7 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
-public class ConfigStoreIPCServiceTest extends EGServiceTestUtil {
+public class ConfigStoreIPCServiceTest {
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
 
     @Mock
@@ -58,10 +57,8 @@ public class ConfigStoreIPCServiceTest extends EGServiceTestUtil {
 
     @BeforeEach
     public void setup() {
-        serviceFullName = "configstoreipc";
-        initializeMockedConfig();
-        configStoreIPCService = new ConfigStoreIPCService(config, router, agent);
-        configStoreIPCService.postInject();
+        configStoreIPCService = new ConfigStoreIPCService(router, agent);
+        configStoreIPCService.startup();
 
         connectionContext = new ConnectionContext("ServiceA", new InetSocketAddress(1), router);
     }

@@ -74,7 +74,7 @@ public final class AuthorizationPolicyParser {
 
             //Retrieve all policies, mapped to each policy type
             Map<String, List<AuthorizationPolicy>> componentAuthorizationPolicyMap = parseAllPoliciesForComponent(
-                    accessControlMapTopic, componentName, kernel);
+                    accessControlMapTopic, componentName);
 
             if (componentAuthorizationPolicyMap != null) {
                 //For each policy type (e.g. aws.greengrass.ipc.pubsub)
@@ -99,12 +99,10 @@ public final class AuthorizationPolicyParser {
      *
      * @param accessControlMapTopic Topic
      * @param componentName String
-     * @param kernel Kernel
      * @return {@Map} of {@String} keys and {@List} of {@AuthorizationPolicy}'s as  values"
      */
     private Map<String, List<AuthorizationPolicy>> parseAllPoliciesForComponent(Topic accessControlMapTopic,
-                                                                                String componentName,
-                                                                                Kernel kernel) {
+                                                                                String componentName) {
         Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = new HashMap<>();
 
         String accessControlMapValueJson = Coerce.toString(accessControlMapTopic);
@@ -131,12 +129,6 @@ public final class AuthorizationPolicyParser {
 
             String policyType = accessControlType.getKey();
             Object accessControlTopicObject = accessControlType.getValue();
-
-            // Skip service no longer exists
-            if (kernel.findServiceTopic(policyType) == null) {
-                authorizationPolicyMap.putIfAbsent(policyType, new ArrayList<>());
-                continue;
-            }
 
             if (!(accessControlTopicObject instanceof List)
                     || Utils.isEmpty((List) accessControlTopicObject)

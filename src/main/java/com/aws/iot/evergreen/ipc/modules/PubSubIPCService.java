@@ -5,10 +5,10 @@ import com.aws.iot.evergreen.auth.AuthorizationHandler;
 import com.aws.iot.evergreen.auth.Permission;
 import com.aws.iot.evergreen.auth.exceptions.AuthorizationException;
 import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.Startable;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
@@ -19,7 +19,8 @@ import com.aws.iot.evergreen.ipc.services.pubsub.PubSubPublishRequest;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubResponseStatus;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -34,9 +35,8 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.IPCRouter.DESTINATION_STRING;
 
-//TODO: see if this needs to be a GGService
-@ImplementsService(name = PubSubIPCService.PUB_SUB_SERVICE_NAME, autostart = true)
-public class PubSubIPCService extends EvergreenService {
+public class PubSubIPCService implements Startable, InjectionActions {
+    private static final Logger logger = LogManager.getLogger(PubSubIPCService.class);
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
     public static final String PUB_SUB_SERVICE_NAME = "aws.greengrass.ipc.pubsub";
 
@@ -49,14 +49,9 @@ public class PubSubIPCService extends EvergreenService {
     @Inject
     private AuthorizationHandler authorizationHandler;
 
-    public PubSubIPCService(Topics c) {
-        super(c);
-    }
-
     @Override
     public void postInject() {
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.PUBSUB;
-        super.postInject();
 
         List<String> opCodes = Stream.of(PubSubClientOpCodes.values())
                 .filter(c -> !c.equals(PubSubClientOpCodes.UNSUBSCRIBE))
@@ -64,7 +59,7 @@ public class PubSubIPCService extends EvergreenService {
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
         try {
-            authorizationHandler.registerComponent(this.getName(), new HashSet<String>(opCodes));
+            authorizationHandler.registerComponent(PUB_SUB_SERVICE_NAME, new HashSet<>(opCodes));
         } catch (AuthorizationException e) {
             logger.atError("initialize-pubsub-authorization-error", e)
                     .kv(DESTINATION_STRING, destination.name())
@@ -161,11 +156,15 @@ public class PubSubIPCService extends EvergreenService {
 
     private void doAuthorization(String opCode, String serviceName, String topic) throws AuthorizationException {
         authorizationHandler.isAuthorized(
-                this.getName(),
+                PUB_SUB_SERVICE_NAME,
                 Permission.builder()
                         .principal(serviceName)
                         .operation(opCode.toLowerCase())
                         .resource(topic)
                         .build());
+    }
+
+    @Override
+    public void startup() {
     }
 }

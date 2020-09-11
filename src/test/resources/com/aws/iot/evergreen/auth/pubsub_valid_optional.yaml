@@ -2,14 +2,11 @@
 services:
   main:
     dependencies:
-      - IPCService
       - mqtt
       - ServiceName
     lifecycle:
 
   mqtt:
-    dependencies:
-      - IPCService
     resources:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
@@ -19,8 +16,6 @@ services:
        '{"aws.greengrass.ipc.pubsub":[{"policyId2":{"operations":["publish","subscribe"]}}]}'
 
   ServiceName:
-    dependencies:
-      - IPCService
     resources:
       - http-resource
     lifecycle:

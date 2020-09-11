@@ -9,15 +9,25 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.iot.evergreen.config.ConfigurationWriter;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.ipc.IPCService;
+import com.aws.iot.evergreen.ipc.Startable;
+import com.aws.iot.evergreen.ipc.modules.AuthorizationService;
+import com.aws.iot.evergreen.ipc.modules.ConfigStoreIPCService;
+import com.aws.iot.evergreen.ipc.modules.LifecycleIPCService;
+import com.aws.iot.evergreen.ipc.modules.PubSubIPCService;
+import com.aws.iot.evergreen.ipc.modules.ServiceDiscoveryService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AccessLevel;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -48,6 +58,11 @@ public class KernelLifecycle {
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
+    // setter for unit testing
+    @Setter(AccessLevel.PACKAGE)
+    private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, AuthorizationService.class,
+            ConfigStoreIPCService.class, LifecycleIPCService.class, PubSubIPCService.class,
+            ServiceDiscoveryService.class);
     private ConfigurationWriter tlog;
     private EvergreenService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
@@ -63,6 +78,12 @@ public class KernelLifecycle {
     public void launch() {
         logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", kernel.getRootPath())
                 .kv("configPath", kernel.getConfigPath()).log("Launch Kernel");
+
+        // Startup builtin non-services. This is blocking, so it will wait for them to be running.
+        // This guarantees that IPC, for example, is running before any user code
+        for (Class<? extends Startable> c : startables) {
+            kernel.getContext().get(c).startup();
+        }
 
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main

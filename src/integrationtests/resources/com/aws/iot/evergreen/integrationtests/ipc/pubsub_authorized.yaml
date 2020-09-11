@@ -2,12 +2,9 @@
 services:
   main:
     dependencies:
-      - IPCService
       - mqtt
       - ServiceName
   mqtt:
-    dependencies:
-      - IPCService
     resources:
       - evergreen_1._mqtt._tcp.local
       - evergreen_1._http._tcp.local
@@ -17,7 +14,6 @@ services:
 
   ServiceName:
     dependencies:
-      - IPCService
       - mqtt
     resources:
       - http-resource
