@@ -1,10 +1,10 @@
 package com.aws.iot.evergreen.ipc.modules;
 
 import com.aws.iot.evergreen.builtin.services.servicediscovery.ServiceDiscoveryAgent;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.ImplementsService;
+import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.IPCRouter;
+import com.aws.iot.evergreen.ipc.Startable;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader.Message;
 import com.aws.iot.evergreen.ipc.exceptions.IPCException;
@@ -16,7 +16,8 @@ import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryGener
 import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCodes;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryResponseStatus;
 import com.aws.iot.evergreen.ipc.services.servicediscovery.UpdateResourceRequest;
-import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 
@@ -27,9 +28,8 @@ import javax.inject.Inject;
 
 import static com.aws.iot.evergreen.ipc.services.servicediscovery.ServiceDiscoveryOpCodes.values;
 
-//TODO: see if this needs to be a GGService
-@ImplementsService(name = "servicediscovery", autostart = true)
-public class ServiceDiscoveryService extends EvergreenService {
+public class ServiceDiscoveryService implements Startable, InjectionActions {
+    private static final Logger logger = LogManager.getLogger(ServiceDiscoveryService.class);
     private final ObjectMapper mapper = new CBORMapper();
 
     @Inject
@@ -38,13 +38,8 @@ public class ServiceDiscoveryService extends EvergreenService {
     @Inject
     private IPCRouter router;
 
-    public ServiceDiscoveryService(Topics c) {
-        super(c);
-    }
-
     @Override
     public void postInject() {
-        super.postInject();
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.SERVICE_DISCOVERY;
         try {
             router.registerServiceCallback(destination.getValue(), this::handleMessage);
@@ -122,5 +117,9 @@ public class ServiceDiscoveryService extends EvergreenService {
             fut.completeExceptionally(new IPCException("Unable to serialize any responses"));
         }
         return fut;
+    }
+
+    @Override
+    public void startup() {
     }
 }

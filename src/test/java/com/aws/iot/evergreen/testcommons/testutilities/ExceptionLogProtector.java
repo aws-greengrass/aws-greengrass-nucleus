@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.testcommons.testutilities;
 
 import com.aws.iot.evergreen.ipc.IPCService;
+import com.aws.iot.evergreen.ipc.common.ServiceEventHelper;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.util.Utils;
@@ -22,6 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -119,6 +121,8 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         // after launch()
         ignoreExceptionWithStackTraceContaining(context, InterruptedException.class,
                 IPCService.class.getName() + ".listen");
+        ignoreExceptionWithStackTraceContaining(context, TimeoutException.class, ServiceEventHelper.class.getName());
+        ignoreExceptionWithStackTraceContaining(context, InterruptedException.class, ServiceEventHelper.class.getName());
 
         // Ignore error from MQTT not being configured
         ignoreExceptionWithMessageSubstring(context, "[thingName cannot be empty,"

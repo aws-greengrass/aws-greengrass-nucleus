@@ -12,7 +12,6 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeploymentService;
-import com.aws.iot.evergreen.ipc.IPCService;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
@@ -31,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
@@ -107,18 +107,19 @@ class KernelLifecycleTest {
 
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
         EZPlugins pluginMock = mock(EZPlugins.class);
+        kernelLifecycle.setStartables(new ArrayList<>());
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ClassAnnotationMatchProcessor func = i.getArgument(1);
 
-            func.processMatch(IPCService.class);
+            func.processMatch(UpdateSystemSafelyService.class);
             func.processMatch(DeploymentService.class);
 
             return null;
         }).when(pluginMock).annotated(eq(ImplementsService.class), any());
 
         kernelLifecycle.launch();
-        // Expect 2 times because I returned 2 plugins from above: IPC and Deployment
+        // Expect 2 times because I returned 2 plugins from above: SafeUpdate and Deployment
         verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(DependencyType.HARD), eq(true));
     }
 
