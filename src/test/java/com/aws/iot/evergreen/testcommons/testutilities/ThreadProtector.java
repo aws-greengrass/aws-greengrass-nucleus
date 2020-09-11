@@ -49,6 +49,8 @@ public class ThreadProtector implements AfterAllCallback {
                 .filter(t -> t.getThreadGroup() != null && "main".equals(t.getThreadGroup().getName()))
                 .filter(t -> Objects.nonNull(t.getName()))
                 .filter(t -> !ALLOWED_THREAD_NAMES.contains(t.getName()))
+                // This executor is used by Netty and it will shutdown, it just shutsdown a bit slowly, so
+                // that's why we will ignore it here
                 .filter(t -> !t.getName().contains("globalEventExecutor"))
                 .collect(Collectors.toList());
     }

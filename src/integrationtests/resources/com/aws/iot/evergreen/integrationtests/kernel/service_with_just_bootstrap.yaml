@@ -14,8 +14,12 @@ services:
   service_with_just_bootstrap_and_should_timeout:
     lifecycle:
       bootstrap:
-        posix: sleep 121
-        windows: powershell -command sleep 121
+        posix:
+          script: sleep 20
+          timeout: 5
+        windows:
+          script: powershell -command sleep 20
+          timeout: 5
 
   service_with_just_bootstrap_and_timeout_configured:
     lifecycle:
