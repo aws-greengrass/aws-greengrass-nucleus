@@ -178,7 +178,7 @@ class IPCPubSubTest {
         PubSub c = new PubSubImpl(client);
         Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
             assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
+        }, -1);
         Permission policyId1 =
                 Permission.builder().principal(TEST_SERVICE_NAME).operation("*").resource("*").build();
         Permission policyId2 =
