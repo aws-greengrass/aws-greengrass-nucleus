@@ -103,6 +103,7 @@ jobs:
           mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
         if: matrix.os == 'Linux'
   e2e-test:
+    needs: build
     runs-on: [self-hosted, Linux, greengrass]
     steps:
       - uses: actions/checkout@v2
