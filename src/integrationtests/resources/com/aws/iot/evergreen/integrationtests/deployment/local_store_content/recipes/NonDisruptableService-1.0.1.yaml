@@ -1,12 +1,23 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: NonDisruptableService
-Description: A service that can be performing important task so should not be restarted if not safe
-Publisher: Me
-Version: '1.0.1'
+ComponentDescription: A service that can be performing important task so should not be restarted if not safe
+ComponentPublisher: Me
+ComponentVersion: '1.0.1'
 Manifests:
   - Platform:
-      os: unix
+      os: windows
+    Lifecycle:
+      run: |-
+        powershell -command "& { while(1) { sleep 5 } }"
+      checkIfSafeToUpdate:
+        recheckPeriod: 5
+        script: |-
+          exit 1
+      updatesCompleted: echo "Yes! Updates completed"
+
+  - Platform:
+      os: all # code path for linux (Github CI) and macos (local test)
     Lifecycle:
       run: |-
         while true; do
@@ -18,14 +29,3 @@ Manifests:
           echo "Not SafeUpdate"
           exit 1
         updatesCompleted: echo "Yes! Updates completed"
-
-  - Platform:
-      os: windows
-    Lifecycle:
-      run: |-
-        powershell -command "& { while(1) { sleep 5 } }"
-      checkIfSafeToUpdate:
-        recheckPeriod: 5
-        script: |-
-          exit 1
-      updatesCompleted: echo "Yes! Updates completed"

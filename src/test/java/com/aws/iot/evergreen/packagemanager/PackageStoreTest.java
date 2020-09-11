@@ -217,7 +217,7 @@ class PackageStoreTest {
 
         // THEN
         assertThat(packageMetadata.getPackageIdentifier(), is(MONITORING_SERVICE_PKG_ID));
-        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(MONITORING_SERVICE_PKG_VERSION)));
+        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
     }
 
     @Test
@@ -243,13 +243,13 @@ class PackageStoreTest {
         PackageMetadata packageMetadata = packageMetadataList.get(0);
         assertThat(packageMetadata.getPackageIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
         assertThat(packageMetadata.getPackageIdentifier().getVersion(), is(new Semver("1.1.0")));
-        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(new Semver("1.1.0"))));
+        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.1.0"))));
 
         // 1.0.0
         packageMetadata = packageMetadataList.get(1);
         assertThat(packageMetadata.getPackageIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
         assertThat(packageMetadata.getPackageIdentifier().getVersion(), is(new Semver("1.0.0")));
-        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(new Semver("1.0.0"))));
+        assertThat(packageMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.0.0"))));
     }
 
     private void preloadRecipeFileFromTestResource(String fileName) throws IOException {
@@ -269,10 +269,10 @@ class PackageStoreTest {
         assertThat(artifactPath.toAbsolutePath(), is(equalTo(expectedArtifactPath)));
     }
 
-    private static Map<String, String> getExpectedDependencies(Semver version) {
+    private static Map<String, String> getExpectedDependencies(Requirement versionRequirement) {
         return new HashMap<String, String>() {{
-            put(LOG_PACKAGE_NAME, version.toString());
-            put(COOL_DB_PACKAGE_NAME, version.toString());
+            put(LOG_PACKAGE_NAME, versionRequirement.toString());
+            put(COOL_DB_PACKAGE_NAME, versionRequirement.toString());
         }};
     }
 }

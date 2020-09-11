@@ -5,8 +5,8 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.util.IOUtils;
-import com.aws.iot.evergreen.packagemanager.models.Unarchive;
 import com.aws.iot.evergreen.util.Utils;
 
 import java.io.File;

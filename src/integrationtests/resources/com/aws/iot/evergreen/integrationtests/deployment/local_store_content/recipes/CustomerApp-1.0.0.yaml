@@ -1,9 +1,9 @@
 ---
-TemplateVersion: '2020-01-25'
+RecipeFormatVersion: '2020-01-25'
 ComponentName: CustomerApp
-Description: A customer app
-Publisher: Me
-Version: '1.0.0'
+ComponentDescription: A customer app
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: windows
@@ -20,7 +20,7 @@ Manifests:
       ClassService:
         VersionRequirement: 1.0.0
     Artifacts:
-      - Uri: greengrass:customerApp
+      - URI: greengrass:customerApp
   - Platform:
       os: all
     Parameters:
@@ -36,4 +36,4 @@ Manifests:
       ClassService:
         VersionRequirement: 1.0.0
     Artifacts:
-      - Uri: greengrass:customerApp
+      - URI: greengrass:customerApp

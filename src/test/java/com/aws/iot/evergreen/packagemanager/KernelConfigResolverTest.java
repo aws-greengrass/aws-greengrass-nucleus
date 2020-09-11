@@ -3,9 +3,11 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.DependencyType;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
@@ -13,8 +15,6 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.packagemanager.models.PackageIdentifier;
 import com.aws.iot.evergreen.packagemanager.models.PackageParameter;
 import com.aws.iot.evergreen.packagemanager.models.PackageRecipe;
-import com.aws.iot.evergreen.packagemanager.models.RecipeDependencyProperties;
-import com.aws.iot.evergreen.packagemanager.models.RecipeTemplateVersion;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.Utils;
 import com.vdurmont.semver4j.Semver;
@@ -103,8 +103,9 @@ class KernelConfigResolverTest {
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier, dependencyPackageIdentifier);
 
         PackageRecipe rootPackageRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2",
-                Collections.singletonMap(TEST_INPUT_PACKAGE_B, new RecipeDependencyProperties("2.3")),
-                Collections.emptyMap(), TEST_INPUT_PACKAGE_A);
+                Collections.singletonMap(TEST_INPUT_PACKAGE_B,
+                        DependencyProperties.builder().versionRequirement("2.3").build()), Collections.emptyMap(),
+                TEST_INPUT_PACKAGE_A);
         PackageRecipe dependencyPackageRecipe =
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3", Collections.emptyMap(), Collections.emptyMap(),
                         TEST_INPUT_PACKAGE_B);
@@ -274,7 +275,7 @@ class KernelConfigResolverTest {
 
         // B-1.5 -> A-1.2
         PackageRecipe package2Recipe = getPackage(TEST_INPUT_PACKAGE_B, "1.5", Utils.immutableMap(TEST_INPUT_PACKAGE_A,
-                new RecipeDependencyProperties("=1.2", DependencyType.HARD.toString())),
+                new DependencyProperties("=1.2", DependencyType.HARD)),
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_B), TEST_INPUT_PACKAGE_A);
         PackageRecipe package3Recipe = getPackage(TEST_INPUT_PACKAGE_C, "1.5", Collections.emptyMap(),
                 getSimpleParameterMap(TEST_INPUT_PACKAGE_C), TEST_INPUT_PACKAGE_A);
@@ -400,7 +401,7 @@ class KernelConfigResolverTest {
                 new PackageIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
         List<PackageIdentifier> packagesToDeploy = Arrays.asList(rootPackageIdentifier);
 
-        PackageRecipe rootPackageRecipe = new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+        PackageRecipe rootPackageRecipe = new PackageRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
                 rootPackageIdentifier.getVersion(), "", "", Collections.emptySet(), new HashMap<String, Object>() {{
             put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
         }}, Collections.emptyList(), Collections.emptyMap(), null);
@@ -436,7 +437,7 @@ class KernelConfigResolverTest {
 
     // utilities for mocking input
     private PackageRecipe getPackage(String packageName, String packageVersion,
-                                     Map<String, RecipeDependencyProperties> dependencies,
+                                     Map<String, DependencyProperties> dependencies,
                                      Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName) {
 
         Set<PackageParameter> parameters = packageParamsWithDefaultsRaw.entrySet()
@@ -447,7 +448,7 @@ class KernelConfigResolverTest {
                                                                        .collect(Collectors.toSet());
 
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
-        return new PackageRecipe(RecipeTemplateVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
+        return new PackageRecipe(RecipeFormatVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
                 parameters, getSimplePackageLifecycle(packageName, crossComponentName), Collections.emptyList(),
                 dependencies, null);
     }
