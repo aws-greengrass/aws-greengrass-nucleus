@@ -107,7 +107,9 @@ class IPCCliTest {
 
     @AfterEach
     void afterEach() throws IOException {
-        client.disconnect();
+        if (client != null) {
+            client.disconnect();
+        }
         kernel.shutdown();
     }
 

@@ -135,7 +135,10 @@ public class CLIService extends EvergreenService {
             generateCliIpcInfo();
             reportState(State.RUNNING);
         } catch (IOException | UnauthenticatedException e) {
-            logger.atError().setEventType("cli-ipc-info-generation-error").setCause(e)
+            logger.atError().setEventType("cli-ipc-info-generation-error")
+                    // CloseByInterrupt exception occurs in tests if the threads finish earlier than this method
+                    // fnishes generating the cli ipc info file. This not setting the cause here.
+                    .kv("errorMessage", e.getMessage())
                     .log("Failed to create cli_ipc_info file");
         }
     }
