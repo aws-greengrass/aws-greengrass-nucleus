@@ -294,6 +294,5 @@ class GenericExternalServiceTest extends BaseITCase {
 
         // this runs 5 seconds
         assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
-        Thread.sleep(5_000); // sleep a little bit to wait for the timed out process to be killed
     }
 }
