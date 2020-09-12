@@ -5,8 +5,10 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
-import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
@@ -150,6 +152,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withDeploymentPolicies(new DeploymentPolicies()
+                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                .withAction(ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS).withTimeout(120))
                         .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING))
                 .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("0.9.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
@@ -196,6 +201,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withDeploymentPolicies(new DeploymentPolicies()
+                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                .withAction(ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS).withTimeout(120))
                         .withFailureHandlingPolicy(FailureHandlingPolicy.ROLLBACK))
                 .addPackagesEntry("RedSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"))
                 .addPackagesEntry("YellowSignal", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"))
@@ -254,7 +262,11 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withDeploymentPolicies(new DeploymentPolicies()
-                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY))
+                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                .withTimeout(120)
+                        ))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -326,8 +338,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withDeploymentPolicies(new DeploymentPolicies()
+                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
                         .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK))
+                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                .withAction(ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS).withTimeout(120)))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -395,8 +409,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withDeploymentPolicies(new DeploymentPolicies()
+                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
                         .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY))
+                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeout(120)))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
@@ -408,8 +424,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
                 .withDeploymentPolicies(new DeploymentPolicies()
+                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
                         .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                        .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY))
+                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeout(120)))
                 .addPackagesEntry("NonDisruptableService", new PackageMetaData().withRootComponent(true).withVersion(
                         "1.0.1"));
         PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
