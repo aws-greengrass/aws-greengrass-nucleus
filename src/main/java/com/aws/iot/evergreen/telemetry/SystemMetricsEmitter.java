@@ -19,8 +19,8 @@ public class SystemMetricsEmitter {
     private static final String SYSTEM_METRICS_STORE = TelemetryNamespace.SystemMetrics.toString();
     private static final CentralProcessor cpu = new SystemInfo().getHardware().getProcessor();
     private static final SystemInfo systemInfo = new SystemInfo();
-    private final Map<TelemetryMetricName, Object> systemMetricsData = new HashMap<>();
     private final Map<TelemetryMetricName, MetricDataBuilder> systemMetrics = new HashMap<>();
+    private final MetricFactory mf = new MetricFactory(SYSTEM_METRICS_STORE);
     private long[] previousTicks = new long[CentralProcessor.TickType.values().length];
 
     /**
@@ -33,7 +33,7 @@ public class SystemMetricsEmitter {
                 .unit(TelemetryUnit.Percent)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        MetricDataBuilder mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
+        MetricDataBuilder mdb = mf.addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.CpuUsage, mdb);
 
         systemMetric = Metric.builder()
@@ -42,7 +42,7 @@ public class SystemMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
+        mdb = mf.addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.TotalNumberOfFDs, mdb);
 
         systemMetric = Metric.builder()
@@ -51,29 +51,22 @@ public class SystemMetricsEmitter {
                 .unit(TelemetryUnit.Megabytes)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mdb = new MetricFactory(SYSTEM_METRICS_STORE).addMetric(systemMetric);
+        mdb = mf.addMetric(systemMetric);
         systemMetrics.put(TelemetryMetricName.SystemMemUsage, mdb);
-
-        for (TelemetryMetricName telemetryMetricName : TelemetryMetricName.values()) {
-            systemMetricsData.put(telemetryMetricName, 0);
-        }
     }
 
     protected void emitMetrics() {
-        systemMetricsData.put(TelemetryMetricName.CpuUsage,
-                cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
+        MetricDataBuilder mdb = systemMetrics.get(TelemetryMetricName.CpuUsage);
+        mdb.putMetricData(cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER)
+                .emit();
         previousTicks = cpu.getSystemCpuLoadTicks();
 
-        systemMetricsData.put(TelemetryMetricName.TotalNumberOfFDs,
-                systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
+        mdb = systemMetrics.get(TelemetryMetricName.SystemMemUsage);
+        mdb.putMetricData(systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse() / MB_CONVERTER)
+                .emit();
 
-        systemMetricsData.put(TelemetryMetricName.SystemMemUsage,
-                systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse() / MB_CONVERTER);
-
-        for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> systemMetric : systemMetrics.entrySet()) {
-            MetricDataBuilder metricDataBuilder = systemMetric.getValue();
-            metricDataBuilder.putMetricData(systemMetricsData.get(systemMetric.getKey())).emit();
-            systemMetricsData.put(systemMetric.getKey(), 0);
-        }
+        mdb = systemMetrics.get(TelemetryMetricName.TotalNumberOfFDs);
+        mdb.putMetricData(systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors())
+                .emit();
     }
 }

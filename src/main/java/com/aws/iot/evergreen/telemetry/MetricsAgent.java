@@ -34,7 +34,7 @@ public class MetricsAgent extends EvergreenService {
     @Getter // Used in e2e
     private static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
     @Getter(AccessLevel.PACKAGE)
-    private static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 30;
+    private static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 3_600;
     @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
     @Getter // Used in e2e
@@ -43,7 +43,7 @@ public class MetricsAgent extends EvergreenService {
     private static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
     @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
-    private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 120;
+    private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
     private static int periodicPublishMetricsIntervalSec = 0;
     private static int periodicAggregateMetricsIntervalSec = 0;
@@ -110,9 +110,9 @@ public class MetricsAgent extends EvergreenService {
      * Schedules the aggregation of metrics based on the configured aggregation interval.
      */
     private void schedulePeriodicAggregateMetrics(boolean isReconfigured) {
-        cancel(periodicEmitSystemMetricsFuture,periodicAggregateMetricsInProgressLock,false);
-        cancel(periodicEmitKernelMetricsFuture,periodicAggregateMetricsInProgressLock,false);
-        cancel(periodicAggregateMetricsFuture,periodicAggregateMetricsInProgressLock,false);
+        cancel(periodicEmitSystemMetricsFuture, periodicAggregateMetricsInProgressLock, false);
+        cancel(periodicEmitKernelMetricsFuture, periodicAggregateMetricsInProgressLock, false);
+        cancel(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, false);
         if (isReconfigured) {
             synchronized (periodicAggregateMetricsInProgressLock) {
                 Instant lastPeriodicAggTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicAggregateTimeTopic()));
@@ -147,7 +147,7 @@ public class MetricsAgent extends EvergreenService {
     private void schedulePeriodicPublishMetrics(boolean isReconfiguredOrConnectionResumed) {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
         // cancel the previously scheduled job.
-        cancel(periodicPublishMetricsFuture,periodicPublishMetricsInProgressLock, false);
+        cancel(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, false);
         if (isReconfiguredOrConnectionResumed) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
@@ -229,7 +229,7 @@ public class MetricsAgent extends EvergreenService {
 
     private void cancel(ScheduledFuture<?> future, Object lock, boolean immediately) {
         synchronized (lock) {
-            if (future != null){
+            if (future != null) {
                 future.cancel(immediately);
             }
         }
@@ -243,16 +243,20 @@ public class MetricsAgent extends EvergreenService {
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicAggregateMetricsIntervalSec = Coerce.toInt(newv);
-                    if (periodicAggregateMetricsFuture != null) {
-                        schedulePeriodicAggregateMetrics(true);
+                    synchronized (periodicAggregateMetricsInProgressLock) {
+                        if (periodicAggregateMetricsFuture != null) {
+                            schedulePeriodicAggregateMetrics(true);
+                        }
                     }
                 });
         topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicPublishMetricsIntervalSec = Coerce.toInt(newv);
-                    if (periodicPublishMetricsFuture != null) {
-                        schedulePeriodicPublishMetrics(true);
+                    synchronized (periodicPublishMetricsInProgressLock) {
+                        if (periodicPublishMetricsFuture != null) {
+                            schedulePeriodicPublishMetrics(true);
+                        }
                     }
                 });
         topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_METRICS_PUBLISH_TOPICS)
@@ -268,9 +272,9 @@ public class MetricsAgent extends EvergreenService {
 
     @Override
     public void shutdown() {
-        cancel(periodicEmitSystemMetricsFuture,periodicAggregateMetricsInProgressLock,true);
-        cancel(periodicEmitKernelMetricsFuture,periodicAggregateMetricsInProgressLock,true);
-        cancel(periodicAggregateMetricsFuture,periodicAggregateMetricsInProgressLock,true);
-        cancel(periodicPublishMetricsFuture,periodicPublishMetricsFuture,true);
+        cancel(periodicEmitSystemMetricsFuture, periodicAggregateMetricsInProgressLock, true);
+        cancel(periodicEmitKernelMetricsFuture, periodicAggregateMetricsInProgressLock, true);
+        cancel(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, true);
+        cancel(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, true);
     }
 }

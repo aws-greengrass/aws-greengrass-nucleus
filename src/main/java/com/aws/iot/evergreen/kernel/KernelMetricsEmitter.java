@@ -25,6 +25,7 @@ public class KernelMetricsEmitter {
     private static Map<TelemetryMetricName, MetricDataBuilder> kernelMetrics = new HashMap<>();
     private static Map<TelemetryMetricName, Integer> kernelMetricsData = new HashMap<>();
     private final Kernel kernel;
+    private final MetricFactory metricFactory = new MetricFactory(KERNEL_COMPONENT_METRIC_STORE);
 
     /**
      * Constructor for kernel metrics emitter.
@@ -49,7 +50,7 @@ public class KernelMetricsEmitter {
                     .unit(TelemetryUnit.Count)
                     .aggregation(TelemetryAggregation.Average)
                     .build();
-            MetricDataBuilder metricDataBuilder = new MetricFactory(KERNEL_COMPONENT_METRIC_STORE).addMetric(metric);
+            MetricDataBuilder metricDataBuilder = metricFactory.addMetric(metric);
             kernelMetrics.put(telemetryMetricName, metricDataBuilder);
         }
         for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
