@@ -150,7 +150,6 @@ public class CLIService extends EvergreenService {
         String cliAuthToken = authenticationHandler.registerAuthenticationTokenForExternalClient(
                 Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce()),
                 GREENGRASS_CLI);
-
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
 

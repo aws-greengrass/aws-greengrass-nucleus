@@ -317,7 +317,6 @@ class IPCCliTest {
                 if(m.getContexts().containsKey("stdout") && m.getContexts().get("stdout").contains("NewWorld")) {
                     stdoutLatch.countDown();
                 }
-
             }
         };
         Slf4jLogAdapter.addGlobalListener(logListener);
