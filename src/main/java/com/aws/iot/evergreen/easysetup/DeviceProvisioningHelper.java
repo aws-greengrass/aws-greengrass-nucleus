@@ -67,8 +67,7 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
     // TODO : Remove once global components are implemented
-    public static final String GCS_ENDPOINT = "https://uqtyx1gsuk.execute-api.us-east-1.amazonaws.com/Beta";
-    // "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
+    public static final String GCS_ENDPOINT = "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
 
     private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
             .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"TemplateVersion\": \"2020-01-25\",\n"

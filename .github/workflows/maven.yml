@@ -23,12 +23,6 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - uses: actions/cache@v1
-        with:
-          path: ~/.m2/repository
-          # Only restore maven cache for this exact commit. If we start incrementing the version
-          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Build with Maven
@@ -110,12 +104,6 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - uses: actions/cache@v1
-        with:
-          path: ~/.m2/repository
-          # Only restore maven cache for this exact commit. If we start incrementing the version
-          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build Tests
         run: mvn -ntp -U generate-test-sources generate-test-resources test-compile -DskipTests
       - name: Run E2E Tests in parallel
