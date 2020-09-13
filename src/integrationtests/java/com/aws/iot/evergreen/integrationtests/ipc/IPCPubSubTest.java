@@ -114,7 +114,6 @@ class IPCPubSubTest {
         cb.getLeft().get(5, TimeUnit.SECONDS);
     }
 
-
     @Test
     void GIVEN_pubsubclient_WHEN_authorized_THEN_ACL_child_removed_THEN_updates() throws Exception {
         kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",

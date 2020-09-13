@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.deployment.converter;
 
 import com.amazonaws.arn.Arn;
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
@@ -67,23 +68,27 @@ public final class DeploymentDocumentConverter {
                 .deploymentPackageConfigurationList(packageConfigurations)
                 // Currently we always skip safety check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK)
-                .groupName(StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? DEFAULT_GROUP_NAME
-                        : localOverrideRequest.getGroupName()).build();
+                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).groupName(
+                        StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? DEFAULT_GROUP_NAME
+                                : localOverrideRequest.getGroupName()).build();
     }
 
     /**
      * Convert {@link FleetConfiguration} to a {@link DeploymentDocument}.
+     *
      * @param config config received from Iot cloud
      * @return equivalent {@link DeploymentDocument}
      */
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
+        ComponentUpdatePolicyAction action = config.getComponentUpdatePolicy() == null ? null
+                : ComponentUpdatePolicyAction.fromValue(config.getComponentUpdatePolicy().getAction());
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
-                .timestamp(config.getCreationTimestamp())
-                .failureHandlingPolicy(config.getFailureHandlingPolicy())
-                .deploymentSafetyPolicy(config.getDeploymentSafetyPolicy())
-                .rootPackages(new ArrayList<>()).deploymentPackageConfigurationList(new ArrayList<>())
-                .build();
+                .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
+                // TODO: Use full featured component update policy and configuration validation policy with timeouts
+                .deploymentSafetyPolicy(
+                        action == ComponentUpdatePolicyAction.NOTIFY_COMPONENTS ? DeploymentSafetyPolicy.CHECK_SAFETY
+                                : DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).rootPackages(new ArrayList<>())
+                .deploymentPackageConfigurationList(new ArrayList<>()).build();
 
         String groupName;
         try {
@@ -123,8 +128,7 @@ public final class DeploymentDocumentConverter {
         } else {
             packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream()
                     .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
-                            entry.getValue()))
-                    .collect(Collectors.toList());
+                            entry.getValue())).collect(Collectors.toList());
         }
         // Add to or update root component with version in the configuration lists
         newRootComponents.forEach((rootComponentName, version) -> {

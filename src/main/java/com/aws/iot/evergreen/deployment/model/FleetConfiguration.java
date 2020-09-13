@@ -5,6 +5,8 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
@@ -37,5 +39,7 @@ public class FleetConfiguration {
 
     private FailureHandlingPolicy failureHandlingPolicy;
 
-    private DeploymentSafetyPolicy deploymentSafetyPolicy;
+    private ComponentUpdatePolicy componentUpdatePolicy;
+
+    private ConfigurationValidationPolicy configurationValidationPolicy;
 }

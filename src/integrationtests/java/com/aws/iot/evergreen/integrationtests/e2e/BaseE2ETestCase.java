@@ -8,15 +8,17 @@ package com.aws.iot.evergreen.integrationtests.e2e;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
-import com.amazonaws.services.evergreen.model.DeploymentSafetyPolicy;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
-import com.amazonaws.services.evergreen.model.ResourceAlreadyExistException;
+import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.amazonaws.services.evergreen.model.SetConfigurationResult;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
@@ -245,7 +247,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         for (PackageIdentifier pkgId : pkgIds) {
             try {
                 draftComponent(pkgId);
-            } catch (ResourceAlreadyExistException e) {
+            } catch (ResourceAlreadyExistsException e) {
                 // Don't fail the test if the component exists
                 errors.add(e.getMessage());
             }
@@ -267,7 +269,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         // update recipe
         String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
         Set<String> componentNameSet = Arrays.stream(componentsWithArtifactsInS3)
-                .map(component -> component.getName()).collect(Collectors.toSet());
+                .map(PackageIdentifier::getName).collect(Collectors.toSet());
 
         for (String cloudPkgName: componentNameSet) {
             String localPkgName = removeTestComponentNameCloudSuffix(cloudPkgName);
@@ -354,16 +356,17 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         // update package name with random suffix to avoid conflict in cloud
         Map<String, PackageMetaData> updatedPkgMetadata = new HashMap<>();
-        setRequest.getPackages().forEach((key, val) -> {
-            updatedPkgMetadata.put(getTestComponentNameInCloud(key), val);
-        });
+        setRequest.getPackages().forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
         setRequest.setPackages(updatedPkgMetadata);
 
         // set default value
         if (setRequest.getDeploymentPolicies() == null) {
             setRequest.withDeploymentPolicies(new DeploymentPolicies()
-                .withDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY)
-                .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
+                    .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                    .withComponentUpdatePolicy(
+                            new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                    .withTimeout(120))
+                    .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
         }
 
         logger.atInfo().kv("setRequest", setRequest).log();
