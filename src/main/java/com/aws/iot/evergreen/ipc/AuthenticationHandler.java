@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.dependency.InjectionActions;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
+import com.aws.iot.evergreen.ipc.modules.CLIService;
 import com.aws.iot.evergreen.ipc.services.authentication.AuthenticationRequest;
 import com.aws.iot.evergreen.ipc.services.authentication.AuthenticationResponse;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
@@ -59,6 +60,43 @@ public class AuthenticationHandler implements InjectionActions {
             tokenTopic.withValue(s.getName());
         } else {
             registerAuthenticationToken(s);
+        }
+    }
+
+    /**
+     * Register an auth token for an external client which is not part of Evergreen. Only authenticate EG service can
+     * register such a token.
+     * @param requestingAuthToken Auth token of the requesting service
+     * @param clientIdentifier The identifier to identify the client for which the token is being requested
+     * @return Auth token.
+     * @throws UnauthenticatedException thrown when the requestAuthToken is invalid
+     */
+    public String registerAuthenticationTokenForExternalClient(String requestingAuthToken,
+                                                               String clientIdentifier)
+            throws UnauthenticatedException {
+        String authenticatedService = doAuthentication(requestingAuthToken);
+        // Making it available only for CLIService right now. If it needs to be extended, requesting service can be
+        // taken as a parameter
+        if (!authenticatedService.equals(CLIService.CLI_SERVICE)) {
+            logger.atError().kv("Requesting service name", CLIService.CLI_SERVICE)
+                    .log("Invalid requesting auth token for service");
+            throw new UnauthenticatedException("Invalid requesting auth token for service");
+        }
+
+        String authenticationToken = Utils.generateRandomString(16).toUpperCase();
+        Topics tokenTopics = config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
+                AUTHENTICATION_TOKEN_LOOKUP_KEY);
+        tokenTopics.withParentNeedsToKnow(false);
+
+        Topic tokenTopic = tokenTopics.createLeafChild(authenticationToken);
+
+        // If the authentication token was already registered, that's an issue, so we will retry
+        // generating a new token in that case
+        if (tokenTopic.getOnce() == null) {
+            tokenTopic.withValue(clientIdentifier);
+            return authenticationToken;
+        } else {
+            return registerAuthenticationTokenForExternalClient(requestingAuthToken, clientIdentifier);
         }
     }
 

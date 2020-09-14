@@ -66,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EGExtension.class)
 class IPCServicesTest {
 
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 10;
+
     @TempDir
     static Path tempRootDir;
 
@@ -183,8 +185,8 @@ class IPCServicesTest {
         configuration.lookup("DDF").withValue("ddf");
 
         try {
-            pAbc.getLeft().get(5, TimeUnit.SECONDS);
-            pDdf.getLeft().get(5, TimeUnit.SECONDS);
+            pAbc.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
+            pDdf.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
         } finally {
             configuration.remove();
         }
@@ -228,8 +230,9 @@ class IPCServicesTest {
 
         CompletableFuture<ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
-        agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
-        cb.getLeft().get(2, TimeUnit.SECONDS);
+        agent.validateConfiguration("ServiceName",
+                Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
+        cb.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
 
         c.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
         assertEquals(ConfigurationValidityStatus.VALID, responseTracker.get().getStatus());
@@ -250,7 +253,7 @@ class IPCServicesTest {
         c.updateConfiguration("ServiceName", Collections.singletonList("SomeKeyToUpdate"), "SomeValueToUpdate",
                 System.currentTimeMillis(), null);
 
-        assertTrue(configUpdated.await(5, TimeUnit.SECONDS));
+        assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
         assertEquals("SomeValueToUpdate", configToUpdate.getOnce());
     }
 
@@ -294,7 +297,7 @@ class IPCServicesTest {
         });
         Lifecycle lifecycle = new LifecycleImpl(client);
         lifecycle.updateState("ERRORED");
-        assertTrue(cdl.await(5, TimeUnit.SECONDS));
+        assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
     }
 
 }

@@ -17,6 +17,7 @@ import com.aws.iot.evergreen.fss.OverallStatus;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
 import com.aws.iot.evergreen.util.Coerce;
@@ -97,6 +98,13 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                     mqttMessagesList.get().add(m);
                 }).build());
 
+        CountDownLatch fssPublishLatch = new CountDownLatch(2);
+        Slf4jLogAdapter.addGlobalListener(eslm->{
+            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
+                    && eslm.getMessage().equals("Status update published to FSS")) {
+                fssPublishLatch.countDown();
+            }
+        });
         // First Deployment to have some services running in Kernel which can be removed later
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
@@ -105,7 +113,6 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
-
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
@@ -135,7 +142,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
         assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("SomeService").getState());
-
+        fssPublishLatch.await(30, TimeUnit.SECONDS);
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
         assertEquals(2, mqttMessagesList.get().size());
         String accountId = Coerce.toString(Arn.fromString(thingInfo.getThingArn()).getAccountId());

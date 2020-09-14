@@ -21,6 +21,7 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.MqttChunkedPayloadPublisher;
 import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -66,7 +67,8 @@ public class FleetStatusService extends EvergreenService {
     private final Kernel kernel;
     private final String architecture;
     private final String platform;
-    private final MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
+    @Getter @Setter
+    private MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
@@ -354,6 +356,7 @@ public class FleetStatusService extends EvergreenService {
                 .sequenceNumber(sequenceNumber)
                 .build();
         publisher.publish(fleetStatusDetails, components);
+        logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }
 
     private Topic getSequenceNumberTopic() {
@@ -409,4 +412,5 @@ public class FleetStatusService extends EvergreenService {
     void clearEvergreenServiceSet() {
         updatedEvergreenServiceSet.clear();
     }
+
 }
