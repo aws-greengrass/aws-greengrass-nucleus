@@ -57,16 +57,13 @@ public class SystemMetricsEmitter {
 
     protected void emitMetrics() {
         MetricDataBuilder mdb = systemMetrics.get(TelemetryMetricName.CpuUsage);
-        mdb.putMetricData(cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER)
-                .emit();
+        mdb.putMetricData(cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
         previousTicks = cpu.getSystemCpuLoadTicks();
 
         mdb = systemMetrics.get(TelemetryMetricName.SystemMemUsage);
-        mdb.putMetricData(systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse() / MB_CONVERTER)
-                .emit();
+        mdb.putMetricData(systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse() / MB_CONVERTER);
 
         mdb = systemMetrics.get(TelemetryMetricName.TotalNumberOfFDs);
-        mdb.putMetricData(systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors())
-                .emit();
+        mdb.putMetricData(systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
     }
 }

@@ -3,7 +3,7 @@ package com.aws.iot.evergreen.telemetry;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.telemetry.impl.MetricDataPoint;
+import com.aws.iot.evergreen.telemetry.impl.Metric;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
 import com.aws.iot.evergreen.telemetry.impl.TelemetryLoggerMessage;
 import com.aws.iot.evergreen.telemetry.impl.config.TelemetryConfig;
@@ -47,8 +47,8 @@ public class MetricsAggregator {
     protected void aggregateMetrics(long lastAgg, long currTimestamp) {
         for (TelemetryNamespace namespace : TelemetryNamespace.values()) {
             AggregatedMetric aggMetrics = new AggregatedMetric();
-            HashMap<TelemetryMetricName, List<MetricDataPoint>> metrics = new HashMap<>();
-            MetricDataPoint mdp;
+            HashMap<TelemetryMetricName, List<Metric>> metrics = new HashMap<>();
+            Metric mdp;
             try {
                 List<Path> paths = Files
                         .walk(TelemetryConfig.getTelemetryDirectory())
@@ -83,11 +83,11 @@ public class MetricsAggregator {
                             */
                             EvergreenStructuredLogMessage egLog = objectMapper.readValue(log,
                                     EvergreenStructuredLogMessage.class);
-                            mdp = objectMapper.readValue(egLog.getMessage(), MetricDataPoint.class);
+                            mdp = objectMapper.readValue(egLog.getMessage(), Metric.class);
                             // Avoid the metrics that are emitted at/after the currTimestamp and before the
                             // aggregation interval
                             if (mdp != null && currTimestamp > mdp.getTimestamp() && mdp.getTimestamp() >= lastAgg) {
-                                metrics.computeIfAbsent(mdp.getMetric().getName(), k -> new ArrayList<>()).add(mdp);
+                                metrics.computeIfAbsent(mdp.getName(), k -> new ArrayList<>()).add(mdp);
                             }
                         } catch (IOException e) {
                             logger.atError().log("Unable to parse the metric log.", e);
@@ -104,12 +104,12 @@ public class MetricsAggregator {
         }
     }
 
-    private List<Metric> doAggregation(Map<TelemetryMetricName, List<MetricDataPoint>> metrics) {
-        List<Metric> aggMetrics = new ArrayList<>();
-        for (Map.Entry<TelemetryMetricName, List<MetricDataPoint>> metric : metrics.entrySet()) {
+    private List<AggregatedMetric.Metric> doAggregation(Map<TelemetryMetricName, List<Metric>> metrics) {
+        List<AggregatedMetric.Metric> aggMetrics = new ArrayList<>();
+        for (Map.Entry<TelemetryMetricName, List<Metric>> metric : metrics.entrySet()) {
             TelemetryMetricName metricName = metric.getKey();
-            List<MetricDataPoint> mdp = metric.getValue();
-            TelemetryAggregation telemetryAggregation = mdp.get(0).getMetric().getAggregation();
+            List<Metric> mdp = metric.getValue();
+            TelemetryAggregation telemetryAggregation = mdp.get(0).getAggregation();
             double aggregation = 0;
             if (telemetryAggregation.equals(TelemetryAggregation.Average)) {
                 aggregation = mdp
@@ -141,9 +141,9 @@ public class MetricsAggregator {
                         .min()
                         .getAsDouble();
             }
-            Metric m = Metric.builder()
+            AggregatedMetric.Metric m = AggregatedMetric.Metric.builder()
                     .metricName(metricName)
-                    .metricUnit(mdp.get(0).getMetric().getUnit())
+                    .metricUnit(mdp.get(0).getUnit())
                     .value(aggregation)
                     .build();
             aggMetrics.add(m);
@@ -226,18 +226,19 @@ public class MetricsAggregator {
         private TelemetryNamespace metricNamespace;
         @JsonProperty("M")
         private List<Metric> metrics;
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder
+        public static class Metric {
+            @JsonProperty("N")
+            private TelemetryMetricName metricName;
+            @JsonProperty("V")
+            private Object value;
+            @JsonProperty("U")
+            private TelemetryUnit metricUnit;
+        }
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class Metric {
-        @JsonProperty("N")
-        private TelemetryMetricName metricName;
-        @JsonProperty("V")
-        private Object value;
-        @JsonProperty("U")
-        private TelemetryUnit metricUnit;
-    }
+
 }

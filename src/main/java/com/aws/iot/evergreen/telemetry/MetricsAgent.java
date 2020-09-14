@@ -64,7 +64,7 @@ public class MetricsAgent extends EvergreenService {
     private ScheduledFuture<?> periodicEmitSystemMetricsFuture = null;
     @Getter(AccessLevel.PACKAGE)
     private ScheduledFuture<?> periodicEmitKernelMetricsFuture = null;
-    @Getter(AccessLevel.PACKAGE)
+    @Getter //used in e2e
     private ScheduledFuture<?> periodicPublishMetricsFuture = null;
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -123,7 +123,6 @@ public class MetricsAgent extends EvergreenService {
                 }
             }
         }
-
         synchronized (periodicAggregateMetricsInProgressLock) {
             // Start emitting metrics with no delay. This is device specific where metrics are stored in files.
             periodicEmitSystemMetricsFuture = ses.scheduleWithFixedDelay(this::emitPeriodicSystemMetrics, 0,
@@ -135,7 +134,6 @@ public class MetricsAgent extends EvergreenService {
             // As the time based metrics (eg. System metrics) are emitted with the same interval as aggregation, start
             // aggregating the metrics after at least one data point is emitted. So, the initial delay to aggregate the
             // metrics can be made equal to the interval. This is device specific where the metrics are stored in files.
-
             periodicAggregateMetricsFuture = ses.scheduleWithFixedDelay(this::aggregatePeriodicMetrics,
                     periodicAggregateMetricsIntervalSec, periodicAggregateMetricsIntervalSec, TimeUnit.SECONDS);
         }
@@ -159,7 +157,7 @@ public class MetricsAgent extends EvergreenService {
         }
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
         // all the devices to send the periodic publish of metrics at the same time.
-        long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec);
+        long initialDelay = RandomUtils.nextLong(1, periodicPublishMetricsIntervalSec + 1);
         synchronized (periodicPublishMetricsInProgressLock) {
             periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
                     periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);

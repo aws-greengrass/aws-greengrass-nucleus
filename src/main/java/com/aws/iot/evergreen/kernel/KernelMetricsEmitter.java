@@ -76,7 +76,7 @@ public class KernelMetricsEmitter {
         }
         for (HashMap.Entry<TelemetryMetricName, MetricDataBuilder> kernelMetric : kernelMetrics.entrySet()) {
             MetricDataBuilder metricDataBuilder = kernelMetric.getValue();
-            metricDataBuilder.putMetricData(kernelMetricsData.get(kernelMetric.getKey())).emit();
+            metricDataBuilder.putMetricData(kernelMetricsData.get(kernelMetric.getKey()));
             kernelMetricsData.put(kernelMetric.getKey(), 0);
         }
     }

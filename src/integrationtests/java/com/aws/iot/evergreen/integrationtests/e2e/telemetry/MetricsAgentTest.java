@@ -5,43 +5,43 @@
 
 package com.aws.iot.evergreen.integrationtests.e2e.telemetry;
 
-import com.amazonaws.services.evergreen.model.PackageMetaData;
-import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
-import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
-import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
 import com.aws.iot.evergreen.telemetry.MetricsAgent;
-import com.aws.iot.evergreen.telemetry.MetricsAggregator;
 import com.aws.iot.evergreen.telemetry.MetricsPayload;
+import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
+import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
-import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
-import java.time.Duration;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
-// TODO : Complete the tests
 @SuppressWarnings("PMD.CloseResource")
+@ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class MetricsAgentTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
@@ -62,58 +62,70 @@ public class MetricsAgentTest extends BaseE2ETestCase {
     void launchKernel() throws Exception {
         initKernel();
         kernel.launch();
-
-        // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
-        // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
-        // creating new IoT job here.
-        TimeUnit.SECONDS.sleep(10);
     }
 
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Timeout(value = 3, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_finishes_THEN_fss_data_is_uploaded() throws Exception {
+    void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_finishes_THEN_fss_data_is_uploaded() throws
+            InterruptedException, ExecutionException, TimeoutException, ServiceLoadException {
+        /*
+         Metrics agent is an auto-start service. It publishes data to the cloud irrespective of the deployments.
+         In this test, we just start the kernel and expect MA to publish time-based metrics such as system metrics and
+         kernel component state metrics in the given interval.
+        */
         MqttClient client = kernel.getContext().get(MqttClient.class);
-
-        CountDownLatch cdl = new CountDownLatch(2);
+        CountDownLatch cdl = new CountDownLatch(1);
         AtomicReference<List<MqttMessage>> mqttMessagesList = new AtomicReference<>();
         mqttMessagesList.set(new ArrayList<>());
-        // TODO: Make the publish topic configurable?
+        long aggInterval = 1;
+        long pubInterval = 5;
+        MetricsPayload mp = null;
+        Topics maTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                MetricsAgent.METRICS_AGENT_SERVICE_TOPICS);
+        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, MetricsAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
+                .withValue(aggInterval);
+        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, MetricsAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
+                .withValue(pubInterval);
+        String telemetryTopic = MetricsAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC
+                .replace("{thingName}", thingInfo.getThingName());
         client.subscribe(SubscribeRequest.builder()
-                .topic(MetricsAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", thingInfo.getThingName()))
+                .topic(telemetryTopic)
                 .callback((m) -> {
                     cdl.countDown();
                     mqttMessagesList.get().add(m);
-                }).build());
-        Topics maTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                MetricsAgent.METRICS_AGENT_SERVICE_TOPICS);
-        maTopics.lookup(PARAMETERS_CONFIG_KEY, MetricsAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
-                .withValue(5);
-        maTopics.lookup(PARAMETERS_CONFIG_KEY, MetricsAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
-                .withValue(3);
-        //Deployment to have some services running in Kernel
-        SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
-                .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
-        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+                })
+                .build());
+        cdl.await(30, TimeUnit.SECONDS);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
-                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        // We expect that the Metrics Agent service to be available
+        MetricsAgent ma = (MetricsAgent) kernel.locate("MetricsAgent");
+        assertEquals(ma.getState(), State.RUNNING);
 
+        long delay = ma.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
+        // the delay for publishing the interval must be less than the publish interval set.
+        assertTrue(delay < pubInterval);
 
-        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        List<List<MetricsAggregator.AggregatedMetric>> metrics = new ArrayList<>();
         for (MqttMessage mt : mqttMessagesList.get()) {
-            try {
-                // In this test, we filter only the metrics payload.
-                MetricsPayload mp = DESERIALIZER.readValue(mt.getPayload(), MetricsPayload.class);
-                metrics.add(mp.getAggregatedMetricList());
-            } catch (MismatchedInputException  e) {
-                // do nothing if the payload is something else
+            // In this test, we filter only the metrics payload.
+            if (mt.getTopic().equals(telemetryTopic)) {
+                try {
+                    mp = DESERIALIZER.readValue(mt.getPayload(), MetricsPayload.class);
+                } catch (IOException e) {
+                    //do nothing if it not a metrics payload message.
+                }
             }
+        }
+        if (mp != null) {
+            assertEquals("2020-07-30", mp.getSchema());
+            /*
+             In this test, aggregated metrics logs are emitted once every second.
+             So,for eg, if publishing the metrics starts randomly at the 3rd second, metrics that were aggregated in
+             1,2,3 seconds are published which contains a list of n entries each where n is the no of namespaces(3rd
+             second aggregations are not included if publishing thread starts before aggregation and hence the >=).
+            */
+            assertTrue(delay * TelemetryNamespace.values().length >= mp.getAggregatedMetricList().size());
+        } else {
+            fail("Telemetry data is not published in the given interval");
         }
     }
 }

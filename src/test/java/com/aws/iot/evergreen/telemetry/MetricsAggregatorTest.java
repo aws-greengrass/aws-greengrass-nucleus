@@ -61,15 +61,15 @@ public class MetricsAggregatorTest {
         m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.TotalNumberOfFDs,
                 TelemetryUnit.Count, TelemetryAggregation.Maximum);
         MetricDataBuilder mdb3 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
-        mdb1.putMetricData(10).emit();
-        mdb2.putMetricData(2000).emit();
-        mdb3.putMetricData(4000).emit();
-        mdb1.putMetricData(20).emit();
-        mdb2.putMetricData(3000).emit();
-        mdb3.putMetricData(5000).emit();
-        mdb1.putMetricData(30).emit();
-        mdb2.putMetricData(4000).emit();
-        mdb3.putMetricData(6000).emit();
+        mdb1.putMetricData(10);
+        mdb2.putMetricData(2000);
+        mdb3.putMetricData(4000);
+        mdb1.putMetricData(20);
+        mdb2.putMetricData(3000);
+        mdb3.putMetricData(5000);
+        mdb1.putMetricData(30);
+        mdb2.putMetricData(4000);
+        mdb3.putMetricData(6000);
         MetricsAggregator ma = new MetricsAggregator();
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
@@ -81,7 +81,7 @@ public class MetricsAggregatorTest {
                     MetricsAggregator.AggregatedMetric.class);
             if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
                 assertEquals(3, am.getMetrics().size()); // Three system metrics
-                for (MetricsAggregator.Metric metrics : am.getMetrics()) {
+                for (MetricsAggregator.AggregatedMetric.Metric metrics : am.getMetrics()) {
                     if (metrics.getMetricName().equals(TelemetryMetricName.CpuUsage)) {
                         assertEquals((double) 60, metrics.getValue());
                     } else if (metrics.getMetricName().equals(TelemetryMetricName.SystemMemUsage)) {
@@ -125,12 +125,11 @@ public class MetricsAggregatorTest {
         new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(null);
 
         // Put null data
-        mdb1.putMetricData(null).emit();
+        mdb1.putMetricData(null);
 
         // Put invalid data for average aggregation
-        mdb2.putMetricData("banana").emit();
-        mdb2.putMetricData(2000).emit();
-
+        mdb2.putMetricData("banana");
+        mdb2.putMetricData(2000);
         MetricsAggregator ma = new MetricsAggregator();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());
@@ -142,7 +141,7 @@ public class MetricsAggregatorTest {
                     MetricsAggregator.AggregatedMetric.class);
             if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
                 assertEquals(2, am.getMetrics().size()); // Two system metrics, one of them is null
-                for (MetricsAggregator.Metric metrics : am.getMetrics()) {
+                for (MetricsAggregator.AggregatedMetric.Metric metrics : am.getMetrics()) {
                     if (metrics.getMetricName().equals(TelemetryMetricName.CpuUsage)) {
                         assertEquals((double) 0, metrics.getValue()); //No valid data point to aggregate
                     } else if (metrics.getMetricName().equals(TelemetryMetricName.SystemMemUsage)) {
@@ -160,10 +159,10 @@ public class MetricsAggregatorTest {
         long lastPublish = Instant.now().toEpochMilli();
         MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
-        List<MetricsAggregator.Metric> metricList = new ArrayList<>();
-        metricList.add(new MetricsAggregator.Metric(TelemetryMetricName.TotalNumberOfFDs, 4000, TelemetryUnit.Count));
-        metricList.add(new MetricsAggregator.Metric(TelemetryMetricName.CpuUsage, 15, TelemetryUnit.Percent));
-        metricList.add(new MetricsAggregator.Metric(TelemetryMetricName.SystemMemUsage, 9000, TelemetryUnit.Megabytes));
+        List<MetricsAggregator.AggregatedMetric.Metric> metricList = new ArrayList<>();
+        metricList.add(new MetricsAggregator.AggregatedMetric.Metric(TelemetryMetricName.TotalNumberOfFDs, 4000, TelemetryUnit.Count));
+        metricList.add(new MetricsAggregator.AggregatedMetric.Metric(TelemetryMetricName.CpuUsage, 15, TelemetryUnit.Percent));
+        metricList.add(new MetricsAggregator.AggregatedMetric.Metric(TelemetryMetricName.SystemMemUsage, 9000, TelemetryUnit.Megabytes));
         MetricsAggregator.AggregatedMetric aggregatedMetric = new MetricsAggregator.AggregatedMetric
                 (currentTimestamp, TelemetryNamespace.SystemMetrics, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
@@ -208,10 +207,10 @@ public class MetricsAggregatorTest {
         long lastPublish = Instant.now().toEpochMilli();
         MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
-        List<MetricsAggregator.Metric> metricList = new ArrayList<>();
-        metricList.add(new MetricsAggregator.Metric(TelemetryMetricName.TotalNumberOfFDs, 4000, TelemetryUnit.Count));
-        metricList.add(new MetricsAggregator.Metric(TelemetryMetricName.CpuUsage, 15, TelemetryUnit.Percent));
-        metricList.add(new MetricsAggregator.Metric(TelemetryMetricName.SystemMemUsage, 9000, TelemetryUnit.Megabytes));
+        List<MetricsAggregator.AggregatedMetric.Metric> metricList = new ArrayList<>();
+        metricList.add(new MetricsAggregator.AggregatedMetric.Metric(TelemetryMetricName.TotalNumberOfFDs, 4000, TelemetryUnit.Count));
+        metricList.add(new MetricsAggregator.AggregatedMetric.Metric(TelemetryMetricName.CpuUsage, 15, TelemetryUnit.Percent));
+        metricList.add(new MetricsAggregator.AggregatedMetric.Metric(TelemetryMetricName.SystemMemUsage, 9000, TelemetryUnit.Megabytes));
         MetricsAggregator.AggregatedMetric aggregatedMetric = new MetricsAggregator.AggregatedMetric
                 (currentTimestamp, TelemetryNamespace.SystemMetrics, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
