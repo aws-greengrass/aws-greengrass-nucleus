@@ -97,10 +97,10 @@ public class IotConnectionManager implements Closeable {
      */
     @Override
     public void close() {
-        // TODO: tear down connections gracefully
-        eventLoopGroup.close();
-        resolver.close();
+        connManager.close();
         clientBootstrap.close();
+        resolver.close();
+        eventLoopGroup.close();
     }
 
 }
