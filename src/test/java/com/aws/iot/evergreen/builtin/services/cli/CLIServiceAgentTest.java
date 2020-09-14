@@ -30,6 +30,7 @@ import com.aws.iot.evergreen.packagemanager.PackageStore;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +40,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -76,7 +78,7 @@ public class CLIServiceAgentTest {
     private static final String MOCK_PARAM_KEY = "ParamKey";
     private static final String MOCK_PARAM_VALUE = "ParamValue";
 
-    private static ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -85,10 +87,16 @@ public class CLIServiceAgentTest {
     @Mock
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
     private CLIServiceAgent cliServiceAgent;
+    private final Context context = new Context();
 
     @BeforeEach
     public void setup() {
         cliServiceAgent = new CLIServiceAgent(kernel, deploymentsQueue);
+    }
+
+    @AfterEach
+    public void shutdown() throws IOException {
+        context.close();
     }
 
     @Test
@@ -392,7 +400,7 @@ public class CLIServiceAgentTest {
     @Test
     public void testListLocalDeployments_success() throws Exception {
         Topics mockServiceConfig = mock(Topics.class);
-        Topics mockLocalDeployments = Topics.of(new Context(), PERSISTENT_LOCAL_DEPLOYMENTS, null);
+        Topics mockLocalDeployments = Topics.of(context, PERSISTENT_LOCAL_DEPLOYMENTS, null);
         Map<String, Object> deploymentDetails = new HashMap<>();
         deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS);
         Map<String, Object> deploymentDetails2 = new HashMap<>();

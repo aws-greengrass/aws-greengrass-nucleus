@@ -433,12 +433,11 @@ public final class Exec implements Closeable {
         private int nlines = 0;
 
         Copier(InputStream i, Consumer<CharSequence> s) {
-            super();
+            super("Copier");
             in = i;
             out = s;
             // Set as a daemon thread so that it dies when the main thread exits
             setDaemon(true);
-            setName("Copier");
             if (whenDone != null) {
                 if (numberOfCopiers == null) {
                     numberOfCopiers = new AtomicInteger(1);
