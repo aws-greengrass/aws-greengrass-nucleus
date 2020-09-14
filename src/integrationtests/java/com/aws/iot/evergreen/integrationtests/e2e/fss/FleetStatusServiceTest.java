@@ -17,6 +17,7 @@ import com.aws.iot.evergreen.fss.OverallStatus;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
@@ -39,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
@@ -57,6 +59,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
     private static final String FLEET_STATUS_ARN_SERVICE = "greengrass";
     private static final String FLEET_STATUS_ARN_PARTITION = "aws";
+    private Consumer<EvergreenStructuredLogMessage> logListener;
 
     @AfterEach
     void afterEach() {
@@ -66,6 +69,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
             }
         } finally {
             // Cleanup all IoT thing resources we created
+            Slf4jLogAdapter.removeGlobalListener(logListener);
             cleanup();
         }
     }
@@ -99,12 +103,13 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                 }).build());
 
         CountDownLatch fssPublishLatch = new CountDownLatch(2);
-        Slf4jLogAdapter.addGlobalListener(eslm->{
+        logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
                     && eslm.getMessage().equals("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
-        });
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
         // First Deployment to have some services running in Kernel which can be removed later
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)

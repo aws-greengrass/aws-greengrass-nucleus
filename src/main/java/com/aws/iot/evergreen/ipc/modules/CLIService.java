@@ -148,7 +148,7 @@ public class CLIService extends EvergreenService {
     @SuppressWarnings("PMD.PrematureDeclaration")
     private void generateCliIpcInfo() throws UnauthenticatedException, IOException {
         String cliAuthToken = authenticationHandler.registerAuthenticationTokenForExternalClient(
-                Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce()),
+                Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY)),
                 GREENGRASS_CLI);
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
@@ -159,8 +159,7 @@ public class CLIService extends EvergreenService {
         } else {
             //TODO: Change the URL as per the new IPC
             ipcInfo.put(SOCKET_URL, Coerce.toString(
-                    config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)
-                            .getOnce()));
+                    config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
         }
 
         Path filePath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
