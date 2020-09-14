@@ -275,7 +275,7 @@ class GenericExternalServiceTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_bootstrap_command_WHEN_runs_longer_than_120_sec_THEN_timeout_exception_is_thrown() throws Exception {
+    void GIVEN_bootstrap_command_WHEN_runs_longer_than_5_sec_THEN_timeout_exception_is_thrown() throws Exception {
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
 
@@ -292,7 +292,7 @@ class GenericExternalServiceTest extends BaseITCase {
         GenericExternalService serviceWithJustBootstrapAndShouldTimeout =
                 (GenericExternalService) kernel.locate("service_with_just_bootstrap_and_should_timeout");
 
-        // this runs 2 minutes
+        // this runs 5 seconds
         assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
     }
 }

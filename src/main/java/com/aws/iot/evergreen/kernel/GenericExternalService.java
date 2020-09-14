@@ -289,10 +289,10 @@ public class GenericExternalService extends EvergreenService {
             run(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
-            return;
+        } finally {
+            stopAllLifecycleProcesses();
+            logger.atInfo().setEventType("generic-service-shutdown").log();
         }
-        stopAllLifecycleProcesses();
-        logger.atInfo().setEventType("generic-service-shutdown").log();
     }
 
     private synchronized void stopAllLifecycleProcesses() {
@@ -364,13 +364,12 @@ public class GenericExternalService extends EvergreenService {
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
 
-        RunStatus ret =
-                shellRunner.successful(exec, t.getFullName(), background, this) ? RunStatus.OK : RunStatus.Errored;
-
         // Track all running processes that we fork
         if (exec.isRunning()) {
             trackingList.add(exec);
         }
+        RunStatus ret =
+                shellRunner.successful(exec, t.getFullName(), background, this) ? RunStatus.OK : RunStatus.Errored;
         return new Pair<>(ret, exec);
     }
 

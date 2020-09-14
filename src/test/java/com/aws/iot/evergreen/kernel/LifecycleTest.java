@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -87,6 +88,7 @@ public class LifecycleTest {
         context.put(ExecutorService.class, executorService);
         context.put(ThreadPoolExecutor.class, ses);
         context.put(Clock.class, Clock.systemUTC());
+        context.put(Kernel.class, mock(Kernel.class));
 
         Topics rootConfig = new Configuration(context).getRoot();
         config = rootConfig.createInteriorChild(EvergreenService.SERVICES_NAMESPACE_TOPIC)
@@ -289,50 +291,57 @@ public class LifecycleTest {
     @Test
     void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified() throws InterruptedException {
         // set lifecycle thread with min priority
-        ExecutorService executorService = Executors.newCachedThreadPool(new MinPriorityThreadFactory());
-        context.put(Executor.class, executorService);
-        context.put(ExecutorService.class, executorService);
+        ExecutorService executorService = null;
+        try {
+            executorService = Executors.newCachedThreadPool(new MinPriorityThreadFactory());
+            context.put(Executor.class, executorService);
+            context.put(ExecutorService.class, executorService);
 
-        // set evergreenService startup() thread with max priority
-        Mockito.doAnswer((mock) -> {
-            Thread.currentThread().setPriority(Thread.MAX_PRIORITY - 1);
-            lifecycle.reportState(State.RUNNING);
-            lifecycle.reportState(State.ERRORED);
-            return null;
-        }).when(evergreenService).startup();
+            // set evergreenService startup() thread with max priority
+            Mockito.doAnswer((mock) -> {
+                Thread.currentThread().setPriority(Thread.MAX_PRIORITY - 1);
+                lifecycle.reportState(State.RUNNING);
+                lifecycle.reportState(State.ERRORED);
+                return null;
+            }).when(evergreenService).startup();
 
-        // GIVEN
-        lifecycle = new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig());
-        initLifecycleState(lifecycle, State.INSTALLED);
+            // GIVEN
+            lifecycle = new Lifecycle(evergreenService, logger, evergreenService.getPrivateConfig());
+            initLifecycleState(lifecycle, State.INSTALLED);
 
-        CountDownLatch processed = new CountDownLatch(1);
-        Mockito.doAnswer((mock) -> {
-            processed.countDown();
-            // sleep to block state transition
-            Thread.sleep(2000);
-            return null;
-        }).when(evergreenService).handleError();
+            CountDownLatch processed = new CountDownLatch(1);
+            Mockito.doAnswer((mock) -> {
+                processed.countDown();
+                // sleep to block state transition
+                Thread.sleep(2000);
+                return null;
+            }).when(evergreenService).handleError();
 
-        AtomicInteger runningReported  = new AtomicInteger(0);
-        AtomicInteger errorReported  = new AtomicInteger(0);
+            AtomicInteger runningReported = new AtomicInteger(0);
+            AtomicInteger errorReported = new AtomicInteger(0);
 
-        context.addGlobalStateChangeListener((service, old, newState) -> {
-            if (newState.equals(State.RUNNING)) {
-                runningReported.incrementAndGet();
-            } else if (newState.equals(State.ERRORED)) {
-                errorReported.incrementAndGet();
+            context.addGlobalStateChangeListener((service, old, newState) -> {
+                if (newState.equals(State.RUNNING)) {
+                    runningReported.incrementAndGet();
+                } else if (newState.equals(State.ERRORED)) {
+                    errorReported.incrementAndGet();
+                }
+            });
+
+            // WHEN
+            lifecycle.initLifecycleThread();
+            lifecycle.requestStart();
+
+            processed.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS);
+
+            // THEN
+            assertEquals(1, runningReported.get());
+            assertEquals(1, errorReported.get());
+        } finally {
+            if (executorService != null) {
+                executorService.shutdownNow();
             }
-        });
-
-        // WHEN
-        lifecycle.initLifecycleThread();
-        lifecycle.requestStart();
-
-        processed.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS);
-
-        // THEN
-        assertEquals(1, runningReported.get());
-        assertEquals(1, errorReported.get());
+        }
     }
 
     @Test

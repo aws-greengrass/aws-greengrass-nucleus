@@ -5,7 +5,6 @@ package com.aws.iot.evergreen.iot;
 
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.exceptions.AWSIotException;
-import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
@@ -37,26 +36,28 @@ public class IotConnectionManager implements Closeable {
     private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = Duration.ofMinutes(1).getSeconds();
     private final HttpClientConnectionManager connManager;
 
+    private final EventLoopGroup eventLoopGroup;
+    private final HostResolver resolver;
+    private final ClientBootstrap clientBootstrap;
+
     /**
      * Constructor.
      *
      * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
-     * @throws DeviceConfigurationException When unable to initialize this manager.
      */
     @Inject
-    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) {
+        eventLoopGroup = new EventLoopGroup(1);
+        resolver = new HostResolver(eventLoopGroup);
+        clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
         this.connManager = initConnectionManager(deviceConfiguration);
     }
 
-    private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration)
-            throws DeviceConfigurationException {
+    private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration) {
         final String certPath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
         final String keyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         final String caPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        try (EventLoopGroup eventLoopGroup = new EventLoopGroup(1);
-             HostResolver resolver = new HostResolver(eventLoopGroup);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-             TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
+        try (TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
             // TODO: Proxy support, ALPN support. Reuse connections across kernel
             tlsCtxOptions.overrideDefaultTrustStoreFromPath(null, caPath);
             return HttpClientConnectionManager
@@ -97,6 +98,9 @@ public class IotConnectionManager implements Closeable {
     @Override
     public void close() {
         // TODO: tear down connections gracefully
+        eventLoopGroup.close();
+        resolver.close();
+        clientBootstrap.close();
     }
 
 }

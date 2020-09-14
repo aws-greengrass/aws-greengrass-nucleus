@@ -7,6 +7,7 @@ import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigStoreServiceOpCodes;
 import com.aws.iot.evergreen.ipc.services.configstore.ConfigurationUpdateEvent;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +38,11 @@ public class ServiceEventHelperTest {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private final ServiceEventHelper serviceEventHelper = new ServiceEventHelper(executor);
+
+    @AfterEach
+    void after() {
+        executor.shutdownNow();
+    }
 
     @Test
     public void GIVEN_running_WHEN_send_event_called_THEN_send_event_to_client()
