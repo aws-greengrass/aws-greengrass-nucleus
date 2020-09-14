@@ -401,8 +401,10 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected void setupTesRoleAndAlias() throws InterruptedException, ServiceLoadException {
         deviceProvisioningHelper
                 .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
-        tesRolePolicyArn = deviceProvisioningHelper
-                .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
+        if (tesRolePolicyArn == null || !tesRolePolicyArn.isPresent()) {
+            tesRolePolicyArn = deviceProvisioningHelper
+                    .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
+        }
         deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
 
         // Force context to create TES now to that it subscribes to the role alias changes
