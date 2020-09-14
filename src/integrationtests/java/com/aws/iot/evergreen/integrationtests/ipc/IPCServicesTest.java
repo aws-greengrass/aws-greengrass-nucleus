@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EGExtension.class)
 class IPCServicesTest {
 
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 10;
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 2;
 
     @TempDir
     static Path tempRootDir;

@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EGExtension.class)
 class IPCPubSubTest {
 
-    private static int TIMEOUT_FOR_PUBSUB_SECONDS = 10;
+    private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
 
     @TempDir
     static Path tempRootDir;

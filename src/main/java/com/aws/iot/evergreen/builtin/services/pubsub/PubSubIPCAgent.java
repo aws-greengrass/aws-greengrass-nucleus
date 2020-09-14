@@ -81,12 +81,12 @@ public class PubSubIPCAgent {
      */
     public PubSubGenericResponse subscribe(PubSubSubscribeRequest subscribeRequest, ConnectionContext context) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
-        log.info("Subscribing to topic {}, {}", subscribeRequest.getTopic(), context);
+        log.debug("Subscribing to topic {}, {}", subscribeRequest.getTopic(), context);
         listeners.get(subscribeRequest.getTopic()).add(context);
         context.onDisconnect(() -> {
             if (listeners.containsKey(subscribeRequest.getTopic()) && listeners.get(subscribeRequest.getTopic())
                     .remove(context)) {
-                log.info("Client {} disconnected, removing subscription {}", context, subscribeRequest.getTopic());
+                log.debug("Client {} disconnected, removing subscription {}", context, subscribeRequest.getTopic());
             }
         });
 
@@ -101,7 +101,7 @@ public class PubSubIPCAgent {
      */
     public void subscribe(PubSubSubscribeRequest subscribeRequest, Consumer<MessagePublishedEvent> cb) {
         // TODO: Input validation. https://sim.amazon.com/issues/P32540011
-        log.info("Subscribing to topic {}", subscribeRequest.getTopic());
+        log.debug("Subscribing to topic {}", subscribeRequest.getTopic());
         listeners.get(subscribeRequest.getTopic()).add(cb);
     }
 
@@ -113,7 +113,7 @@ public class PubSubIPCAgent {
      * @return response
      */
     public PubSubGenericResponse unsubscribe(PubSubUnsubscribeRequest unsubscribeRequest, ConnectionContext context) {
-        log.info("Unsubscribing from topic {}, {}", unsubscribeRequest.getTopic(), context);
+        log.debug("Unsubscribing from topic {}, {}", unsubscribeRequest.getTopic(), context);
         if (listeners.containsKey(unsubscribeRequest.getTopic())) {
             listeners.get(unsubscribeRequest.getTopic()).remove(context);
             return new PubSubGenericResponse(PubSubResponseStatus.Success, null);
@@ -128,7 +128,7 @@ public class PubSubIPCAgent {
      * @param cb                 callback to remove from subscription
      */
     public void unsubscribe(PubSubUnsubscribeRequest unsubscribeRequest, Consumer<MessagePublishedEvent> cb) {
-        log.info("Unsubscribing from topic {}", unsubscribeRequest.getTopic());
+        log.debug("Unsubscribing from topic {}", unsubscribeRequest.getTopic());
         if (listeners.containsKey(unsubscribeRequest.getTopic())) {
             listeners.get(unsubscribeRequest.getTopic()).remove(cb);
         }
@@ -138,7 +138,7 @@ public class PubSubIPCAgent {
         if (sendTo instanceof ConnectionContext) {
             ConnectionContext context = (ConnectionContext) sendTo;
 
-            log.atInfo().log("Sending publish event {} to {}", event, context);
+            log.atDebug().log("Sending publish event {} to {}", event, context);
 
             try {
                 ApplicationMessage applicationMessage = ApplicationMessage.builder().version(PubSubImpl.API_VERSION)
