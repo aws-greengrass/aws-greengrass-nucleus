@@ -6,10 +6,10 @@
 package com.aws.iot.evergreen.deployment.converter;
 
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
 import com.aws.iot.evergreen.deployment.model.LocalOverrideRequest;
 import com.aws.iot.evergreen.deployment.model.PackageInfo;
@@ -22,9 +22,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
+
 public final class DeploymentDocumentConverter {
 
     public static final String DEFAULT_GROUP_NAME = "DEFAULT";
+    public static final Integer NO_OP_TIMEOUT = 0;
 
     public static final String ANY_VERSION = "*";
 
@@ -68,7 +71,8 @@ public final class DeploymentDocumentConverter {
                 .deploymentPackageConfigurationList(packageConfigurations)
                 // Currently we always skip safety check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).groupName(
+                // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
+                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
                         StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? DEFAULT_GROUP_NAME
                                 : localOverrideRequest.getGroupName()).build();
     }
@@ -80,15 +84,16 @@ public final class DeploymentDocumentConverter {
      * @return equivalent {@link DeploymentDocument}
      */
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
-        ComponentUpdatePolicyAction action = config.getComponentUpdatePolicy() == null ? null
-                : ComponentUpdatePolicyAction.fromValue(config.getComponentUpdatePolicy().getAction());
+        ComponentUpdatePolicy componentUpdatePolicy =
+                new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(),
+                        ComponentUpdatePolicyAction.valueOf(config.getComponentUpdatePolicy().getAction()));
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
                 // TODO: Use full featured component update policy and configuration validation policy with timeouts
-                .deploymentSafetyPolicy(
-                        action == ComponentUpdatePolicyAction.NOTIFY_COMPONENTS ? DeploymentSafetyPolicy.CHECK_SAFETY
-                                : DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).rootPackages(new ArrayList<>())
+                .componentUpdatePolicy(componentUpdatePolicy)
+                .rootPackages(new ArrayList<>())
                 .deploymentPackageConfigurationList(new ArrayList<>()).build();
+
 
         String groupName;
         try {

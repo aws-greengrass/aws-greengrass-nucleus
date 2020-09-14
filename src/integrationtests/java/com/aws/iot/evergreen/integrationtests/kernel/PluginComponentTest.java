@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.activator.KernelUpdateActivator;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
@@ -51,6 +52,7 @@ import java.util.concurrent.TimeoutException;
 
 import static com.aws.iot.evergreen.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -194,6 +196,7 @@ public class PluginComponentTest extends BaseITCase {
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).rootPackages(Arrays.asList(componentName))
+                .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS))
                 .groupName("ANY").deploymentPackageConfigurationList(Arrays.asList(
                         new DeploymentPackageConfiguration(componentName, true, version, null))).build();
     }

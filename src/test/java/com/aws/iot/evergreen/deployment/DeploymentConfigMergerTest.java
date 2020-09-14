@@ -9,10 +9,11 @@ import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
@@ -48,7 +49,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -282,17 +282,20 @@ public class DeploymentConfigMergerTest {
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("NoSafetyCheckDeploy");
-        doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK);
+        doc.setComponentUpdatePolicy(
+                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS));
+
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
         verify(updateSystemSafelyService, times(0)).addUpdateAction(any(), any());
 
         doc.setDeploymentId("DeploymentId");
-        doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY);
+        doc.setComponentUpdatePolicy(
+                new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), any());
+        verify(updateSystemSafelyService).addUpdateAction(any(), any());
     }
 
     @Test
@@ -305,11 +308,13 @@ public class DeploymentConfigMergerTest {
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
+        when(doc.getComponentUpdatePolicy()).thenReturn(
+                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
         Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), cancelledTaskCaptor.capture());
+        verify(updateSystemSafelyService)
+                .addUpdateAction(any(), cancelledTaskCaptor.capture());
 
         // WHEN
         fut.cancel(true);
@@ -335,12 +340,12 @@ public class DeploymentConfigMergerTest {
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
         DeploymentDocument doc = mock(DeploymentDocument.class);
-        when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
+        when(doc.getComponentUpdatePolicy()).thenReturn(
+                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), taskCaptor.capture());
+        verify(updateSystemSafelyService).addUpdateAction(any(), taskCaptor.capture());
 
         // WHEN
         taskCaptor.getValue().run();

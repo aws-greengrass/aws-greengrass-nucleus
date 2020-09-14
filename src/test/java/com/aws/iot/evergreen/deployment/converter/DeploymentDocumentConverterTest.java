@@ -6,6 +6,7 @@
 package com.aws.iot.evergreen.deployment.converter;
 
 import com.amazonaws.arn.Arn;
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
@@ -129,6 +130,8 @@ class DeploymentDocumentConverterTest {
                             put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
                             put("pkgB", new PackageInfo(false, "1.1.0", configMapB));
                         }})
+                        .componentUpdatePolicy(new ComponentUpdatePolicy().withAction( "NOTIFY_COMPONENTS")
+                                .withTimeout(60))
                         .configurationArn(configurationArn)
                         .build();
 

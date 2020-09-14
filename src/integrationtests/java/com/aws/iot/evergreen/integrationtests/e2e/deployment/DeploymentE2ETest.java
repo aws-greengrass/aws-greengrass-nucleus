@@ -333,7 +333,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         Slf4jLogAdapter.addGlobalListener(logListener);
 
         // WHEN
-        // Second deployment to update the service with SKIP_SAFETY_CHECK
+        // Second deployment to update the service with SKIP_NOTIFY_COMPONENTS
         SetConfigurationRequest setRequest2 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
                 .withTargetType(THING_GROUP_TARGET_TYPE)
