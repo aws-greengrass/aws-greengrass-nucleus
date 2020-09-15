@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Array;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.Buffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +41,7 @@ public final class Utils {
     private static final int OCTAL_RADIX = 8;
     private static final int BASE_10 = 10;
     private static final String TRUNCATED_STRING = "...";
+    private static final String FILE_URL_PREFIX = "file://";
     private static SecureRandom random;
 
     private Utils() {
@@ -656,5 +659,18 @@ public final class Utils {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    /**
+     * CLI params may support file URI. Detect the file URL prefix and read the file content if needed
+     * Reference: https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-parameters-file.html
+     * @param param a value or a file URL
+     * @return the same value or the file content if param is a file URI
+     * @throws URISyntaxException if provided file URI has syntax error
+     * @throws IOException on I/O Error
+     */
+    public static String loadParamMaybeFile(String param) throws URISyntaxException, IOException {
+        return param.startsWith(FILE_URL_PREFIX) ? new String(Files.readAllBytes(Paths.get(new URI(param))),
+                StandardCharsets.UTF_8) : param;
     }
 }
