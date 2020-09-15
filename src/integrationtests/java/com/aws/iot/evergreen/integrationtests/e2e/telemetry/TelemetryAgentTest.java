@@ -65,7 +65,7 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
 
     @Timeout(value = 3, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_kernel_running_WHEN_metrics_agent_starts_THEN_metrics_are_published_to_Cloud() throws
+    void GIVEN_kernel_running_WHEN_telemetry_agent_starts_THEN_metrics_are_published_to_Cloud() throws
             InterruptedException, ExecutionException, TimeoutException, ServiceLoadException {
         /*
          Metrics agent is an auto-start service. It publishes data to the cloud irrespective of the deployments.
@@ -79,11 +79,11 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
         long aggInterval = 1;
         long pubInterval = 5;
         MetricsPayload mp = null;
-        Topics maTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS);
-        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TelemetryAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
+        Topics telemetryRuntimeTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS,RUNTIME_STORE_NAMESPACE_TOPIC);
+        telemetryRuntimeTopics.lookup(TelemetryAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
                 .withValue(aggInterval);
-        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TelemetryAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
+        telemetryRuntimeTopics.lookup(TelemetryAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
                 .withValue(pubInterval);
         String telemetryTopic = TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC
                 .replace("{thingName}", thingInfo.getThingName());

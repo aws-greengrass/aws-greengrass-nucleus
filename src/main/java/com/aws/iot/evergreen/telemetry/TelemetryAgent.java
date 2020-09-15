@@ -189,12 +189,12 @@ public class TelemetryAgent extends EvergreenService {
     }
 
     private Topic getPeriodicPublishTimeTopic() {
-        return config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC)
+        return getRuntimeConfig().lookup(TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC)
                 .dflt(Instant.now().toEpochMilli());
     }
 
     private Topic getPeriodicAggregateTimeTopic() {
-        return config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)
+        return getRuntimeConfig().lookup(TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)
                 .dflt(Instant.now().toEpochMilli());
     }
 
@@ -216,7 +216,7 @@ public class TelemetryAgent extends EvergreenService {
 
     @Override
     public void startup() throws InterruptedException {
-        config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        getRuntimeConfig().lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicAggregateMetricsIntervalSec = Coerce.toInt(newv);
@@ -226,7 +226,7 @@ public class TelemetryAgent extends EvergreenService {
                         }
                     }
                 });
-        config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        getRuntimeConfig().lookup(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicPublishMetricsIntervalSec = Coerce.toInt(newv);
@@ -236,7 +236,7 @@ public class TelemetryAgent extends EvergreenService {
                         }
                     }
                 });
-        config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_METRICS_PUBLISH_TOPICS)
+        getRuntimeConfig().lookup(TELEMETRY_METRICS_PUBLISH_TOPICS)
                 .dflt(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC)
                 .subscribe((why, newv) -> telemetryMetricsPublishTopic = Coerce.toString(newv));
         config.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)

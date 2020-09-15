@@ -73,28 +73,34 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
         initializeMockedConfig();
         ses = new ScheduledThreadPoolExecutor(3);
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC(), "1");
-        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC()))
+        lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
+                .lookup(getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC()))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC(), "3");
-        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC()))
+        lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
+                .lookup(getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC()))
                 .thenReturn(periodicPublishMetricsIntervalSec);
         Topic lastPeriodicAggregateTime = Topic.of(context, getTELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC(),
                 Instant.now().toEpochMilli());
-        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC()))
+        lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
+                .lookup(getTELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC()))
                 .thenReturn(lastPeriodicAggregateTime);
         Topic lastPeriodicPublishTime = Topic.of(context, getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC(),
                 Instant.now().toEpochMilli());
-        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC()))
+        lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
+                .lookup(getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC()))
                 .thenReturn(lastPeriodicPublishTime);
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
         when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         Topic telemetryMetricsPublishTopic = Topic.of(context, getTELEMETRY_METRICS_PUBLISH_TOPICS(),
                 DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC);
-        when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_METRICS_PUBLISH_TOPICS()))
+        when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
+                .lookup(getTELEMETRY_METRICS_PUBLISH_TOPICS()))
                 .thenReturn(telemetryMetricsPublishTopic);
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, kernel, ses));
+
     }
 
     @AfterEach
@@ -146,6 +152,7 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
         //verify that nothing is published when mqtt is interrupted
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
+        reset(telemetryAgent);
         long milliSeconds = 3000;
         // aggregation is continued irrespective of the mqtt connection
         verify(telemetryAgent, timeout(milliSeconds).atLeast(1)).aggregatePeriodicMetrics();
