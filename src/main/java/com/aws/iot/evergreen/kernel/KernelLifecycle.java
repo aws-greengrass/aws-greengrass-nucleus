@@ -244,6 +244,7 @@ public class KernelLifecycle {
     @SuppressFBWarnings("DM_EXIT")
     public void shutdown(int timeoutSeconds, int exitCode) {
         shutdown(timeoutSeconds);
+        logger.atInfo("system-shutdown").kv("exitCode", exitCode).log();
         System.exit(exitCode);
     }
 
