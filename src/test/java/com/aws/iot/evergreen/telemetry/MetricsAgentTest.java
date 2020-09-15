@@ -8,7 +8,6 @@ package com.aws.iot.evergreen.telemetry;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.KernelMetricsEmitter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.PublishRequest;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;

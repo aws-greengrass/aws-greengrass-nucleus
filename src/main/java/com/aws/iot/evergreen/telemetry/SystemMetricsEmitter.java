@@ -11,14 +11,11 @@ import com.aws.iot.evergreen.telemetry.models.TelemetryAggregation;
 import com.aws.iot.evergreen.telemetry.models.TelemetryMetricName;
 import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
 import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
-import lombok.Getter;
-import lombok.Setter;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
 
 public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     private static final int MB_CONVERTER = 1024 * 1024;

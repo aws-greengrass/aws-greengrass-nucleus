@@ -34,11 +34,12 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
      */
     @Inject
     public KernelMetricsEmitter(Kernel kernel) {
+        super();
         this.kernel = kernel;
     }
 
     /**
-     * Build kernel component metrics
+     * Build kernel component metrics.
      */
     @Override
     public void buildMetrics() {

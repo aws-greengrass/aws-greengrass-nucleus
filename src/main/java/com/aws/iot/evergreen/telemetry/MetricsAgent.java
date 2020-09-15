@@ -18,7 +18,6 @@ import lombok.Getter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
-import javax.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.inject.Inject;
 
 @ImplementsService(name = MetricsAgent.METRICS_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
 public class MetricsAgent extends EvergreenService {
@@ -72,7 +72,7 @@ public class MetricsAgent extends EvergreenService {
             schedulePeriodicPublishMetrics(true);
         }
     };
-    private ArrayList<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
+    private final List<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
     private String updateTopic;
     private String thingName;
     private String telemetryMetricsPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
@@ -140,7 +140,7 @@ public class MetricsAgent extends EvergreenService {
      */
     private void schedulePeriodicPublishMetrics(boolean isReconfiguredOrConnectionResumed) {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
-        // cancelJob the previously scheduled job.
+        // cancel the previously scheduled job.
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, false);
         if (isReconfiguredOrConnectionResumed) {
             synchronized (periodicPublishMetricsInProgressLock) {
