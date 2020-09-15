@@ -11,7 +11,6 @@ import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler;
 import com.aws.iot.evergreen.kernel.Kernel;
