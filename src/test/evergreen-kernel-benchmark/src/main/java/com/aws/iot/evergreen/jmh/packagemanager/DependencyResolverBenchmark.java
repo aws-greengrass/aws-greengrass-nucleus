@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
-import static com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction.*;
+import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 public class DependencyResolverBenchmark {
 

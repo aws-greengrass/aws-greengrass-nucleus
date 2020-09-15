@@ -45,7 +45,7 @@ import javax.inject.Singleton;
 public class UpdateSystemSafelyService extends EvergreenService {
     // String identifies the action, the pair consist of timeout and an action. The timeout
     // represents the value in seconds the kernel will wait for components to respond to
-    // an Precomponent event
+    // an precomponent update event
     private final Map<String, Pair<Long, Crashable>> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
@@ -170,7 +170,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
     }
 
     /*
-     If multiple updates are present, get the max time-out. Currently
+     If multiple updates are present, get the max time-out. As of now, kernel does not process multiple
+     deployments at the same time and pendingActions will have only one action to run at a time.
      */
     private long getMaxTimeoutInMillis() {
         Optional<Long> maxTimeoutInSec = pendingActions.values().stream()
