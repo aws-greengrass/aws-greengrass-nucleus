@@ -8,7 +8,6 @@ package com.aws.iot.evergreen.jmh.packagemanager;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
-import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
