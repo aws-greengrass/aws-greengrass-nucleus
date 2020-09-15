@@ -1,12 +1,13 @@
 package com.aws.iot.evergreen.integrationtests.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -205,7 +206,9 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private Deployment createTestDeployment() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .timestamp(System.currentTimeMillis() + 20).failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+                .componentUpdatePolicy(
+                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 }
