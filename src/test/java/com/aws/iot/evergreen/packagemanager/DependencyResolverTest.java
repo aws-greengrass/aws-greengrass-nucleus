@@ -5,10 +5,10 @@
 
 package com.aws.iot.evergreen.packagemanager;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
-import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;

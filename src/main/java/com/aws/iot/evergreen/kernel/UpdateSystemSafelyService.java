@@ -9,9 +9,9 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.ipc.services.lifecycle.PostComponentUpdateEvent;
 import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
+import com.aws.iot.evergreen.util.Pair;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -43,7 +43,10 @@ import javax.inject.Singleton;
 @ImplementsService(name = "SafeSystemUpdate", autostart = true)
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
-    private final Map<DeploymentDocument, Crashable> pendingActions = new LinkedHashMap<>();
+    // String identifies the action, the pair consist of timeout and an action. The timeout
+    // represents the value in seconds the kernel will wait for components to respond to
+    // an Precomponent event
+    private final Map<String, Pair<Long, Crashable>> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
     @Inject
@@ -65,14 +68,16 @@ public class UpdateSystemSafelyService extends EvergreenService {
     /**
      * Add an update action to be performed when the system is in a "safe" state.
      *
-     * @param deploymentDocument used both as a printable description and a de-duplication key.
-     *                           If the same deployment document is submitted it is ignored
-     * @param action             The action to be performed.
+     * @param tag    used both as a printable description and a de-duplication key.  eg. If
+     *               the action is installing a new config file, the tag should probably be the
+     *               URL of the config.  If a key is duplicated by subsequent actions, they
+     *               are suppressed.
+     * @param pair   Pair of timeout and the action to be performed after the timeout.
      */
-    public synchronized void addUpdateAction(DeploymentDocument deploymentDocument, Crashable action) {
-        pendingActions.put(deploymentDocument, action);
+    public synchronized void addUpdateAction(String tag, Pair<Long, Crashable> pair) {
+        pendingActions.put(tag, pair);
         logger.atInfo().setEventType("register-service-update-action")
-                .addKeyValue("action", deploymentDocument.getDeploymentId()).log();
+                .addKeyValue("action", tag).log();
         synchronized (pendingActions) {
             pendingActions.notifyAll();
         }
@@ -81,9 +86,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
         runningUpdateActions.set(true);
-        for (Map.Entry<DeploymentDocument, Crashable> todo : pendingActions.entrySet()) {
+        for (Map.Entry<String, Pair<Long, Crashable>> todo : pendingActions.entrySet()) {
             try {
-                todo.getValue().run();
+                todo.getValue().getRight().run();
                 logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
             } catch (Throwable t) {
                 logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
@@ -102,14 +107,13 @@ public class UpdateSystemSafelyService extends EvergreenService {
      * @return true if there is a pending action for specified tag
      */
     public boolean hasPendingUpdateAction(String tag) {
-        return pendingActions.keySet().stream()
-                .anyMatch(deploymentDocument -> deploymentDocument.getDeploymentId().equals(tag));
+        return pendingActions.containsKey(tag);
     }
 
     /**
      * Discard a pending action if update actions are not already running.
      *
-     * @param tag tag to identify an update action
+     * @param  tag tag to identify an update action
      * @return true if all update actions are pending and requested action could be discarded,
      *         false if update actions were already in progress so it's not safe to discard the requested action
      */
@@ -117,12 +121,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
         if (runningUpdateActions.get()) {
             return false;
         }
-        Optional<DeploymentDocument> document = pendingActions.keySet().stream()
-                .filter(deploymentDocument -> deploymentDocument.getDeploymentId().equals(tag))
-                .findFirst();
-        if (document.isPresent()) {
-            pendingActions.remove(document.get());
-        }
+        pendingActions.remove(tag);
         return true;
     }
 
@@ -174,8 +173,8 @@ public class UpdateSystemSafelyService extends EvergreenService {
      If multiple updates are present, get the max time-out. Currently
      */
     private long getMaxTimeoutInMillis() {
-        Optional<Long> maxTimeoutInSec = pendingActions.keySet().stream()
-                .map(deploymentDocument -> deploymentDocument.getComponentUpdatePolicy().getTimeout())
+        Optional<Long> maxTimeoutInSec = pendingActions.values().stream()
+                .map(pair -> pair.getLeft())
                 .max(Long::compareTo);
         return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }

@@ -50,9 +50,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.iot.evergreen.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;

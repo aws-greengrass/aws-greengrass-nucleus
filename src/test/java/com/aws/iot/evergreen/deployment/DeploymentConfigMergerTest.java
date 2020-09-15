@@ -1,5 +1,6 @@
 package com.aws.iot.evergreen.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.Crashable;
@@ -10,7 +11,6 @@ import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
-import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
@@ -20,6 +20,7 @@ import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -300,7 +301,7 @@ public class DeploymentConfigMergerTest {
 
     @Test
     public void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
-        ArgumentCaptor<Crashable> cancelledTaskCaptor = ArgumentCaptor.forClass(Crashable.class);
+        ArgumentCaptor<Pair<Long,Crashable>> cancelledTaskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
 
@@ -318,7 +319,7 @@ public class DeploymentConfigMergerTest {
 
         // WHEN
         fut.cancel(true);
-        cancelledTaskCaptor.getValue().run();
+        cancelledTaskCaptor.getValue().getRight().run();
 
         // THEN
         verify(doc, times(0)).getFailureHandlingPolicy();
@@ -326,7 +327,7 @@ public class DeploymentConfigMergerTest {
 
     @Test
     public void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
-        ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
+        ArgumentCaptor<Pair<Long,Crashable>> taskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
@@ -348,7 +349,7 @@ public class DeploymentConfigMergerTest {
         verify(updateSystemSafelyService).addUpdateAction(any(), taskCaptor.capture());
 
         // WHEN
-        taskCaptor.getValue().run();
+        taskCaptor.getValue().getRight().run();
 
         // THEN
         verify(defaultActivator, times(1)).activate(any(), any(), any());

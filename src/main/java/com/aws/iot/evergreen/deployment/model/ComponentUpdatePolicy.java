@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.deployment.model;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;

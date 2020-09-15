@@ -6,8 +6,8 @@
 package com.aws.iot.evergreen.deployment.converter;
 
 import com.amazonaws.arn.Arn;
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
-import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.FleetConfiguration;
@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
+import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 public final class DeploymentDocumentConverter {
 
@@ -86,7 +86,7 @@ public final class DeploymentDocumentConverter {
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
         ComponentUpdatePolicy componentUpdatePolicy =
                 new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(),
-                        ComponentUpdatePolicyAction.valueOf(config.getComponentUpdatePolicy().getAction()));
+                        ComponentUpdatePolicyAction.fromValue(config.getComponentUpdatePolicy().getAction()));
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
                 // TODO: Use full featured component update policy and configuration validation policy with timeouts

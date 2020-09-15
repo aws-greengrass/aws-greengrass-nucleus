@@ -1,10 +1,10 @@
 package com.aws.iot.evergreen.integrationtests.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.exceptions.DynamicConfigurationValidationException;
 import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
-import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
